@@ -46,21 +46,38 @@
 #endif
 
 // # files we'll be dealing with
-#define nb_files			4
+#define nb_files			6
 #define ROOMS				0
 #define CELLS				1
 #define PALS_BIN			2
 #define LOADER				3
+#define COMPRESSED_MAP      4
+#define SPRITES             5
 // Never be short on filename sizes
 #define NAME_SIZE			256			
-#define FNAMES				{ "COLDITZ_ROOM_MAPS", "COLDITZ_CELLS", "PALS.BIN", "COLDITZ-LOADER" }
-#define FSIZES				{ 58828, 135944, 232, 56080 }
+#define FNAMES				{ "COLDITZ_ROOM_MAPS", "COLDITZ_CELLS", "PALS.BIN", "COLDITZ-LOADER",\
+							  "COMPRESSED_MAP", "SPRITES.SPR" }
+#define FSIZES				{ 58828, 135944, 232, 56080, \
+							  33508, 71056 }	
 #define ALT_LOADER          "SKR_COLD"
 #define ALT_LOADER_SIZE		28820
 #define OFFSETS_START		0x2684
 #define ROOMS_START			0x2FE4
+#define CM_TILES_START      0x5E80
 #define LOADER_DATA_START	0x10C
 #define FFs_TO_IGNORE		7
+
+/* TO_DO: 
+ * CRM: fix room 116's last exit to 0x0114
+ * CRM: fix room 0's first and second exits to 0x0073 0x0001
+ * CRM: fix init vector @ $50 from 0x100B0001 to 0x300B0001
+ *
+ * tile data tttt tttt t gg o xxxx 
+ * t: tile #
+ * g: lock grade (01 = lockpick, 10 = key 2, 11 = key 1)
+ * o: door open flag
+ * x: exit lookup number (in exit map [1-8])
+ */
 
 
 // Handy macro for exiting. xbuffer or fd = NULL is no problemo 
@@ -336,6 +353,45 @@ void remap_bitplanes(u8* buffer, u32 size)
 }
 
 
+// Reorganize sprites from bitplanes (multiples of 16 bits)
+// to interleaved pixels (4 bits)
+void remap_sprite(u8* buffer, u32 bitplane_size)
+{
+	u8* sbuffer;
+	u8  bitplane_byte[4];
+	u32 interleaved;
+	u32 index, i, j;
+
+//	if ( (sbuffer = (u8*) calloc(4*bitplane_size, 1)) == NULL)
+	if ( (sbuffer = (u8*) malloc(4*bitplane_size)) == NULL)
+	{
+		fprintf (stderr, "remap_sprite: could not allocate sprite buffer\n");
+		exit(1);
+	}
+	// First, let's copy the buffer
+	for (i=0; i<4*bitplane_size; i++)
+		sbuffer[i] = buffer[i];
+
+	for (i=0; i<bitplane_size; i++)	
+	{
+		// Read one byte from each bitplane...
+		for (j=0; j<4; j++)
+			// bitplanes are in reverse order
+			bitplane_byte[3-j] = readbyte(sbuffer, i+(j*bitplane_size));
+
+		// ...and create the interleaved longword out of it
+		interleaved = 0;
+		for (j=0; j<32; j++)	
+		{
+			// You sure want to rotate BEFORE you add the last bit!
+			interleaved = interleaved << 1;
+			interleaved |= (bitplane_byte[j%4] >> ((31-j)/4)) & 1;
+		}
+		writelong(buffer,4*i,interleaved);
+	}
+	free(sbuffer);
+}
+
 /* Here we go! */
 int main (int argc, char *argv[])
 {
@@ -356,7 +412,7 @@ int main (int argc, char *argv[])
 	int compressed_loader   = 0;
 
 	// General purpose
-	u32  i,j;
+	u32  i;
 	size_t read;
 	FILE *fd = NULL;
 
@@ -423,6 +479,8 @@ int main (int argc, char *argv[])
 			if (opt_verbose)
 				perror ("fopen()");
 			fprintf (stderr, "Can't find file '%s'\n", fname[i]);
+
+			/* Take care of the compressed loader if present */
 			if (i == LOADER)
 			{
 				// Uncompressed loader was not found
@@ -503,7 +561,9 @@ int main (int argc, char *argv[])
 
 
 	// Reoganize cells from interleaved bitplane lines to interleaved bitplane bits
-	remap_bitplanes(fbuffer[1],fsize[1]);
+	remap_bitplanes(fbuffer[CELLS],fsize[CELLS]);
+
+
 
 
 	// Read the palette
@@ -511,12 +571,16 @@ int main (int argc, char *argv[])
 	int colour;		// 0 = Red, 1 = Green, 2 = Blue
 	u16 rgb;
 	if (opt_verbose)
-		printf("Amiga palette: ");
+		printf("Using Amiga Palette:\n");
 	for (i=0; i<16; i++)		// 16 colours
 	{
 		rgb = readword(fbuffer[2], pal_start + 2*i);
 		if (opt_verbose)
-			printf("%d = %04X ", i, rgb); 
+		{
+			printf(" %03X", rgb); 
+			if (i==7)
+				printf("\n");
+		}
 		for (colour=2; colour>=0; colour--)
 		{
 			palette[colour][i] = (rgb&0x000F) * 0x1111;
@@ -526,6 +590,189 @@ int main (int argc, char *argv[])
 	if (opt_verbose)
 		printf("\n\n");
 
+
+	/*
+	 * Process compressed map
+	 */
+	u32 tile_offset = 0;					// Offsets to each rooms are given at
+								// the beginning of the Rooms Map file
+	int ignore = 0;				// We got to ignore a few FFFFFFFF offsets
+	u16 room_x, room_y;
+	u16 nb_tiles;
+	u16 tile_data;
+	char tiffname[NAME_SIZE];	// Hopefully we'll save a few TIFFs ;)
+	TIFF* image;
+	int no_mask = 0;
+
+#define _PROCESS_SPRITES
+#ifdef _PROCESS_SPRITES
+	// Read the number of sprites
+	u32 index = 0;
+	u16 sprite_index = 0;
+	u16 sprite_x, sprite_y;
+	u16 bitplane_size;
+	u16 nb_sprites = readword(fbuffer[SPRITES],index) + 1;
+	index+=2;
+	u32 sprite_address = index + 4*(nb_sprites);
+	for (sprite_index=0; sprite_index<nb_sprites; sprite_index++)
+	{
+		sprite_address += readlong(fbuffer[SPRITES],index);
+		writelong(fbuffer[SPRITES],index,sprite_address);
+		index+=4;
+	}
+	// Each sprite is prefixed by 2 words (x size in words, y size in pixels)
+	// and one longword (size of one bitplane, in bytes)
+	// NB: MSb on x size will be set if sprite is animated
+
+	for (sprite_index=0; sprite_index<nb_sprites; sprite_index++)
+	{
+		sprite_address = readlong(fbuffer[SPRITES],2+4*sprite_index);
+		printf("sprite[%X] address = %08X\n", sprite_index, sprite_address);
+		// x size is given in words
+		sprite_x = 16*(readword(fbuffer[SPRITES],sprite_address)&0x7FFF);
+		sprite_x = readword(fbuffer[SPRITES],sprite_address);
+		sprite_y = readword(fbuffer[SPRITES],sprite_address+2);
+		printf("  x,y = %0X, %0X\n", sprite_x, sprite_y);
+		bitplane_size = readword(fbuffer[SPRITES],sprite_address+6);
+		printf("  bitplane_size = %0X\n", bitplane_size);
+
+		// if MSb is set, we have 4 bitplanes instead of 5
+		no_mask = (sprite_x & 0x8000);
+
+		// Reoganize sprites from separate bitplanes to interleaved bitplane bits
+		remap_sprite(((u8*)fbuffer[SPRITES]) + sprite_address + 8 + (no_mask?0:bitplane_size),  bitplane_size);
+		sprite_x = 16*(sprite_x&0x7FFF);
+
+
+		if (!opt_skip)
+		{
+			// Initialize the TIFF file for the current room
+			sprintf(tiffname, "sprite_%02X.tif", sprite_index);
+			image = TIFFOpen(tiffname, "w");
+			if (image == NULL)
+			{
+				fprintf(stderr, "Unable to create file %s\n", tiffname);
+				ERR_EXIT;
+			}
+			if (opt_verbose)
+				printf("Created file '%s'...\n", tiffname);
+
+			// We need to set some values for basic tags before we can add any data
+			TIFFSetField(image, TIFFTAG_IMAGEWIDTH, sprite_x);
+			TIFFSetField(image, TIFFTAG_IMAGELENGTH, sprite_y);
+
+			// 16 bit palette
+			TIFFSetField(image, TIFFTAG_BITSPERSAMPLE, 4);
+			TIFFSetField(image, TIFFTAG_SAMPLESPERPIXEL, 1);
+			TIFFSetField(image, TIFFTAG_PLANARCONFIG, PLANARCONFIG_CONTIG);
+			TIFFSetField(image, TIFFTAG_PHOTOMETRIC, PHOTOMETRIC_PALETTE);
+			TIFFSetField(image, TIFFTAG_COLORMAP, palette[0], palette[1], palette[2]);
+			TIFFSetField(image, TIFFTAG_ROWSPERSTRIP, sprite_y);
+
+			TIFFWriteEncodedStrip(image, 0, ((u8*)fbuffer[SPRITES]) + sprite_address + 8 + (no_mask?0:bitplane_size), bitplane_size*4);
+			TIFFClose(image);
+
+		}
+
+	}
+
+#endif
+
+
+
+#ifdef _PROCESS_COMPRESSED_MAP
+
+// COMPRESSED MAP
+	room_x = 0x54;
+	room_y = 0x44;
+	u8* over = (u8*) calloc(room_x*room_y, 1);
+	for (int a=0; a<room_x; a++)
+		for (int b=0; b<room_y; b++)
+			writebyte(over,b*room_x+a,0);
+	u32 room_index = 0x400;
+	
+		if (!opt_skip)
+		{
+			// Initialize the TIFF file for the current room
+			sprintf(tiffname, "room_%03X.tif", room_index);
+			image = TIFFOpen(tiffname, "w");
+			if (image == NULL)
+			{
+				fprintf(stderr, "Unable to create file %s\n", tiffname);
+				ERR_EXIT;
+			}
+			if (opt_verbose)
+				printf("Created file '%s'...\n", tiffname);
+
+			// We need to set some values for basic tags before we can add any data
+//			TIFFSetField(image, TIFFTAG_IMAGEWIDTH, 32*room_x);
+//			TIFFSetField(image, TIFFTAG_IMAGELENGTH, 16*room_y);
+			TIFFSetField(image, TIFFTAG_IMAGEWIDTH, 32*0x54);
+			TIFFSetField(image, TIFFTAG_IMAGELENGTH, 16*0x44);
+
+			// 16 bit palette
+			TIFFSetField(image, TIFFTAG_BITSPERSAMPLE, 4);
+			TIFFSetField(image, TIFFTAG_SAMPLESPERPIXEL, 1);
+			TIFFSetField(image, TIFFTAG_PLANARCONFIG, PLANARCONFIG_CONTIG);
+			TIFFSetField(image, TIFFTAG_PHOTOMETRIC, PHOTOMETRIC_PALETTE);
+			TIFFSetField(image, TIFFTAG_COLORMAP, palette[0], palette[1], palette[2]);
+			// We'll use tiling, since you're so kind as to ask ;)
+			TIFFSetField(image, TIFFTAG_TILEWIDTH, 32);
+			TIFFSetField(image, TIFFTAG_TILELENGTH, 16);
+		}
+
+		// Read the tiles data
+//		for (int tile_y=(room_y-1); tile_y>=0; tile_y--)
+		int u;
+		int tile_y;
+		int tile_x;
+		for (tile_y=0; tile_y<room_y; tile_y++)
+		{
+			printf("    ");	// Start of a line
+			for(tile_x=0; tile_x<room_x; tile_x++)
+			{
+				tile_offset = readword((u8*)fbuffer[COMPRESSED_MAP], (tile_y*room_x+tile_x)*4);
+				if (tile_offset == 0)
+					tile_data = 0;	// WRONG needs to be set to full long & 0x1FF00 if 0
+				else
+				{
+					nb_tiles = readword((u8*)fbuffer[COMPRESSED_MAP], CM_TILES_START+tile_offset);
+					tile_offset +=2;
+					for (u=0;u<nb_tiles;u++)
+						tile_data = readword((u8*)fbuffer[COMPRESSED_MAP], CM_TILES_START+tile_offset+2*u);
+					tile_offset +=(2*nb_tiles);
+				}
+				if (!opt_skip)
+				{
+					// CRM Tile data is of the form
+					// Tile data is of the form (tile_index<<7) + some_exit_flags, with tile_index being 
+					// the index in COLDITZ_CELLS (each tile occupying 0x100 bytes there)
+					if (!readbyte(over, tile_x+tile_y*room_y))
+					{
+						TIFFWriteRawTile(image , tile_y*room_x + tile_x, ((u8*)fbuffer[CELLS]) + ((tile_data & 0xFF80) >>7)*0x100, 0x100);
+						writebyte(over, tile_x+tile_y*room_y,1);
+					}
+				}
+				//offset +=4;		// Read next tile
+				printf("%04X ", tile_data & 0xFF80);
+//				if (readbyte(over, tile_x+tile_y*room_y))
+//					printf("OVERWRITE!!!\n");
+//				else
+//					writebyte(over, tile_x+tile_y*room_y,1);
+			}
+			printf("\n");
+		}
+
+		printf("went to %X\n", (tile_y*room_x+tile_x)*4);
+
+		if (!opt_skip)
+		// Close the image file
+			TIFFClose(image);
+
+#endif
+
+
+#ifdef _PROCESS_ROOM_MAP
 	/*
 	 * Process rooms
 	 */
@@ -601,7 +848,7 @@ int main (int argc, char *argv[])
 				{
 					// Tile data is of the form (tile_index<<7) + some_exit_flags, with tile_index being 
 					// the index in COLDITZ_CELLS (each tile occupying 0x100 bytes there)
-					TIFFWriteRawTile(image , tile_y*room_x + tile_x, ((u8*)fbuffer[1]) + (tile_data>>7)*0x100 + 
+					TIFFWriteRawTile(image , tile_y*room_x + tile_x, ((u8*)fbuffer[CELLS]) + (tile_data>>7)*0x100 + 
 						// Take care of the tunnels too below
 						((room_index>0x202)?0x1E000:0), 0x100);
 				}
@@ -616,7 +863,7 @@ int main (int argc, char *argv[])
 			TIFFClose(image);
 
 	}
-
+#endif
 
 	return 0;
 }

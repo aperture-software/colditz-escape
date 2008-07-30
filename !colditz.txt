@@ -1,0 +1,34 @@
+ROM:00001B98 startup_trap: 
+
+OBS.BIN = objects to pickup
+
+a1 = var_base
+
+maps = $18x574 bytes
+
+full map = 2688*1088 (A80*440)
+
+MEMORY MAP:
+
+range          size
+00000-00000
+00000-0007F    vectors
+00080-0DB7F    COLDITZ-LOADER, including:
+ 00F68-01367    characters (128)
+ 05414-05C18    OBS.BIN
+ 0A1E8-0BA97    tile mask data
+0DFD8 = screenbuffer start
+0E256-2F256    4 screenbuffers (4x 8400)
+ 0E256         SB1
+ 16656         SB2
+ 1EA56         SB3
+ 26E56         SB4
+53882-61E4D    E5CC   COLDITZ_ROOM_MAPS 
+                      2684 = offsets
+                      2FE4 = rooms start
+61E4E-61FF1
+61FF2-73581   11590   SPRITES.SPR
+7393C-76D6F    3434   ROUTES.BIN
+76FF6-7F2DB    82E4   COMPRESSED MAP
+7D2E2-7F481           sprites indexes
+7F482-7F511           compressed map offsets
