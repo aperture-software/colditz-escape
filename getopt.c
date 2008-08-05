@@ -109,7 +109,9 @@ extern int	strncmp(const char *s1,	const char *s2,	size_t	n);
 static int my_strlen(const char	*s);
 static char	*my_index (const char *str,	int	chr);
 #else
-extern char	*getenv	();
+// Apparently the line below is no longer needed
+// with Visual C++ 2008
+//extern char	*getenv	();
 #endif
 
 static int

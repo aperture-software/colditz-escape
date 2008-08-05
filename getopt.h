@@ -18,6 +18,11 @@
 #ifndef _GETOPT_H
 #define _GETOPT_H 1
 
+#ifdef _WIN32
+// Disable the _CRT_SECURE_DEPRECATE warnings
+#pragma warning(disable:4996)
+#endif
+
 #ifdef	__cplusplus
 extern "C" {
 #endif
