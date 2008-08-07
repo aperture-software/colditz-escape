@@ -14,15 +14,16 @@ void writebyte(u8* buffer, u32 addr, u8 value);
 int uncompress(u32 expected_size);
 void cells_to_interleaved(u8* buffer, u32 size);
 void sprites_to_interleaved(u8* buffer, u32 bitplane_size);
-void to_24bit_Palette(u8 bPalette[3][16], u8 palette_index);
+//void to_24bit_Palette(u8 bPalette[3][16], u8 palette_index);
+void to_24bit_Palette(u8 palette_index);
 void to_48bit_Palette(u16 wPalette[3][16], u8 palette_index);
-void cells_to_RGB(u8* source, u8* dest, u32 size, u8 palette_index);
+void cells_to_RGB(u8* source, u8* dest, u32 size);
 void load_all_files();
 void displayRoom(u16 room_index);
 void getProperties();
 void glutPrintf(int line,const char *fmt, ...);
 void init_sprites();
-void sprites_to_RGBA(u8 palette_index);
+void sprites_to_RGB();
 
 #ifdef	__cplusplus
 }

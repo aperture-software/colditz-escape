@@ -42,9 +42,9 @@ int	opt_debug			= 0;
 
 // File stuff
 FILE* fd				= NULL;
-char* fname[nb_files]	= FNAMES;			// file name(s)
-u32   fsize[nb_files]	= FSIZES;
-u8*   fbuffer[nb_files];
+char* fname[NB_FILES]	= FNAMES;			// file name(s)
+u32   fsize[NB_FILES]	= FSIZES;
+u8*   fbuffer[NB_FILES];
 u8*   mbuffer			= NULL;
 u8*	  rgbCells			= NULL;
 // GL Stuff
@@ -52,9 +52,13 @@ int	gl_off_x = 32, gl_off_y  = 16;
 int	gl_width = 480, gl_height = 270;
 
 u16  current_room_index = 0;
-u16  nb_rooms, nb_sprites;
+u16  nb_rooms, nb_sprites, nb_objects;
 u8   palette_index = 2;
-rgba_sprite* sprite;
+s_sprite*	sprite;
+s_overlay*	overlay;
+u8   overlay_index;
+u8   bPalette[3][16];
+
 
 /* TO_DO: 
  * CRM: fix room 116's last exit to 0x0114
@@ -81,9 +85,16 @@ void glut_init()
 	glutInitWindowSize(gl_width, gl_height);
 	glutCreateWindow("Colditz Explorer");
 
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	glEnable(GL_BLEND);
+//	glDisable(GL_COLOR_MATERIAL);
+
 	glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
     glOrtho(0, gl_width, 0, gl_height, -1, 1);
+
+
+
 //    glMatrixMode(GL_MODELVIEW); 
 //    glLoadIdentity(); 
 }
@@ -126,7 +137,9 @@ void glut_special_keys(int key, int x, int y)
 			palette_index--;
 		// Because we can't *PROPERLY* work with 4 bit indexed colours 
 		// in openGL, we have to recreate the whole cells buffer!
-		cells_to_RGB(fbuffer[CELLS],rgbCells,fsize[CELLS],palette_index);
+		to_24bit_Palette(palette_index);
+		cells_to_RGB(fbuffer[CELLS],rgbCells,fsize[CELLS]);
+		sprites_to_RGB();
 		// Refresh
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		displayRoom(current_room_index);
@@ -181,7 +194,6 @@ int main (int argc, char *argv[])
 	// General purpose
 	u32  i;
 	static u16  tiffPalette[3][16];
-//	int palette_index		= 2;
 
 	/*
      * Init
@@ -192,7 +204,7 @@ int main (int argc, char *argv[])
 	// Let's clean up our buffers
 	fflush(stdin);
 	mbuffer    = NULL;
-	for (i=0; i<nb_files; i++)
+	for (i=0; i<NB_FILES; i++)
 		fbuffer[i] = NULL;
 
 	// Process commandline options
@@ -239,7 +251,7 @@ int main (int argc, char *argv[])
 	getProperties();
 
 	// Reorganize cells from interleaved bitplane lines to interleaved bitplane bits
-	cells_to_interleaved(fbuffer[CELLS],fsize[CELLS]);
+//	cells_to_interleaved(fbuffer[CELLS],fsize[CELLS]);
 
 	// And then create a new cell buffer
 	rgbCells = (u8*) calloc(fsize[CELLS]*6, 1);
@@ -250,13 +262,14 @@ int main (int argc, char *argv[])
 	}
 
 	// To expand to 24 bit RGB data
-	cells_to_RGB(fbuffer[CELLS],rgbCells,fsize[CELLS],palette_index);
+	to_24bit_Palette(palette_index);
+	cells_to_RGB(fbuffer[CELLS],rgbCells,fsize[CELLS]);
 //	nb_sprites = 3;
 	init_sprites();
-	sprites_to_RGBA(palette_index);
+	sprites_to_RGB();
 
 	// Get a palette to save TIFF
-	to_48bit_Palette(tiffPalette, palette_index);
+//	to_48bit_Palette(tiffPalette, palette_index);
 
 	glut_init();
 
