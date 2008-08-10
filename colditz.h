@@ -37,7 +37,7 @@ extern "C" {
 #endif // __APPLE__
 
 // Some fixes for windows
-#if (_WIN32 || __MSDOS__)
+#if defined(_WIN32) || defined(__MSDOS__)
 #define NULL_FD fopen("NUL", "w")
 #else
 #define NULL_FD fopen("/dev/null", "w")

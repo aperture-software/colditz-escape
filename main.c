@@ -14,22 +14,22 @@
 #include <stdlib.h>	
 #include <string.h>
 #include <math.h>
+
+#if defined(WIN32)
 #include <windows.h>
 #include <gl/gl.h>
 #include <gl/glu.h>
 #include <gl/glut.h>
-#include "colditz.h"
-#include "utilities.h"
-#include "tiffio.h"
-#include "getopt.h"	
-
-#ifdef _WIN32
 // Tell VC++ to include the libs
 #pragma comment(lib, "opengl32.lib")
 #pragma comment(lib, "glu32.lib")
 #pragma comment(lib, "glut32.lib")
 #endif
 
+#include "colditz.h"
+#include "utilities.h"
+//#include "tiffio.h"
+#include "getopt.h"	
 
 /*
  *  Global variables, set to static to avoid name confusion, e.g. with stat()
@@ -73,8 +73,8 @@ u8   bPalette[3][16];
  */
 
 
-
-
+#if defined(GLUT_API_VERSION)
+// This tells us if we're using glut
 /**
  ** GLUT event handlers
  **/
@@ -158,7 +158,7 @@ void glut_reshape (int w, int h)
 }
 
 
-void glut_display()
+void glut_display(void)
 {
 
 	//Create some nice colours (3 floats per pixel) from data -10..+10
@@ -179,7 +179,7 @@ void glut_display()
 //	glEnd();
 	glutSwapBuffers();
 }
-
+#endif
 
 
 /* Here we go! */

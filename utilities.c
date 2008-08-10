@@ -617,7 +617,7 @@ void bitplane_to_RGBA(u8* source, u8* dest, u16 w, u16 h)
 	u16 i,j,k,wb;
 	u8  bitplane_byte[5], mask_byte;
 	u32 pos = 0;
-	int no_mask = 0;
+//	int no_mask = 0;
 
 	wb = w/8;	// width in bytes
 	bitplane_size = h*wb; 
