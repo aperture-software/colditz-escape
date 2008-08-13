@@ -3,15 +3,24 @@
  **
  **  Utility functions
  **
+ **  Aligned malloc code from Satya Kiran Popuri (http://www.cs.uic.edu/~spopuri/amalloc.html)
+ **
  **/
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#if defined(WIN32)
 #include <windows.h>
 #include <gl/gl.h>
 #include <gl/glu.h>
 #include <gl/glut.h>
+#elif defined(PSP)
+#include <pspkernel.h>
+#include <pspdebug.h>
+#endif
+
 #include "colditz.h"
 #include "utilities.h"
 
@@ -59,8 +68,86 @@ void writebyte(u8* buffer, u32 addr, u8 value)
 }
 
 
+/* Returns a piece of memory aligned to the given
+ * alignment parameter. Alignment must be a power of
+ * 2.
+ * This function returns memory of length 'bytes' or more
+ */
+void *aligned_malloc(size_t bytes, size_t alignment)
+{
+	size_t size;
+	size_t delta;
+	void *malloc_ptr;
+	void *new_ptr;
+	void *aligned_ptr;
+
+        /* Check if alignment is a power of 2
+         * as promised by the caller.
+         */
+        if ( alignment & (alignment-1)) /* If not a power of 2 */
+                return NULL;
+        
+        /* Determine how much more to allocate
+         * to make room for the alignment:
+         * 
+         * We need (alignment - 1) extra locations 
+         * in the worst case - i.e., malloc returns an
+         * address off by 1 byte from an aligned
+         * address.
+         */
+        size = bytes + alignment - 1; 
+
+        /* Additional storage space for storing a delta. */
+        size += sizeof(size_t);
+
+        /* Allocate memory using malloc() */
+        malloc_ptr = malloc(size);
+
+        if (NULL == malloc_ptr)
+                return NULL;
+
+        /* Move pointer to account for storage of delta */
+        new_ptr = (void *) ((char *)malloc_ptr + sizeof(size_t));
+
+        /* Make ptr a multiple of alignment,
+         * using the standard trick. This is
+         * used everywhere in the Linux kernel
+         * for example.
+         */
+        aligned_ptr = (void *) (((size_t)new_ptr + alignment - 1) & ~(alignment -1));
+
+        delta = (size_t)aligned_ptr - (size_t)malloc_ptr;
+
+        /* write the delta just before the place we return to user */
+        *((size_t *)aligned_ptr - 1) = delta;
+
+        return aligned_ptr;
+}
+
+
+/* Frees a chunk of memory returned by aligned_malloc() */
+void aligned_free(void *ptr)
+{
+	size_t delta;
+	void *malloc_ptr;
+
+        if (NULL == ptr)
+                return;
+
+        /* Retrieve delta */
+        delta = *( (size_t *)ptr - 1);
+
+        /* Calculate the original ptr returned by malloc() */
+        malloc_ptr = (void *) ( (size_t)ptr - delta);
+
+        free(malloc_ptr);
+}
+
+
+
+#if !defined(PSP)
 // Prints a line of text on the top right corner
-void glutPrintf(int line, const char *fmt, ...) 
+void glutPrintf(const char *fmt, ...) 
 {
 	char		text[256];			// Holds Our String
 	va_list		ap;					// Pointer To List Of Arguments
@@ -86,7 +173,7 @@ void glutPrintf(int line, const char *fmt, ...)
 	// Get the pixel length
 	length = glutStrokeLength(GLUT_STROKE_MONO_ROMAN, text)*coef;
 	// Move text to top right corner
-	glTranslatef(w/2-length-2, h/2-(line+1)*16.0f, 0.0f);  
+	glTranslatef(w/2-length-2, h/2-16.0f, 0.0f);  
     glScalef(coef, coef, 1.0f);
     glColor3f(1.0f, 1.0f, 1.0f);	// White colour
 	glPushMatrix();	
@@ -98,7 +185,7 @@ void glutPrintf(int line, const char *fmt, ...)
     glPopMatrix();		
     glPopMatrix(); 
 }
-
+#endif
 
 // Get one bit and read ahead if needed
 u32 getbit(u32 *address, u32 *data)
@@ -111,7 +198,7 @@ u32 getbit(u32 *address, u32 *data)
 		(*data) = readlong(mbuffer, *address);
 		checksum ^= (*data);
 		if (opt_debug)
-			printf("(-%X).l = %08X\n",(compressed_size-*address+LOADER_DATA_START+8), *data);
+			print("(-%X).l = %08X\n",(uint)(compressed_size-*address+LOADER_DATA_START+8), (uint)*data);
 		(*address)-=4;
 		// Lose the 1 bit marker on read ahead
 		bit = (*data) & 1; 
@@ -136,7 +223,7 @@ u32 getbitstream(u32 *address, u32 *data, u32 streamsize)
 void decrement(u32 *address)
 {
 	if (underflow_flag)
-		printf("uncompress(): Buffer underflow error.\n");
+		print("uncompress(): Buffer underflow error.\n");
 	if ((*address)!=0)
 		(*address)--;
 	else
@@ -148,7 +235,7 @@ void duplicate(u32 *address, u32 offset, u32 nb_bytes)
 {
 	u32 i;
 	if (offset == 0)
-		printf("uncompress(): WARNING - zero offset value found for duplication\n");
+		print("uncompress(): WARNING - zero offset value found for duplication\n");
 	for (i=0; i<nb_bytes; i++)
 	{
 		writebyte(fbuffer[LOADER], (*address), readbyte(fbuffer[LOADER],(*address)+offset));
@@ -172,7 +259,7 @@ int uncompress(u32 expected_size)
 	source +=4;
 	if (uncompressed_size != expected_size)
 	{
-		printf("uncompress(): uncompressed data size does not match expected size\n");
+		print("uncompress(): uncompressed data size does not match expected size\n");
 		return -1;
 	}
 	checksum = readlong(mbuffer, source);	// There's a compression checksum
@@ -180,8 +267,8 @@ int uncompress(u32 expected_size)
 
 	if (opt_verbose)
 	{
-		printf("  Compressed size=%X, uncompressed size=%X\n", 
-			compressed_size, uncompressed_size);
+		print("  Compressed size=%X, uncompressed size=%X\n", 
+			(uint)compressed_size, (uint)uncompressed_size);
 	}
 
 	source += (compressed_size-4);	// We read compressed data (long) starting from the end
@@ -196,7 +283,7 @@ int uncompress(u32 expected_size)
 
 	checksum ^= current;
 	if (opt_debug)
-		printf("(-%X).l = %08X\n", (compressed_size-source+LOADER_DATA_START+8), current);
+		print("(-%X).l = %08X\n", (uint)(compressed_size-source+LOADER_DATA_START+8), (uint)current);
 
 	while (dest != 0)
 	{
@@ -216,8 +303,8 @@ int uncompress(u32 expected_size)
 				offset = getbitstream(&source, &current, 12);
 				duplicate(&dest, offset, nb_bytes_to_process);
 				if (opt_debug)
-					printf("  o mult=011: duplicated %d bytes at (start) offset %X to address %X\n", 
-						nb_bytes_to_process, offset, dest+1);
+					print("  o mult=011: duplicated %d bytes at (start) offset %X to address %X\n", 
+						(uint)nb_bytes_to_process, (int)offset, (uint)dest+1);
 				break;
 			case 3:	// mult: 111
 				// Read # of bytes to read and copy (8 bit value)
@@ -230,7 +317,7 @@ int uncompress(u32 expected_size)
 					decrement(&dest);
 				}
 				if (opt_debug)
-					printf("  o mult=111: copied %d bytes to address %X\n", nb_bytes_to_process, dest+1);
+					print("  o mult=111: copied %d bytes to address %X\n", (int)nb_bytes_to_process, (uint)dest+1);
 				break;
 			default: // mult: x01
 				// Read offset (9 or 10 bit value)
@@ -240,8 +327,8 @@ int uncompress(u32 expected_size)
 				nb_bytes_to_process = bit+3;
 				duplicate(&dest, offset, nb_bytes_to_process);
 				if (opt_debug)
-					printf("  o mult=%d01: duplicated %d bytes at (start) offset %X to address %X\n", 
-						bit&1, nb_bytes_to_process, offset, dest+1);
+					print("  o mult=%d01: duplicated %d bytes at (start) offset %X to address %X\n", 
+						(int)bit&1, (int)nb_bytes_to_process, (uint)offset, (uint)dest+1);
 				break;
 			}
 		}
@@ -255,8 +342,8 @@ int uncompress(u32 expected_size)
 				// Duplicate 1 byte
 				duplicate(&dest, offset, 2);
 				if (opt_debug)
-					printf("  o mult=10: duplicated 2 bytes at (start) offset %X to address %X\n", 
-						offset, dest+1);
+					print("  o mult=10: duplicated 2 bytes at (start) offset %X to address %X\n", 
+						(uint)offset, (uint)dest+1);
 			}
 			else
 			{	// mult: 00
@@ -268,7 +355,7 @@ int uncompress(u32 expected_size)
 					decrement(&dest);
 				}
 				if (opt_debug)
-					printf("  o mult=00: copied 2 bytes to address %X\n", dest+1);
+					print("  o mult=00: copied 2 bytes to address %X\n", (uint)dest+1);
 
 			}
 		} 
@@ -276,7 +363,7 @@ int uncompress(u32 expected_size)
 
 	if (checksum != 0)
 	{
-		printf("uncompress(): checksum error\n");
+		print("uncompress(): checksum error\n");
 		return -1;
 	}
 	return 0;
@@ -291,10 +378,9 @@ void load_all_files()
 
 	for (i=0; i<NB_FILES; i++)
 	{
-		// calloc is handy to get everything set to 0
-		if ( (fbuffer[i] = (u8*) calloc(fsize[i], 1)) == NULL)
+		if ( (fbuffer[i] = (u8*) aligned_malloc(fsize[i], 16)) == NULL)
 		{
-			fprintf (stderr, "Could not allocate buffers\n");
+			perr("Could not allocate buffers\n");
 			ERR_EXIT;
 		}
 
@@ -302,61 +388,61 @@ void load_all_files()
 		{
 			if (opt_verbose)
 				perror ("fopen()");
-			fprintf (stderr, "Can't find file '%s'\n", fname[i]);
+			perr("Can't find file '%s'\n", fname[i]);
 
 			/* Take care of the compressed loader if present */
 			if (i == LOADER)
 			{
 				// Uncompressed loader was not found
 				// Maybe there's a compressed one?
-				fprintf (stderr, "  Trying to use compressed loader '%s' instead\n",ALT_LOADER);
+				perr("  Trying to use compressed loader '%s' instead\n",ALT_LOADER);
 				if ((fd = fopen (ALT_LOADER, "rb")) == NULL)
 				{
-					printf ("  '%s' not found.\n", ALT_LOADER);
+					print("  '%s' not found.\n", ALT_LOADER);
 					ERR_EXIT;
 				}
 				// OK, file was found - let's allocated the compressed data buffer
-				if ((mbuffer = (u8*) calloc(ALT_LOADER_SIZE, 1)) == NULL)
+				if ((mbuffer = (u8*) aligned_malloc(ALT_LOADER_SIZE, 16)) == NULL)
 				{
-					fprintf (stderr, "Could not allocate source buffer for uncompress\n");
+					perr("Could not allocate source buffer for uncompress\n");
 					ERR_EXIT;
 				}
 				if (opt_verbose)
-					printf("Reading file '%s'...\n", ALT_LOADER);
+					print("Reading file '%s'...\n", ALT_LOADER);
 				read = fread (mbuffer, 1, ALT_LOADER_SIZE, fd);
 				if (read != ALT_LOADER_SIZE)
 				{
 					if (opt_verbose)
 						perror ("fread()");
-					fprintf(stderr, "'%s': Unexpected file size or read error\n", ALT_LOADER);
+					perr("'%s': Unexpected file size or read error\n", ALT_LOADER);
 					ERR_EXIT;
 				}
 				compressed_loader = 1;
 
-				fprintf (stderr, "  Uncompressing...\n");
+				perr("  Uncompressing...\n");
 				if (uncompress(fsize[LOADER]))
 				{
-					printf("Decompression error\n");
+					perr("Decompression error\n");
 					ERR_EXIT;
 				}
-				fprintf (stderr, "  OK. Now saving file as '%s'\n",fname[LOADER]);
+				perr("  OK. Now saving file as '%s'\n",fname[LOADER]);
 				if ((fd = fopen (fname[LOADER], "wb")) == NULL)
 				{
 					if (opt_verbose)
 						perror ("fopen()");
-					fprintf (stderr, "Can't create file '%s'\n", fname[LOADER]);
+					perr("Can't create file '%s'\n", fname[LOADER]);
 					ERR_EXIT;
 				}
 				
 				// Write file
 				if (opt_verbose)
-						printf("Writing file '%s'...\n", fname[LOADER]);
+						print("Writing file '%s'...\n", fname[LOADER]);
 				read = fwrite (fbuffer[LOADER], 1, fsize[LOADER], fd);
 				if (read != fsize[LOADER])
 				{
 					if (opt_verbose)
 						perror ("fwrite()");
-					fprintf(stderr, "'%s': Unexpected file size or write error\n", fname[LOADER]);
+					perr("'%s': Unexpected file size or write error\n", fname[LOADER]);
 					ERR_EXIT;
 				}				
 			}
@@ -368,13 +454,13 @@ void load_all_files()
 		if (!((i == LOADER) && (compressed_loader)))
 		{
 			if (opt_verbose)
-				printf("Reading file '%s'...\n", fname[i]);
+				print("Reading file '%s'...\n", fname[i]);
 			read = fread (fbuffer[i], 1, fsize[i], fd);
 			if (read != fsize[i])
 			{
 				if (opt_verbose)
 					perror ("fread()");
-				fprintf(stderr, "'%s': Unexpected file size or read error\n", fname[i]);
+				perr("'%s': Unexpected file size or read error\n", fname[i]);
 				ERR_EXIT;
 			}
 		}
@@ -406,18 +492,15 @@ void getProperties()
 		}
 	}
 	nb_rooms = room_index;
-	printf("nb_cells = %X\n", nb_rooms);
+	print("nb_cells = %X\n", nb_rooms);
 
 	nb_sprites = readword(fbuffer[SPRITES],0) + 1;
-	printf("nb_sprites = %X\n", nb_sprites);
+	print("nb_sprites = %X\n", nb_sprites);
 
 	nb_objects = readword(fbuffer[OBJECTS],0) + 1;
-	printf("nb_objects = %X\n", nb_objects);
+	print("nb_objects = %X\n", nb_objects);
 	for (i=0; i<NB_OBS_TO_SPRITE; i++)
-	{
 		obs_to_sprite[i] = readbyte(fbuffer[LOADER],OBS_TO_SPRITE_START+i);
-		printf("obs_to_sprite[%d] = %X\n", i, obs_to_sprite[i]);
-	}
 }
 
 
@@ -469,12 +552,12 @@ void sprites_to_interleaved(u8* buffer, u32 bitplane_size)
 	u32 interleaved;
 	u32 i, j;
 
-	sbuffer = (u8*) malloc(4*bitplane_size);
+	sbuffer = (u8*) aligned_malloc(4*bitplane_size,16);
 
 	// Yeah, I know, we could be smarter than allocate a buffer every time
 	if (sbuffer == NULL)
 	{
-		fprintf (stderr, "remap_sprite: could not allocate sprite buffer\n");
+		perr("remap_sprite: could not allocate sprite buffer\n");
 		ERR_EXIT;
 	}
 	// First, let's copy the buffer
@@ -498,7 +581,7 @@ void sprites_to_interleaved(u8* buffer, u32 bitplane_size)
 		}
 		writelong(buffer,4*i,interleaved);
 	}
-	free(sbuffer);
+	aligned_free(sbuffer);
 }
 
 
@@ -513,15 +596,15 @@ void to_24bit_Palette(u8 palette_index)
 
 	// Read the palette
 	if (opt_verbose)
-		printf("Using Amiga Palette index: %d\n", palette_index);
+		print("Using Amiga Palette index: %d\n", palette_index);
 	for (i=0; i<16; i++)		// 16 colours
 	{
 		rgb = readword(fbuffer[PALETTES], palette_start + 2*i);
 		if (opt_verbose)
 		{
-			printf(" %03X", rgb); 
+			print(" %03X", rgb); 
 			if (i==7)
-				printf("\n");
+				print("\n");
 		}
 		for (colour=2; colour>=0; colour--)
 		{
@@ -530,7 +613,7 @@ void to_24bit_Palette(u8 palette_index)
 		}
 	}
 	if (opt_verbose)
-		printf("\n\n");
+		print("\n\n");
 }
 
 
@@ -545,15 +628,15 @@ void to_48bit_Palette(u16 wPalette[3][16], u8 palette_index)
 
 	// Read the palette
 	if (opt_verbose)
-		printf("Using Amiga Palette index: %d\n", palette_index);
+		print("Using Amiga Palette index: %d\n", palette_index);
 	for (i=0; i<16; i++)		// 16 colours
 	{
 		rgb = readword(fbuffer[PALETTES], palette_start + 2*i);
 		if (opt_verbose)
 		{
-			printf(" %03X", rgb); 
+			print(" %03X", rgb); 
 			if (i==7)
-				printf("\n");
+				print("\n");
 		}
 		for (colour=2; colour>=0; colour--)
 		{
@@ -562,12 +645,12 @@ void to_48bit_Palette(u16 wPalette[3][16], u8 palette_index)
 		}
 	}
 	if (opt_verbose)
-		printf("\n\n");
+		print("\n\n");
 }
 
 
 // Convert a 4 bit line-interleaved source to 24 bit RGB destination
-void line_interleaved_to_RGB(u8* source, u8* dest, u16 w, u16 h)
+void line_interleaved_to_RGB(u8* source, u8* dest, u16 w, u16 h, int alpha)
 {
 	u8 colour_index;
 	u32 i,j,l,pos;
@@ -587,7 +670,7 @@ void line_interleaved_to_RGB(u8* source, u8* dest, u16 w, u16 h)
 			for (k=0; k<4; k++)
 				// Read one byte from each of the 4 lines (starting from max y for openGL)
 				line_byte[3-k] = readbyte(source, 4*(wb*(h-1-i)) + k*wb + j);
-			// Write 8 RGB(A) values
+			// Write 8 RGB values
 			for (k=0; k<8; k++)
 			{
 				colour_index = 0;
@@ -602,6 +685,7 @@ void line_interleaved_to_RGB(u8* source, u8* dest, u16 w, u16 h)
 				writebyte(dest, pos++, bPalette[RED][colour_index]);
 				writebyte(dest, pos++, bPalette[GREEN][colour_index]);
 				writebyte(dest, pos++, bPalette[BLUE][colour_index]);
+				if (alpha) writebyte(dest, pos++, 0x00);
 			}
 		}
 	}
@@ -663,8 +747,19 @@ void cells_to_RGB(u8* source, u8* dest, u32 size)
 
 	// Convert each 32x16x4bit (=256 bytes) cell to RGB
 	for (i=0; i<(size/256); i++)
-		line_interleaved_to_RGB(source + (256*i), dest+(6*256*i), 32, 16);
+		line_interleaved_to_RGB(source + (256*i), dest+(6*256*i), 32, 16, false);
 }
+
+// Converts the room cells to RGB data we can handle
+void cells_to_ARGB(u8* source, u8* dest, u32 size)
+{
+	u32 i;
+
+	// Convert each 32x16x4bit (=256 bytes) cell to RGB
+	for (i=0; i<(size/256); i++)
+		line_interleaved_to_RGB(source + (256*i), dest+(8*256*i), 32, 16, true);
+}
+
 
 
 // Initialize the sprite array
@@ -676,8 +771,8 @@ void init_sprites()
 	u32 sprite_address;
 
 	// Allocate the sprites and overlay arrays
-	sprite = malloc(nb_sprites * sizeof(s_sprite));
-	overlay = malloc(MAX_OVERLAY * sizeof(s_overlay));
+	sprite = aligned_malloc(nb_sprites * sizeof(s_sprite), 16);
+	overlay = aligned_malloc(MAX_OVERLAY * sizeof(s_overlay), 16);
 
 	// First thing we do is populate the sprite offsets at the beginning of the table
 	sprite_address = index + 4* (readword(fbuffer[SPRITES],0) + 1);
@@ -693,16 +788,16 @@ void init_sprites()
 	for (sprite_index=0; sprite_index<nb_sprites; sprite_index++)
 	{
 		sprite_address = readlong(fbuffer[SPRITES],2+4*sprite_index);
-//		printf("sprite[%X] address = %08X\n", sprite_index, sprite_address);
+//		print("sprite[%X] address = %08X\n", sprite_index, sprite_address);
 		// x size is given in words
 		sprite_w = readword(fbuffer[SPRITES],sprite_address);
 		sprite[sprite_index].w = 16*(sprite_w & 0x7FFF);
 		sprite[sprite_index].h = readword(fbuffer[SPRITES],sprite_address+2);
 		// According to MSb of sprite_w (=no_mask), we'll need to use RGBA or RGB
 		sprite[sprite_index].type = (sprite_w & 0x8000)?GL_RGB:GL_RGBA;
-		sprite[sprite_index].data = malloc( ((sprite_w & 0x8000)?3:4) * 
-			sprite[sprite_index].w * sprite[sprite_index].h);
-//		printf("  w,h = %0X, %0X\n", sprite[sprite_index].w , sprite[sprite_index].h);
+		sprite[sprite_index].data = aligned_malloc( ((sprite_w & 0x8000)?3:4) * 
+			sprite[sprite_index].w * sprite[sprite_index].h, 16);
+//		print("  w,h = %0X, %0X\n", sprite[sprite_index].w , sprite[sprite_index].h);
 	}
 }
 
@@ -729,14 +824,14 @@ void sprites_to_RGB()
 		h = sprite[sprite_index].h;
 		bitplane_size = readword(fbuffer[SPRITES],sprite_address+6);
 		if (bitplane_size != w*h)
-			printf("sprites_to_RGB: Integrity check failure on bitplane_size\n");
+			print("sprites_to_RGB: Integrity check failure on bitplane_size\n");
 
 		// Source address
 		sbuffer = fbuffer[SPRITES] + sprite_address + 8; 
 
 		if (no_mask)
 			// Bitplanes that have no mask are line-interleaved, like cells
-			line_interleaved_to_RGB(sbuffer, sprite[sprite_index].data, w*8, h);
+			line_interleaved_to_RGB(sbuffer, sprite[sprite_index].data, w*8, h, false);
 		else
 			bitplane_to_RGBA(sbuffer, sprite[sprite_index].data, w*8, h);
 	}
@@ -760,22 +855,22 @@ void set_overlays(int x, int y, u32 current_tile, u16 room_x)
 			continue;
 		sx = readword(fbuffer[LOADER], SPECIAL_TILES_START+i+8);
 		if (opt_debug)
-			printf("  match: %04X, direction: %04X\n", tile1_data, sx);
+			print("  match: %04X, direction: %04X\n", tile1_data, sx);
 		if (i >= (12*(NB_SPECIAL_TILES-4)))
 		// The four last special tiles are exits. We need to check is they are open
 		{
 			// Get the exit data (same tile if tunnel, 2 rows down in door)
 			tile2_data = readword(fbuffer[ROOMS], current_tile + 
 				(i==(12*(NB_SPECIAL_TILES-1)))?0:(4*room_x));
-//			printf("got exit: %04X\n", tile2_data);
+//			print("got exit: %04X\n", tile2_data);
 			// Validity check
 			if (!(tile2_data & 0x000F))
-				printf("set_overlays: Integrity check failure on exit tile\n");
+				print("set_overlays: Integrity check failure on exit tile\n");
 			// if the tile is an exit and the exit is open
 			if (tile2_data & 0x0010)
 			{
 				if (opt_debug)
-					printf("    exit open: ignoring overlay\n");
+					print("    exit open: ignoring overlay\n");
 				// The second check on exits is always an FA00, thus we can safely
 				break;
 			}
@@ -789,16 +884,16 @@ void set_overlays(int x, int y, u32 current_tile, u16 room_x)
 		if (readword(fbuffer[LOADER], SPECIAL_TILES_START+i+2) == tile2_data)
 		{
 			if (opt_debug)
-				printf("    ignored as %04X matches\n", tile2_data);
+				print("    ignored as %04X matches\n", tile2_data);
 			continue;
 		}
 		sid = readword(fbuffer[LOADER], SPECIAL_TILES_START+i+4);
 		overlay[overlay_index].sid = sid;
 		if (opt_debug)
-			printf("    overlay as %04X != %04X => %X\n", tile2_data, readword(fbuffer[LOADER], SPECIAL_TILES_START+i+2), sid);
+			print("    overlay as %04X != %04X => %X\n", tile2_data, readword(fbuffer[LOADER], SPECIAL_TILES_START+i+2), sid);
 		sy = readword(fbuffer[LOADER], SPECIAL_TILES_START+i+6);
 		if (opt_debug)
-			printf("    sx: %04X, sy: %04X\n", sx, sy);
+			print("    sx: %04X, sy: %04X\n", sx, sy);
 		overlay[overlay_index].x = x + (int)sx - sprite[sid].w + (int)((sprite[sid].type==GL_RGBA)?1:16);
 		overlay[overlay_index].y = y - (int)sy + 15;
 		overlay_index++;
@@ -825,12 +920,13 @@ void set_objects()
 		overlay[overlay_index].x = gl_off_x + readword(fbuffer[OBJECTS],i+2+4) - 15;
 		overlay[overlay_index].y = gl_height - gl_off_y - readword(fbuffer[OBJECTS],i+2+2) + 15;
 		if (opt_debug)
-			printf("  pickup object match: sid=%X\n", overlay[overlay_index].sid);
+			print("  pickup object match: sid=%X\n", overlay[overlay_index].sid);
 		overlay_index++;
 	}
 	
 }
 
+#if !defined(PSP)
 // Display all our overlays
 void display_overlays()
 {
@@ -858,12 +954,12 @@ void displayRoom(u16 room_index)
 	// Read the offset
 	offset = readlong((u8*)fbuffer[ROOMS], OFFSETS_START+4*room_index);
 	if (opt_verbose)
-		printf("\noffset[%03X] = %08X ", room_index, offset);
+		print("\noffset[%03X] = %08X ", room_index, offset);
 	if (offset == 0xFFFFFFFF)
 	{
 		// For some reason there is a break in the middle
 		if (opt_verbose)
-			printf("\n  IGNORED", room_index, offset);
+			print("\n  IGNORED", room_index, offset);
 		return;
 	}
 
@@ -876,7 +972,7 @@ void displayRoom(u16 room_index)
 	room_x = readword((u8*)fbuffer[ROOMS], ROOMS_START+offset);
 	offset +=2;
 	if (opt_verbose)
-		printf("(room_x=%X,room_y=%X)\n", room_x, room_y);
+		print("(room_x=%X,room_y=%X)\n", room_x, room_y);
 	gl_off_x = (gl_width - (room_x*32))/2;
 	gl_off_y = 32 + (gl_height-(room_y*16))/2;
 
@@ -891,7 +987,7 @@ void displayRoom(u16 room_index)
 	for (tile_y=0; tile_y<room_y; tile_y++)
 	{
 		if (opt_verbose)
-			printf("    ");	// Start of a line
+			print("    ");	// Start of a line
 		for(tile_x=0; tile_x<room_x; tile_x++)
 		{
 			pixel_x = gl_off_x+tile_x*32;
@@ -918,14 +1014,14 @@ void displayRoom(u16 room_index)
 			offset +=2;		// Read next tile
 
 			if (opt_verbose)
-				printf("%04X ", tile_data);
+				print("%04X ", tile_data);
 		}
 		if (opt_verbose)
-			printf("\n");
+			print("\n");
 	}
 
 	if (opt_debug)
-		printf("\n");
+		print("\n");
 
 	// Let add our guy
 	overlay[overlay_index].sid = 3;
@@ -935,4 +1031,4 @@ void displayRoom(u16 room_index)
 	// Now that the background is done, and that we have the overlays, display the overlay sprites
 	display_overlays();
 }
-
+#endif
