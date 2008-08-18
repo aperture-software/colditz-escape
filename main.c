@@ -31,6 +31,9 @@
 #include <pspdisplay.h>
 #include <pspgu.h>
 #include <psprtc.h>
+#include <GL/gl.h>
+#include <GL/glu.h>
+#include <GL/glut.h>
 #include "psp/vram.h"
 //#include "psp/graphics.h"
 #endif
@@ -64,17 +67,26 @@ u8*   fbuffer[NB_FILES];
 u8*   mbuffer			= NULL;
 u8*	  rgbCells			= NULL;
 // GL Stuff
-int	gl_off_x = 32, gl_off_y  = 16;
-int	gl_width = 480, gl_height = 270;
+int	gl_off_x = 0, gl_off_y  = 0;
+int	gl_width = PSP_SCR_WIDTH, gl_height = PSP_SCR_HEIGHT;
+int origin_x = 0, origin_y = 0;
+//int zoom_level = 150;
+int zoom_level = 150;
+
 
 u16  current_room_index = 0;
-u16  nb_rooms, nb_sprites, nb_objects;
+u16  nb_rooms, nb_cells, nb_sprites, nb_objects;
 u8   palette_index = 2;
 s_sprite*	sprite;
 s_overlay*	overlay;
 u8   overlay_index;
 u8   bPalette[3][16];
+// remapped Amiga Palette
+u16  aPalette[16];
 
+//GLuint texid;
+GLuint* cell_texid;
+GLuint* sprite_texid;
 
 /* TO_DO: 
  * CRM: fix room 116's last exit to 0x0114
@@ -89,8 +101,8 @@ u8   bPalette[3][16];
  */
 
 #if defined(PSP)
-static unsigned int __attribute__((aligned(16))) list[262144];
-static unsigned short __attribute__((aligned(16))) pixels[PSP_BUF_WIDTH*PSP_SCR_HEIGHT];
+//static unsigned int __attribute__((aligned(16))) list[262144];
+//static unsigned short __attribute__((aligned(16))) pixels[PSP_BUF_WIDTH*PSP_SCR_HEIGHT];
 /* Define the module info section */
 PSP_MODULE_INFO("colditz", 0, 1, 1);
 
@@ -130,182 +142,42 @@ int setupCallbacks(void) {
 }
 #endif
 
-#if defined(PSP)
-void ge_init()
-{
-	uint x,y;
-	uint* row;
-	float u,v;
-	int i, j, val;
-	int sliceWidth;
-	Vertex* vertices;
-	float curr_fps;
-	struct timeval last_time;
 
-	float curr_ms = 1.0f;
-	struct timeval time_slices[16];
-	void* framebuffer = 0;
-
-	void* fbp0 = getStaticVramBuffer(PSP_BUF_WIDTH,PSP_SCR_HEIGHT,GU_PSM_8888);
-	void* fbp1 = getStaticVramBuffer(PSP_BUF_WIDTH,PSP_SCR_HEIGHT,GU_PSM_8888);
-	void* zbp = getStaticVramBuffer(PSP_BUF_WIDTH,PSP_SCR_HEIGHT,GU_PSM_4444);
-
-
-	sceGuInit();
-
-	sceGuStart(GU_DIRECT,list);
-	sceGuDrawBuffer(GU_PSM_8888,fbp0,PSP_BUF_WIDTH);
-	sceGuDispBuffer(PSP_SCR_WIDTH,PSP_SCR_HEIGHT,fbp1,PSP_BUF_WIDTH);
-	sceGuDepthBuffer(zbp,PSP_BUF_WIDTH);
-	sceGuOffset(2048 - (PSP_SCR_WIDTH/2),2048 - (PSP_SCR_HEIGHT/2));
-	sceGuViewport(2048,2048,PSP_SCR_WIDTH,PSP_SCR_HEIGHT);
-	sceGuDepthRange(65535,0);
-	sceGuScissor(0,0,PSP_SCR_WIDTH,PSP_SCR_HEIGHT);
-	sceGuEnable(GU_SCISSOR_TEST);
-	sceGuFrontFace(GU_CW);
-	sceGuClear(GU_COLOR_BUFFER_BIT|GU_DEPTH_BUFFER_BIT);
-	sceGuFinish();
-	sceGuSync(0,0);
-
-	sceDisplayWaitVblankStart();
-	sceGuDisplay(1);
-
-	val = 0;
-
-	for (y = 0; y < 272; ++y)
-	{
-		row = &pixels[y * 512];
-		for (x = 0; x < 480; ++x)
-		{
-			row[x] = x * y;
-		}
-	}
-
-
-	sceKernelDcacheWritebackAll();
-
-	while (1)
-	{
-		sceGuStart(GU_DIRECT,list);
-
-		// copy image from ram to vram
-
-		sceGuCopyImage(GU_PSM_8888,0,0,32,16,32,((u8*)rgbCells) + 4*8*0x100,100,100,512,(void*)(0x04000000+(u32)framebuffer));
-		sceGuCopyImage(GU_PSM_8888,0,0,32,16,32,((u8*)rgbCells) + 5*8*0x100,132,100,512,(void*)(0x04000000+(u32)framebuffer));
-		sceGuCopyImage(GU_PSM_8888,0,0,32,16,32,((u8*)rgbCells) + 6*8*0x100,164,100,512,(void*)(0x04000000+(u32)framebuffer));
-		//		sceGuCopyImage(GU_PSM_8888,0,0,480,272,512,pixels,0,0,512,(void*)(0x04000000+(u32)framebuffer));
-		sceGuTexSync();
-
-		sceGuFinish();
-		sceGuSync(0,0);
-
-		curr_fps = 1.0f / curr_ms;
-
-//		sceDisplayWaitVblankStart();
-		framebuffer = sceGuSwapBuffers();
-
-		pspDebugScreenSetXY(0,0);
-		pspDebugScreenPrintf("%d.%03d",(int)curr_fps,(int)((curr_fps-(int)curr_fps) * 1000.0f));
-
-		// simple frame rate counter
-
-		gettimeofday(&time_slices[val & 15],0);
-
-		val++;
-
-		if (!(val & 15))
-		{
-			last_time = time_slices[0];
-			i;
-
-			curr_ms = 0;
-			for (i = 1; i < 16; ++i)
-			{
-				struct timeval curr_time = time_slices[i];
-
-				if (last_time.tv_usec > curr_time.tv_usec)
-				{
-					curr_time.tv_sec++;
-					curr_time.tv_usec-=1000000;
-				}
-
-				curr_ms += ((curr_time.tv_usec-last_time.tv_usec) + (curr_time.tv_sec-last_time.tv_sec) * 1000000) * (1.0f/1000000.0f);
-
-				last_time = time_slices[i];
-			}
-			curr_ms /= 15.0f;
-		}
-	}
-
-//	sceDisplayWaitVblankStart();
-//	sceGuDisplay(GU_TRUE);
-
-
-//	sceGuCopyImage(GU_PSM_8888,0,0,32,16,32,((u8*)rgbCells) + 18*0x100,0,0,32,fbp0+0x4000000);
-
-
-/*
-	sceKernelDcacheWritebackInvalidateAll();
-	sceGuStart(GU_DIRECT, list);
-	sceGuTexImage(0, 32, 16, 32, ((u8*)rgbCells) + 24*0x100);
-	u = 1.0f / 32.0f;
-	v = 1.0f / 16.0f;
-	sceGuTexScale(u, v);
-	
-	j = 0;
-	while (j < 32) {
-		vertices = (Vertex*) sceGuGetMemory(2 * sizeof(Vertex));
-		sliceWidth = 64;
-		if (j + sliceWidth > 32) sliceWidth = 32 - j;
-		vertices[0].u = 32 + j;
-		vertices[0].v = 16;
-		vertices[0].x = 0 + j;
-		vertices[0].y = 0;
-		vertices[0].z = 0;
-		vertices[1].u = 32 + j + sliceWidth;
-		vertices[1].v = 16 + 16;	// height
-		vertices[1].x = 0 + j + sliceWidth;
-		vertices[1].y = 0 + 16;	// height
-		vertices[1].z = 0;
-		sceGuDrawArray(GU_SPRITES, GU_TEXTURE_16BIT | GU_VERTEX_16BIT | GU_TRANSFORM_2D, 2, 0, vertices);
-		j += sliceWidth;
-	}
-	
-*/
-
-
-}
-#endif
-
-
-#if !defined(PSP)	// This tells us if we're using glut
 /**
  ** GLUT event handlers
  **/
-void ge_init()
+static void glut_init()
 {
-	// OK, now we're ready to display some stuff onscreen
-	glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE);
+	// Use Glut to create a window
+	glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE | GLUT_ALPHA);  
 	glutInitWindowSize(gl_width, gl_height);
-	glutCreateWindow("Colditz Explorer");
+	glutInitWindowPosition(0, 0); 
+	glutCreateWindow( __FILE__ );
 
-	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-	glEnable(GL_BLEND);
-//	glDisable(GL_COLOR_MATERIAL);
+	GLCHK(glShadeModel(GL_SMOOTH));		// set by default
+	GLCHK(glMatrixMode(GL_PROJECTION));
+	GLCHK(glLoadIdentity());
+	// We'll set top left corner to be (0,0) for 2D
+    GLCHK(glOrtho(0, gl_width, gl_height, 0, -1, 1));
+    GLCHK(glMatrixMode(GL_MODELVIEW)); 
 
-	glMatrixMode(GL_PROJECTION);
-    glLoadIdentity();
-    glOrtho(0, gl_width, 0, gl_height, -1, 1);
+	// Setup transparency
+	GLCHK(glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA));
+	GLCHK(glEnable(GL_BLEND));
 
+	// Disable depth
+	GLCHK(glDisable(GL_DEPTH_TEST));
+//	GLCHK(glEnable(GL_DEPTH_TEST));
+	GLCHK(glEnable(GL_TEXTURE_2D));
 
-
-//    glMatrixMode(GL_MODELVIEW); 
-//    glLoadIdentity(); 
+	GLCHK(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR));
+	GLCHK(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR));
 }
+
 
 // Handle keyboard standard keys 
 // i.e. those that can be translated to ASCII
-void glut_keyboard(u8 key, int x, int y)
+static void glut_keyboard(u8 key, int x, int y)
 {
 	switch (key)
 	{
@@ -316,7 +188,7 @@ void glut_keyboard(u8 key, int x, int y)
 }
 
 // Handle keyboard special keys (non ASCII)
-void glut_special_keys(int key, int x, int y)
+static void glut_special_keys(int key, int x, int y)
 {
 	switch (key) 
 	{
@@ -329,7 +201,6 @@ void glut_special_keys(int key, int x, int y)
 		// Refresh
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		displayRoom(current_room_index);
-		glutPrintf("[%d:%03X]", palette_index, current_room_index);
 		glutSwapBuffers();
 		break;
 	case GLUT_KEY_RIGHT:
@@ -340,51 +211,55 @@ void glut_special_keys(int key, int x, int y)
 		if ((key == GLUT_KEY_LEFT) && (palette_index!=0))
 			palette_index--;
 		// Because we can't *PROPERLY* work with 4 bit indexed colours 
-		// in openGL, we have to recreate the whole cells buffer!
-		to_24bit_Palette(palette_index);
-		cells_to_RGB(fbuffer[CELLS],rgbCells,fsize[CELLS]);
-		sprites_to_RGB();
+		// in GLUT, we have to recreate the whole cells buffer!
+		to_16bit_Palette(palette_index);
+		cells_to_wGRAB(fbuffer[CELLS],rgbCells);
+		sprites_to_wGRAB();
 		// Refresh
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		displayRoom(current_room_index);
-		glutPrintf(0, "[%d:%03X]", palette_index, current_room_index);
 		glutSwapBuffers();
 		break;
 	}
 }
 
 // 
-void glut_reshape (int w, int h)
+static void glut_reshape (int w, int h)
 {
-  gl_width=w;
-  gl_height=h;
-  glViewport(0,0,w,h);
+	GLCHK(glViewport(0, 0, w, h));
+	GLCHK(glMatrixMode(GL_PROJECTION));
+	GLCHK(glLoadIdentity());
+
+//	GLCHK(glOrtho(0, 240, 136, 0, -1, 1));
+	GLCHK(glOrtho(0, PSP_SCR_WIDTH*100/zoom_level, PSP_SCR_HEIGHT*100/zoom_level, 0, -1, 1));
+	origin_x = PSP_SCR_WIDTH/2 - (PSP_SCR_WIDTH/2) * zoom_level/100;
+	origin_y = PSP_SCR_HEIGHT/2 - (PSP_SCR_HEIGHT/2) * zoom_level/100;
+
+	GLCHK(glMatrixMode(GL_MODELVIEW));
+	GLCHK(glLoadIdentity());
+
+	gl_width=w;
+	gl_height=h;
 }
 
 
-void glut_display(void)
+static void glut_display(void)
 {
+//	GLCHK(glShadeModel(GL_SMOOTH));
 
-	//Create some nice colours (3 floats per pixel) from data -10..+10
-//	float* pixels = new float[size*3];
-//	for(int i=0;i<size;i++) {
-//	colour(10.0-((i*20.0)/size),&pixels[i*3]);
-//	} 
+	GLCHK(glClear(GL_COLOR_BUFFER_BIT));
 
-//	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	GLCHK(glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE));
 
-	//http://msdn2.microsoft.com/en-us/library/ms537062.aspx
-	//glDrawPixels writes a block of pixels to the framebuffer.
+	GLCHK(glMatrixMode(GL_MODELVIEW));
+	GLCHK(glLoadIdentity());
 
-//	glDrawPixels(gl_width,gl_height,GL_RGB,GL_FLOAT,pixels);
+	displayRoom(current_room_index);
 
-//	glPointSize(2);
-//	glBegin(GL_POINTS);
-//	glEnd();
 	glutSwapBuffers();
-}
-#endif
+	// glutPostRedisplay();
 
+}
 
 /* Here we go! */
 int main (int argc, char *argv[])
@@ -402,10 +277,8 @@ int main (int argc, char *argv[])
      */
 #if defined(PSP)
 	setupCallbacks();
-	pspDebugScreenInit();
-#else
-	glutInit(&argc, argv);
 #endif
+	glutInit(&argc, argv);
 
 	// Let's clean up our buffers
 	fflush(stdin);
@@ -449,6 +322,8 @@ int main (int argc, char *argv[])
 		exit (1);
 	}
 
+	glut_init();
+
 	// Load the data
 	load_all_files();
 	getProperties();
@@ -458,32 +333,28 @@ int main (int argc, char *argv[])
 
 	// And then create a new cell buffer
 	// TO_DO (change back to 6 and ARGB to RGB)
-	rgbCells = (u8*) aligned_malloc(fsize[CELLS]*8, 16);
-//	rgbCells = (u8*) calloc(fsize[CELLS]*6, 1);
+	rgbCells = (u8*) aligned_malloc(fsize[CELLS]*2*RGBA_SIZE, 16);
 	if (rgbCells == NULL)
 	{
 		perr("Could not allocate RGB Cells buffers\n");
 		ERR_EXIT;
 	}
 
-	// To expand to 24 bit RGB data
-	to_24bit_Palette(palette_index);
-	cells_to_RGB(fbuffer[CELLS],rgbCells,fsize[CELLS]);
-//	cells_to_ARGB(fbuffer[CELLS],rgbCells,fsize[CELLS]);
-//	nb_sprites = 3;
+	to_16bit_Palette(palette_index);
+	printf("cells_to_wGRAB\n");
+	cells_to_wGRAB(fbuffer[CELLS],rgbCells);
+	printf("cells_to_wGRAB2\n");
 	init_sprites();
-	sprites_to_RGB();
-
-
-	ge_init();
-#if !defined(PSP)
+	sprites_to_wGRAB();
 
 	// Display the first room
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-	displayRoom(current_room_index);
+//	glClear(GL_COLOR_BUFFER_BIT);
+//	displayRoom(current_room_index);
+#if !defined(PSP)
 	glutPrintf("[%d:%03X]", palette_index, current_room_index);
+#endif
 //	glutSwapBuffers();
-		
+
 	glutDisplayFunc(glut_display);
 	glutReshapeFunc(glut_reshape);
 	//glutMouseFunc(mouse_button);
@@ -491,17 +362,7 @@ int main (int argc, char *argv[])
 	glutKeyboardFunc(glut_keyboard);
 	glutSpecialFunc(glut_special_keys);
 
-	//glutIdleFunc(idle);
-
 	glutMainLoop();
-#else
-    sceKernelSleepThread();
-#endif
-//	glEnable(GL_DEPTH_TEST);
-//	glClearColor(0.0, 0.0, 0.0, 1.0);
-	// TO_DO: double size by enabling what follows
-
-//	glEnable(0);
 
 	return 0;
 }

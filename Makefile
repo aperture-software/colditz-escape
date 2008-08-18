@@ -7,8 +7,8 @@ CXXFLAGS = $(CFLAGS) -fno-exceptions -fno-rtti
 ASFLAGS = $(CFLAGS)
 
 LIBDIR =
-LDFLAGS =
-LIBS= -lpspgu
+FLAGS =
+LIBS += -lglut -lGLU -lGL -lpspgu -lm -lc -lpsprtc 
 
 BUILD_PRX=1
 EXTRA_TARGETS = EBOOT.PBP

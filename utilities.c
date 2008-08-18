@@ -17,8 +17,13 @@
 #include <gl/glu.h>
 #include <gl/glut.h>
 #elif defined(PSP)
+#include <stdarg.h>
 #include <pspkernel.h>
 #include <pspdebug.h>
+#include <pspgu.h>
+#include <GL/gl.h>
+#include <GL/glu.h>
+#include <GL/glut.h>
 #endif
 
 #include "colditz.h"
@@ -28,6 +33,10 @@
 int  underflow_flag = 0;
 u32	compressed_size, checksum;
 u8  obs_to_sprite[NB_OBS_TO_SPRITE];
+#if defined(PSP)
+//void* framebuffer = 0;
+//static unsigned int __attribute__((aligned(16))) list[262144];
+#endif
 
 
 /* The handy ones, in big endian mode */
@@ -169,7 +178,8 @@ void glutPrintf(const char *fmt, ...)
     h = glutGet(GLUT_WINDOW_HEIGHT);
 
 	// Set up a 2d ortho projection that matches the window
-    gluOrtho2D(-w/2,w/2,-h/2,h/2);
+//    gluOrtho2D(-w/2,w/2,-h/2,h/2);
+    glOrtho(-w/2,w/2,-h/2,h/2,-1,1);
 	// Get the pixel length
 	length = glutStrokeLength(GLUT_STROKE_MONO_ROMAN, text)*coef;
 	// Move text to top right corner
@@ -492,9 +502,17 @@ void getProperties()
 		}
 	}
 	nb_rooms = room_index;
-	print("nb_cells = %X\n", nb_rooms);
+	print("nb_rooms = %X\n", nb_rooms);
+
+	// A backdrop cell is exactly 256 bytes
+	nb_cells = fsize[CELLS] / 0x100;
+	cell_texid = malloc(sizeof(GLuint) * nb_cells);
+	GLCHK(glGenTextures(nb_cells, cell_texid));
+	print("nb_cells = %X\n", nb_cells);
 
 	nb_sprites = readword(fbuffer[SPRITES],0) + 1;
+	sprite_texid = malloc(sizeof(GLuint) * nb_sprites);
+	GLCHK(glGenTextures(nb_sprites, sprite_texid));
 	print("nb_sprites = %X\n", nb_sprites);
 
 	nb_objects = readword(fbuffer[OBJECTS],0) + 1;
@@ -584,6 +602,43 @@ void sprites_to_interleaved(u8* buffer, u32 bitplane_size)
 	aligned_free(sbuffer);
 }
 
+// Convert an Amiga 12 bit RGB colour palette to 16 bit GRAB
+void to_16bit_Palette(u8 palette_index)
+{
+	u32 i;
+	u16 rgb, grab;
+
+	int palette_start = palette_index * 0x20;
+
+	// Read the palette
+	if (opt_verbose)
+		print("Using Amiga Palette index: %d\n", palette_index);
+
+
+	for (i=0; i<16; i++)		// 16 colours
+	{
+		rgb = readword(fbuffer[PALETTES], palette_start + 2*i);
+		if (opt_verbose)
+		{
+			print(" %03X", rgb); 
+			if (i==7)
+				print("\n");
+		}
+		// OK, we need to convert our rgb to grab
+		// 1) Leave the R&B values as they are
+		grab = rgb & 0x0F0F;
+		// 2) Set Alpha to no transparency
+		grab |= 0x00F0;
+		// 3) Set Green
+		grab |= (rgb << 8) & 0xF000;
+		// 4) Write in the palette
+		aPalette[i] = grab;
+	}
+	if (opt_verbose)
+		print("\n\n");
+}
+
+
 
 // Convert an Amiga 12 bit colour palette to 24 bit
 void to_24bit_Palette(u8 palette_index)
@@ -650,7 +705,7 @@ void to_48bit_Palette(u16 wPalette[3][16], u8 palette_index)
 
 
 // Convert a 4 bit line-interleaved source to 24 bit RGB destination
-void line_interleaved_to_RGB(u8* source, u8* dest, u16 w, u16 h, int alpha)
+void line_interleaved_to_RGB(u8* source, u8* dest, u16 w, u16 h)
 {
 	u8 colour_index;
 	u32 i,j,l,pos;
@@ -685,7 +740,47 @@ void line_interleaved_to_RGB(u8* source, u8* dest, u16 w, u16 h, int alpha)
 				writebyte(dest, pos++, bPalette[RED][colour_index]);
 				writebyte(dest, pos++, bPalette[GREEN][colour_index]);
 				writebyte(dest, pos++, bPalette[BLUE][colour_index]);
-				if (alpha) writebyte(dest, pos++, 0x00);
+			}
+		}
+	}
+}
+
+
+// Convert a 4 bit line-interleaved source to 16 bit RGBA (GRAB) destination
+void line_interleaved_to_wGRAB(u8* source, u8* dest, u16 w, u16 h)
+{
+	u8 colour_index;
+	u32 i,j,l,pos;
+	int k;
+	u32 wb;
+	u8 line_byte[4];
+
+	// the width of interest to us is the one in bytes.
+	wb = w/8;
+
+	// We'll write sequentially to the destination
+	pos = 0;
+	for (i=0; i<h; i++)
+	{	// h lines to process
+		for (j=0; j<wb; j++)
+		{	// wb bytes per line
+			for (k=0; k<4; k++)
+				// Read one byte from each of the 4 lines (starting from max y for openGL)
+				line_byte[3-k] = readbyte(source, 4*(wb*i) + k*wb + j);
+			// Write 8 RGBA values
+			for (k=0; k<8; k++)
+			{
+				colour_index = 0;
+				// Get the palette colour index and rotate the line bytes
+				for (l=0; l<4; l++)
+				{
+					colour_index <<= 1;
+					colour_index |= (line_byte[l]&0x80)?1:0;
+					line_byte[l] <<= 1;
+				}
+				// Alpha is always set to 0
+				writeword(dest, pos, aPalette[colour_index]);
+				pos += 2;
 			}
 		}
 	}
@@ -740,6 +835,52 @@ void bitplane_to_RGBA(u8* source, u8* dest, u16 w, u16 h)
 }
 
 
+// Convert a 1+4 bits (mask+colour) bitplane source
+// to 16 bit RGBA (GRAB) destination
+void bitplane_to_wGRAB(u8* source, u8* dest, u16 w, u16 h)
+{
+	u16 bitplane_size;
+	u8  colour_index;
+	u16 i,j,k,wb;
+	u8  bitplane_byte[5], mask_byte;
+	u32 pos = 0;
+
+	wb = w/8;	// width in bytes
+	bitplane_size = h*wb; 
+
+	for (i=0; i<bitplane_size; i++)	
+	{
+		// Read one byte from each bitplane...
+		for (j=0; j<5; j++)
+			// bitplanes are in reverse order for colour
+			// and so is openGL's coordinate system for y
+			bitplane_byte[4-j] = readbyte(source, 
+				wb*(h-1-i/wb) + i%wb + (j*bitplane_size) );
+
+		// For clarity
+		mask_byte = bitplane_byte[4];
+
+		// Write 8 RGBA words 
+		for (k=0; k<8; k++)
+		{
+
+			colour_index = 0;
+			// Get the palette colour index and rotate the bitplane bytes
+			for (j=0; j<4; j++)
+			{
+				colour_index <<= 1;
+				colour_index |= (bitplane_byte[j]&0x80)?1:0;
+				bitplane_byte[j] <<= 1;
+			}
+			// Alpha is in 3rd position, and needs to be cleared on empty mask
+			writeword(dest, pos, aPalette[colour_index] & ((mask_byte&0x80)?0xFFFF:0xFF0F));
+			pos += 2;
+			mask_byte <<=1;
+		}
+	}
+}
+
+
 // Converts the room cells to RGB data we can handle
 void cells_to_RGB(u8* source, u8* dest, u32 size)
 {
@@ -747,17 +888,23 @@ void cells_to_RGB(u8* source, u8* dest, u32 size)
 
 	// Convert each 32x16x4bit (=256 bytes) cell to RGB
 	for (i=0; i<(size/256); i++)
-		line_interleaved_to_RGB(source + (256*i), dest+(6*256*i), 32, 16, false);
+		line_interleaved_to_RGB(source + (256*i), dest+(6*256*i), 32, 16);
 }
 
 // Converts the room cells to RGB data we can handle
-void cells_to_ARGB(u8* source, u8* dest, u32 size)
+void cells_to_wGRAB(u8* source, u8* dest)
 {
 	u32 i;
 
 	// Convert each 32x16x4bit (=256 bytes) cell to RGB
-	for (i=0; i<(size/256); i++)
-		line_interleaved_to_RGB(source + (256*i), dest+(8*256*i), 32, 16, true);
+	for (i=0; i<nb_cells; i++)
+	{
+		line_interleaved_to_wGRAB(source + (256*i), dest+(2*RGBA_SIZE*256*i), 32, 16);
+		GLCHK(glBindTexture(GL_TEXTURE_2D, cell_texid[i]));
+		GLCHK(glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 32, 16, 0, GL_RGBA, GL_UNSIGNED_SHORT_4_4_4_4_REV, 
+			((u8*)rgbCells) + i*2*RGBA_SIZE*0x100));
+	}
+
 }
 
 
@@ -794,16 +941,18 @@ void init_sprites()
 		sprite[sprite_index].w = 16*(sprite_w & 0x7FFF);
 		sprite[sprite_index].h = readword(fbuffer[SPRITES],sprite_address+2);
 		// According to MSb of sprite_w (=no_mask), we'll need to use RGBA or RGB
-		sprite[sprite_index].type = (sprite_w & 0x8000)?GL_RGB:GL_RGBA;
-		sprite[sprite_index].data = aligned_malloc( ((sprite_w & 0x8000)?3:4) * 
+//		sprite[sprite_index].type = (sprite_w & 0x8000)?GL_RGB:GL_RGBA;
+		// There's an offset to position the sprite depending on the mask's presence
+		sprite[sprite_index].x_offset = (sprite_w & 0x8000)?16:1;
+		sprite[sprite_index].data = aligned_malloc( RGBA_SIZE * 
 			sprite[sprite_index].w * sprite[sprite_index].h, 16);
 //		print("  w,h = %0X, %0X\n", sprite[sprite_index].w , sprite[sprite_index].h);
 	}
 }
 
 
-// Converts the sprites to RGB data we can handle
-void sprites_to_RGB()
+// Converts the sprites to 16 bit GRAB data we can handle
+void sprites_to_wGRAB()
 {
 	u16 sprite_index;
 	u16 bitplane_size;
@@ -824,16 +973,21 @@ void sprites_to_RGB()
 		h = sprite[sprite_index].h;
 		bitplane_size = readword(fbuffer[SPRITES],sprite_address+6);
 		if (bitplane_size != w*h)
-			print("sprites_to_RGB: Integrity check failure on bitplane_size\n");
+			print("sprites_to_wGRAB: Integrity check failure on bitplane_size\n");
 
 		// Source address
 		sbuffer = fbuffer[SPRITES] + sprite_address + 8; 
 
 		if (no_mask)
 			// Bitplanes that have no mask are line-interleaved, like cells
-			line_interleaved_to_RGB(sbuffer, sprite[sprite_index].data, w*8, h, false);
+			line_interleaved_to_wGRAB(sbuffer, sprite[sprite_index].data, w*8, h);
 		else
-			bitplane_to_RGBA(sbuffer, sprite[sprite_index].data, w*8, h);
+			bitplane_to_wGRAB(sbuffer, sprite[sprite_index].data, w*8, h);
+
+		GLCHK(glBindTexture(GL_TEXTURE_2D, sprite_texid[sprite_index]));
+		GLCHK(glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w*8, h, 0, GL_RGBA, 
+			GL_UNSIGNED_SHORT_4_4_4_4_REV, sprite[sprite_index].data));
+
 	}
 }
 
@@ -894,8 +1048,8 @@ void set_overlays(int x, int y, u32 current_tile, u16 room_x)
 		sy = readword(fbuffer[LOADER], SPECIAL_TILES_START+i+6);
 		if (opt_debug)
 			print("    sx: %04X, sy: %04X\n", sx, sy);
-		overlay[overlay_index].x = x + (int)sx - sprite[sid].w + (int)((sprite[sid].type==GL_RGBA)?1:16);
-		overlay[overlay_index].y = y - (int)sy + 15;
+		overlay[overlay_index].x = x + (int)sx - (int)sprite[sid].w + (int)(sprite[sid].x_offset);
+		overlay[overlay_index].y = y + (int)sy - 15;
 		overlay_index++;
 		// No point in looking for overlays any further if we met our match 
 		// UNLESS this is a double bed overlay, in which case the same tile
@@ -918,7 +1072,7 @@ void set_objects()
 			continue;
 		overlay[overlay_index].sid = obs_to_sprite[readword(fbuffer[OBJECTS],i+2+6)];
 		overlay[overlay_index].x = gl_off_x + readword(fbuffer[OBJECTS],i+2+4) - 15;
-		overlay[overlay_index].y = gl_height - gl_off_y - readword(fbuffer[OBJECTS],i+2+2) + 15;
+		overlay[overlay_index].y = gl_off_y + readword(fbuffer[OBJECTS],i+2+2) - 15;
 		if (opt_debug)
 			print("  pickup object match: sid=%X\n", overlay[overlay_index].sid);
 		overlay_index++;
@@ -926,7 +1080,40 @@ void set_objects()
 	
 }
 
-#if !defined(PSP)
+
+
+#define GLCHK1(x) {x;}
+void displaySprite(u16 x, u16 y, u16 w, u16 h, GLuint texid) 
+{
+	GLCHK1(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR));
+	GLCHK1(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR));
+
+	GLCHK1(glTranslatef(origin_x + x, origin_y + y, 0));
+	
+	GLCHK1(glBindTexture(GL_TEXTURE_2D, texid));
+	GLCHK1(glBegin(GL_TRIANGLE_FAN));
+
+	GLCHK(glColor3f(1.0f, 0.0f, 0.0f));
+	GLCHK(glTexCoord2f(0.0f, 0.0f));
+	GLCHK(glVertex3f(0.0f, 0.0f, 0.0f));
+
+	GLCHK(glColor3f(0.0f, 1.0f, 0.0f));
+	GLCHK(glTexCoord2f(0.0f, 1.0f));
+	GLCHK(glVertex3f(0.0f, h*1.0f, 0.0f));
+
+	GLCHK(glColor3f(0.0f, 0.0f, 1.0f));
+	GLCHK(glTexCoord2f(1.0f, 1.0f));
+	GLCHK(glVertex3f(w*1.0f, h*1.0f, 0.0f));
+
+	GLCHK(glColor3f(1.0f, 1.0f, 1.0f));
+	GLCHK(glTexCoord2f(1.0f, 0.0f));
+	GLCHK(glVertex3f(w*1.0f, 0.0f, 0.0f));
+
+	GLCHK1(glEnd());
+
+	GLCHK1(glTranslatef(-(origin_x + x), -(origin_y + y), 0));
+}
+
 // Display all our overlays
 void display_overlays()
 {
@@ -934,13 +1121,16 @@ void display_overlays()
 
 	for (i=0; i<overlay_index; i++)
 	{
-		glRasterPos2i(overlay[i].x,overlay[i].y);
-		glDrawPixels(sprite[overlay[i].sid].w, sprite[overlay[i].sid].h,
-			sprite[overlay[i].sid].type, GL_UNSIGNED_BYTE, 
-			sprite[overlay[i].sid].data);
-	}
-}
+		displaySprite(overlay[i].x, overlay[i].y, sprite[overlay[i].sid].w, 
+			sprite[overlay[i].sid].h, sprite_texid[overlay[i].sid]);
 
+//		glRasterPos2i(overlay[i].x,overlay[i].y);
+//		glDrawPixels(sprite[overlay[i].sid].w, sprite[overlay[i].sid].h,
+//			GL_RGBA, GL_UNSIGNED_SHORT_4_4_4_4_REV, sprite[overlay[i].sid].data);
+
+	}
+
+}
 
 // Display room
 void displayRoom(u16 room_index)
@@ -954,12 +1144,12 @@ void displayRoom(u16 room_index)
 	// Read the offset
 	offset = readlong((u8*)fbuffer[ROOMS], OFFSETS_START+4*room_index);
 	if (opt_verbose)
-		print("\noffset[%03X] = %08X ", room_index, offset);
+		print("\noffset[%03X] = %08X ", room_index, (uint)offset);
 	if (offset == 0xFFFFFFFF)
 	{
 		// For some reason there is a break in the middle
 		if (opt_verbose)
-			print("\n  IGNORED", room_index, offset);
+			print("\n  IGNORED");
 		return;
 	}
 
@@ -974,7 +1164,7 @@ void displayRoom(u16 room_index)
 	if (opt_verbose)
 		print("(room_x=%X,room_y=%X)\n", room_x, room_y);
 	gl_off_x = (gl_width - (room_x*32))/2;
-	gl_off_y = 32 + (gl_height-(room_y*16))/2;
+	gl_off_y = (gl_height - (room_y*16))/2;
 
 	// reset room overlays
 	overlay_index = 0;
@@ -991,22 +1181,15 @@ void displayRoom(u16 room_index)
 		for(tile_x=0; tile_x<room_x; tile_x++)
 		{
 			pixel_x = gl_off_x+tile_x*32;
-			pixel_y = gl_height-gl_off_y-(tile_y*16);
+			pixel_y = gl_off_y+tile_y*16;
+
 
 			// A tile is 32(x)*16(y)*4(bits) = 256 bytes
 			// A specific room tile is identified by a word
 			tile_data = readword((u8*)fbuffer[ROOMS], ROOMS_START+offset);
 
-			// position ourselves to the right location
-			glRasterPos2i(pixel_x,pixel_y);
-
-			// Tile data is of the form (tile_index<<7) + exit_flags, with tile_index being 
-			// the index in COLDITZ_CELLS (each tile occupying 0x100 bytes there)
-			glDrawPixels(32,16,GL_RGB,GL_UNSIGNED_BYTE, ((u8*)rgbCells) + (tile_data>>7)*6*0x100 + 
-				// Take care of the tunnels too below
-				((room_index>0x202)?(6*0x1E000):0));
-			// As we converted the cells from 4 to 24 bits (RGB) we need to multiply offsets by 6
-
+			displaySprite(pixel_x,pixel_y,32,16, 
+				cell_texid[(tile_data>>7) + ((room_index>0x202)?0x1E0:0)]);
 
 			// Display sprite overlay
 			set_overlays(pixel_x, pixel_y, ROOMS_START+offset, room_x);
@@ -1023,12 +1206,18 @@ void displayRoom(u16 room_index)
 	if (opt_debug)
 		print("\n");
 
+
 	// Let add our guy
 	overlay[overlay_index].sid = 3;
 	overlay[overlay_index].x = gl_off_x + room_x*16;
-	overlay[overlay_index++].y = gl_off_y;
+	overlay[overlay_index++].y = gl_off_y + room_y*8;
 
 	// Now that the background is done, and that we have the overlays, display the overlay sprites
-	display_overlays();
+//	display_overlays();
+
+//	displaySprite(100,100,32,16,cell_texid[4]);
+//	displaySprite(32,0,32,16,cell_texid[5]);
+
+
 }
-#endif
+
