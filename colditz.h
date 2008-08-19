@@ -138,6 +138,9 @@ typedef struct
 {
     u16 w;
 	u16 h;
+	// Politicaly correct w & h (power of twos for pspgl)
+	u16 corrected_w;
+	u16 corrected_h;
 	u16 x_offset;
 	u8* data;
 } s_sprite;

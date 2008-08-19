@@ -110,7 +110,7 @@ void *aligned_malloc(size_t bytes, size_t alignment)
         size += sizeof(size_t);
 
         /* Allocate memory using malloc() */
-        malloc_ptr = malloc(size);
+        malloc_ptr = calloc(size, 1);
 
         if (NULL == malloc_ptr)
                 return NULL;
@@ -837,15 +837,16 @@ void bitplane_to_RGBA(u8* source, u8* dest, u16 w, u16 h)
 
 // Convert a 1+4 bits (mask+colour) bitplane source
 // to 16 bit RGBA (GRAB) destination
-void bitplane_to_wGRAB(u8* source, u8* dest, u16 w, u16 h)
+void bitplane_to_wGRAB(u8* source, u8* dest, u16 w, u16 ext_w, u16 h)
 {
 	u16 bitplane_size;
 	u8  colour_index;
-	u16 i,j,k,wb;
+	u16 i,j,k,wb,ext_wb;
 	u8  bitplane_byte[5], mask_byte;
 	u32 pos = 0;
 
 	wb = w/8;	// width in bytes
+	ext_wb = ext_w/8;
 	bitplane_size = h*wb; 
 
 	for (i=0; i<bitplane_size; i++)	
@@ -854,8 +855,9 @@ void bitplane_to_wGRAB(u8* source, u8* dest, u16 w, u16 h)
 		for (j=0; j<5; j++)
 			// bitplanes are in reverse order for colour
 			// and so is openGL's coordinate system for y
-			bitplane_byte[4-j] = readbyte(source, 
-				wb*(h-1-i/wb) + i%wb + (j*bitplane_size) );
+			bitplane_byte[4-j] = readbyte(source, i + (j*bitplane_size) );
+//			bitplane_byte[4-j] = readbyte(source, 
+//				wb*(h-1-i/wb) + i%wb + (j*bitplane_size) );
 
 		// For clarity
 		mask_byte = bitplane_byte[4];
@@ -875,6 +877,9 @@ void bitplane_to_wGRAB(u8* source, u8* dest, u16 w, u16 h)
 			// Alpha is in 3rd position, and needs to be cleared on empty mask
 			writeword(dest, pos, aPalette[colour_index] & ((mask_byte&0x80)?0xFFFF:0xFF0F));
 			pos += 2;
+			// Takes care of padding in width
+			while ((u16)(pos%(2*ext_w))>=(2*w))
+				pos +=2;	// calloced to zero, so just skim
 			mask_byte <<=1;
 		}
 	}
@@ -907,6 +912,34 @@ void cells_to_wGRAB(u8* source, u8* dest)
 
 }
 
+// Power-of-two-err...ize
+// We need this to change a dimension to the closest greater power of two
+// as pspgl can only deal with power of two dimensionned textures
+u16 powerize(u16 n)
+{
+	u16 retval;
+	int i, first_one, last_one;
+
+	retval = n;	// left unchanged if already power of two
+				// also works if n == 0
+	first_one = -1;
+	last_one = -1;
+
+	for (i=0; i<16; i++)
+	{
+		if (n & 0x0001)
+		{
+			if (first_one == -1)
+				first_one = i;					
+			last_one = i;
+		}
+		n >>= 1;
+	}
+	if (first_one != last_one)
+		retval = 1<<(last_one+1);
+
+	return retval;
+}
 
 
 // Initialize the sprite array
@@ -938,14 +971,20 @@ void init_sprites()
 //		print("sprite[%X] address = %08X\n", sprite_index, sprite_address);
 		// x size is given in words
 		sprite_w = readword(fbuffer[SPRITES],sprite_address);
+		// w is fine as it's either 2^4 or 2^5
 		sprite[sprite_index].w = 16*(sprite_w & 0x7FFF);
+		sprite[sprite_index].corrected_w = powerize(sprite[sprite_index].w);
+		// h will be problematic as pspgl wants a power of 2
 		sprite[sprite_index].h = readword(fbuffer[SPRITES],sprite_address+2);
+		sprite[sprite_index].corrected_h = powerize(sprite[sprite_index].h);
+		print("(%X,%X) => (%X,%X)\n", sprite[sprite_index].w, sprite[sprite_index].h, sprite[sprite_index].corrected_w, sprite[sprite_index].corrected_h);
+		
 		// According to MSb of sprite_w (=no_mask), we'll need to use RGBA or RGB
 //		sprite[sprite_index].type = (sprite_w & 0x8000)?GL_RGB:GL_RGBA;
 		// There's an offset to position the sprite depending on the mask's presence
 		sprite[sprite_index].x_offset = (sprite_w & 0x8000)?16:1;
 		sprite[sprite_index].data = aligned_malloc( RGBA_SIZE * 
-			sprite[sprite_index].w * sprite[sprite_index].h, 16);
+			sprite[sprite_index].corrected_w * sprite[sprite_index].corrected_h, 16);
 //		print("  w,h = %0X, %0X\n", sprite[sprite_index].w , sprite[sprite_index].h);
 	}
 }
@@ -971,6 +1010,7 @@ void sprites_to_wGRAB()
 		no_mask = w & 0x8000;
 		w *= 2;		// width in bytes
 		h = sprite[sprite_index].h;
+
 		bitplane_size = readword(fbuffer[SPRITES],sprite_address+6);
 		if (bitplane_size != w*h)
 			print("sprites_to_wGRAB: Integrity check failure on bitplane_size\n");
@@ -980,17 +1020,19 @@ void sprites_to_wGRAB()
 
 		if (no_mask)
 			// Bitplanes that have no mask are line-interleaved, like cells
-			line_interleaved_to_wGRAB(sbuffer, sprite[sprite_index].data, w*8, h);
+			line_interleaved_to_wGRAB(sbuffer, sprite[sprite_index].data, sprite[sprite_index].w, h);
 		else
-			bitplane_to_wGRAB(sbuffer, sprite[sprite_index].data, w*8, h);
+			bitplane_to_wGRAB(sbuffer, sprite[sprite_index].data, sprite[sprite_index].w,
+				sprite[sprite_index].corrected_w, h);
 
+		// Now that we have data in a GL readable format, let's texturize it!
 		GLCHK(glBindTexture(GL_TEXTURE_2D, sprite_texid[sprite_index]));
-		GLCHK(glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w*8, h, 0, GL_RGBA, 
-			GL_UNSIGNED_SHORT_4_4_4_4_REV, sprite[sprite_index].data));
+		GLCHK(glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, sprite[sprite_index].corrected_w, 
+			sprite[sprite_index].corrected_h, 0, GL_RGBA, GL_UNSIGNED_SHORT_4_4_4_4_REV,
+			sprite[sprite_index].data));
 
 	}
 }
-
 
 
 // Populates the overlay table
@@ -1049,7 +1091,7 @@ void set_overlays(int x, int y, u32 current_tile, u16 room_x)
 		if (opt_debug)
 			print("    sx: %04X, sy: %04X\n", sx, sy);
 		overlay[overlay_index].x = x + (int)sx - (int)sprite[sid].w + (int)(sprite[sid].x_offset);
-		overlay[overlay_index].y = y + (int)sy - 15;
+		overlay[overlay_index].y = y + (int)sy - (int)sprite[sid].h + 1;
 		overlay_index++;
 		// No point in looking for overlays any further if we met our match 
 		// UNLESS this is a double bed overlay, in which case the same tile
@@ -1063,7 +1105,6 @@ void set_overlays(int x, int y, u32 current_tile, u16 room_x)
 // Read the pickable objects from obs.bin
 void set_objects()
 {
-//	u32 index = 2;	// We need to ignore the first word (nb of sprites)
 	u16 i;
 
 	for (i=0; i<(8*nb_objects); i+=8)
@@ -1072,7 +1113,7 @@ void set_objects()
 			continue;
 		overlay[overlay_index].sid = obs_to_sprite[readword(fbuffer[OBJECTS],i+2+6)];
 		overlay[overlay_index].x = gl_off_x + readword(fbuffer[OBJECTS],i+2+4) - 15;
-		overlay[overlay_index].y = gl_off_y + readword(fbuffer[OBJECTS],i+2+2) - 15;
+		overlay[overlay_index].y = gl_off_y + readword(fbuffer[OBJECTS],i+2+2) - 3;
 		if (opt_debug)
 			print("  pickup object match: sid=%X\n", overlay[overlay_index].sid);
 		overlay_index++;
@@ -1081,12 +1122,14 @@ void set_objects()
 }
 
 
-
 #define GLCHK1(x) {x;}
 void displaySprite(u16 x, u16 y, u16 w, u16 h, GLuint texid) 
 {
 	GLCHK1(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR));
 	GLCHK1(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR));
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
+	//GL_CLAMP_TO_EDGE
 
 	GLCHK1(glTranslatef(origin_x + x, origin_y + y, 0));
 	
@@ -1121,8 +1164,8 @@ void display_overlays()
 
 	for (i=0; i<overlay_index; i++)
 	{
-		displaySprite(overlay[i].x, overlay[i].y, sprite[overlay[i].sid].w, 
-			sprite[overlay[i].sid].h, sprite_texid[overlay[i].sid]);
+		displaySprite(overlay[i].x, overlay[i].y, sprite[overlay[i].sid].corrected_w, 
+			sprite[overlay[i].sid].corrected_h, sprite_texid[overlay[i].sid]);
 
 //		glRasterPos2i(overlay[i].x,overlay[i].y);
 //		glDrawPixels(sprite[overlay[i].sid].w, sprite[overlay[i].sid].h,
@@ -1208,12 +1251,12 @@ void displayRoom(u16 room_index)
 
 
 	// Let add our guy
-	overlay[overlay_index].sid = 3;
+	overlay[overlay_index].sid = 0x3;
 	overlay[overlay_index].x = gl_off_x + room_x*16;
 	overlay[overlay_index++].y = gl_off_y + room_y*8;
 
 	// Now that the background is done, and that we have the overlays, display the overlay sprites
-//	display_overlays();
+	display_overlays();
 
 //	displaySprite(100,100,32,16,cell_texid[4]);
 //	displaySprite(32,0,32,16,cell_texid[5]);

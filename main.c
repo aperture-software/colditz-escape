@@ -71,10 +71,10 @@ int	gl_off_x = 0, gl_off_y  = 0;
 int	gl_width = PSP_SCR_WIDTH, gl_height = PSP_SCR_HEIGHT;
 int origin_x = 0, origin_y = 0;
 //int zoom_level = 150;
-int zoom_level = 150;
+int zoom_level = 100;
 
 
-u16  current_room_index = 0;
+u16  current_room_index = 0x00;
 u16  nb_rooms, nb_cells, nb_sprites, nb_objects;
 u8   palette_index = 2;
 s_sprite*	sprite;
