@@ -34,25 +34,15 @@
 #include <GL/gl.h>
 #include <GL/glu.h>
 #include <GL/glut.h>
-#include "psp/vram.h"
-//#include "psp/graphics.h"
 #endif
 
 #include "getopt.h"	
 #include "colditz.h"
+#include "low-level.h"
 #include "utilities.h"
 
 
-typedef struct 
-{
-	unsigned short u, v;
-	unsigned short color;
-	short x, y, z;
-} Vertex;
-
-/*
- *  Global variables, set to static to avoid name confusion, e.g. with stat()
- */
+// Global variables
 
 // Flags
 int debug_flag			= 0;
@@ -69,9 +59,11 @@ u8*	  rgbCells			= NULL;
 // GL Stuff
 int	gl_off_x = 0, gl_off_y  = 0;
 int	gl_width = PSP_SCR_WIDTH, gl_height = PSP_SCR_HEIGHT;
-int origin_x = 0, origin_y = 0;
-//int zoom_level = 150;
-int zoom_level = 100;
+int prisoner_x = 0, prisoner_y = 0;
+u8  prisoner_sid = 0x07;
+float origin_x = 0, origin_y = 0;
+
+float zoom_level = 200.0;
 
 
 u16  current_room_index = 0x00;
@@ -87,6 +79,11 @@ u16  aPalette[16];
 //GLuint texid;
 GLuint* cell_texid;
 GLuint* sprite_texid;
+
+// offsets to sprites according to joystick direction (y,x)
+int directions[3][3] = { {6,7,8}, {5,0,1}, {4,3,2} };
+int last_direction = 3;
+int framecount = 0;
 
 /* TO_DO: 
  * CRM: fix room 116's last exit to 0x0114
@@ -169,9 +166,6 @@ static void glut_init()
 	GLCHK(glDisable(GL_DEPTH_TEST));
 //	GLCHK(glEnable(GL_DEPTH_TEST));
 	GLCHK(glEnable(GL_TEXTURE_2D));
-
-	GLCHK(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR));
-	GLCHK(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR));
 }
 
 
@@ -185,6 +179,84 @@ static void glut_keyboard(u8 key, int x, int y)
 		exit(0);
 		break;
 	}
+}
+
+static void glut_joystick(uint buttonMask, int x, int y, int z)
+{
+	int dx = 0, dy = 0;
+	u8 strip_base, strip_index;
+	bool redisplay = false;
+	int new_direction;
+
+	framecount++;
+	if (framecount%2)
+		return;
+
+	// compute x and y displacements
+	if (x>250)
+		dx = 1;
+	if (x<-250)
+		dx = -1;
+	if (y>250)
+		dy = 1;
+	if (y<-250)
+		dy = -1;
+
+	/*  
+	 * Below are the index of the relevant 3 sprites group 
+	 * in the 24 sprites strip (joystick position -> strip pos):
+	 *    6 7 8
+	 *    5 0 1
+	 *    4 3 2  
+	 */
+
+	// Get the base strip index 
+	new_direction = directions[dy+1][dx+1];
+
+	if ((new_direction == 0) && (last_direction != 0))
+	{	// we stopped
+		prisoner_sid = 3*(last_direction-1) + 1;	// the middle of 3 sprites is stopped pos
+		redisplay = true;
+	}
+
+	if (new_direction != 0)
+	{	// We're moving => animate sprite
+		if (last_direction == 0)
+		{	// We just started moving
+			framecount = 0;
+			// pick up the sprite left of idle one
+			prisoner_sid = 3*(new_direction-1);
+		}
+		else
+		{	// continuation of movement
+//			framecount++;
+#define KEY_FRAME 12
+			if (framecount % KEY_FRAME == 0) 
+			{
+				strip_base = 3*(new_direction-1);
+				strip_index = (framecount / KEY_FRAME) % 4;
+				if (strip_index == 3)
+					strip_index = 1;	// 0 1 2 1 ...
+				prisoner_sid = strip_base + strip_index;
+			}
+		}
+		redisplay = true;
+	}
+
+//	if (dx || dy)
+//		print("dx = %d, dy = %d, last = %d, new = %d, sid = %X\n", dx, dy, last_direction, new_direction, prisoner_sid);
+	last_direction = new_direction;
+
+	prisoner_x += dx;
+	prisoner_y += dy;
+
+	if (redisplay)
+	{
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		displayRoom(current_room_index);
+		glutSwapBuffers();
+	}
+//	print("x = %d, y = %d\n", x, y);
 }
 
 // Handle keyboard special keys (non ASCII)
@@ -227,13 +299,18 @@ static void glut_special_keys(int key, int x, int y)
 static void glut_reshape (int w, int h)
 {
 	GLCHK(glViewport(0, 0, w, h));
+
 	GLCHK(glMatrixMode(GL_PROJECTION));
 	GLCHK(glLoadIdentity());
 
-//	GLCHK(glOrtho(0, 240, 136, 0, -1, 1));
-	GLCHK(glOrtho(0, PSP_SCR_WIDTH*100/zoom_level, PSP_SCR_HEIGHT*100/zoom_level, 0, -1, 1));
-	origin_x = PSP_SCR_WIDTH/2 - (PSP_SCR_WIDTH/2) * zoom_level/100;
-	origin_y = PSP_SCR_HEIGHT/2 - (PSP_SCR_HEIGHT/2) * zoom_level/100;
+	GLCHK(glOrtho(0, (PSP_SCR_WIDTH*100)/zoom_level, (PSP_SCR_HEIGHT*100)/zoom_level, 0, -1, 1));
+
+	// As far as the projection is concerned, the zoomed width is still the constant PSP_SCR_WIDTH
+	// Thus we need to compute how the projection "sees" the viewport width (width*100/zoom) after
+	// the zoom, and we can find out how we need to move our origin
+	// Note: this zoom only works for FIXED window size
+	origin_x = PSP_SCR_WIDTH/2.0f * (100.0f/zoom_level - 1.0f);
+	origin_y = PSP_SCR_HEIGHT/2.0f * (100.0f/zoom_level - 1.0f);
 
 	GLCHK(glMatrixMode(GL_MODELVIEW));
 	GLCHK(glLoadIdentity());
@@ -245,8 +322,6 @@ static void glut_reshape (int w, int h)
 
 static void glut_display(void)
 {
-//	GLCHK(glShadeModel(GL_SMOOTH));
-
 	GLCHK(glClear(GL_COLOR_BUFFER_BIT));
 
 	GLCHK(glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE));
@@ -257,7 +332,6 @@ static void glut_display(void)
 	displayRoom(current_room_index);
 
 	glutSwapBuffers();
-	// glutPostRedisplay();
 
 }
 
@@ -322,17 +396,17 @@ int main (int argc, char *argv[])
 		exit (1);
 	}
 
+	// Need to have a working GL before we proceed
 	glut_init();
 
 	// Load the data
 	load_all_files();
+
+	// Set global variables
 	getProperties();
 
-	// Reorganize cells from interleaved bitplane lines to interleaved bitplane bits
-//	cells_to_interleaved(fbuffer[CELLS],fsize[CELLS]);
-
-	// And then create a new cell buffer
-	// TO_DO (change back to 6 and ARGB to RGB)
+	// We're going to convert the cells array, from 2 pixels per byte (paletted)
+	// to on RGB(A) word per pixel
 	rgbCells = (u8*) aligned_malloc(fsize[CELLS]*2*RGBA_SIZE, 16);
 	if (rgbCells == NULL)
 	{
@@ -340,23 +414,20 @@ int main (int argc, char *argv[])
 		ERR_EXIT;
 	}
 
+	// Get a palette we can work with
 	to_16bit_Palette(palette_index);
-	printf("cells_to_wGRAB\n");
+
+	// Convert the cells to RGBA data
 	cells_to_wGRAB(fbuffer[CELLS],rgbCells);
-	printf("cells_to_wGRAB2\n");
+
+	// Do the same for overlay sprites
 	init_sprites();
 	sprites_to_wGRAB();
 
-	// Display the first room
-//	glClear(GL_COLOR_BUFFER_BIT);
-//	displayRoom(current_room_index);
-#if !defined(PSP)
-	glutPrintf("[%d:%03X]", palette_index, current_room_index);
-#endif
-//	glutSwapBuffers();
-
+	// Now we can proceed with our display
 	glutDisplayFunc(glut_display);
 	glutReshapeFunc(glut_reshape);
+	glutJoystickFunc(glut_joystick, 10);
 	//glutMouseFunc(mouse_button);
 	//glutMotionFunc(mouse_motion);
 	glutKeyboardFunc(glut_keyboard);

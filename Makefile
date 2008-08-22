@@ -1,5 +1,5 @@
 TARGET = colditz
-OBJS = main.o utilities.o getopt.o psp/vram.o 
+OBJS = main.o low-level.o utilities.o getopt.o 
 
 INCDIR = 
 CFLAGS = -O2 -G0 -Wall
@@ -9,6 +9,7 @@ ASFLAGS = $(CFLAGS)
 LIBDIR =
 FLAGS =
 LIBS += -lglut -lGLU -lGL -lpspgu -lm -lc -lpsprtc 
+#-lpspvfpu
 
 BUILD_PRX=1
 EXTRA_TARGETS = EBOOT.PBP

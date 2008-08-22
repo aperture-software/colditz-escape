@@ -122,13 +122,16 @@ do {									\
 #define RGBA_SIZE			2
 
 
-
-#if !defined(GL_UNSIGNED_SHORT_4_4_4_4_REV)
 // Stupid VC++ doesn't know the basic formats it can actually use!
-#define GL_UNSIGNED_SHORT_4_4_4_4_REV     0x8365
-// NB: the _REV above is GRAB format, which is selected for 1:1 mapping on PSP
+#if !defined(GL_UNSIGNED_SHORT_4_4_4_4_REV)
+// NB: the _REV below is GRAB format, which is selected for 1:1 mapping on PSP
+#define GL_UNSIGNED_SHORT_4_4_4_4_REV	0x8365
+#endif
+#if !defined(GL_CLAMP_TO_EDGE)
+#define GL_CLAMP_TO_EDGE				0x812F
 #endif
 
+// PSP Screen will be our base def
 #define PSP_SCR_WIDTH		480
 #define PSP_SCR_HEIGHT		272
 
@@ -138,7 +141,7 @@ typedef struct
 {
     u16 w;
 	u16 h;
-	// Politicaly correct w & h (power of twos for pspgl)
+	// Politicaly correct w & h (power of twos, to keep the PSP happy)
 	u16 corrected_w;
 	u16 corrected_h;
 	u16 x_offset;
@@ -171,8 +174,9 @@ extern char* fname[NB_FILES];
 extern u32   fsize[NB_FILES];
 extern int	gl_off_x, gl_off_y;
 extern int	gl_width, gl_height;
-extern int  origin_x, origin_y;
-extern int  zoom_level;
+extern int  prisoner_x, prisoner_y;
+extern u8  prisoner_sid;
+extern float  origin_x, origin_y;
 
 extern u16  current_room_index;
 extern s_sprite		*sprite;
@@ -182,9 +186,6 @@ extern u8   overlay_index;
 // Having  a global palette saves a lot of hassle
 extern u8  bPalette[3][16];
 extern u16 aPalette[16];
-
-extern GLuint* cell_texid;
-extern GLuint* sprite_texid;
 
 #ifdef	__cplusplus
 }
