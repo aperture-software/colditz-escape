@@ -120,6 +120,8 @@ do {									\
 #define FFs_TO_IGNORE		7
 #define MAX_OVERLAY         0x80
 #define RGBA_SIZE			2
+#define CMP_MAP_WIDTH		0x54
+#define CMP_MAP_HEIGHT		0x48
 
 
 // Stupid VC++ doesn't know the basic formats it can actually use!

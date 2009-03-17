@@ -511,16 +511,22 @@ void displaySprite(float x, float y, float w, float h, GLuint texid)
 
 	GLCHK1(glBindTexture(GL_TEXTURE_2D, texid));
 
-	GLCHK1(glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR));
-	GLCHK1(glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR));
-	
+	// Don't modify pixel colour ever
+	GLCHK1(glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST));
+	GLCHK1(glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST));
+	// Do linear interpolation. While it does look better, it also leads to 
+	// clamping issues with overlay sprites
+//	GLCHK1(glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR));
+//	GLCHK1(glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR));
+
+
 	// If we don't set clamp, our tiling will show
 #if defined(WIN32)
 	// For some reason GL_CLAMP_TO_EDGE on Win achieves the same as GL_CLAMP on PSP
-//	GLCHK1(glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE));
-//	GLCHK1(glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE));
-	GLCHK1(glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP));
-	GLCHK1(glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP));
+	GLCHK1(glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE));
+	GLCHK1(glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE));
+//	GLCHK1(glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP));
+//	GLCHK1(glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP));
 #elif defined(PSP)
 	GLCHK(glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP));
 	GLCHK(glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP));
@@ -567,88 +573,145 @@ void displayRoom(u16 room_index)
 	u16 room_x, room_y, tile_data;
 	int tile_x, tile_y;
 	int pixel_x, pixel_y;
+	u32 bitmask = 0;
 
-	// Read the offset
-	offset = readlong((u8*)fbuffer[ROOMS], OFFSETS_START+4*room_index);
-	if (opt_verbose)
-		print("\noffset[%03X] = %08X ", room_index, (uint)offset);
-	if (offset == 0xFFFFFFFF)
-	{
-		// For some reason there is a break in the middle
-		if (opt_verbose)
-			print("\n  IGNORED");
-		return;
-	}
+	if (room_index == 0xFFFF)
+	{	// on compressed map
+		room_x = CMP_MAP_WIDTH;
+		room_y = CMP_MAP_HEIGHT;
 
-	// Now that we have the offset, let's look at the room
+		gl_off_x = (gl_width - (room_x*32))/2 - prisoner_x;
+		gl_off_y = (gl_height - (room_y*16))/2 - prisoner_y;
 
-	// The 2 first words are the room Y and X dimension (in tiles),
-	// in that order
-	room_y = readword((u8*)fbuffer[ROOMS], ROOMS_START+offset);
-	offset +=2;
-	room_x = readword((u8*)fbuffer[ROOMS], ROOMS_START+offset);
-	offset +=2;
-	if (opt_verbose)
-		print("(room_x=%X,room_y=%X)\n", room_x, room_y);
-	gl_off_x = (gl_width - (room_x*32))/2 - prisoner_x;
-	gl_off_y = (gl_height - (room_y*16))/2 - prisoner_y;
+		// reset room overlays
+		overlay_index = 0;
 
-	// reset room overlays
-	overlay_index = 0;
-
-	// Before we do anything, let's set the pickable objects in
-	// our overlay table (so that room overlays go on top of 'em)
-	set_objects();
-
-	// Read the tiles data
-	for (tile_y=0; tile_y<room_y; tile_y++)
-	{
-		if (opt_verbose)
-			print("    ");	// Start of a line
-		for(tile_x=0; tile_x<room_x; tile_x++)
+		// Read the tiles data
+		for (tile_y=0; tile_y<room_y; tile_y++)
 		{
-			pixel_x = gl_off_x+tile_x*32;
-			pixel_y = gl_off_y+tile_y*16;
-
-
-			// A tile is 32(x)*16(y)*4(bits) = 256 bytes
-			// A specific room tile is identified by a word
-			tile_data = readword((u8*)fbuffer[ROOMS], ROOMS_START+offset);
-
-			displaySprite(pixel_x,pixel_y,32,16, 
-				cell_texid[(tile_data>>7) + ((room_index>0x202)?0x1E0:0)]);
-
-			// Display sprite overlay
-			set_overlays(pixel_x, pixel_y, ROOMS_START+offset, room_x);
-
-			offset +=2;		// Read next tile
-
 			if (opt_verbose)
-				print("%04X ", tile_data);
+				print("    ");	// Start of a line
+			for(tile_x=0; tile_x<room_x; tile_x++)
+			{
+				pixel_x = gl_off_x+tile_x*32;
+				pixel_y = gl_off_y+tile_y*16;
+
+				tile_data = (readlong((u8*)fbuffer[COMPRESSED_MAP], (tile_y*room_x+tile_x)*4) & 0x1FF00);
+				tile_data >>= 1 ;	// get a tile offset we can actually use
+
+				displaySprite(pixel_x,pixel_y,32,16, 
+					cell_texid[(tile_data>>7)]);
+
+				if (opt_verbose)
+					printf("%04X ", tile_data & 0x1FF80);
+			}
+			if (opt_verbose)
+				print("\n");
 		}
-		if (opt_verbose)
+
+		if (opt_debug)
 			print("\n");
+
+
+		// Let's add our guy
+	//	overlay[overlay_index].sid = 0x85;	// tunnel cover
+		overlay[overlay_index].sid = prisoner_sid;	// tunnel cover
+
+		overlay[overlay_index].x = PSP_SCR_WIDTH/2; // - origin_x;
+		overlay[overlay_index++].y = PSP_SCR_HEIGHT/2; // - origin_y;
+	//	overlay[overlay_index].x = gl_off_x + room_x*16;
+	//	overlay[overlay_index++].y = gl_off_y + room_y*8;
+
+		// Now that the background is done, and that we have the overlays, display the overlay sprites
+		display_overlays();
+
+	//	displaySprite(100,100,32,16,cell_texid[4]);
+	//	displaySprite(32,0,32,16,cell_texid[5]);
 	}
+	else
+	{
 
-	if (opt_debug)
-		print("\n");
+		// Read the offset
+		offset = readlong((u8*)fbuffer[ROOMS], OFFSETS_START+4*room_index);
+		if (opt_verbose)
+			print("\noffset[%03X] = %08X ", room_index, (uint)offset);
+		if (offset == 0xFFFFFFFF)
+		{
+			// For some reason there is a break in the middle
+			if (opt_verbose)
+				print("\n  IGNORED");
+			return;
+		}
+
+		// Now that we have the offset, let's look at the room
+
+		// The 2 first words are the room Y and X dimension (in tiles),
+		// in that order
+		room_y = readword((u8*)fbuffer[ROOMS], ROOMS_START+offset);
+		offset +=2;
+		room_x = readword((u8*)fbuffer[ROOMS], ROOMS_START+offset);
+		offset +=2;
+		if (opt_verbose)
+			print("(room_x=%X,room_y=%X)\n", room_x, room_y);
+		gl_off_x = (gl_width - (room_x*32))/2 - prisoner_x;
+		gl_off_y = (gl_height - (room_y*16))/2 - prisoner_y;
+
+		// reset room overlays
+		overlay_index = 0;
+
+		// Before we do anything, let's set the pickable objects in
+		// our overlay table (so that room overlays go on top of 'em)
+		set_objects();
+
+		// Read the tiles data
+		for (tile_y=0; tile_y<room_y; tile_y++)
+		{
+			if (opt_verbose)
+				print("    ");	// Start of a line
+			for(tile_x=0; tile_x<room_x; tile_x++)
+			{
+				pixel_x = gl_off_x+tile_x*32;
+				pixel_y = gl_off_y+tile_y*16;
 
 
-	// Let's add our guy
-//	overlay[overlay_index].sid = 0x85;	// tunnel cover
-	overlay[overlay_index].sid = prisoner_sid;	// tunnel cover
+				// A tile is 32(x)*16(y)*4(bits) = 256 bytes
+				// A specific room tile is identified by a word
+				tile_data = readword((u8*)fbuffer[ROOMS], ROOMS_START+offset);
 
-	overlay[overlay_index].x = PSP_SCR_WIDTH/2; // - origin_x;
-	overlay[overlay_index++].y = PSP_SCR_HEIGHT/2; // - origin_y;
-//	overlay[overlay_index].x = gl_off_x + room_x*16;
-//	overlay[overlay_index++].y = gl_off_y + room_y*8;
+				displaySprite(pixel_x,pixel_y,32,16, 
+					cell_texid[(tile_data>>7) + ((room_index>0x202)?0x1E0:0)]);
 
-	// Now that the background is done, and that we have the overlays, display the overlay sprites
-	display_overlays();
+				// Display sprite overlay
+				set_overlays(pixel_x, pixel_y, ROOMS_START+offset, room_x);
 
-//	displaySprite(100,100,32,16,cell_texid[4]);
-//	displaySprite(32,0,32,16,cell_texid[5]);
+				offset +=2;		// Read next tile
 
+				if (opt_verbose)
+					print("%04X ", tile_data);
+			}
+			if (opt_verbose)
+				print("\n");
+		}
+
+		if (opt_debug)
+			print("\n");
+
+
+		// Let's add our guy
+	//	overlay[overlay_index].sid = 0x85;	// tunnel cover
+		overlay[overlay_index].sid = prisoner_sid;	// tunnel cover
+
+		overlay[overlay_index].x = PSP_SCR_WIDTH/2; // - origin_x;
+		overlay[overlay_index++].y = PSP_SCR_HEIGHT/2; // - origin_y;
+	//	overlay[overlay_index].x = gl_off_x + room_x*16;
+	//	overlay[overlay_index++].y = gl_off_y + room_y*8;
+
+		// Now that the background is done, and that we have the overlays, display the overlay sprites
+		display_overlays();
+
+	//	displaySprite(100,100,32,16,cell_texid[4]);
+	//	displaySprite(32,0,32,16,cell_texid[5]);
+	}
 
 }
 

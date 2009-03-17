@@ -8,7 +8,9 @@
 /** For glut, you need the dll in the exec location or system32
  ** and to compile, you need:
  ** - glut32.lib in C:\Program Files\Microsoft SDKs\Windows\v6.0A\Lib
- ** - glut.h in C:\Program Files\Microsoft SDKs\Windows\v6.0A\Include\gl
+ ** - glut.h in C:\Program Files\Microsoft SDKs\Windows\v6.0A\Include\gl 
+ **
+ ** The libs and header can be had from http://www.opengl.org/resources/libraries/glut/glutdlls37beta.zip
  **/
 #include <stdio.h>
 #include <stdlib.h>	
@@ -25,15 +27,14 @@
 #pragma comment(lib, "glu32.lib")
 #pragma comment(lib, "glut32.lib")
 #elif defined(PSP)
-#include <pspkernel.h>
 #include <pspdebug.h>
 #include <pspctrl.h>
-#include <pspdisplay.h>
 #include <pspgu.h>
 #include <psprtc.h>
 #include <GL/gl.h>
 #include <GL/glu.h>
 #include <GL/glut.h>
+#include "psp-setup.h"
 #endif
 
 #include "getopt.h"	
@@ -97,48 +98,6 @@ int framecount = 0;
  * x: exit lookup number (in exit map [1-8])
  */
 
-#if defined(PSP)
-//static unsigned int __attribute__((aligned(16))) list[262144];
-//static unsigned short __attribute__((aligned(16))) pixels[PSP_BUF_WIDTH*PSP_SCR_HEIGHT];
-/* Define the module info section */
-PSP_MODULE_INFO("colditz", 0, 1, 1);
-
-/* Define the main thread's attribute value (optional) */
-PSP_MAIN_THREAD_ATTR(THREAD_ATTR_USER | THREAD_ATTR_VFPU);
-//PSP_MAIN_THREAD_ATTR(PSP_THREAD_ATTR_USER);
-// Leave 256 KB for threads
-PSP_HEAP_SIZE_KB(-256);
-//PSP_HEAP_SIZE_MAX();
-
-/* Exit callback */
-int exitCallback(int arg1, int arg2, void *common) {
-	sceKernelExitGame();
-	return 0;
-}
-
-/* Callback thread */
-int callbackThread(SceSize args, void *argp) {
-	int cbid;
-
-	cbid = sceKernelCreateCallback("Exit Callback", (void*) exitCallback, NULL);
-	sceKernelRegisterExitCallback(cbid);
-	sceKernelSleepThreadCB();
-
-	return 0;
-}
-
-/* Sets up the callback thread and returns its thread id */
-int setupCallbacks(void) {
-	int thid = 0;
-
-	thid = sceKernelCreateThread("update_thread", callbackThread, 0x11, 0xFA0, 0, 0);
-	if (thid >= 0) {
-		sceKernelStartThread(thid, 0, 0);
-	}
-	return thid;
-}
-#endif
-
 
 /**
  ** GLUT event handlers
@@ -173,12 +132,89 @@ static void glut_init()
 // i.e. those that can be translated to ASCII
 static void glut_keyboard(u8 key, int x, int y)
 {
+	int dx = 0, dy = 0;
+	u8 strip_base, strip_index;
+	bool redisplay = false;
+	int new_direction;
+
 	switch (key)
 	{
 	case 27:
 		exit(0);
 		break;
+	case 'w':
+		dy = -1;
+		break;
+	case 'a':
+		dx = -1;
+		break;
+	case 'd':
+		dx = 1;
+		break;
+	case 's':
+		dy = 1;
 	}
+
+	framecount++;
+	if (framecount%2)
+		return;
+
+	/*  
+	 * Below are the index of the relevant 3 sprites group 
+	 * in the 24 sprites strip (joystick position -> strip pos):
+	 *    6 7 8
+	 *    5 0 1
+	 *    4 3 2  
+	 */
+
+	// Get the base strip index 
+	new_direction = directions[dy+1][dx+1];
+
+	if ((new_direction == 0) && (last_direction != 0))
+	{	// we stopped
+		prisoner_sid = 3*(last_direction-1) + 1;	// the middle of 3 sprites is stopped pos
+		redisplay = true;
+	}
+
+	if (new_direction != 0)
+	{	// We're moving => animate sprite
+		if (last_direction == 0)
+		{	// We just started moving
+			framecount = 0;
+			// pick up the sprite left of idle one
+			prisoner_sid = 3*(new_direction-1);
+		}
+		else
+		{	// continuation of movement
+//			framecount++;
+#define KEY_FRAME 12
+			if (framecount % KEY_FRAME == 0) 
+			{
+				strip_base = 3*(new_direction-1);
+				strip_index = (framecount / KEY_FRAME) % 4;
+				if (strip_index == 3)
+					strip_index = 1;	// 0 1 2 1 ...
+				prisoner_sid = strip_base + strip_index;
+			}
+		}
+		redisplay = true;
+	}
+
+//	if (dx || dy)
+//		print("dx = %d, dy = %d, last = %d, new = %d, sid = %X\n", dx, dy, last_direction, new_direction, prisoner_sid);
+	last_direction = new_direction;
+
+	prisoner_x += dx;
+	prisoner_y += dy;
+
+	if (redisplay)
+	{
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		displayRoom(current_room_index);
+		glutSwapBuffers();
+	}
+//	print("x = %d, y = %d\n", x, y);
+
 }
 
 static void glut_joystick(uint buttonMask, int x, int y, int z)
@@ -189,6 +225,7 @@ static void glut_joystick(uint buttonMask, int x, int y, int z)
 	int new_direction;
 
 	framecount++;
+	printf("%d\n", framecount);
 	if (framecount%2)
 		return;
 
@@ -266,9 +303,10 @@ static void glut_special_keys(int key, int x, int y)
 	{
 	case GLUT_KEY_UP:
 	case GLUT_KEY_DOWN:
-		if ((key == GLUT_KEY_UP) && (current_room_index < (nb_rooms-1)))
+		if ((key == GLUT_KEY_UP) && 
+			((current_room_index < (nb_rooms-1)) || (current_room_index == 0xFFFF)))
 			current_room_index++;
-		if ((key == GLUT_KEY_DOWN) && (current_room_index != 0))
+		if ((key == GLUT_KEY_DOWN) && (current_room_index != 0xFFFF))
 			current_room_index--;
 		// Refresh
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -350,7 +388,7 @@ int main (int argc, char *argv[])
      * Init
      */
 #if defined(PSP)
-	setupCallbacks();
+	setup_callbacks();
 #endif
 	glutInit(&argc, argv);
 
@@ -427,7 +465,9 @@ int main (int argc, char *argv[])
 	// Now we can proceed with our display
 	glutDisplayFunc(glut_display);
 	glutReshapeFunc(glut_reshape);
-	glutJoystickFunc(glut_joystick, 10);
+	glutJoystickFunc(glut_joystick, 30);	
+	// This is what you get from using obsolete libraries
+	// bloody callback doesn't work on Windows!!!
 	//glutMouseFunc(mouse_button);
 	//glutMotionFunc(mouse_motion);
 	glutKeyboardFunc(glut_keyboard);
