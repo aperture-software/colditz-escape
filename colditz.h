@@ -6,7 +6,7 @@ extern "C" {
 #endif
 
 #if defined(WIN32)
-// Disable the _CRT_SECURE_DEPRECATE warnings
+// Disable the _CRT_SECURE_DEPRECATE warnings of VC++
 #pragma warning(disable:4996)
 #endif
 
@@ -14,6 +14,9 @@ extern "C" {
 #if defined(WIN32)
 //#include <Windows.h>
 #define msleep(msecs) Sleep(msecs)
+#elif defined(PSP)
+#include <pspthreadman.h>
+#define msleep(msecs) sceKernelDelayThread(1000*msecs); 
 #else
 #include <unistd.h>
 #define	msleep(msecs) usleep(1000*msecs)
@@ -88,40 +91,53 @@ do {									\
 
 
 // # files we'll be dealing with
-#define NB_FILES			7
+#define NB_FILES				8
 // Some handy identifier to make code reader friendly
-#define ROOMS				0
-#define CELLS				1
-#define PALETTES			2
-#define LOADER				3
-#define COMPRESSED_MAP      4
-#define SPRITES             5
-#define OBJECTS				6
-#define RED                 0
-#define GREEN               1
-#define BLUE                2
+#define ROOMS					0
+#define CELLS					1
+#define PALETTES				2
+#define LOADER					3
+#define COMPRESSED_MAP			4
+#define SPRITES					5
+#define OBJECTS					6
+#define PANEL					7
+#define RED						0
+#define GREEN					1
+#define BLUE					2
 // Never be short on filename sizes
-#define NAME_SIZE			256			
-#define FNAMES				{ "COLDITZ_ROOM_MAPS", "COLDITZ_CELLS", "PALS.BIN", "COLDITZ-LOADER",\
-							  "COMPRESSED_MAP", "SPRITES.SPR", "OBS.BIN" }
-#define FSIZES				{ 58828, 135944, 232, 56080, \
-							  33508, 71056, 2056 }
-#define ALT_LOADER          "SKR_COLD"
-#define ALT_LOADER_SIZE		28820
-#define OFFSETS_START		0x2684
-#define ROOMS_START			0x2FE4
-#define CM_TILES_START      0x5E80
+#define NAME_SIZE				256			
+#define FNAMES					{ "COLDITZ_ROOM_MAPS", "COLDITZ_CELLS", "PALS.BIN", "COLDITZ-LOADER",\
+								  "COMPRESSED_MAP", "SPRITES.SPR", "OBS.BIN", "PANEL.RAW" }
+#define FSIZES					{ 58828, 135944, 232, 56080, \
+								  33508, 71056, 2056, 49152 }
+#define ALT_LOADER				"SKR_COLD"
+#define ALT_LOADER_SIZE			28820
+#define OFFSETS_START			0x2684
+#define ROOMS_START				0x2FE4
+#define CM_TILES_START			0x5E80
 // tiles that need overlay, from LOADER
-#define SPECIAL_TILES_START 0x3EBA
-#define NB_SPECIAL_TILES	0x16
-#define OBS_TO_SPRITE_START	0x5D02
-#define NB_OBS_TO_SPRITE	15
-#define LOADER_DATA_START	0x10C
-#define FFs_TO_IGNORE		7
-#define MAX_OVERLAY         0x80
-#define RGBA_SIZE			2
-#define CMP_MAP_WIDTH		0x54
-#define CMP_MAP_HEIGHT		0x48
+#define SPECIAL_TILES_START		0x3EBA
+#define NB_SPECIAL_TILES		0x16
+#define OBS_TO_SPRITE_START		0x5D02
+#define NB_OBS_TO_SPRITE		15
+#define LOADER_DATA_START		0x10C
+#define FFs_TO_IGNORE			7
+#define MAX_OVERLAY				0x80
+#define RGBA_SIZE				2
+#define CMP_MAP_WIDTH			0x54
+#define CMP_MAP_HEIGHT			0x48
+// On compressed map (outside)
+#define ROOM_OUTSIDE			0xFFFF
+#define REMOVABLES_MASKS_START	0x86d8
+#define REMOVABLES_MASKS_LENGTH	27
+#define JOY_DEADZONE			450
+// These are use to check if our footprint is out of bounds
+#define TILE_MASKS_OFFSETS		0xA168
+#define	TILE_MASKS_START		0xA9D8
+#define TILE_MASKS_LENGTH		0x21B
+#define SPRITE_FOOTPRINT		0x3FFC0000
+#define TUNNEL_FOOTPRINT		0xFF000000
+#define FOOTPRINT_HEIGHT		4
 
 
 // Stupid VC++ doesn't know the basic formats it can actually use!
@@ -136,7 +152,6 @@ do {									\
 // PSP Screen will be our base def
 #define PSP_SCR_WIDTH		480
 #define PSP_SCR_HEIGHT		272
-
 
 // Define a structure to hold the RGBA sprites
 typedef struct
@@ -167,6 +182,9 @@ extern u8   *mbuffer;
 extern u8   *fbuffer[NB_FILES];
 extern FILE *fd;
 extern u8   *rgbCells;
+// Removable walls current bitmask
+extern u32  rem_bitmask;
+
 
 
 // Data specific global variables
@@ -176,7 +194,9 @@ extern char* fname[NB_FILES];
 extern u32   fsize[NB_FILES];
 extern int	gl_off_x, gl_off_y;
 extern int	gl_width, gl_height;
-extern int  prisoner_x, prisoner_y;
+extern int  prisoner_x, prisoner_2y;
+extern int  last_p_x, last_p_y;
+extern int  dx, d2y;
 extern u8  prisoner_sid;
 extern float  origin_x, origin_y;
 
