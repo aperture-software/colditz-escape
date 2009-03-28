@@ -62,8 +62,9 @@ u8*	  rgbCells			= NULL;
 int	gl_off_x = 0, gl_off_y  = 0;
 // OpenGL window size
 int	gl_width, gl_height;
+u8	prisoner_h = 0x23, prisoner_w = 0x10;
 int prisoner_x = 900, prisoner_2y = 600;
-//int prisoner_x = 32, prisoner_2y = 32;
+//int prisoner_x = 0, prisoner_2y = 0;
 int last_p_x = 0, last_p_y = 0;
 int dx = 0, d2y = 0;
 int jdx, jd2y;
@@ -72,7 +73,9 @@ u8	p_sid_base	 = 0x00;
 // german_walk  = 0x37 (with rifle)
 // german_run   = 0x57 (with rifle)
 u8  prisoner_sid = 0x07; // 0x07;
-float origin_x = 0, origin_y = -24.0;
+//float origin_x = 0, origin_y = -24.0;
+//float origin_x = 0, origin_y = 0.0;
+
 
 bool key_down[256];
 
@@ -153,7 +156,7 @@ static void glut_init()
 static void glut_display(void)
 {
 	glClear(GL_COLOR_BUFFER_BIT);
-	display_room(current_room_index);
+	display_room();
 	display_panel();
 #if !defined (PSP)
 	rescale_buffer();
@@ -201,14 +204,25 @@ void process_motion(void)
 	u8 strip_base, strip_index;
 	bool redisplay = false;
 	int new_direction;
-
-
+	int exit;
+	
 	// Check if we're allowed to go where we want
-	if ( ((dx != 0) || (d2y != 0)) && (!opt_ghost) &&
-		 (!check_footprint(current_room_index, prisoner_x + dx, prisoner_2y + d2y + 2)) )
-	{	// can't go there
+	if ((dx != 0) || (d2y != 0))
+	{
+		exit = check_footprint(prisoner_x + dx, prisoner_2y + 2*d2y);
+		if (exit)
+		{	// non zero => motion allowed
+			if (exit>0)
+			{	// we're using an exit
+				printf("exit[%d], from room[%X]\n", exit, current_room_index);
+				switch_room(exit);
+			}
+		}
+		else if (!opt_ghost)
+		{	// can't go there
 			dx = 0;
 			d2y = 0;
+		}
 	}
 
 	/*  

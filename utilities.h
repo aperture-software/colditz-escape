@@ -14,7 +14,7 @@ void to_16bit_palette(u8 palette_index);
 //void cells_to_RGB(u8* source, u8* dest, u32 size);
 void cells_to_wGRAB(u8* source, u8* dest);
 void load_all_files();
-void display_room(u16 room_index);
+void display_room();
 void display_panel();
 void rescale_buffer();
 void get_properties();
@@ -23,7 +23,8 @@ void glutPrintf(const char *fmt, ...);
 #endif
 void init_sprites();
 void sprites_to_wGRAB();
-int check_footprint(u16 room_index, int px, int p2y);
+int check_footprint(int px, int p2y);
+void switch_room(int exit);
 
 
 #ifdef	__cplusplus

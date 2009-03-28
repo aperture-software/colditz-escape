@@ -34,6 +34,9 @@ extern "C" {
 #ifndef u16
 #define u16 unsigned short
 #endif
+#ifndef s16
+#define s16 short
+#endif
 #ifndef u32
 #define u32 unsigned long
 #endif
@@ -138,7 +141,23 @@ do {									\
 #define SPRITE_FOOTPRINT		0x3FFC0000
 #define TUNNEL_FOOTPRINT		0xFF000000
 #define FOOTPRINT_HEIGHT		4
-
+// Exit checks
+#define EXIT_TILES_LIST			0x392E
+#define EXIT_MASKS_OFFSETS		0x3964
+#define EXIT_MASKS_START		0x89C6
+#define NB_EXITS				27
+#define EXIT_CELLS_LIST			0x3E1A
+#define NB_CELLS_EXITS			22
+#define ROOMS_EXITS_BASE		0x0100
+// For our (magical) apparition into a new room after using an exit
+#define HAT_RABBIT_OFFSET		0x3E46
+#define CMP_RABBIT_OFFSET		0x4350
+#define HAT_RABBIT_POS_START	0x3E72
+// How do we need to shift our whole room up so that the seams don't show
+#define NORTHWARD_HO			28
+//28
+#define SPRITE_ADJUST_X			1
+#define SPRITE_ADJUST_Y			6
 
 // Stupid VC++ doesn't know the basic formats it can actually use!
 #if !defined(GL_UNSIGNED_SHORT_4_4_4_4_REV)
@@ -194,11 +213,11 @@ extern char* fname[NB_FILES];
 extern u32   fsize[NB_FILES];
 extern int	gl_off_x, gl_off_y;
 extern int	gl_width, gl_height;
+extern u8	prisoner_w, prisoner_h;
 extern int  prisoner_x, prisoner_2y;
 extern int  last_p_x, last_p_y;
 extern int  dx, d2y;
 extern u8  prisoner_sid;
-extern float  origin_x, origin_y;
 
 extern u16  current_room_index;
 extern s_sprite		*sprite;

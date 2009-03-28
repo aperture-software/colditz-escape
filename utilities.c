@@ -36,6 +36,7 @@ GLuint render_texid;
 
 u8  obs_to_sprite[NB_OBS_TO_SPRITE];
 u8	removable_tile_set[CMP_MAP_WIDTH][CMP_MAP_HEIGHT];
+u32 debug_counter = 0;
 
 
 void load_all_files()
@@ -528,14 +529,12 @@ void set_objects()
 }
 
 
-void display_sprite(float x, float y, float w, float h, GLuint texid) 
+void display_sprite(float x1, float y1, float w, float h, GLuint texid) 
 {
-	float x1, x2, y1, y2;
+	float x2, y2;
 
-	x1 = origin_x + x;
-	x2 = origin_x + x + w;
-	y1 = origin_y + y;
-	y2 = origin_y + y + h;
+	x2 = x1 + w;
+	y2 = y1 + h;
 
 	glBindTexture(GL_TEXTURE_2D, texid);
 
@@ -706,7 +705,7 @@ void removable_walls()
 }
 
 // Display room
-void display_room(u16 room_index)
+void display_room()
 {
 // OK, I'll spare you the suspense: this is NOT optimized like hell!
 // We are redrawing ALL the tiles, for EACH FRAME!
@@ -725,12 +724,16 @@ void display_room(u16 room_index)
 
 //	printf("prisoner (x,y) = (%d,%d)\n", prisoner_x, prisoner_2y/2);
 
-	if (room_index != ROOM_OUTSIDE)
+	// Compute GL offsets (position of 0,0 corner of the room wrt center of the screen) 
+	gl_off_x = PSP_SCR_WIDTH/2 - prisoner_x;
+	gl_off_y = PSP_SCR_HEIGHT/2 - (prisoner_2y/2) - NORTHWARD_HO;
+
+	if (current_room_index != ROOM_OUTSIDE)
 	{	// Standard room (inside)
 		// Read the offset
-		offset = readlong((u8*)fbuffer[ROOMS], OFFSETS_START+4*room_index);
+		offset = readlong((u8*)fbuffer[ROOMS], OFFSETS_START+4*current_room_index);
 		if (opt_verbose)
-			print("\noffset[%03X] = %08X ", room_index, (uint)offset);
+			print("\noffset[%03X] = %08X ", current_room_index, (uint)offset);
 		if (offset == 0xFFFFFFFF)
 		{
 			// For some reason there is a gap in the middle
@@ -749,9 +752,6 @@ void display_room(u16 room_index)
 		offset +=2;
 		if (opt_verbose)
 			print("(room_x=%X,room_y=%X)\n", room_x, room_y);
-
-		gl_off_x = PSP_SCR_WIDTH/2 - prisoner_x;
-		gl_off_y = PSP_SCR_HEIGHT/2 - (prisoner_2y/2);
 
 		// reset room overlays
 		overlay_index = 0;
@@ -784,7 +784,7 @@ void display_room(u16 room_index)
 				tile_data = readword((u8*)fbuffer[ROOMS], ROOMS_START+offset);
 
 				display_sprite(pixel_x,pixel_y,32,16, 
-					cell_texid[(tile_data>>7) + ((room_index>0x202)?0x1E0:0)]);
+					cell_texid[(tile_data>>7) + ((current_room_index>0x202)?0x1E0:0)]);
 
 				// Display sprite overlay
 				set_overlays(pixel_x, pixel_y, ROOMS_START+offset, room_x);
@@ -806,10 +806,6 @@ void display_room(u16 room_index)
 		room_x = CMP_MAP_WIDTH;
 		room_y = CMP_MAP_HEIGHT;
 
-		// Compute GL offsets (position of 0,0 corner of the room wrt center of the screen) 
-		gl_off_x = PSP_SCR_WIDTH/2 - prisoner_x;
-		gl_off_y = PSP_SCR_HEIGHT/2 - (prisoner_2y/2);
-
 		// reset room overlays
 		overlay_index = 0;
 
@@ -822,11 +818,11 @@ void display_room(u16 room_index)
 
 		// These are the min/max tile boundary computation for PSP screen
 		// according to our cropped section
-		min_y = prisoner_2y/32 - 7;
+		min_y = prisoner_2y/32 - 8;
 		if (min_y < 0)
 			min_y = 0;
 
-		max_y = prisoner_2y/32 + 9;
+		max_y = prisoner_2y/32 + 10;
 		if (max_y > room_y)
 			max_y = room_y;
 
@@ -913,10 +909,15 @@ void display_room(u16 room_index)
 
 	// Let's add our guy
 	overlay[overlay_index].sid = prisoner_sid;	
-//	overlay[overlay_index].sid = 0xC1;	
+//	overlay[overlay_index].sid = 0xC1;
+//  overlay[overlay_index].sid = 0x85;	// 0x85 is a good example of 16x32 tile
 
-	overlay[overlay_index].x = PSP_SCR_WIDTH/2; // - 6; 
-	overlay[overlay_index++].y = PSP_SCR_HEIGHT/2 - 28; 
+	overlay[overlay_index].x = PSP_SCR_WIDTH/2 + SPRITE_ADJUST_X; 
+	// This one's a bit of mess because:
+	// 1. we need to remove NORTHWARD_HO, as it's already been added to gl_off_y
+	// 2. unlike the Amiga, our sprite origin is top left (=> - prisoner_h)
+	// 3. we have to fine tune our Y some more
+	overlay[overlay_index++].y = PSP_SCR_HEIGHT/2 - NORTHWARD_HO - prisoner_h + SPRITE_ADJUST_Y;  
 
 	// Now that the background is done, and that we have the overlays, display the overlay sprites
 	display_overlays();
@@ -929,7 +930,7 @@ void display_room(u16 room_index)
 // Display Panel
 void display_panel()
 {
-
+	u8 w,h;
 	glColor3f(0.0f, 0.0f, 0.0f);	// Set the colour to black
 
 	glDisable(GL_BLEND);	// Needed for black objects to show
@@ -937,23 +938,25 @@ void display_panel()
 	// Because the original game wasn't designed for widescreen
 	// we have to diagonally crop the area to keep some elements hidden
 	// TO_DO: add some texture, to make it look like an old photograph or something
+	h = (28-NORTHWARD_HO)+36;
+	w = 2*h;
 	glBegin(GL_TRIANGLES);
 
 	glVertex2d(0, 0);
-	glVertex2d(72, 0);
-	glVertex2d(0, 36);
+	glVertex2d(w, 0);
+	glVertex2d(0, h);
 
 	glVertex2d(PSP_SCR_WIDTH, 0);
-	glVertex2d(PSP_SCR_WIDTH-72, 0);
-	glVertex2d(PSP_SCR_WIDTH, 36);
+	glVertex2d(PSP_SCR_WIDTH-w, 0);
+	glVertex2d(PSP_SCR_WIDTH, h);
 
 	glVertex2d(PSP_SCR_WIDTH, PSP_SCR_HEIGHT-32);
-	glVertex2d(PSP_SCR_WIDTH-72, PSP_SCR_HEIGHT-32);
-	glVertex2d(PSP_SCR_WIDTH, PSP_SCR_HEIGHT-32-36);
+	glVertex2d(PSP_SCR_WIDTH-w, PSP_SCR_HEIGHT-32);
+	glVertex2d(PSP_SCR_WIDTH, PSP_SCR_HEIGHT-32-h);
 
 	glVertex2d(0, PSP_SCR_HEIGHT-32);
-	glVertex2d(72, PSP_SCR_HEIGHT-32);
-	glVertex2d(0, PSP_SCR_HEIGHT-32-36);
+	glVertex2d(w, PSP_SCR_HEIGHT-32);
+	glVertex2d(0, PSP_SCR_HEIGHT-32-h);
 
 	glEnd();
 
@@ -1014,7 +1017,7 @@ void rescale_buffer()
 // to figure out a bloody solution to zoom the lousy colour buffer, because 
 // if you think, with all the GPU acceleration, there should be an easy way to
 // achieve that crap, you couldn't be more wrong!
-	float old_x, old_y;
+//	float old_x, old_y;
 
 	if ((gl_width != PSP_SCR_WIDTH) && (gl_height != PSP_SCR_HEIGHT))
 	{	
@@ -1038,10 +1041,10 @@ void rescale_buffer()
 
 		// OK, now we can display the whole texture
 		// But first, we need to reset the origin
-		old_x = origin_x; origin_x = 0;
-		old_y = origin_y; origin_y = 0;
+//		old_x = origin_x; origin_x = 0;
+//		old_y = origin_y; origin_y = 0;
 		display_sprite(0,gl_height,gl_width,-gl_height,render_texid);
-		origin_x = old_x; origin_y = old_y;
+//		origin_x = old_x; origin_y = old_y;
 
 		// Finally, we restore the parameters
 		glMatrixMode(GL_PROJECTION);
@@ -1054,39 +1057,41 @@ void rescale_buffer()
 	}
 }
 
-// Thif function returns true if the prisoner is allowed at (px,p2y)
-int check_footprint(u16 room_index, int px, int p2y)
+// Reads the tile index at (x,y) from compressed map and rotate
+#define comp_readtile(x,y)			\
+	((u32)(readlong((u8*)fbuffer[COMPRESSED_MAP], ((y)*room_x+(x))*4) & 0x1FF00) >> 8)
+#define room_readtile(x,y)			\
+	((u32)(readword((u8*)(fbuffer[ROOMS]+ROOMS_START+offset),((y)*room_x+(x))*2) & 0xFF80) >> 7)
+// Converts a tile index to a longword offset
+#define readtile(x,y)				\
+	((current_room_index == ROOM_OUTSIDE)?comp_readtile(x,y):room_readtile(x,y))
+
+#define comp_readexit(x,y)			\
+	((u32)(readlong((u8*)fbuffer[COMPRESSED_MAP], ((y)*room_x+(x))*4) & 0x1F))
+#define room_readexit(x,y)			\
+	((u32)(readword((u8*)(fbuffer[ROOMS]+ROOMS_START+offset),((y)*room_x+(x))*2) & 0x1F))
+// Converts a tile index to a longword offset
+#define readexit(x,y)				\
+	((current_room_index == ROOM_OUTSIDE)?comp_readexit(x,y):room_readexit(x,y))
+
+
+
+// Checks if the prisoner can go to (px,p2y)
+// Returns:
+// non zero if allowed (-1 if not an exit, or the exit number)
+// 0 if not allowed
+int check_footprint(int px, int p2y)
 {
-	u32 tile, mask, offset;
+	u32 tile, tile_mask, exit_mask, offset=0;
 	u32 footprint = SPRITE_FOOTPRINT;
 	u16 room_x, room_y;
 	u16 mask_y;
 	// maks offsets for upper-left, upper-right, lower-left, lower_right tiles
-	u16 mask_offset[4];
-	u16 exit[4];
+	u32 mask_offset[4];	// tile boundary
+	u32 exit_offset[4];	// exit boundary
 	int tile_x, tile_y;
-	u8 i;
-
-// Reads the tile index at (x,y) from compressed map and rotate
-#define comp_readtile(x,y,r)		\
-	((u32)(readlong((u8*)fbuffer[COMPRESSED_MAP], ((y)*room_x+(x))*4) & 0x1FF00) >> (r))
-#define room_readtile(x,y,r)		\
-	((u32)(readword((u8*)(fbuffer[ROOMS]+ROOMS_START+offset),((y)*room_x+(x))*2) & 0xFF80) >> (r))
-// Converts a tile index to a longword offset
-#define lo_readtile(x,y)			\
-	((room_index == ROOM_OUTSIDE)?comp_readtile(x,y,6):room_readtile(x,y,5))
-// check if a sprite is overflowing on a mask
-// the condtion below is true is a bit of s (the sprite) is set over a clear bit of m (the mask)
-#define sprite_overflow(s,m)				\
-	( (((~m)^s)&(~m)) != (~m) )
-
-#define comp_readexit(x,y,r)		\
-	((u32)(readlong((u8*)fbuffer[COMPRESSED_MAP], ((y)*room_x+(x))*4) & 0x1F) << (r))
-#define room_readexit(x,y,r)		\
-	((u32)(readword((u8*)(fbuffer[ROOMS]+ROOMS_START+offset),((y)*room_x+(x))*2) & 0x1F) << (r))
-// Converts a tile index to a longword offset
-#define lo_readexit(x,y)		\
-	((room_index == ROOM_OUTSIDE)?comp_readexit(x,y,2):room_readexit(x,y,2))
+	u8 i,u;
+	int gotit = -1;
 
 
 
@@ -1099,14 +1104,14 @@ int check_footprint(u16 room_index, int px, int p2y)
 //	if (TO_DO: CHECK TUNNEL)
 //		sprite_footprint = TUNNEL_FOOTPRINT;
 
-	if (room_index == ROOM_OUTSIDE)
+	if (current_room_index == ROOM_OUTSIDE)
 	{	// on compressed map (outside)
 		room_x = CMP_MAP_WIDTH;
 		room_y = CMP_MAP_HEIGHT;
 	}
 	else
 	{	// in a room (inside)
-		offset = readlong((u8*)fbuffer[ROOMS], OFFSETS_START+4*room_index);
+		offset = readlong((u8*)fbuffer[ROOMS], OFFSETS_START+4*current_room_index);
 		if (offset == 0xFFFFFFFF)
 			return 0;
 		room_y = readword((u8*)fbuffer[ROOMS], ROOMS_START+offset);
@@ -1119,6 +1124,7 @@ int check_footprint(u16 room_index, int px, int p2y)
 	// Compute the tile on which we try to stand
 	tile_y = p2y / 32;
 	tile_x = px / 32;
+//	printf("org (x,y) = (%X,%X)\n", tile_x, tile_y);
 
 	// check if we are trying to overflow our room left or up
 	if ((px<0) || (p2y<0))
@@ -1127,60 +1133,224 @@ int check_footprint(u16 room_index, int px, int p2y)
 	for (i=0; i<2; i++)
 	{
 		// Set the left mask offset (tile_x, tile_y(+1)) index, converted to a long offset
-		tile = lo_readtile(tile_x, tile_y);
-//		if ((tile != 0) && (tile <
-//		printf("tile = %08X\n", tile << 5);
-		mask_offset[2*i] = readlong((u8*)fbuffer[LOADER], TILE_MASKS_OFFSETS+tile);
+		tile = readtile(tile_x, tile_y);
+		// Get the exit mask, if we stand on an exit
+		// If we are not on an exit tile we'll use the empty mask from TILE_MASKS 
+		// NB: This is why we add the ####_MASKS_STARTs here, as we might mix EXIT and TILE
+		exit_offset[2*i] = TILE_MASKS_START;
+		for (u=0; u<NB_EXITS; u++)
+		{
+			if (readword((u8*)fbuffer[LOADER], EXIT_TILES_LIST + 2*u) == tile)
+			{	
+//				printf("got_exit %04X - offset = %04X\n", tile << 7, readword((u8*)fbuffer[LOADER], EXIT_MASKS_OFFSETS+2*u));
+				exit_offset[2*i] = EXIT_MASKS_START + 
+					readword((u8*)fbuffer[LOADER], EXIT_MASKS_OFFSETS+2*u);
+				break;
+			}
+		}
+
+		mask_offset[2*i] = TILE_MASKS_START + readlong((u8*)fbuffer[LOADER], TILE_MASKS_OFFSETS+(tile<<2));
 
 		// Set the upper right mask offset
 		if ((px&0x1F) < 16)
+		{
 			mask_offset[2*i+1] = mask_offset[2*i] + 2;	// Just shift 16 bits on the same tile
+			exit_offset[2*i+1] = exit_offset[2*i] + 2;
+		}
 		else
 		{	// Need to lookup the adjacent (tile_x+1, tile_y(+1)) mask
 			mask_offset[2*i] += 2;	// first, we need to offset our first quadrant
+			exit_offset[2*i] += 2;
 			if ((tile_x+1) < room_x)
 			{	// only read adjacent if it exists (i.e. < room_x)
-				tile = lo_readtile(tile_x+1, tile_y);
-				mask_offset[2*i+1] = readlong((u8*)fbuffer[LOADER], TILE_MASKS_OFFSETS+tile);
+				tile = readtile(tile_x+1, tile_y);
+
+				// Get the exit mask, if we stand on an exit
+				exit_offset[2*i+1] = TILE_MASKS_START;
+				for (u=0; u<NB_EXITS; u++)
+				{
+					if (readword((u8*)fbuffer[LOADER], EXIT_TILES_LIST + 2*u) == tile)
+					{	
+//						printf("got_exit %04X - offset = %04X\n", tile << 7, readword((u8*)fbuffer[LOADER], EXIT_MASKS_OFFSETS+2*u));
+						exit_offset[2*i+1] = EXIT_MASKS_START + 
+							readword((u8*)fbuffer[LOADER], EXIT_MASKS_OFFSETS+2*u);
+						break;
+					}
+				}
+
+				mask_offset[2*i+1] = TILE_MASKS_START + readlong((u8*)fbuffer[LOADER], TILE_MASKS_OFFSETS+(tile<<2));
 			}
 			else	// offset 0 is mask_empty
-				mask_offset[2*i+1] = 0;
+			{
+				exit_offset[2*i+1] = TILE_MASKS_START;
+				mask_offset[2*i+1] = TILE_MASKS_START;
+			}
 		}
 		tile_y++;	// process lower tiles
 	}
 
+//	for (i=0; i<4; i++)
+//		printf("exit_offset[%d] = %08X\n", i, exit_offset[i]);
+
 	// OK, now we have our 4 mask offsets
 	mask_y = (p2y & 0x1E)<<1;	// one mask line is 4 bytes (and p2y is already 2*py)
+
 	mask_offset[0] += mask_y;	// start at the right line
 	mask_offset[1] += mask_y;
+
+	exit_offset[0] += mask_y;	// start at the right line
+	exit_offset[1] += mask_y;
+
 	footprint >>= (px & 0x0F);	// rotate our footprint according to our x pos
 //		printf("foot = %08x [%d]\n", footprint, (px&0x1f));
+
 	for (i=0; i<FOOTPRINT_HEIGHT; i++)
 	{
-		mask = readword((u8*)fbuffer[LOADER], TILE_MASKS_START+mask_offset[0]);
-		mask <<= 16;
-		mask |= readword((u8*)fbuffer[LOADER], TILE_MASKS_START+mask_offset[1]);
-//			printf("mask[%d] = %08x\n", i, mask);
-		//
-		// this condition is true when a footprint mask bit 
-		// is set over a cleared tile mask bit (overflow)
-		if sprite_overflow(footprint,mask)
+		tile_mask = to_long(readword((u8*)fbuffer[LOADER], mask_offset[0]),	
+			readword((u8*)fbuffer[LOADER], mask_offset[1]));
+
+		exit_mask = to_long(readword((u8*)fbuffer[LOADER], exit_offset[0]),
+			readword((u8*)fbuffer[LOADER], exit_offset[1]));
+
+		printf("%s\n",to_binary(exit_mask));
+//		printf("%08X\n",exit_mask);
+
+		// see low_level.h for the collsion macros
+		if inverted_collision(footprint,tile_mask)
 		{
+			// we have an exit perhaps
+			if (collision(footprint,exit_mask))
+			{
+//				printf("EXIT! (%02X)\n", readexit(tile_x,tile_y-2));
+				return(readexit(tile_x,tile_y-2));
+			}
+//			gotit = 0;
 			return 0;
 		}
 		mask_y+=4;
 		// Do we need to change tile in y?
-		if (mask_y == 0x40)
-		{	// went over the tile boundary
-			// => replace upper mask offsets with lower
-			mask_offset[0] = mask_offset[2];
-			mask_offset[1] = mask_offset[3];
-		}
-		else
+		for (u=0;u<2;u++)
 		{
-			mask_offset[0] +=4;
-			mask_offset[1] +=4;
+			if (mask_y == 0x40)
+			{	// went over the tile boundary
+				// => replace upper mask offsets with lower
+				mask_offset[u] = mask_offset[u+2];
+				exit_offset[u] = exit_offset[u+2];
+			}
+			else
+			{
+				mask_offset[u] +=4;
+				exit_offset[u] +=4;
+			}
 		}
 	}
-	return -1;
+	return gotit;
+//	return -1;
+}
+
+
+void switch_room(int exit_nr)
+{
+	u32 offset;
+	u16 exit_index;	// exit index in destination room
+	u16 room_x, room_y, tile_data;
+	int tile_x, tile_y;
+	int found, u;
+	int pixel_x, pixel_y;
+	u8  bit_index;
+
+	if (current_room_index == ROOM_OUTSIDE)
+	{	// If we're on the compressed map, we need to read 2 words (out of 4)
+		// from beginning of the ROOMS_MAP file
+		offset = exit_nr << 3;	// skip 8 bytes
+		current_room_index = readword((u8*)fbuffer[ROOMS], offset) & 0x7FF;
+		exit_index = readword((u8*)fbuffer[ROOMS], offset+2);
+	}
+	else
+	{	// indoors => read from the ROOMS_EXIT_BASE data
+		exit_index = (exit_nr&0xF)-1;
+		offset = current_room_index << 4;
+		// Now the real clever trick here is that the exit index of the room you just left
+		// and the exit index of the one you go always match.
+		// Thus, we know where we should get positioned on entering the room
+		current_room_index = readword((u8*)fbuffer[ROOMS], ROOMS_EXITS_BASE + offset 
+			+ 2*exit_index);
+	}
+
+	exit_index++;	// zero based to one based
+	printf("          to room[%X] (exit_index = %d)\n", current_room_index, exit_index);
+
+	// OK, we have now officially changed room, but we still need to position our guy
+	if (current_room_index & 0x8000)	// MSb from ROOMS_EXIT_BASE data means going out
+										// anything else is inside
+	{	// going outside
+		room_x = CMP_MAP_WIDTH;		// keep our readtile macros happy
+
+		// If we're outside, we need to set the removable mask according to our data's MSB
+		bit_index = (current_room_index >> 8) & 0x7C;
+		rem_bitmask = readlong((u8*)fbuffer[LOADER],  REMOVABLES_MASKS_START + bit_index);
+
+		// Now, use the tile index (LSB) as an offset to our (x,y) pos
+		// NB: The ground floor rooms are in [00-F8]
+		offset = (current_room_index & 0xF8) + 4;
+		tile_y = readword((u8*)fbuffer[ROOMS], offset);
+		tile_x = readword((u8*)fbuffer[ROOMS], offset+2);
+
+		// Now that we're done, switch to our actual outbound marker
+		current_room_index = ROOM_OUTSIDE;
+
+		// Finally, we need to adjust our pos, through the rabbit offset table
+		tile_data = (readtile(tile_x,tile_y) & 0xFF00) >> 7;
+		offset = readword((u8*)fbuffer[LOADER], CMP_RABBIT_OFFSET + tile_data);
+	}
+	else
+	{	// going inside, or still inside
+		// Get the room dimensions
+		offset = readlong((u8*)fbuffer[ROOMS], OFFSETS_START+4*current_room_index);
+		room_y = readword((u8*)fbuffer[ROOMS], ROOMS_START+offset);
+		offset +=2;
+		room_x = readword((u8*)fbuffer[ROOMS], ROOMS_START+offset);
+		offset +=2;
+
+		// Read the tiles data
+		found = 0;	// easier this way, as tile_x/y won't need adjusting
+		for (tile_y=0; (tile_y<room_y)&&(!found); tile_y++)
+		{
+			for(tile_x=0; (tile_x<room_x)&&(!found); tile_x++)
+			{
+				tile_data = readword((u8*)fbuffer[ROOMS], ROOMS_START+offset);
+				if ((tile_data & 0xF) == exit_index)
+				{
+					found = -1;
+					break;
+				}
+				offset +=2;		// Read next tile
+			}
+			if (found)
+				break;
+		}
+
+		if (!found)
+		{	// Better exit than go LHC
+			perr("Error: Exit lookup failed\n");
+			ERR_EXIT;
+		}
+
+		// We have our exit position in tiles. Now, depending 
+		// on the exit type, we need to add a small position offset
+		tile_data &= 0xFF80;
+		for (u=0; u<NB_CELLS_EXITS; u++)
+		{
+			if (readword((u8*)fbuffer[LOADER], EXIT_CELLS_LIST + 2*u) == tile_data)
+				break;
+		}
+		offset = readword((u8*)fbuffer[LOADER], HAT_RABBIT_OFFSET + 2*u);
+	}
+
+	// Read the pixel adjustment
+	pixel_y = (s16)(readword((u8*)fbuffer[LOADER], HAT_RABBIT_POS_START + offset));
+	pixel_x = (s16)(readword((u8*)fbuffer[LOADER], HAT_RABBIT_POS_START + offset+2));
+ 
+	prisoner_x = tile_x*32 + pixel_x - SPRITE_ADJUST_X;; // + prisoner_w; // 
+	prisoner_2y = tile_y*32 + 2*pixel_y + 2*prisoner_h - 2*SPRITE_ADJUST_Y;
 }

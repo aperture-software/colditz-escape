@@ -53,6 +53,20 @@ void writebyte(u8* buffer, u32 addr, u8 value)
 	buffer[addr] = value;
 }
 
+// dammit %b should be a standard!
+// converts a 32 bit to string
+const char *to_binary(u32 x)
+{
+	static char b[33]; 
+	u8 i;
+	u32 m; 
+    for (i=0,m=0x80000000; m!=0; i++,m>>=1)
+		b[i] = (x&m)?'1':'0';
+	b[32] = 0;
+    return b;
+}
+
+
 
 // Power-of-two-err... ize!
 // We need this to change a dimension to the closest greater power of two
