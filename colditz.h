@@ -158,6 +158,9 @@ do {									\
 //28
 #define SPRITE_ADJUST_X			1
 #define SPRITE_ADJUST_Y			6
+//
+#define FIXED_CRM_VECTOR		0x50
+//#define R116_EXITS
 
 // Stupid VC++ doesn't know the basic formats it can actually use!
 #if !defined(GL_UNSIGNED_SHORT_4_4_4_4_REV)

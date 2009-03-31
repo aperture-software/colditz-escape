@@ -63,6 +63,7 @@ int	gl_off_x = 0, gl_off_y  = 0;
 // OpenGL window size
 int	gl_width, gl_height;
 u8	prisoner_h = 0x23, prisoner_w = 0x10;
+//int prisoner_x = 0, prisoner_2y = 0;
 int prisoner_x = 900, prisoner_2y = 600;
 //int prisoner_x = 0, prisoner_2y = 0;
 int last_p_x = 0, last_p_y = 0;
@@ -81,7 +82,7 @@ bool key_down[256];
 
 u16  current_room_index = ROOM_OUTSIDE;
 u16  nb_rooms, nb_cells, nb_sprites, nb_objects;
-u8   palette_index = 2;
+u8   palette_index = 4;
 s_sprite*	sprite;
 s_overlay*	overlay;
 u8   overlay_index;
@@ -184,8 +185,6 @@ static void glut_reshape (int w, int h)
 }
 
 
-
-
 // Handle keyboard standard keys 
 // i.e. those that can be translated to ASCII
 static void glut_keyboard(u8 key, int x, int y)
@@ -196,7 +195,7 @@ static void glut_keyboard(u8 key, int x, int y)
 #if defined(WIN32)
 #define KEY_FRAME 12
 #else
-#define KEY_FRAME 8
+#define KEY_FRAME 10
 #endif
 
 void process_motion(void)
@@ -206,15 +205,35 @@ void process_motion(void)
 	int new_direction;
 	int exit;
 	
+
 	// Check if we're allowed to go where we want
 	if ((dx != 0) || (d2y != 0))
 	{
-		exit = check_footprint(prisoner_x + dx, prisoner_2y + 2*d2y);
+		exit = check_footprint(dx, d2y);
+		if (exit != -1)
+		{	// if -1, we move normally
+			// in all other cases, we need to stop (even on exit)
+			if (exit>0)
+			{
+				printf("exit[%d], from room[%X]\n", exit, current_room_index);
+				switch_room(exit, dx, d2y);
+				redisplay = true;
+			}
+			// Change the last direction so that we use the right sid for stopping
+			last_direction = directions[d2y+1][dx+1];;
+			dx = 0;
+			d2y = 0;
+		}
+	}
+	/*
 		if (exit)
 		{	// non zero => motion allowed
 			if (exit>0)
 			{	// we're using an exit
 				printf("exit[%d], from room[%X]\n", exit, current_room_index);
+				// Change the last direction so that we use the right sid for stopping
+				last_direction = directions[d2y+1][dx+1];;
+				dx = 0; d2y = 0; redisplay = true;
 				switch_room(exit);
 			}
 		}
@@ -224,7 +243,7 @@ void process_motion(void)
 			d2y = 0;
 		}
 	}
-
+*/
 	/*  
 	 * Below are the indexes of the relevant 3 sprites groups 
 	 * in the 24 sprites strip (joystick position -> strip pos):
@@ -319,7 +338,7 @@ static void glut_idle(void)
 	// Can't hurt to sleep a while if we're motionless, so that
 	// we don't hammer down the CPU in a loop
 	if ((dx == 0) && (d2y == 0))
-		msleep(30);
+		msleep(60);
 }
 
 
@@ -456,6 +475,9 @@ int main (int argc, char *argv[])
 
 	// Load the data
 	load_all_files();
+
+	// fix some of the files
+	fix_files();
 
 	// Set global variables
 	get_properties();

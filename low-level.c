@@ -62,7 +62,7 @@ const char *to_binary(u32 x)
 	u32 m; 
     for (i=0,m=0x80000000; m!=0; i++,m>>=1)
 		b[i] = (x&m)?'1':'0';
-	b[32] = 0;
+	b[i] = 0;
     return b;
 }
 

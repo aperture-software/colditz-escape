@@ -23,8 +23,9 @@ void glutPrintf(const char *fmt, ...);
 #endif
 void init_sprites();
 void sprites_to_wGRAB();
-int check_footprint(int px, int p2y);
-void switch_room(int exit);
+int check_footprint(int dx, int d2y);
+void switch_room(int exit, int dx, int dy);
+void fix_files();
 
 
 #ifdef	__cplusplus
