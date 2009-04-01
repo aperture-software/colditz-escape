@@ -6,6 +6,26 @@ extern "C" {
 #endif
 
 
+/* These macro will come handy later on */
+
+// Reads the tile index at (x,y) from compressed map and rotate
+#define comp_readtile(x,y)			\
+	((u32)(readlong((u8*)fbuffer[COMPRESSED_MAP], ((y)*room_x+(x))*4) & 0x1FF00) >> 8)
+#define room_readtile(x,y)			\
+	((u32)(readword((u8*)(fbuffer[ROOMS]+ROOMS_START+offset),((y)*room_x+(x))*2) & 0xFF80) >> 7)
+// Converts a tile index to a longword offset
+#define readtile(x,y)				\
+	((current_room_index == ROOM_OUTSIDE)?comp_readtile(x,y):room_readtile(x,y))
+
+#define comp_readexit(x,y)			\
+	((u32)(readlong((u8*)fbuffer[COMPRESSED_MAP], ((y)*room_x+(x))*4) & 0x1F))
+#define room_readexit(x,y)			\
+	((u32)(readword((u8*)(fbuffer[ROOMS]+ROOMS_START+offset),((y)*room_x+(x))*2) & 0x1F))
+// Converts a tile index to a longword offset
+#define readexit(x,y)				\
+	((current_room_index == ROOM_OUTSIDE)?comp_readexit(x,y):room_readexit(x,y))
+
+
 //void cells_to_interleaved(u8* buffer, u32 size);
 //void sprites_to_interleaved(u8* buffer, u32 bitplane_size);
 void to_16bit_palette(u8 palette_index);

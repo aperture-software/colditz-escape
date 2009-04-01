@@ -50,6 +50,8 @@ int debug_flag			= 0;
 int	opt_verbose			= 0;
 int	opt_debug			= 0;
 int opt_ghost			= 0;
+// Force a specific sprite ID for our guy
+int opt_sid				= -1;
 
 // File stuff
 FILE* fd				= NULL;
@@ -64,7 +66,8 @@ int	gl_off_x = 0, gl_off_y  = 0;
 int	gl_width, gl_height;
 u8	prisoner_h = 0x23, prisoner_w = 0x10;
 //int prisoner_x = 0, prisoner_2y = 0;
-int prisoner_x = 900, prisoner_2y = 600;
+//int prisoner_x = 900, prisoner_2y = 600;
+int prisoner_x = 980, prisoner_2y = 2*464;
 //int prisoner_x = 0, prisoner_2y = 0;
 int last_p_x = 0, last_p_y = 0;
 int dx = 0, d2y = 0;
@@ -215,8 +218,8 @@ void process_motion(void)
 			// in all other cases, we need to stop (even on exit)
 			if (exit>0)
 			{
-				printf("exit[%d], from room[%X]\n", exit, current_room_index);
-				switch_room(exit, dx, d2y);
+				printf("exit[%d], from room[%X]\n", exit-1, current_room_index);
+				switch_room(exit-1, dx, d2y);
 				redisplay = true;
 			}
 			// Change the last direction so that we use the right sid for stopping
@@ -435,7 +438,7 @@ int main (int argc, char *argv[])
 		fbuffer[i] = NULL;
 
 	// Process commandline options (works for PSP too with psplink)
-	while ((i = getopt (argc, argv, "vbgh")) != -1)
+	while ((i = getopt (argc, argv, "vbghs:")) != -1)
 		switch (i)
 	{
 		case 'v':		// Print verbose messages
@@ -446,6 +449,9 @@ int main (int argc, char *argv[])
 			break;
 		case 'g':		// walk through walls
 			opt_ghost = -1;
+			break;
+		case 's':
+			sscanf(optarg, ("%x"), &opt_sid); 
 			break;
 		case 'h':
 		default:		// Unknown option

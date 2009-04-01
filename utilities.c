@@ -29,27 +29,6 @@
 #include "low-level.h"
 
 
-/* These macro will come handy later on */
-
-// Reads the tile index at (x,y) from compressed map and rotate
-#define comp_readtile(x,y)			\
-	((u32)(readlong((u8*)fbuffer[COMPRESSED_MAP], ((y)*room_x+(x))*4) & 0x1FF00) >> 8)
-#define room_readtile(x,y)			\
-	((u32)(readword((u8*)(fbuffer[ROOMS]+ROOMS_START+offset),((y)*room_x+(x))*2) & 0xFF80) >> 7)
-// Converts a tile index to a longword offset
-#define readtile(x,y)				\
-	((current_room_index == ROOM_OUTSIDE)?comp_readtile(x,y):room_readtile(x,y))
-
-#define comp_readexit(x,y)			\
-	((u32)(readlong((u8*)fbuffer[COMPRESSED_MAP], ((y)*room_x+(x))*4) & 0x1F))
-#define room_readexit(x,y)			\
-	((u32)(readword((u8*)(fbuffer[ROOMS]+ROOMS_START+offset),((y)*room_x+(x))*2) & 0x1F))
-// Converts a tile index to a longword offset
-#define readexit(x,y)				\
-	((current_room_index == ROOM_OUTSIDE)?comp_readexit(x,y):room_readexit(x,y))
-
-
-
 /* Whatever you do, you don't want local variables holding textures */
 GLuint* cell_texid;
 GLuint* sprite_texid;
@@ -58,7 +37,7 @@ GLuint render_texid;
 
 /* Some more globals */
 u8  obs_to_sprite[NB_OBS_TO_SPRITE];
-u8	removable_tile_set[CMP_MAP_WIDTH][CMP_MAP_HEIGHT];
+u8	remove_props[CMP_MAP_WIDTH][CMP_MAP_HEIGHT];
 //u32 debug_counter = 0;
 
 
@@ -206,7 +185,7 @@ void get_properties()
 	// if the removable walls are set
 	for (i=0; i<CMP_MAP_WIDTH; i++)
 		for (j=0; j<CMP_MAP_HEIGHT; j++)
-			removable_tile_set[i][j] = 0;
+			remove_props[i][j] = 0;
 
 	// Set our textures for panel and zoom
 	glGenTextures( 1, &panel_texid );
@@ -456,36 +435,36 @@ void sprites_to_wGRAB()
 }
 
 
-// Populates the overlay table
-void set_overlays(int x, int y, u32 current_tile, u16 room_x)
+// Populates the tile overlays, if we are on Colditz Rooms Map
+void crm_set_overlays(int x, int y, u16 current_tile, u32 tile_offset, u16 room_x)
 {
-	u16 tile1_data, tile2_data;
+	u16 tile2_data;
 	u16 i;
 	short sx, sy;
 	u16 sid;	// sprite index
 
 	// read current tile
-	tile1_data = readword(fbuffer[ROOMS], current_tile) & 0xFF80;
 	for (i=0; i<(12*NB_SPECIAL_TILES); i+=12)
 	{
-		if (readword(fbuffer[LOADER], SPECIAL_TILES_START+i) != tile1_data)
+		if (readword(fbuffer[LOADER], SPECIAL_TILES_START+i) != current_tile)
 			continue;
 		sx = readword(fbuffer[LOADER], SPECIAL_TILES_START+i+8);
 		if (opt_debug)
-			print("  match: %04X, direction: %04X\n", tile1_data, sx);
+			print("  match: %04X, direction: %04X\n", current_tile, sx);
 		if (i >= (12*(NB_SPECIAL_TILES-4)))
 		// The four last special tiles are exits. We need to check is they are open
 		{
-			// Get the exit data (same tile if tunnel, 2 rows down in door)
-			tile2_data = readword(fbuffer[ROOMS], current_tile + 
-				(i==(12*(NB_SPECIAL_TILES-1)))?0:(4*room_x));
-//			print("got exit: %04X\n", tile2_data);
+			// Get the exit data (same tile if tunnel, 2 rows down if door)
+			tile2_data = readword(fbuffer[ROOMS], tile_offset + 
+			// careful that ? take precedence over +, so if you don't put the
+			// whole ?: increment in parenthesis, you have a problem
+				((i==(12*(NB_SPECIAL_TILES-1)))?0:(4*room_x)));
 			// Validity check
 			if (!(tile2_data & 0x000F))
 				print("set_overlays: Integrity check failure on exit tile\n");
 			// if the tile is an exit and the exit is open
 			if (tile2_data & 0x0010)
-			{
+			{	// door open
 				if (opt_debug)
 					print("    exit open: ignoring overlay\n");
 				// The second check on exits is always an FA00, thus we can safely
@@ -494,9 +473,9 @@ void set_overlays(int x, int y, u32 current_tile, u16 room_x)
 		}
 			 
 		if (sx < 0)
-			tile2_data = readword(fbuffer[ROOMS], current_tile-2) & 0xFF80;
+			tile2_data = readword(fbuffer[ROOMS], tile_offset-2) & 0xFF80;
 		else
-			tile2_data = readword(fbuffer[ROOMS], current_tile+2) & 0xFF80;
+			tile2_data = readword(fbuffer[ROOMS], tile_offset+2) & 0xFF80;
 		// ignore if special tile that follows is matched
 		if (readword(fbuffer[LOADER], SPECIAL_TILES_START+i+2) == tile2_data)
 		{
@@ -518,10 +497,58 @@ void set_overlays(int x, int y, u32 current_tile, u16 room_x)
 		// No point in looking for overlays any further if we met our match 
 		// UNLESS this is a double bed overlay, in which case the same tile
 		// needs to be checked for a double match (in both in +x and -x)
-		if (tile1_data != 0xEF00)
+		if (current_tile != 0xEF00)
 			break;
 	}
 }
+
+
+// Populates the tile overlays, if we are on the CoMPressed map
+void cmp_set_overlays(int off_x, int off_y)
+{
+	u16 i;
+	u32 bitset, offset;
+	short sx, sy;
+	u16 sid;	// sprite index
+
+	// First deal with doors
+	for (i=0; i<(4*OUTSIDE_OVL_NB); i+=4)
+	{
+		// The relevant bit (byte[0]) from the bitmask must be set 
+		bitset = 1 << (readbyte(fbuffer[LOADER], OUTSIDE_OVL_BASE+i));
+//		printf("bit1 = %s\n rem = %s\n", to_binary(bitset),to_binary(rem_bitmask));
+		if (!(rem_bitmask & bitset))
+			continue;
+		// But only if the bit identified by byte[1] is not set
+		bitset = 1 << (readbyte(fbuffer[LOADER], OUTSIDE_OVL_BASE+i+1));
+//		printf("bit2 = %s\n rem = %s\n", to_binary(bitset),to_binary(rem_bitmask));
+		if (rem_bitmask & bitset)
+			continue;
+
+		// OK, now we know that our removable section is meant to show an exit
+
+		// First, let's grab the sid
+		offset = readbyte(fbuffer[LOADER], OUTSIDE_OVL_BASE+i+3) << 3;
+		sid = readword(fbuffer[LOADER],CMP_OVERLAYS+offset+4);
+//		printf("found sid: %X\n", sid);
+		overlay[overlay_index].sid = sid;
+		sx = readword(fbuffer[LOADER],CMP_OVERLAYS+offset+2);
+		sy = readword(fbuffer[LOADER],CMP_OVERLAYS+offset);
+
+
+		// which is detailled from 8 bytes at the beginning of the CRM files,
+		// as indexed by our 3rd byte
+		offset = readbyte(fbuffer[LOADER], OUTSIDE_OVL_BASE+i+2) << 3;
+//		printf("offset = %X\n", offset);
+		sy += readword(fbuffer[ROOMS],offset+4) * 16;
+		sx += readword(fbuffer[ROOMS],offset+6) * 32;
+//		printf("(x.y) = (%d,%d)\n", x, y);
+		overlay[overlay_index].x = off_x + (int)sx - (int)sprite[sid].w + (int)(sprite[sid].x_offset);
+		overlay[overlay_index].y = off_y + (int)sy - (int)sprite[sid].h + 1;
+		overlay_index++;
+	}
+}
+
 
 
 // Read the props (pickable objects) from obs.bin
@@ -541,7 +568,8 @@ void set_objects()
 		overlay[overlay_index].y = gl_off_y + y;
 
 		// Because of the removable walls we have a special case for the CMP_MAP
-		if ((current_room_index == ROOM_OUTSIDE) && (removable_tile_set[x/32][y/16]))
+		if ((current_room_index == ROOM_OUTSIDE) && (remove_props[x/32][y/16]))
+			// TO_DO: check for an actual props SID?
 				overlay_index--;
 
 		if (opt_debug)
@@ -601,10 +629,14 @@ void display_sprite(float x1, float y1, float w, float h, GLuint texid)
 void display_overlays()
 {
 	u8 i;
+	// stairs column = 7F
 
 	for (i=0; i<overlay_index; i++)
+	{
 		display_sprite(overlay[i].x, overlay[i].y, sprite[overlay[i].sid].corrected_w, 
 			sprite[overlay[i].sid].corrected_h, sprite_texid[overlay[i].sid]);
+//		printf("ovl(%d,%d), sid = %X\n", overlay[i].x, overlay[i].y, overlay[i].sid);
+	}
 }
 
 
@@ -682,7 +714,7 @@ void removable_walls()
 	{	// moving up and having crossed the horizontal
 		// boundary (set at tile bottom)
 		// => turn the relevant removable invisible
-		tmp_bitmask &= ~(1 << (bit_index >> 2));	// don't forget to rotate!
+		tmp_bitmask &= ~(1 << (bit_index >> 2));	// don't forget to rotate dammit!
 		rem_bitmask = tmp_bitmask;
 	}
 	if (dir_offset == 2)
@@ -738,6 +770,8 @@ void display_room()
 	u32 offset;					// Offsets to each rooms are given at
 								// the beginning of the Rooms Map file
 	u16 room_x, room_y, tile_data;
+	u32 raw_data;
+	u16 rem_offset;
 	int min_x, max_x, min_y, max_y;
 	u16 tile_tmp, nb_tiles;
 	u8  bit_index;
@@ -749,7 +783,7 @@ void display_room()
 
 	// Compute GL offsets (position of 0,0 corner of the room wrt center of the screen) 
 	gl_off_x = PSP_SCR_WIDTH/2 - prisoner_x - 1;
-	gl_off_y = PSP_SCR_HEIGHT/2 - (prisoner_2y/2) - NORTHWARD_HO -2;
+	gl_off_y = PSP_SCR_HEIGHT/2 - (prisoner_2y/2) - NORTHWARD_HO - 2;
 
 	// reset room overlays
 	overlay_index = 0;
@@ -760,24 +794,22 @@ void display_room()
 
 
 	// Let's add our guy
-	overlay[overlay_index].sid = prisoner_sid;	
+	// TO_DO: REMOVE THIS DEBUG FEATURE
+	overlay[overlay_index].sid = (opt_sid == -1)?prisoner_sid:opt_sid;	
 	// 0x85
-	overlay[overlay_index].x = PSP_SCR_WIDTH/2; // + SPRITE_ADJUST_X; 
-	overlay[overlay_index++].y = PSP_SCR_HEIGHT/2 - NORTHWARD_HO - 32; // - prisoner_h + SPRITE_ADJUST_Y;  
+	overlay[overlay_index].x = PSP_SCR_WIDTH/2;  
+	overlay[overlay_index++].y = PSP_SCR_HEIGHT/2 - NORTHWARD_HO - 32; 
 
+
+	// No readtile() macros used here, for speed
 	if (current_room_index != ROOM_OUTSIDE)
 	{	// Standard room (inside)
 		// Read the offset
 		offset = readlong((u8*)fbuffer[ROOMS], OFFSETS_START+4*current_room_index);
-		if (opt_verbose)
-			print("\noffset[%03X] = %08X ", current_room_index, (uint)offset);
 		if (offset == 0xFFFFFFFF)
-		{
-			// For some reason there is a gap in the middle
-			if (opt_verbose)
-				print("\n  IGNORED");
+		// For some reason there is a gap in the middle of the rooms data
+		// This shouldn't matter, unless you set the room manually
 			return;
-		}
 
 		// Now that we have the offset, let's look at the room
 
@@ -787,20 +819,14 @@ void display_room()
 		offset +=2;
 		room_x = readword((u8*)fbuffer[ROOMS], ROOMS_START+offset);
 		offset +=2;
-		if (opt_verbose)
-			print("(room_x=%X,room_y=%X)\n", room_x, room_y);
 
 		// Read the tiles data
+		pixel_y = gl_off_y;	// A little optimization can't hurt
 		for (tile_y=0; tile_y<room_y; tile_y++)
 		{
-			if (opt_verbose)
-				print("    ");	// Start of a line
+			pixel_x = gl_off_x;
 			for(tile_x=0; tile_x<room_x; tile_x++)
 			{
-				pixel_x = gl_off_x+tile_x*32;
-				pixel_y = gl_off_y+tile_y*16;
-
-
 				// A tile is 32(x)*16(y)*4(bits) = 256 bytes
 				// A specific room tile is identified by a word
 
@@ -817,19 +843,13 @@ void display_room()
 					cell_texid[(tile_data>>7) + ((current_room_index>0x202)?0x1E0:0)]);
 
 				// Display sprite overlay
-				set_overlays(pixel_x, pixel_y, ROOMS_START+offset, room_x);
+				crm_set_overlays(pixel_x, pixel_y, tile_data & 0xFF80, ROOMS_START+offset, room_x);
 
 				offset +=2;		// Read next tile
-
-				if (opt_verbose)
-					print("%04X ", tile_data);
+				pixel_x += 32;
 			}
-			if (opt_verbose)
-				print("\n");
+			pixel_y += 16;
 		}
-
-		if (opt_debug)
-			print("\n");
 	}
 	else
 	{	// on compressed map (outside)
@@ -858,15 +878,13 @@ void display_room()
 			max_x = room_x;
 
 		// Read the tiles data
+		pixel_y = gl_off_y+min_y*16;
 		for (tile_y=min_y; tile_y<max_y; tile_y++)
 		{
-			if (opt_verbose)
-				print("    ");	// Start of a line
+			offset = (tile_y*room_x+min_x)*4;
+			pixel_x = gl_off_x+32*min_x;
 			for(tile_x=min_x; tile_x<max_x; tile_x++)
 			{
-				pixel_x = gl_off_x+tile_x*32;
-				pixel_y = gl_off_y+tile_y*16;
-
 				/* Read a longword in the first part of the compressed map
 				 * The compressed map elements are of the form
 				 * OOOO OOOO OOOO OOOT TTTT TTTT IIII IIDD
@@ -880,36 +898,37 @@ void display_room()
 				 * NB: in the case of an exit (T TTTT TTTT < 0x900), IIII IIDD is the exit index
 				 */
 
-				tile_data = (readlong((u8*)fbuffer[COMPRESSED_MAP], (tile_y*room_x+tile_x)*4) & 0x1FF00);
-				tile_data >>= 1 ;	// get a tile offset we can actually use
+				raw_data = readlong((u8*)fbuffer[COMPRESSED_MAP], offset);
+				tile_data = (u16)(raw_data>>1) & 0xFF80;
 
 				// For the time being, we'll reset the removable boolean for props
-				removable_tile_set[tile_x][tile_y] = 0;
+				remove_props[tile_x][tile_y] = 0;
 
 				// If the first 15 bits of this longword are zero, then we have a simple tile, 
 				// with remainder 17 being the tile data 
-				offset = readword((u8*)fbuffer[COMPRESSED_MAP], (tile_y*room_x+tile_x)*4) & 0xFFFE;
+				rem_offset = (raw_data >> 16) & 0xFFFE;
 				// First word (with mask 0xFFFE) indicates if we have a simple tile or not
 
-				if (offset != 0)
+				if (rem_offset != 0)
 				// If the first 15 bits are not null, we have a complex sequence, 
 				// which we must read in second part of the compressed map, 
 				// the 15 bits being the offset from start of second part
 				{
 					// The first word read is the number of overlapping tiles
 					// overlapping tiles occur when there might be a wall hiding a walkable section
-					nb_tiles = readword((u8*)fbuffer[COMPRESSED_MAP], CM_TILES_START+offset);
+					nb_tiles = readword((u8*)fbuffer[COMPRESSED_MAP], CM_TILES_START+rem_offset);
 					// The rest of the data is a tile index (FF80), a bit index (1F), and 2 bits unused.
 					// the later being used to check bits of an overlay bitmap longword
 					for (u=nb_tiles; u!=0; u--)
 					{
-						tile_tmp = readword((u8*)fbuffer[COMPRESSED_MAP], CM_TILES_START+offset + 2*u);
+						tile_tmp = readword((u8*)fbuffer[COMPRESSED_MAP], CM_TILES_START+rem_offset + 2*u);
 						bit_index = tile_tmp & 0x1F;
 						if ( (1<<bit_index) & rem_bitmask )
 						{
 							tile_data = tile_tmp;
-							// If we're using a removable tile, we'll need to hide the props beneath
-							removable_tile_set[tile_x][tile_y] = 1;
+							// Do we need to hide the props beneath?
+							if (!props_tile[tile_data>>7])
+								remove_props[tile_x][tile_y] = 1;
 							break;
 						}
 					}
@@ -919,29 +938,18 @@ void display_room()
 				display_sprite(pixel_x,pixel_y,32,16, 
 					cell_texid[(tile_data>>7)]);
 
-				if (opt_verbose)
-					printf("%04X ", tile_data & 0x1FF80);
+				// Display sprite overlay
+//				set_overlays(pixel_x, pixel_y, tile_data, offset, room_x);
+
+				offset += 4;
+				pixel_x += 32;
 			}
-			if (opt_verbose)
-				print("\n");
+			pixel_y += 16;
 		}
-
-		if (opt_debug)
-			print("\n");
+		// On the compressed map, we set all the overlays in one go
+		cmp_set_overlays(gl_off_x, gl_off_y);
 	}
-/*
-	// Let's add our guy
-	overlay[overlay_index].sid = prisoner_sid;	
-//	overlay[overlay_index].sid = 0xC1;
-//  overlay[overlay_index].sid = 0x85;	// 0x85 is a good example of 16x32 tile
 
-	overlay[overlay_index].x = PSP_SCR_WIDTH/2 + SPRITE_ADJUST_X; 
-	// This one's a bit of mess because:
-	// 1. we need to remove NORTHWARD_HO, as it's already been added to gl_off_y
-	// 2. unlike the Amiga, our sprite origin is top left (=> - prisoner_h)
-	// 3. we have to fine tune our Y some more
-	overlay[overlay_index++].y = PSP_SCR_HEIGHT/2 - NORTHWARD_HO - prisoner_h + SPRITE_ADJUST_Y;  
-*/
 	// Now that the background is done, and that we have the overlays, display the overlay sprites
 	display_overlays();
 
@@ -949,6 +957,7 @@ void display_room()
 	last_p_x = prisoner_x;
 	last_p_y = prisoner_2y/2; 
 }
+
 
 // Display Panel
 void display_panel()
@@ -1100,8 +1109,6 @@ int check_footprint(int dx, int d2y)
 	int gotit = -1;
 	int px, p2y;
 
-
-
 //	printf("prisoner (x,y) = (%d,%d)\n", prisoner_x, prisoner_2y/2);
 	/*
 	 * To check the footprint, we need to set 4 quadrants of masks
@@ -1242,17 +1249,10 @@ int check_footprint(int dx, int d2y)
 		{
 			// we have an exit perhaps
 			if (collision(footprint,exit_mask))
-			{
-//				printf("EXIT! (%02X)\n", readexit(tile_x+exit_dx,tile_y-2));
-				if (readexit(tile_x+exit_dx[0],tile_y-2) == 0)
-				{
-					printf("ERROR: could not read exit [%X] (%d,%d)\n",current_room_index,tile_x+exit_dx[0],tile_y-2);
-					return 0;
-				}
-				return(readexit(tile_x+exit_dx[0],tile_y-2));
-			}
-			gotit = 0;
-//			return 0;
+				// +1 as exits start at 0
+				return(readexit(tile_x+exit_dx[0],tile_y-2)+1);
+//			gotit = 0;
+			return 0;
 		}
 		mask_y+=4;
 		// Do we need to change tile in y?
