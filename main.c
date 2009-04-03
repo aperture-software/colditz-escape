@@ -46,28 +46,29 @@
 // Global variables
 
 // Flags
-int debug_flag			= 0;
-int	opt_verbose			= 0;
-int	opt_debug			= 0;
-int opt_ghost			= 0;
+int debug_flag				= 0;
+int	opt_verbose				= 0;
+int	opt_debug				= 0;
+int opt_ghost				= 0;
+int opt_play_as_the_safe	= 0;
 // Force a specific sprite ID for our guy
-int opt_sid				= -1;
+int opt_sid					= -1;
 
 // File stuff
-FILE* fd				= NULL;
-char* fname[NB_FILES]	= FNAMES;			// file name(s)
-u32   fsize[NB_FILES]	= FSIZES;
+FILE* fd					= NULL;
+char* fname[NB_FILES]		= FNAMES;			// file name(s)
+u32   fsize[NB_FILES]		= FSIZES;
 u8*   fbuffer[NB_FILES];
-u8*   mbuffer			= NULL;
-u8*	  rgbCells			= NULL;
+u8*   mbuffer				= NULL;
+u8*	  rgbCells				= NULL;
 // GL Stuff
 int	gl_off_x = 0, gl_off_y  = 0;
 // OpenGL window size
 int	gl_width, gl_height;
 u8	prisoner_h = 0x23, prisoner_w = 0x10;
 //int prisoner_x = 0, prisoner_2y = 0;
-//int prisoner_x = 900, prisoner_2y = 600;
-int prisoner_x = 980, prisoner_2y = 2*464;
+int prisoner_x = 900, prisoner_2y = 600;
+//int prisoner_x = 980, prisoner_2y = 2*464;
 //int prisoner_x = 0, prisoner_2y = 0;
 int last_p_x = 0, last_p_y = 0;
 int dx = 0, d2y = 0;
@@ -77,8 +78,6 @@ u8	p_sid_base	 = 0x00;
 // german_walk  = 0x37 (with rifle)
 // german_run   = 0x57 (with rifle)
 u8  prisoner_sid = 0x07; // 0x07;
-//float origin_x = 0, origin_y = -24.0;
-//float origin_x = 0, origin_y = 0.0;
 
 
 bool key_down[256];
@@ -218,7 +217,7 @@ void process_motion(void)
 			// in all other cases, we need to stop (even on exit)
 			if (exit>0)
 			{
-				printf("exit[%d], from room[%X]\n", exit-1, current_room_index);
+//				printf("exit[%d], from room[%X]\n", exit-1, current_room_index);
 				switch_room(exit-1, dx, d2y);
 				redisplay = true;
 			}
@@ -427,7 +426,6 @@ int main (int argc, char *argv[])
 	gl_width = 2*PSP_SCR_WIDTH;
 	gl_height = 2*PSP_SCR_HEIGHT;
 #endif
-
 
 	glutInit(&argc, argv);
 

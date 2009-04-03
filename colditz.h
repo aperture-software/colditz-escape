@@ -94,7 +94,7 @@ do {									\
 
 
 // # files we'll be dealing with
-#define NB_FILES				8
+#define NB_FILES				9
 // Some handy identifier to make code reader friendly
 #define ROOMS					0
 #define CELLS					1
@@ -104,15 +104,18 @@ do {									\
 #define SPRITES					5
 #define OBJECTS					6
 #define PANEL					7
+#define TUNNEL_IO				8
 #define RED						0
 #define GREEN					1
 #define BLUE					2
 // Never be short on filename sizes
 #define NAME_SIZE				256			
 #define FNAMES					{ "COLDITZ_ROOM_MAPS", "COLDITZ_CELLS", "PALS.BIN", "COLDITZ-LOADER",\
-								  "COMPRESSED_MAP", "SPRITES.SPR", "OBS.BIN", "PANEL.RAW" }
+								  "COMPRESSED_MAP", "SPRITES.SPR", "OBS.BIN", "PANEL.RAW", \
+								  "TUNNELIODOORS.BIN" }
 #define FSIZES					{ 58828, 135944, 232, 56080, \
-								  33508, 71056, 2056, 49152 }
+								  33508, 71056, 2056, 49152, \
+								  120 }
 #define ALT_LOADER				"SKR_COLD"
 #define ALT_LOADER_SIZE			28820
 #define OFFSETS_START			0x2684
@@ -151,6 +154,7 @@ do {									\
 #define ROOMS_EXITS_BASE		0x0100
 #define OUTSIDE_OVL_BASE		0x525E
 #define OUTSIDE_OVL_NB			13
+#define TUNNEL_OVL_NB			14
 #define CMP_OVERLAYS			0x535C
 // For our (magical) apparition into a new room after using an exit
 #define HAT_RABBIT_OFFSET		0x3E46
@@ -158,10 +162,13 @@ do {									\
 #define HAT_RABBIT_POS_START	0x3E72
 // How do we need to shift our whole room up so that the seams don't show
 #define NORTHWARD_HO			28
-//28
-#define SPRITE_ADJUST_X			1
-#define SPRITE_ADJUST_Y			6
-//
+// for our z index, for overlays
+// Oh, and don't try to be smart and use 0x8000, because unless you do an
+// explicit cast, you will get strange things line short variables set to
+// MIN_Z never equating MIN_Z in comparisons
+// gcc: comparison is always false due to limited range of data type
+#define MIN_Z					-32768
+// For data file patching
 #define FIXED_CRM_VECTOR		0x50
 //#define R116_EXITS
 
@@ -187,13 +194,15 @@ typedef struct
 	u16 corrected_w;
 	u16 corrected_h;
 	u16 x_offset;
+	s16 z_offset;
 	u8* data;
 } s_sprite;
 
 typedef struct
 {
-	int x;
-	int y;
+	s16 x;
+	s16 y;
+	s16 z;
 	u8 sid;
 } s_overlay;
 
@@ -273,6 +282,7 @@ static u16 props_tile [0x213] = {
 extern int	opt_verbose;
 extern int	opt_debug;
 extern int	opt_sid;
+extern int	opt_play_as_the_safe;
 extern int	stat;
 extern int  debug_flag;
 extern u8   *mbuffer;

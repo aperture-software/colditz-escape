@@ -38,6 +38,7 @@ GLuint render_texid;
 /* Some more globals */
 u8  obs_to_sprite[NB_OBS_TO_SPRITE];
 u8	remove_props[CMP_MAP_WIDTH][CMP_MAP_HEIGHT];
+u8  overlay_order[MAX_OVERLAY];
 //u32 debug_counter = 0;
 
 
@@ -415,12 +416,21 @@ void sprites_to_wGRAB()
 		if (bitplane_size != w*h)
 			print("sprites_to_wGRAB: Integrity check failure on bitplane_size\n");
 
+		// Populate the z_offset, which we'll use later on to decide the z position
+		// of the overlays. We substract h because we use top left corner rather than
+		// bottom right as in original game (speed up computations for later)
+		sprite[sprite_index].z_offset = readword(fbuffer[SPRITES],sprite_address+4) - h;
+		
 		// Source address
 		sbuffer = fbuffer[SPRITES] + sprite_address + 8; 
 
 		if (no_mask)
+		{
 			// Bitplanes that have no mask are line-interleaved, like cells
 			line_interleaved_to_wGRAB(sbuffer, sprite[sprite_index].data, sprite[sprite_index].w, h);
+			// A sprite with no mask should always display under anything else
+			sprite[sprite_index].z_offset = MIN_Z;
+		}
 		else
 			bitplane_to_wGRAB(sbuffer, sprite[sprite_index].data, sprite[sprite_index].w,
 				sprite[sprite_index].corrected_w, h);
@@ -436,11 +446,11 @@ void sprites_to_wGRAB()
 
 
 // Populates the tile overlays, if we are on Colditz Rooms Map
-void crm_set_overlays(int x, int y, u16 current_tile, u32 tile_offset, u16 room_x)
+void crm_set_overlays(s16 x, s16 y, u16 current_tile, u32 tile_offset, u16 room_x)
 {
 	u16 tile2_data;
 	u16 i;
-	short sx, sy;
+	s16 sx, sy;
 	u16 sid;	// sprite index
 
 	// read current tile
@@ -491,8 +501,23 @@ void crm_set_overlays(int x, int y, u16 current_tile, u32 tile_offset, u16 room_
 		sy = readword(fbuffer[LOADER], SPECIAL_TILES_START+i+6);
 		if (opt_debug)
 			print("    sx: %04X, sy: %04X\n", sx, sy);
-		overlay[overlay_index].x = x + (int)sx - (int)sprite[sid].w + (int)(sprite[sid].x_offset);
-		overlay[overlay_index].y = y + (int)sy - (int)sprite[sid].h + 1;
+		overlay[overlay_index].x = x + sx - sprite[sid].w + sprite[sid].x_offset;
+		overlay[overlay_index].y = y + sy - sprite[sid].h + 1;
+
+		// No need to bother if the overlay is offscreen (with generous margins)
+		if ((overlay[overlay_index].x < -64) || (overlay[overlay_index].x > (PSP_SCR_WIDTH+64)))
+			continue;
+		if ((overlay[overlay_index].y < -64) || (overlay[overlay_index].y > (PSP_SCR_HEIGHT+64)))
+			continue;
+
+		// Update the z index according to our current y pos
+		if (sprite[sid].z_offset == MIN_Z)
+			overlay[overlay_index].z = MIN_Z;
+		else
+			// PSP_SCR_HEIGHT/2 is our actual prisoner position on screen
+			overlay[overlay_index].z = overlay[overlay_index].y - sprite[sid].z_offset 
+				- PSP_SCR_HEIGHT/2 + NORTHWARD_HO - 2; 
+//		printf("z[%x] = %d\n", sid, overlay[overlay_index].z); 
 		overlay_index++;
 		// No point in looking for overlays any further if we met our match 
 		// UNLESS this is a double bed overlay, in which case the same tile
@@ -504,24 +529,26 @@ void crm_set_overlays(int x, int y, u16 current_tile, u32 tile_offset, u16 room_
 
 
 // Populates the tile overlays, if we are on the CoMPressed map
-void cmp_set_overlays(int off_x, int off_y)
+void cmp_set_overlays(s16 off_x, s16 off_y)
 {
 	u16 i;
 	u32 bitset, offset;
 	short sx, sy;
 	u16 sid;	// sprite index
+	u8 io_file = ROOMS;	// We'll need to switch to TUNNEL_IO midway through
 
 	// First deal with doors
-	for (i=0; i<(4*OUTSIDE_OVL_NB); i+=4)
+	for (i=0; i<(4*OUTSIDE_OVL_NB+4*TUNNEL_OVL_NB); i+=4)
 	{
+		if (i==(4*OUTSIDE_OVL_NB))
+			io_file = TUNNEL_IO;	// switch IO file
+
 		// The relevant bit (byte[0]) from the bitmask must be set 
 		bitset = 1 << (readbyte(fbuffer[LOADER], OUTSIDE_OVL_BASE+i));
-//		printf("bit1 = %s\n rem = %s\n", to_binary(bitset),to_binary(rem_bitmask));
 		if (!(rem_bitmask & bitset))
 			continue;
 		// But only if the bit identified by byte[1] is not set
 		bitset = 1 << (readbyte(fbuffer[LOADER], OUTSIDE_OVL_BASE+i+1));
-//		printf("bit2 = %s\n rem = %s\n", to_binary(bitset),to_binary(rem_bitmask));
 		if (rem_bitmask & bitset)
 			continue;
 
@@ -530,25 +557,43 @@ void cmp_set_overlays(int off_x, int off_y)
 		// First, let's grab the sid
 		offset = readbyte(fbuffer[LOADER], OUTSIDE_OVL_BASE+i+3) << 3;
 		sid = readword(fbuffer[LOADER],CMP_OVERLAYS+offset+4);
-//		printf("found sid: %X\n", sid);
 		overlay[overlay_index].sid = sid;
+	
+		// Next read the pixel shifts on the tile
 		sx = readword(fbuffer[LOADER],CMP_OVERLAYS+offset+2);
 		sy = readword(fbuffer[LOADER],CMP_OVERLAYS+offset);
 
-
-		// which is detailled from 8 bytes at the beginning of the CRM files,
-		// as indexed by our 3rd byte
+		// Then add the tile position, as identified in the 8 bytes data at the beginning of 
+		// the Colditz Rooms Map or Tunnel_IO files,
 		offset = readbyte(fbuffer[LOADER], OUTSIDE_OVL_BASE+i+2) << 3;
-//		printf("offset = %X\n", offset);
-		sy += readword(fbuffer[ROOMS],offset+4) * 16;
-		sx += readword(fbuffer[ROOMS],offset+6) * 32;
-//		printf("(x.y) = (%d,%d)\n", x, y);
-		overlay[overlay_index].x = off_x + (int)sx - (int)sprite[sid].w + (int)(sprite[sid].x_offset);
-		overlay[overlay_index].y = off_y + (int)sy - (int)sprite[sid].h + 1;
+		// check if the exit is open. This is indicated with bit 12 of the first word
+		if (readword(fbuffer[io_file],offset) & 0x1000)
+			continue;
+
+		sx += readword(fbuffer[io_file],offset+6) * 32;
+		sy += readword(fbuffer[io_file],offset+4) * 16;
+
+		// Don't forget the displayable area offset
+		overlay[overlay_index].x = off_x + sx - sprite[sid].w + sprite[sid].x_offset;
+		overlay[overlay_index].y = off_y + sy - sprite[sid].h + 1;
+
+		// No need to bother if the overlay is offscreen (with generous margins)
+		if ((overlay[overlay_index].x < -64) || (overlay[overlay_index].x > (PSP_SCR_WIDTH+64)))
+			continue;
+		if ((overlay[overlay_index].y < -64) || (overlay[overlay_index].y > (PSP_SCR_HEIGHT+64)))
+			continue;
+
+		// Update the z index according to our current y pos
+		if (sprite[sid].z_offset == MIN_Z)
+			overlay[overlay_index].z = MIN_Z;
+		else
+			// PSP_SCR_HEIGHT/2 is our actual prisoner position on screen
+			overlay[overlay_index].z = overlay[overlay_index].y - sprite[sid].z_offset 
+				- PSP_SCR_HEIGHT/2 + NORTHWARD_HO -3; 
+
 		overlay_index++;
 	}
 }
-
 
 
 // Read the props (pickable objects) from obs.bin
@@ -566,6 +611,9 @@ void set_objects()
 		y = readword(fbuffer[OBJECTS],i+2+2) - 3;
 		overlay[overlay_index].x = gl_off_x + x;
 		overlay[overlay_index].y = gl_off_y + y;
+		// all the props should appear behind overlays, expect the ones with no mask
+		// (which are always set at MIN_Z)
+		overlay[overlay_index].z = MIN_Z+1;
 
 		// Because of the removable walls we have a special case for the CMP_MAP
 		if ((current_room_index == ROOM_OUTSIDE) && (remove_props[x/32][y/16]))
@@ -628,11 +676,37 @@ void display_sprite(float x1, float y1, float w, float h, GLuint texid)
 // Display all our overlays
 void display_overlays()
 {
-	u8 i;
-	// stairs column = 7F
+	u8 i, j;
+	bool not_ordered = true;
 
+	// OK, first we need to reorganize our overlays according to the z position
 	for (i=0; i<overlay_index; i++)
+		overlay_order[i] = i;
+	
+	while(not_ordered)
 	{
+		not_ordered = false;
+		for (i=0; i<(overlay_index-1); i++)
+		{
+			if (overlay[overlay_order[i]].z > overlay[overlay_order[i+1]].z)
+			{
+				not_ordered = true;
+				j = overlay_order[i];
+				overlay_order[i] = overlay_order[i+1];
+				overlay_order[i+1] = j;
+			}
+		}
+	}
+	/*
+	for (j=0; j<overlay_index; j++)
+	{
+		i = overlay_order[j];
+		printf("overlay[%d].sid =%x, z = %d (order: %d)\n", i, overlay[i].sid, overlay[i].z, j);
+	}
+*/
+	for (j=0; j<overlay_index; j++)
+	{
+		i = overlay_order[j];
 		display_sprite(overlay[i].x, overlay[i].y, sprite[overlay[i].sid].corrected_w, 
 			sprite[overlay[i].sid].corrected_h, sprite_texid[overlay[i].sid]);
 //		printf("ovl(%d,%d), sid = %X\n", overlay[i].x, overlay[i].y, overlay[i].sid);
@@ -762,21 +836,20 @@ void removable_walls()
 // Display room
 void display_room()
 {
-// OK, I'll spare you the suspense: this is NOT optimized like hell!
-// We are redrawing ALL the tiles, for EACH FRAME!
+// OK, I'll spare you the suspense: this is NOT optimized as hell!
+// We are redrawing ALL the tiles and ALL overlays, for EACH FRAME!
 // Yup, no scrolling or anything: just plain unoptimized brute force...
 // But hey, the PSP can handle it, and so should a decent PC, so why bother?
 
-	u32 offset;					// Offsets to each rooms are given at
-								// the beginning of the Rooms Map file
+	u32 offset;	
 	u16 room_x, room_y, tile_data;
 	u32 raw_data;
 	u16 rem_offset;
-	int min_x, max_x, min_y, max_y;
+	s16 min_x, max_x, min_y, max_y;
 	u16 tile_tmp, nb_tiles;
 	u8  bit_index;
-	int tile_x, tile_y;
-	int pixel_x, pixel_y;
+	s16 tile_x, tile_y;
+	s16 pixel_x, pixel_y;
 	int u;
 
 //	printf("prisoner (x,y) = (%d,%d)\n", prisoner_x, prisoner_2y/2);
@@ -791,15 +864,6 @@ void display_room()
 	// Before we do anything, let's set the pickable objects in
 	// our overlay table (so that room overlays go on top of 'em)
 	set_objects();
-
-
-	// Let's add our guy
-	// TO_DO: REMOVE THIS DEBUG FEATURE
-	overlay[overlay_index].sid = (opt_sid == -1)?prisoner_sid:opt_sid;	
-	// 0x85
-	overlay[overlay_index].x = PSP_SCR_WIDTH/2;  
-	overlay[overlay_index++].y = PSP_SCR_HEIGHT/2 - NORTHWARD_HO - 32; 
-
 
 	// No readtile() macros used here, for speed
 	if (current_room_index != ROOM_OUTSIDE)
@@ -950,7 +1014,26 @@ void display_room()
 		cmp_set_overlays(gl_off_x, gl_off_y);
 	}
 
-	// Now that the background is done, and that we have the overlays, display the overlay sprites
+	// Let's add our guy
+	// TO_DO: REMOVE THIS DEBUG FEATURE
+	overlay[overlay_index].sid = (opt_sid == -1)?prisoner_sid:opt_sid;	
+	// 0x85 = tunnel board, 0x91 = safe
+	overlay[overlay_index].x = PSP_SCR_WIDTH/2;  
+	overlay[overlay_index].y = PSP_SCR_HEIGHT/2 - NORTHWARD_HO - 32; 
+	// Our guy's always at the center of our z-buffer
+	overlay[overlay_index].z = 0;
+	overlay_index++;
+
+	if (opt_play_as_the_safe)
+	{
+		overlay[overlay_index].sid = 0x91;	
+		overlay[overlay_index].x = PSP_SCR_WIDTH/2 - 10;  
+		overlay[overlay_index].y = PSP_SCR_HEIGHT/2 - NORTHWARD_HO - 32 - (((dx==0)&&(d2y==0))?8:12); 
+		overlay[overlay_index].z = 0;
+		overlay_index++;
+	}
+
+	// Now that the background is done, and we have all the overlays, display the overlay sprites
 	display_overlays();
 
 	// We'll need that for next run
@@ -1040,7 +1123,7 @@ void display_panel()
 
 
 // Here is the long sought after "zooming the ****ing 2D colour buffer" function.
-// What a £$%^&*&^ing bore!!! And all this crap still doesn't work on PSP anyway!
+// What a £$%^&*&^ing bore!!! And none of this crap works on PSP anyway!
 void rescale_buffer()
 {
 // using the buffer as a texture, is the ONLY WAY I COULD FIND TO GET A ZOOM
@@ -1053,15 +1136,12 @@ void rescale_buffer()
 
 	if ((gl_width != PSP_SCR_WIDTH) && (gl_height != PSP_SCR_HEIGHT))
 	{	
-		glDisable(GL_BLEND);	// Else we'll need a glClear
+		glDisable(GL_BLEND);	// Better than having to use glClear()
 
 		// First, we copy the whole buffer into a texture
 		glBindTexture(GL_TEXTURE_2D,render_texid);
 
 		glCopyTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 0, 0, PSP_SCR_WIDTH, PSP_SCR_HEIGHT, 0);
-
-		// Then we clear our buffer (or disable blend)
-//		glClear(GL_COLOR_BUFFER_BIT);
 
 		// Then we change our viewport to the actual screen size
 		glViewport(0, 0, gl_width, gl_height);
@@ -1072,11 +1152,7 @@ void rescale_buffer()
 	    glOrtho(0, gl_width, gl_height, 0, -1, 1);
 
 		// OK, now we can display the whole texture
-		// But first, we need to reset the origin
-//		old_x = origin_x; origin_x = 0;
-//		old_y = origin_y; origin_y = 0;
 		display_sprite(0,gl_height,gl_width,-gl_height,render_texid);
-//		origin_x = old_x; origin_y = old_y;
 
 		// Finally, we restore the parameters
 		glMatrixMode(GL_PROJECTION);
@@ -1095,6 +1171,7 @@ void rescale_buffer()
 // Returns:
 // non zero if allowed (-1 if not an exit, or the exit number)
 // 0 if not allowed
+// TO_DO: remove gotit debug code
 int check_footprint(int dx, int d2y)
 {
 	u32 tile, tile_mask, exit_mask, offset=0;
@@ -1226,7 +1303,6 @@ int check_footprint(int dx, int d2y)
 	mask_offset[0] += mask_y;	// start at the right line
 	mask_offset[1] += mask_y;
 
-
 	exit_offset[0] += mask_y;	// start at the right line
 	exit_offset[1] += mask_y;
 
@@ -1244,7 +1320,7 @@ int check_footprint(int dx, int d2y)
 ///	printf("%s %s\n",to_binary(exit_mask), to_binary(tile_mask));
 //		printf("%08X\n",exit_mask);
 
-		// see low_level.h for the collision macros
+		// see low_level.h for the collisions macros
 		if inverted_collision(footprint,tile_mask)
 		{
 			// we have an exit perhaps
@@ -1299,15 +1375,15 @@ void switch_room(int exit_nr, int dx, int d2y)
 	{	// indoors => read from the ROOMS_EXIT_BASE data
 		exit_index = (exit_nr&0xF)-1;
 		offset = current_room_index << 4;
-		// Now the real clever trick here is that the exit index of the room you just left
-		// and the exit index of the one you go always match.
+		// Now the real clever trick here is that the exit index of the room you 
+		// just left and the exit index of the one you go always match.
 		// Thus, we know where we should get positioned on entering the room
 		current_room_index = readword((u8*)fbuffer[ROOMS], ROOMS_EXITS_BASE + offset 
 			+ 2*exit_index);
 	}
 
 	exit_index++;	// zero based to one based
-	printf("          to room[%X] (exit_index = %d)\n", current_room_index, exit_index);
+//	printf("          to room[%X] (exit_index = %d)\n", current_room_index, exit_index);
 
 	// OK, we have now officially changed room, but we still need to position our guy
 	if (current_room_index & 0x8000)	// MSb from ROOMS_EXIT_BASE data means going out
@@ -1389,13 +1465,12 @@ void switch_room(int exit_nr, int dx, int d2y)
 }
 
 
-// Looks like the original programmers found that some of the data files had an issue
-// and instead of fixing the files, they patched them in the loader
+// Looks like the original programmer found that some of the data files had issues
+// but rather than fixing the files, they patched them in the loader... go figure!
 void fix_files()
 {
 	u8 i;
 	u32 mask;
-	//00001C10 FIX_FILES:
 	//00001C10                 move.b  #$30,(fixed_crm_vector).l ; '0'
 	writebyte(fbuffer[ROOMS],FIXED_CRM_VECTOR,0x30);
 	//00001C18                 move.w  #$73,(exits_base).l ; 's' ; fix room #0's exits
@@ -1408,7 +1483,7 @@ void fix_files()
 	//00001C30                                         ; 187 items in all...
 
 	// OK, because we're not exactly following the exact exit detection routines from the original game
-	// (we took some shortcut to make things more optimized) upper stair landings are a major pain in 
+	// (we took some shortcuts to make things more optimized) upper stairs landings are a major pain in 
 	// the ass to handle, so we might as well take this opportunity to do a little patching of our own...
 	for (i=9; i<16; i++)
 	{	// Offset 0x280 is the intermediate right stairs landing
