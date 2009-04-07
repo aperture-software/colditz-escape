@@ -1,5 +1,5 @@
 #ifndef _COLDITZ_H
-#define _COLDITZ 1
+#define _COLDITZ_H
 
 #ifdef	__cplusplus
 extern "C" {
@@ -10,24 +10,8 @@ extern "C" {
 #pragma warning(disable:4996)
 #endif
 
-// Define our msleep function
-#if defined(WIN32)
-//#include <Windows.h>
-#define msleep(msecs) Sleep(msecs)
-#elif defined(PSP)
-#include <pspthreadman.h>
-#define msleep(msecs) sceKernelDelayThread(1000*msecs); 
-#else
-#include <unistd.h>
-#define	msleep(msecs) usleep(1000*msecs)
-#endif
-
-#if defined(__APPLE__)
-#include <inttypes.h>
-#define u8  uint8_t
-#define u16 uint16_t
-#define u32 uint32_t
-#else // ! __APPLE__
+// On the PSP, these are defined in psp-types.h
+#if !defined(PSP)
 #ifndef u8
 #define u8 unsigned char
 #endif
@@ -40,10 +24,40 @@ extern "C" {
 #ifndef u32
 #define u32 unsigned long
 #endif
+#ifndef u64
+#define u64 unsigned long long
+#endif
 #ifndef uint
 #define uint unsigned int
 #endif
-#endif // __APPLE__
+#endif 
+
+
+// Define our msleep function
+#if defined(WIN32)
+//#include <Windows.h>
+#define msleep(msecs) Sleep(msecs)
+#include <Windows.h>
+static __inline u64 mtime(void)
+{	// Because MS uses a 32 bit value, this counter will reset every 49 days or so
+	// Hope you won't be playing the game while it resets...
+	return timeGetTime(); 
+}
+#elif defined(PSP)
+#include <pspthreadman.h>
+#include <psprtc.h>
+#define msleep(msecs) sceKernelDelayThread(1000*msecs)
+static __inline u64 mtime(void)
+{
+	u64 blahtime; 
+	sceRtcGetCurrentTick(&blahtime);
+	return blahtime/1000;
+}
+#else
+#include <unistd.h>
+#define	msleep(msecs) usleep(1000*msecs)
+#endif
+
 
 // Some fixes for windows
 #if defined(WIN32) || defined(__MSDOS__)
@@ -134,12 +148,14 @@ do {									\
 #define CMP_MAP_HEIGHT			0x48
 // On compressed map (outside)
 #define ROOM_OUTSIDE			0xFFFF
-#define REMOVABLES_MASKS_START	0x86d8
+#define REMOVABLES_MASKS_START	0x86D8
 #define REMOVABLES_MASKS_LENGTH	27
 #define JOY_DEADZONE			450
 // These are use to check if our footprint is out of bounds
 #define TILE_MASKS_OFFSETS		0xA168
 #define	TILE_MASKS_START		0xA9D8
+#define MASK_EMPTY				TILE_MASKS_START
+#define MASK_FULL				(TILE_MASKS_START+0x2C0)
 #define TILE_MASKS_LENGTH		0x21B
 #define SPRITE_FOOTPRINT		0x3FFC0000
 #define TUNNEL_FOOTPRINT		0xFF000000
@@ -160,6 +176,37 @@ do {									\
 #define HAT_RABBIT_OFFSET		0x3E46
 #define CMP_RABBIT_OFFSET		0x4350
 #define HAT_RABBIT_POS_START	0x3E72
+// Time between animation frames, in ms
+// 66 or 67 is about as close as we can get to the original game
+#define ANIMATION_INTERVAL		100
+// Animation data
+#define ANIMATION_OFFSET_BASE	0x896A
+#define REMOVE_ANIMATION		-1
+#define WALK_ANI				0x00
+#define RUN_ANI					0x01
+#define EMERGE_ANI				0x02
+#define KNEEL_ANI				0x03
+#define SLEEP_ANI				0x04
+#define WTF_ANI					0x05
+#define GER_WALK_ANI			0x06
+#define GER_RUN_ANI				0x07
+#define FIREPLACE_ANI			0x08
+#define DOOR_HORI_OPEN_ANI		0x09
+#define DOOR_HORI_CLOSE_ANI		0x0a
+#define DOOR_RIGHT_OPEN_ANI		0x0b
+#define DOOR_RIGHT_CLOSE_ANI	0x0c
+#define DOOR_LEFT_OPEN_ANI		0x0d
+#define DOOR_LEFT_CLOSE_ANI		0x0e
+#define CRAWL_ANI				0x0f
+#define GER_CRAWL_ANI			0x10
+#define SHOT_ANI				0x11
+#define GER_SHOT_ANI			0x12
+#define GER_SHOOTS_ANI			0x13
+#define KNEEL2_ANI				0x14
+#define KNEEL3_ANI				0x15
+#define GER_KNEEL_ANI			0x16
+
+#define JOY_FIRE				0x35
 // How do we need to shift our whole room up so that the seams don't show
 #define NORTHWARD_HO			28
 // for our z index, for overlays
@@ -171,6 +218,10 @@ do {									\
 // For data file patching
 #define FIXED_CRM_VECTOR		0x50
 //#define R116_EXITS
+#define MAX_ANIMATIONS			64
+#define MAX_CURRENTLY_ANIMATED	16
+#define NB_ANIMATED_SPRITES		23
+#define NB_GUYBRUSHES			1
 
 // Stupid VC++ doesn't know the basic formats it can actually use!
 #if !defined(GL_UNSIGNED_SHORT_4_4_4_4_REV)
@@ -206,6 +257,58 @@ typedef struct
 	u8 sid;
 } s_overlay;
 
+typedef struct
+{
+	u32	index;	// index for the ani in the LOADER table
+	u32	framecount;
+	/* For animated overlays, direction is one of:
+	 *    5 6 7
+	 *    4   0 
+	 *    3 2 1   */
+	int	direction;
+	int end_of_ani_parameter;
+	void (*end_of_ani_function)(int);
+} s_animation;
+
+typedef struct
+{
+	u16 room;
+	int px;
+	int p2y;
+	u8	ani_index;
+} s_guybrush;
+
+// Bummer! The way they setup their animation overlays and the way I 
+// do it to be more efficient means I need to define a custom table
+// to find out the animations that loop
+/*
+ROM:000089EA animation_data: dc.l walk_ani           ; DATA XREF: display_sprites+AEo
+ROM:000089EA                                         ; #00
+ROM:000089EE                 dc.l run_ani            ; #04
+ROM:000089F2                 dc.l emerge_ani         ; #08
+ROM:000089F6                 dc.l kneel_ani          ; #0C
+ROM:000089FA                 dc.l sleep_ani          ; #10
+ROM:000089FE                 dc.l wtf_ani            ; #14
+ROM:00008A02                 dc.l ger_walk_ani       ; #18
+ROM:00008A06                 dc.l ger_run_ani        ; #1C
+ROM:00008A0A                 dc.l fireplace_ani      ; #20
+ROM:00008A0E                 dc.l door1_ani          ; #24
+ROM:00008A12                 dc.l door2_ani          ; #28
+ROM:00008A16                 dc.l door3_ani          ; #2C
+ROM:00008A1A                 dc.l door4_ani          ; #30
+ROM:00008A1E                 dc.l door5_ani          ; #34
+ROM:00008A22                 dc.l door6_ani          ; #38
+ROM:00008A26                 dc.l crawl_ani          ; #3C
+ROM:00008A2A                 dc.l ger_crawl_ani      ; #40
+ROM:00008A2E                 dc.l shot_ani           ; #44
+ROM:00008A32                 dc.l ger_shot_ani       ; #48
+ROM:00008A36                 dc.l ger_shoot_ani      ; #4C
+ROM:00008A3A                 dc.l kneel2_ani         ; #50
+ROM:00008A3E                 dc.l kneel3_ani         ; #54
+ROM:00008A42                 dc.l ger_kneel_ani      ; #58
+*/
+static u8 looping_animation[NB_ANIMATED_SPRITES] =
+	{	1, 1, 0, 0, 1, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0 };
 // For the outside map, because of the removable sections and the fact that
 // having a removable section set for the tile does not guarantee that the 
 // prop should be hidden (eg: bottom of a removable wall), we'll define a
@@ -311,6 +414,14 @@ extern u16  current_room_index;
 extern s_sprite		*sprite;
 extern s_overlay	*overlay; 
 extern u8   overlay_index;
+
+extern bool reset_animations;
+extern bool key_down[256];
+extern s_animation	animations[MAX_ANIMATIONS];
+extern u8	nb_animations;
+extern u64	last_mtime;
+extern s_guybrush	guybrush[NB_GUYBRUSHES];
+
 
 // Having  a global palette saves a lot of hassle
 extern u8  bPalette[3][16];

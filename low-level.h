@@ -1,5 +1,5 @@
 #ifndef _COLDITZ_LOW_LEVEL_H
-#define _COLDITZ_LOW_LEVEL 1
+#define _COLDITZ_LOW_LEVEL_H
 
 #ifdef	__cplusplus
 extern "C" {

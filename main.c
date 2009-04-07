@@ -66,9 +66,9 @@ int	gl_off_x = 0, gl_off_y  = 0;
 // OpenGL window size
 int	gl_width, gl_height;
 u8	prisoner_h = 0x23, prisoner_w = 0x10;
-//int prisoner_x = 0, prisoner_2y = 0;
+//int prisoner_x = 20, prisoner_2y = 20;
 int prisoner_x = 900, prisoner_2y = 600;
-//int prisoner_x = 980, prisoner_2y = 2*464;
+//int prisoner_x = 1339, prisoner_2y = 895;
 //int prisoner_x = 0, prisoner_2y = 0;
 int last_p_x = 0, last_p_y = 0;
 int dx = 0, d2y = 0;
@@ -79,8 +79,12 @@ u8	p_sid_base	 = 0x00;
 // german_run   = 0x57 (with rifle)
 u8  prisoner_sid = 0x07; // 0x07;
 
-
 bool key_down[256];
+bool reset_animations = true;
+s_animation	animations[MAX_ANIMATIONS];
+u8	nb_animations = 0;
+u64 last_mtime;
+s_guybrush guybrush[NB_GUYBRUSHES];
 
 u16  current_room_index = ROOM_OUTSIDE;
 u16  nb_rooms, nb_cells, nb_sprites, nb_objects;
@@ -96,6 +100,7 @@ u32  rem_bitmask = 0x0000003E;
 
 // offsets to sprites according to joystick direction (y,x)
 int directions[3][3] = { {6,7,8}, {5,0,1}, {4,3,2} };
+int directions2[3][3] = { {5,6,7}, {4,-1,0}, {3,2,1} };
 int last_direction = 3;
 int framecount = 0;
 
@@ -191,6 +196,7 @@ static void glut_reshape (int w, int h)
 // i.e. those that can be translated to ASCII
 static void glut_keyboard(u8 key, int x, int y)
 {
+//	printf("key = %X\n", key);
 	key_down[key]=true;
 }
 
@@ -202,11 +208,21 @@ static void glut_keyboard(u8 key, int x, int y)
 
 void process_motion(void)
 {
-	u8 strip_base, strip_index;
+	u8 strip_base, strip_index, index;
 	bool redisplay = false;
 	int new_direction;
 	int exit;
-	
+
+	// Increment animations framecounts
+	if ((mtime() - last_mtime) > ANIMATION_INTERVAL)
+	{
+		last_mtime += ANIMATION_INTERVAL;	// closer to ideal rate
+		for (index = 0; index < nb_animations; index++)
+			animations[index].framecount++;
+//		if  (nb_animations)
+		// no point issuing a redisplay if there are no animations
+			redisplay = true;
+	}
 
 	// Check if we're allowed to go where we want
 	if ((dx != 0) || (d2y != 0))
@@ -227,31 +243,20 @@ void process_motion(void)
 			d2y = 0;
 		}
 	}
-	/*
-		if (exit)
-		{	// non zero => motion allowed
-			if (exit>0)
-			{	// we're using an exit
-				printf("exit[%d], from room[%X]\n", exit, current_room_index);
-				// Change the last direction so that we use the right sid for stopping
-				last_direction = directions[d2y+1][dx+1];;
-				dx = 0; d2y = 0; redisplay = true;
-				switch_room(exit);
-			}
-		}
-		else if (!opt_ghost)
-		{	// can't go there
-			dx = 0;
-			d2y = 0;
-		}
-	}
-*/
+
 	/*  
 	 * Below are the indexes of the relevant 3 sprites groups 
 	 * in the 24 sprites strip (joystick position -> strip pos):
 	 *    6 7 8
 	 *    5 0 1
 	 *    4 3 2  
+	 */
+
+	/*  
+	 * For the ani offsets, we have:
+	 *    5 6 7
+	 *    4   0 
+	 *    3 2 1  
 	 */
 
 	// Get the base strip index 
@@ -291,10 +296,14 @@ void process_motion(void)
 		redisplay = true;
 	}
 
+	// Knowing our last pos will come handy
 	last_direction = new_direction;
 
-	if (redisplay)
+	if (redisplay) 
 		glut_display();
+/*
+	if (reset_animations)
+		reset_animations = false; */
 }
 
 static void glut_keyboard_up(u8 key, int x, int y)
@@ -329,6 +338,10 @@ static void glut_idle(void)
 	else if ((key_down['2']) || (key_down['x']))
 		d2y = +1;
 
+	// Display our current position
+	if (key_down['p'])
+		printf("(px, p2y) = (%d, %d), room = %x\n", prisoner_x, prisoner_2y, current_room_index);
+
 	// Joystick motion overrides keys
 	if (jdx)
 		dx = jdx;
@@ -340,7 +353,7 @@ static void glut_idle(void)
 	// Can't hurt to sleep a while if we're motionless, so that
 	// we don't hammer down the CPU in a loop
 	if ((dx == 0) && (d2y == 0))
-		msleep(60);
+		msleep(ANIMATION_INTERVAL/4);
 }
 
 
@@ -413,6 +426,7 @@ int main (int argc, char *argv[])
 
 	// General purpose
 	u32  i;
+	u8	g_ani;
 
 	/*
      * Init
@@ -426,6 +440,9 @@ int main (int argc, char *argv[])
 	gl_width = 2*PSP_SCR_WIDTH;
 	gl_height = 2*PSP_SCR_HEIGHT;
 #endif
+
+	// Initialize our timer value
+	last_mtime = mtime();
 
 	glutInit(&argc, argv);
 
@@ -485,6 +502,17 @@ int main (int argc, char *argv[])
 
 	// Set global variables
 	get_properties();
+
+	guybrush[0].ani_index = 0;
+	guybrush[0].px = 1339;
+	guybrush[0].p2y = 895;
+	guybrush[0].room = ROOM_OUTSIDE;
+	g_ani = guybrush[0].ani_index;
+	animations[g_ani].index = GER_WALK_ANI;
+	animations[g_ani].framecount = 0;
+	animations[g_ani].direction = 3;
+	animations[g_ani].end_of_ani_function = NULL;
+	nb_animations++;
 
 	// We're going to convert the cells array, from 2 pixels per byte (paletted)
 	// to on RGB(A) word per pixel

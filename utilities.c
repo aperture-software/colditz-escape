@@ -39,6 +39,8 @@ GLuint render_texid;
 u8  obs_to_sprite[NB_OBS_TO_SPRITE];
 u8	remove_props[CMP_MAP_WIDTH][CMP_MAP_HEIGHT];
 u8  overlay_order[MAX_OVERLAY];
+u8	currently_animated[MAX_ANIMATIONS];
+u32 exit_flags_offset;
 //u32 debug_counter = 0;
 
 
@@ -440,8 +442,73 @@ void sprites_to_wGRAB()
 		GLCHK(glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, sprite[sprite_index].corrected_w, 
 			sprite[sprite_index].corrected_h, 0, GL_RGBA, GL_UNSIGNED_SHORT_4_4_4_4_REV,
 			sprite[sprite_index].data));
-
 	}
+}
+
+// Returns the last frame of an animation (usually the centered position)
+int get_last_animation(u8 index)
+{
+	u8 frame;
+	int sid;
+	u32 ani_base;
+
+	// NB: static pointers in the loader are offset by 0x80
+	ani_base = readlong(fbuffer[LOADER], ANIMATION_OFFSET_BASE + 4*animations[index].index) - 0x80;
+	sid = readbyte(fbuffer[LOADER], ani_base + 0x0A + animations[index].direction);
+	frame = readbyte(fbuffer[LOADER], ani_base) - 1;
+	sid += readbyte(fbuffer[LOADER], readlong(fbuffer[LOADER], ani_base + 0x06) - 0x80 + frame);
+	return sid;
+}
+
+// Returns an animation frame
+int get_animation_sid(u8 index)
+{
+	u8 frame, sid_increment;
+	int sid;
+	u32 ani_base, nb_frames;
+	// read the base sid
+
+	// NB: static pointers in the loader are offset by 0x80
+	ani_base = readlong(fbuffer[LOADER], ANIMATION_OFFSET_BASE + 4*animations[index].index) - 0x80;
+	sid = readbyte(fbuffer[LOADER], ani_base + 0x0A + animations[index].direction);
+//	printf("sid base = %x\n", sid);
+//	printf("framecount = %d\n", animations[index].framecount);
+	nb_frames = readbyte(fbuffer[LOADER], ani_base);	// offset 0 is nb frames max
+
+	if ( (!(looping_animation[animations[index].index])) &&
+		  (animations[index].framecount >= nb_frames) )
+	{
+		frame = nb_frames - 1;	// 0 indexed
+		if (animations[index].end_of_ani_function != NULL)
+		{	// execute the end of animation function (toggle exit)
+			animations[index].end_of_ani_function(animations[index].end_of_ani_parameter);
+			animations[index].end_of_ani_function = NULL;
+		}
+	}
+	else
+	{	// loop
+		frame = animations[index].framecount % nb_frames;
+	}
+//	printf("nb_frames = %d, framecount = %d\n", nb_frames, animations[index].framecount);
+	sid_increment = readbyte(fbuffer[LOADER], 
+		readlong(fbuffer[LOADER], ani_base + 0x06) - 0x80 + frame);
+//	printf("frame = %d, increment = %x\n", frame, sid_increment);
+	if (sid_increment == 0xFF)
+	{	// play a sound 
+		// sound = yada +1;
+		sid_increment = readbyte(fbuffer[LOADER], 
+			readlong(fbuffer[LOADER], ani_base + 0x06) - 0x80 + frame + 2);
+		animations[index].framecount += 2;
+	}
+	if (sid_increment & 0x80)
+		sid = REMOVE_ANIMATION;
+	else
+		sid += sid_increment;
+//	if (sid != -1)
+//	if (animations[index].index == GER_WALK_ANI)
+//		printf("sid_increment = %x, framecount = %d\n", sid_increment, animations[index].framecount);
+
+	return sid;
 }
 
 
@@ -451,13 +518,33 @@ void crm_set_overlays(s16 x, s16 y, u16 current_tile, u32 tile_offset, u16 room_
 	u16 tile2_data;
 	u16 i;
 	s16 sx, sy;
-	u16 sid;	// sprite index
+	u16 sid;
+	int animated_sid;	// sprite index
 
+	animated_sid = 0;	// 0 is a valid sid, but not for overlays, so we 
+						// can use it as "false" flag
 	// read current tile
 	for (i=0; i<(12*NB_SPECIAL_TILES); i+=12)
 	{
 		if (readword(fbuffer[LOADER], SPECIAL_TILES_START+i) != current_tile)
 			continue;
+
+		if (current_tile == 0xE080)
+		{	// The fireplace is the only animated overlay we need to handle beside exits
+			if (reset_animations)
+			{	// Setup animated tiles, if any
+				currently_animated[0] = nb_animations;
+				animations[nb_animations].index = FIREPLACE_ANI;
+				animations[nb_animations].direction = 0;
+				animations[nb_animations].framecount = 0;
+				animations[nb_animations].end_of_ani_function = NULL;
+				nb_animations++;
+			}
+			// Even if there's more than one fireplace per room, their sids will match
+			// so we can use currently_animated[0] for all of them
+			animated_sid = get_animation_sid(currently_animated[0]);
+		}
+
 		sx = readword(fbuffer[LOADER], SPECIAL_TILES_START+i+8);
 		if (opt_debug)
 			print("  match: %04X, direction: %04X\n", current_tile, sx);
@@ -469,9 +556,22 @@ void crm_set_overlays(s16 x, s16 y, u16 current_tile, u32 tile_offset, u16 room_
 			// careful that ? take precedence over +, so if you don't put the
 			// whole ?: increment in parenthesis, you have a problem
 				((i==(12*(NB_SPECIAL_TILES-1)))?0:(4*room_x)));
-			// Validity check
+
+/*			// Validity check
 			if (!(tile2_data & 0x000F))
+				// This is how I know that we can use the exit # as ani index
+				// and leave index 0 for the fireplace ani
 				print("set_overlays: Integrity check failure on exit tile\n");
+*/
+			// The door might be in animation
+			if ((currently_animated[tile2_data & 0x000F] > 0) && 
+				(currently_animated[tile2_data & 0x000F] < 0x70))
+				// the trick of using the currently_animated table to find the door 
+				// direction works because the exit sids are always > 0x70
+				animated_sid = get_animation_sid(currently_animated[tile2_data & 0x000F]);
+			else
+				currently_animated[tile2_data & 0x000F] = readword(fbuffer[LOADER], SPECIAL_TILES_START+i+4);
+	
 			// if the tile is an exit and the exit is open
 			if (tile2_data & 0x0010)
 			{	// door open
@@ -493,8 +593,14 @@ void crm_set_overlays(s16 x, s16 y, u16 current_tile, u32 tile_offset, u16 room_
 				print("    ignored as %04X matches\n", tile2_data);
 			continue;
 		}
-		sid = readword(fbuffer[LOADER], SPECIAL_TILES_START+i+4);
+
+		if (animated_sid == REMOVE_ANIMATION)
+		// ignore
+			break;
+
+		sid = (animated_sid)?animated_sid:readword(fbuffer[LOADER], SPECIAL_TILES_START+i+4);
 		overlay[overlay_index].sid = sid;
+
 		if (opt_debug)
 			print("    overlay as %04X != %04X => %X\n", tile2_data, 
 				readword(fbuffer[LOADER], SPECIAL_TILES_START+i+2), sid);
@@ -534,10 +640,12 @@ void cmp_set_overlays(s16 off_x, s16 off_y)
 	u16 i;
 	u32 bitset, offset;
 	short sx, sy;
-	u16 sid;	// sprite index
+	u16 tile_x, tile_y;
+	u8	exit_nr;
+	int sid;	// sprite index
+	u16 room_x = CMP_MAP_WIDTH;
 	u8 io_file = ROOMS;	// We'll need to switch to TUNNEL_IO midway through
 
-	// First deal with doors
 	for (i=0; i<(4*OUTSIDE_OVL_NB+4*TUNNEL_OVL_NB); i+=4)
 	{
 		if (i==(4*OUTSIDE_OVL_NB))
@@ -554,11 +662,11 @@ void cmp_set_overlays(s16 off_x, s16 off_y)
 
 		// OK, now we know that our removable section is meant to show an exit
 
-		// First, let's grab the sid
+		// First, let's grab the base sid
 		offset = readbyte(fbuffer[LOADER], OUTSIDE_OVL_BASE+i+3) << 3;
 		sid = readword(fbuffer[LOADER],CMP_OVERLAYS+offset+4);
-		overlay[overlay_index].sid = sid;
-	
+//		overlay[overlay_index].sid = sid;
+
 		// Next read the pixel shifts on the tile
 		sx = readword(fbuffer[LOADER],CMP_OVERLAYS+offset+2);
 		sy = readword(fbuffer[LOADER],CMP_OVERLAYS+offset);
@@ -570,8 +678,11 @@ void cmp_set_overlays(s16 off_x, s16 off_y)
 		if (readword(fbuffer[io_file],offset) & 0x1000)
 			continue;
 
-		sx += readword(fbuffer[io_file],offset+6) * 32;
-		sy += readword(fbuffer[io_file],offset+4) * 16;
+		tile_x = readword(fbuffer[io_file],offset+6);
+		tile_y = readword(fbuffer[io_file],offset+4);
+
+		sx += tile_x * 32;
+		sy += tile_y * 16;
 
 		// Don't forget the displayable area offset
 		overlay[overlay_index].x = off_x + sx - sprite[sid].w + sprite[sid].x_offset;
@@ -582,6 +693,27 @@ void cmp_set_overlays(s16 off_x, s16 off_y)
 			continue;
 		if ((overlay[overlay_index].y < -64) || (overlay[overlay_index].y > (PSP_SCR_HEIGHT+64)))
 			continue;
+
+		// OK, now let's deal with potential door animations
+		if (i<(4*OUTSIDE_OVL_NB))
+		{	// we're dealing with a door overlay, possibly animated
+			// Get the exit_nr (which we need for animated overlays)
+			exit_nr = readexit(tile_x, tile_y);
+
+			if ((currently_animated[exit_nr] > 0) && (currently_animated[exit_nr] < 0x70))
+			// get the current animation frame on animated overlays
+				sid = get_animation_sid(currently_animated[exit_nr]);
+			else
+			// if it's not animated, set the sid in the table, so we can find out
+			// our type of exit later on
+				currently_animated[exit_nr] = sid;
+		}
+
+		if (sid == REMOVE_ANIMATION)	// ignore doors that have ended their animation cycle
+			continue;
+
+		// Now we have our definitive sid
+		overlay[overlay_index].sid = sid;
 
 		// Update the z index according to our current y pos
 		if (sprite[sid].z_offset == MIN_Z)
@@ -684,7 +816,9 @@ void display_overlays()
 		overlay_order[i] = i;
 	
 	while(not_ordered)
-	{
+	{	// This is a very basic and not so efficient sort 
+		// however, for a modern CPU with cache, it's not that big a deal
+		// as the values we sort would be in the cache => very fast access
 		not_ordered = false;
 		for (i=0; i<(overlay_index-1); i++)
 		{
@@ -774,8 +908,11 @@ void removable_walls()
 	// ignore if blank or exit
 	// nb: if it is an exit, lower 5 bits are the exit number
 		return;
-	// TO_DO: ignore tunnels
 
+	switch (tile_data)
+	// ignore tunnel exits
+		case 0x5100: case 0x5180: case 0x6100: case 0x6180:	
+			return;
 
 	// direction "subroutines":
 	if ((dir_offset == 0) && (rdy > 0))
@@ -830,6 +967,44 @@ void removable_walls()
 				rem_bitmask = tmp_bitmask;
 			}
 		}
+	}
+}
+
+void add_guybrushes(s16 off_x, s16 off_y)
+{
+u8 i, sid;
+
+	for (i=0; i< NB_GUYBRUSHES; i++)
+	{
+		if (guybrush[i].room != current_room_index)
+			continue;
+
+		sid = get_animation_sid(guybrush[i].ani_index);
+		overlay[overlay_index].x = off_x + guybrush[0].px - sprite[sid].w + sprite[sid].x_offset;
+		overlay[overlay_index].y = off_y + guybrush[0].p2y/2 - sprite[sid].h + 1;
+		overlay[overlay_index].z = overlay[overlay_index].y - sprite[sid].z_offset 
+				- PSP_SCR_HEIGHT/2 + NORTHWARD_HO - 3; 
+		overlay[overlay_index].sid = sid;
+		overlay_index++;
+	}
+
+// Let's add our guy
+	// TO_DO: REMOVE THIS DEBUG FEATURE
+	overlay[overlay_index].sid = (opt_sid == -1)?prisoner_sid:opt_sid;	
+	// 0x85 = tunnel board, 0x91 = safe
+	overlay[overlay_index].x = PSP_SCR_WIDTH/2;  
+	overlay[overlay_index].y = PSP_SCR_HEIGHT/2 - NORTHWARD_HO - 32; 
+	// Our guy's always at the center of our z-buffer
+	overlay[overlay_index].z = 0;
+	overlay_index++;
+
+	if (opt_play_as_the_safe)
+	{
+		overlay[overlay_index].sid = 0x91;	
+		overlay[overlay_index].x = PSP_SCR_WIDTH/2 - 10;  
+		overlay[overlay_index].y = PSP_SCR_HEIGHT/2 - NORTHWARD_HO - 32 - (((dx==0)&&(d2y==0))?8:12); 
+		overlay[overlay_index].z = 0;
+		overlay_index++;
 	}
 }
 
@@ -1014,27 +1189,14 @@ void display_room()
 		cmp_set_overlays(gl_off_x, gl_off_y);
 	}
 
-	// Let's add our guy
-	// TO_DO: REMOVE THIS DEBUG FEATURE
-	overlay[overlay_index].sid = (opt_sid == -1)?prisoner_sid:opt_sid;	
-	// 0x85 = tunnel board, 0x91 = safe
-	overlay[overlay_index].x = PSP_SCR_WIDTH/2;  
-	overlay[overlay_index].y = PSP_SCR_HEIGHT/2 - NORTHWARD_HO - 32; 
-	// Our guy's always at the center of our z-buffer
-	overlay[overlay_index].z = 0;
-	overlay_index++;
-
-	if (opt_play_as_the_safe)
-	{
-		overlay[overlay_index].sid = 0x91;	
-		overlay[overlay_index].x = PSP_SCR_WIDTH/2 - 10;  
-		overlay[overlay_index].y = PSP_SCR_HEIGHT/2 - NORTHWARD_HO - 32 - (((dx==0)&&(d2y==0))?8:12); 
-		overlay[overlay_index].z = 0;
-		overlay_index++;
-	}
+	add_guybrushes(gl_off_x, gl_off_y);
 
 	// Now that the background is done, and we have all the overlays, display the overlay sprites
 	display_overlays();
+
+	// Make sure we only the overlay animations once
+	if (reset_animations)
+		reset_animations = false;
 
 	// We'll need that for next run
 	last_p_x = prisoner_x;
@@ -1165,6 +1327,85 @@ void rescale_buffer()
 	}
 }
 
+// Open a closed door, or close an open door
+void toggle_exit(int exit_nr)
+{
+	u32 offset;
+	u16 exit_index;	// exit index in destination room
+	u16 room_x, room_y, tile_data;
+	int tile_x, tile_y;
+	bool found;
+	u8	exit_flags;
+	u16 target_room_index;
+
+	// Set the door open
+	exit_flags = readbyte(fbuffer[ROOMS], exit_flags_offset);
+	toggle_open_flag(exit_flags);
+	writebyte(fbuffer[ROOMS], exit_flags_offset, exit_flags);
+
+	// Get target
+	if (current_room_index == ROOM_OUTSIDE)
+	{	// If we're on the compressed map, we need to read 2 words (out of 4)
+		// from beginning of the ROOMS_MAP file
+		offset = exit_nr << 3;	// skip 8 bytes
+		target_room_index = readword((u8*)fbuffer[ROOMS], offset) & 0x7FF;
+		exit_index = readword((u8*)fbuffer[ROOMS], offset+2);
+	}
+	else
+	{	// indoors => read from the ROOMS_EXIT_BASE data
+		exit_index = (exit_nr&0xF)-1;
+		offset = current_room_index << 4;
+		// Now the real clever trick here is that the exit index of the room you 
+		// just left and the exit index of the one you go always match.
+		// Thus, we know where we should get positioned on entering the room
+		target_room_index = readword((u8*)fbuffer[ROOMS], ROOMS_EXITS_BASE + offset 
+			+ 2*exit_index);
+	}
+
+	exit_index++;	// zero based to one based
+
+	if (target_room_index & 0x8000)	
+	{	// outside destination (compressed map)
+		room_x = CMP_MAP_WIDTH;		// keep our readtile macros happy
+		// NB: The ground floor rooms are in [00-F8]
+		offset = target_room_index & 0xF8;
+		// set the mirror door to open
+		exit_flags = readbyte(fbuffer[ROOMS], offset);
+		toggle_open_flag(exit_flags);
+		writebyte(fbuffer[ROOMS], offset, exit_flags);
+	}
+	else
+	{	// inside destination (colditz_room_map)
+		// Get the room dimensions
+		offset = readlong((u8*)fbuffer[ROOMS], OFFSETS_START+4*target_room_index);
+		room_y = readword((u8*)fbuffer[ROOMS], ROOMS_START+offset);
+		offset +=2;
+		room_x = readword((u8*)fbuffer[ROOMS], ROOMS_START+offset);
+		offset +=2;
+
+		// Read the tiles data
+		found = false;	// easier this way, as tile_x/y won't need adjusting
+		for (tile_y=0; (tile_y<room_y)&&(!found); tile_y++)
+		{
+			for(tile_x=0; (tile_x<room_x)&&(!found); tile_x++)
+			{
+				tile_data = readword((u8*)fbuffer[ROOMS], ROOMS_START+offset);
+				if ((tile_data & 0xF) == exit_index)
+				{
+					found = true;
+					// open exit
+					exit_flags = tile_data & 0xFF;
+					toggle_open_flag(exit_flags);
+					writebyte(fbuffer[ROOMS], ROOMS_START+offset+1, exit_flags);
+					break;
+				}
+				offset +=2;		// Read next tile
+			}
+			if (found)
+				break;
+		}
+	}
+}
 
 
 // Checks if the prisoner can go to (px,p2y)
@@ -1175,6 +1416,7 @@ void rescale_buffer()
 int check_footprint(int dx, int d2y)
 {
 	u32 tile, tile_mask, exit_mask, offset=0;
+	u32 ani_offset;
 	u32 footprint = SPRITE_FOOTPRINT;
 	u16 room_x, room_y;
 	u16 mask_y;
@@ -1182,9 +1424,11 @@ int check_footprint(int dx, int d2y)
 	u32 mask_offset[4];	// tile boundary
 	u32 exit_offset[4];	// exit boundary
 	int tile_x, tile_y, exit_dx[2];
-	u8 i,u;
+	u8 i,u,sid;
 	int gotit = -1;
 	int px, p2y;
+	u8	exit_flags;
+	u8	exit_nr;
 
 //	printf("prisoner (x,y) = (%d,%d)\n", prisoner_x, prisoner_2y/2);
 	/*
@@ -1224,31 +1468,42 @@ int check_footprint(int dx, int d2y)
 	// check if we are trying to overflow our room left or up
 	if ((px<0) || (p2y<0))
 		return 0;
+	//TO_DO: overflow right or down
 
 	for (i=0; i<2; i++)
 	{
 		// Set the left mask offset (tile_x, tile_y(+1)) index, converted to a long offset
 		tile = readtile(tile_x, tile_y);
+//		printf("tile = %04X\n", tile);
+
 		// Get the exit mask, if we stand on an exit
 		// If we are not on an exit tile we'll use the empty mask from TILE_MASKS 
 		// NB: This is why we add the ####_MASKS_STARTs here, as we might mix EXIT and TILE
-		exit_offset[2*i] = TILE_MASKS_START;
+		exit_offset[2*i] = MASK_EMPTY;
 
 		for (u=0; u<NB_EXITS; u++)
 		{
 			if (readword((u8*)fbuffer[LOADER], EXIT_TILES_LIST + 2*u) == tile)
 			{	
-//				printf("1. got_exit %04X - offset = %04X (%d, %d) px = %d\n", tile << 7, readword((u8*)fbuffer[LOADER], EXIT_MASKS_OFFSETS+2*u),tile_x, tile_y, px);
+///				printf("1. got_exit %04X - offset = %04X (%d, %d) px = %d\n", tile << 7, readword((u8*)fbuffer[LOADER], EXIT_MASKS_OFFSETS+2*u),tile_x, tile_y, px);
 				exit_offset[2*i] = EXIT_MASKS_START + 
 					readword((u8*)fbuffer[LOADER], EXIT_MASKS_OFFSETS+2*u);
-///				printf("exit_offset[%d] = EXIT_MASKS_START + %X\n", 2*i, readword((u8*)fbuffer[LOADER], EXIT_MASKS_OFFSETS+2*u));
+//				printf("1. exit_offset[%d] = EXIT_MASKS_START + %X\n", 2*i, readword((u8*)fbuffer[LOADER], EXIT_MASKS_OFFSETS+2*u));
 
 				exit_dx[i] = 0;
 				break;
 			}
 		}
 
-		mask_offset[2*i] = TILE_MASKS_START + readlong((u8*)fbuffer[LOADER], TILE_MASKS_OFFSETS+(tile<<2));
+		switch (tile)
+		{	// Ignore tunnel exits
+		case 0xA2: case 0xA3: case 0xC2: case 0xC3:	case 0xCD:
+			mask_offset[2*i] = MASK_FULL;	// a tunnel is always walkable (even open), as per the original game
+			break;
+		default:
+			mask_offset[2*i] = TILE_MASKS_START + readlong((u8*)fbuffer[LOADER], TILE_MASKS_OFFSETS+(tile<<2));
+			break;
+		}
 
 		// Set the upper right mask offset
 		if ((px&0x1F) < 16)
@@ -1267,28 +1522,36 @@ int check_footprint(int dx, int d2y)
 				tile = readtile(tile_x+1, tile_y);
 
 				// Get the exit mask, if we stand on an exit
-				exit_offset[2*i+1] = TILE_MASKS_START;
+				exit_offset[2*i+1] = MASK_EMPTY;
 				for (u=0; u<NB_EXITS; u++)
 				{
 					if (readword((u8*)fbuffer[LOADER], EXIT_TILES_LIST + 2*u) == tile)
 					{	
-////						printf("2. got_exit %04X - offset = %04X (%d, %d) px = %d\n", tile << 7, readword((u8*)fbuffer[LOADER], EXIT_MASKS_OFFSETS+2*u),tile_x, tile_y, px);
+///						printf("2. got_exit %04X - offset = %04X (%d, %d) px = %d\n", tile << 7, readword((u8*)fbuffer[LOADER], EXIT_MASKS_OFFSETS+2*u),tile_x, tile_y, px);
 //						printf("got_exit %04X - offset = %04X\n", tile << 7, readword((u8*)fbuffer[LOADER], EXIT_MASKS_OFFSETS+2*u));
 						exit_offset[2*i+1] = EXIT_MASKS_START + 
 							readword((u8*)fbuffer[LOADER], EXIT_MASKS_OFFSETS+2*u);
-///				printf("exit_offset[%d] = EXIT_MASKS_START + %X\n", 2*i+1, readword((u8*)fbuffer[LOADER], EXIT_MASKS_OFFSETS+2*u));
+//				printf("exit_offset[%d] = EXIT_MASKS_START + %X\n", 2*i+1, readword((u8*)fbuffer[LOADER], EXIT_MASKS_OFFSETS+2*u));
 
 						exit_dx[i] = 1;
 						break;
 					}
 				}
 
-				mask_offset[2*i+1] = TILE_MASKS_START + readlong((u8*)fbuffer[LOADER], TILE_MASKS_OFFSETS+(tile<<2));
+				switch (tile)
+				{	// Ignore tunnel exits
+				case 0xA2: case 0xA3: case 0xC2: case 0xC3:	case 0xCD:
+					mask_offset[2*i+1] = MASK_FULL;	// a tunnel is always walkable (even open), as per the original game
+					break;
+				default:
+					mask_offset[2*i+1] = TILE_MASKS_START + readlong((u8*)fbuffer[LOADER], TILE_MASKS_OFFSETS+(tile<<2));
+					break;
+				}
 			}
-			else	// offset 0 is mask_empty
+			else	
 			{
-				exit_offset[2*i+1] = TILE_MASKS_START;
-				mask_offset[2*i+1] = TILE_MASKS_START;
+				exit_offset[2*i+1] = MASK_EMPTY;
+				mask_offset[2*i+1] = MASK_EMPTY;
 			}
 		}
 		tile_y++;	// process lower tiles
@@ -1325,8 +1588,57 @@ int check_footprint(int dx, int d2y)
 		{
 			// we have an exit perhaps
 			if (collision(footprint,exit_mask))
+			{
+				// We need to spare the exit offset value
+				exit_flags_offset = get_exit_offset(tile_x+exit_dx[0],tile_y-2);
+				exit_flags = readbyte(fbuffer[ROOMS], exit_flags_offset);
+
+				// Is the exit open?
+				if ((!(exit_flags & 0x10)) && (exit_flags & 0x60))
+				{	// exit is closed
+					if (key_down[JOY_FIRE])
+					{	// enqueue the door opening animation
+						exit_nr = (u8) readexit(tile_x+exit_dx[0],tile_y-2) & 0x1F;
+						// The trick is we use currently_animated to store our door sids
+						// even if not yet animated, so that we can quickly access the
+						// right animation data, rather than exhaustively compare tiles
+						sid = currently_animated[exit_nr];
+						ani_offset = 0;
+						switch(sid)
+						{	// let's optimize this a bit
+						case 0x76:	// door_left
+							ani_offset += 0x02;		// +2 because of door close ani
+						case 0x78:	// door right
+							ani_offset += 0x02;
+						case 0x71:	// horizontal door 
+							ani_offset += DOOR_HORI_OPEN_ANI;
+							currently_animated[exit_nr] = nb_animations;
+							animations[nb_animations].index = ani_offset;
+							animations[nb_animations].direction = 0;
+							animations[nb_animations].framecount = 0;
+							animations[nb_animations].end_of_ani_function = &toggle_exit;
+							animations[nb_animations].end_of_ani_parameter = exit_nr;
+							nb_animations++;
+							break;
+						default:	// not an exit we should animate
+							// no animation, but should add delay & play sound
+							break;
+						}
+						// For now, the exit is not open, so we return failure to progress further
+						return 0;
+					}
+					else
+					{
+						// display the grade
+						printf("need key grade %d\n", (exit_flags & 0x60) >> 5);
+						// Return failure if we can't exit
+						return 0;
+					}
+				}
+
 				// +1 as exits start at 0
 				return(readexit(tile_x+exit_dx[0],tile_y-2)+1);
+			}
 //			gotit = 0;
 			return 0;
 		}
@@ -1360,10 +1672,13 @@ void switch_room(int exit_nr, int dx, int d2y)
 	u16 exit_index;	// exit index in destination room
 	u16 room_x, room_y, tile_data;
 	int tile_x, tile_y;
-	int found, u;
+	int u;
+	bool found;
 	int pixel_x, pixel_y;
 	u8  bit_index;
 
+
+	// Let's get through
 	if (current_room_index == ROOM_OUTSIDE)
 	{	// If we're on the compressed map, we need to read 2 words (out of 4)
 		// from beginning of the ROOMS_MAP file
@@ -1382,6 +1697,13 @@ void switch_room(int exit_nr, int dx, int d2y)
 			+ 2*exit_index);
 	}
 
+	// Since we're changing room, reset all animations
+	for (u=0; u<MAX_CURRENTLY_ANIMATED; u++)
+		currently_animated[u] = 0;
+	// only remove anymations that are not related to our guys
+	nb_animations = NB_GUYBRUSHES;
+	reset_animations = true;
+	
 	exit_index++;	// zero based to one based
 //	printf("          to room[%X] (exit_index = %d)\n", current_room_index, exit_index);
 
@@ -1397,9 +1719,15 @@ void switch_room(int exit_nr, int dx, int d2y)
 
 		// Now, use the tile index (LSB) as an offset to our (x,y) pos
 		// NB: The ground floor rooms are in [00-F8]
-		offset = (current_room_index & 0xF8) + 4;
-		tile_y = readword((u8*)fbuffer[ROOMS], offset);
-		tile_x = readword((u8*)fbuffer[ROOMS], offset+2);
+		offset = current_room_index & 0xF8;
+/*		if (open_other_exit)	
+		{	// need to open the mirror exit too
+			exit_flags = readbyte(fbuffer[ROOMS], offset) | 0x10;
+			writebyte(fbuffer[ROOMS], offset, exit_flags);
+		}
+*/		tile_y = readword((u8*)fbuffer[ROOMS], offset+4);
+		tile_x = readword((u8*)fbuffer[ROOMS], offset+6);
+
 
 		// Now that we're done, switch to our actual outbound marker
 		current_room_index = ROOM_OUTSIDE;
@@ -1419,7 +1747,7 @@ void switch_room(int exit_nr, int dx, int d2y)
 		offset +=2;
 
 		// Read the tiles data
-		found = 0;	// easier this way, as tile_x/y won't need adjusting
+		found = false;	// easier this way, as tile_x/y won't need adjusting
 		for (tile_y=0; (tile_y<room_y)&&(!found); tile_y++)
 		{
 			for(tile_x=0; (tile_x<room_x)&&(!found); tile_x++)
@@ -1427,7 +1755,9 @@ void switch_room(int exit_nr, int dx, int d2y)
 				tile_data = readword((u8*)fbuffer[ROOMS], ROOMS_START+offset);
 				if ((tile_data & 0xF) == exit_index)
 				{
-					found = -1;
+					found = true;
+//					if (open_other_exit)	// need to open the mirror exit too
+//						writeword(fbuffer[ROOMS], ROOMS_START+offset, tile_data | 0x0010);
 					break;
 				}
 				offset +=2;		// Read next tile
@@ -1437,7 +1767,7 @@ void switch_room(int exit_nr, int dx, int d2y)
 		}
 
 		if (!found)
-		{	// Better exit than go LHC
+		{	// Better exit than go LHC and create a black hole
 			perr("Error: Exit lookup failed\n");
 			ERR_EXIT;
 		}
@@ -1445,7 +1775,7 @@ void switch_room(int exit_nr, int dx, int d2y)
 		// We have our exit position in tiles. Now, depending 
 		// on the exit type, we need to add a small position offset
 		tile_data &= 0xFF80;
-		offset = 0;		// Shouldn't fail (famous last words). Zero in case it does
+		offset = 0;		// Should never fail (famous last words). Zero in case it does
 		for (u=0; u<NB_CELLS_EXITS; u++)
 		{
 			if (readword((u8*)fbuffer[LOADER], EXIT_CELLS_LIST + 2*u) == tile_data)
