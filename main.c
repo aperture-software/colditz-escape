@@ -61,13 +61,12 @@ u32   fsize[NB_FILES]		= FSIZES;
 u8*   fbuffer[NB_FILES];
 u8*   mbuffer				= NULL;
 u8*	  rgbCells				= NULL;
-// GL Stuff
-int	gl_off_x = 0, gl_off_y  = 0;
+
 // OpenGL window size
 int	gl_width, gl_height;
 u8	prisoner_h = 0x23, prisoner_w = 0x10;
 //int prisoner_x = 20, prisoner_2y = 20;
-int prisoner_x = 900, prisoner_2y = 600;
+//int prisoner_x = 900, prisoner_2y = 600;
 //int prisoner_x = 1339, prisoner_2y = 895;
 //int prisoner_x = 0, prisoner_2y = 0;
 int last_p_x = 0, last_p_y = 0;
@@ -79,14 +78,27 @@ u8	p_sid_base	 = 0x00;
 // german_run   = 0x57 (with rifle)
 u8  prisoner_sid = 0x07; // 0x07;
 
-bool key_down[256];
+// Could use a set of flags, but more explicit this way
+bool key_down[256], key_readonce[256];
+static __inline bool read_key_once(u8 k)
+{	
+	if (key_down[k])
+	{
+		if (key_readonce[k])
+			return false;
+		key_readonce[k] = true;
+		return true;
+	}
+	return false;
+}
+
 bool reset_animations = true;
 s_animation	animations[MAX_ANIMATIONS];
 u8	nb_animations = 0;
 u64 last_mtime;
 s_guybrush guybrush[NB_GUYBRUSHES];
 
-u16  current_room_index = ROOM_OUTSIDE;
+//u16  current_room_index = ROOM_OUTSIDE;
 u16  nb_rooms, nb_cells, nb_sprites, nb_objects;
 u8   palette_index = 4;
 s_sprite*	sprite;
@@ -97,24 +109,9 @@ u8   bPalette[3][16];
 u16  aPalette[16];
 u32  rem_bitmask = 0x0000003E;
 
+// offsets to sprites according to joystick direction (dx,dy)
+int directions[3][3] = { {3,2,4}, {0,DIRECTION_STOPPED,1}, {6,5,7} };
 
-// offsets to sprites according to joystick direction (y,x)
-int directions[3][3] = { {6,7,8}, {5,0,1}, {4,3,2} };
-int directions2[3][3] = { {5,6,7}, {4,-1,0}, {3,2,1} };
-int last_direction = 3;
-int framecount = 0;
-
-/* TO_DO: 
- * CRM: fix room 116's last exit to 0x0114
- * CRM: fix room 0's first and second exits to 0x0073 0x0001
- * CRM: fix init vector @ $50 from 0x100B0001 to 0x300B0001
- *
- * tile data tttt tttt t gg o xxxx 
- * t: tile #
- * g: lock grade (01 = lockpick, 10 = key 2, 11 = key 1)
- * o: door open flag
- * x: exit lookup number (in exit map [1-8])
- */
 
 
 /**
@@ -192,23 +189,18 @@ static void glut_reshape (int w, int h)
 }
 
 
-// Handle keyboard standard keys 
-// i.e. those that can be translated to ASCII
-static void glut_keyboard(u8 key, int x, int y)
-{
-//	printf("key = %X\n", key);
-	key_down[key]=true;
-}
 
+/*
 #if defined(WIN32)
 #define KEY_FRAME 12
 #else
 #define KEY_FRAME 10
 #endif
+*/
 
 void process_motion(void)
 {
-	u8 strip_base, strip_index, index;
+	u8 index;
 	bool redisplay = false;
 	int new_direction;
 	int exit;
@@ -217,20 +209,27 @@ void process_motion(void)
 	if ((mtime() - last_mtime) > ANIMATION_INTERVAL)
 	{
 		last_mtime += ANIMATION_INTERVAL;	// closer to ideal rate
+		// but leads to catchup effect when moving window
 		for (index = 0; index < nb_animations; index++)
 			animations[index].framecount++;
 //		if  (nb_animations)
 		// no point issuing a redisplay if there are no animations
 			redisplay = true;
 	}
+	
+	if ( (prisoner_state != STATE_STOPPED) && (prisoner_state != STATE_MOVING) )
+	{	// prevent motion for all other
+		dx=0;
+		d2y=0;
+	}
 
 	// Check if we're allowed to go where we want
 	if ((dx != 0) || (d2y != 0))
 	{
-		exit = check_footprint(dx, d2y);
+		exit = check_footprint(dx*prisoner_speed, d2y*prisoner_speed);
 		if (exit != -1)
 		{	// if -1, we move normally
-			// in all other cases, we need to stop (even on exit)
+			// in all other cases, we need to stop (even on sucessful exit)
 			if (exit>0)
 			{
 //				printf("exit[%d], from room[%X]\n", exit-1, current_room_index);
@@ -238,77 +237,62 @@ void process_motion(void)
 				redisplay = true;
 			}
 			// Change the last direction so that we use the right sid for stopping
-			last_direction = directions[d2y+1][dx+1];;
+			animations[prisoner_ani].direction = directions[d2y+1][dx+1];
 			dx = 0;
 			d2y = 0;
 		}
 	}
 
-	/*  
-	 * Below are the indexes of the relevant 3 sprites groups 
-	 * in the 24 sprites strip (joystick position -> strip pos):
-	 *    6 7 8
-	 *    5 0 1
-	 *    4 3 2  
-	 */
-
-	/*  
-	 * For the ani offsets, we have:
-	 *    5 6 7
-	 *    4   0 
-	 *    3 2 1  
-	 */
-
-	// Get the base strip index 
+	// Get direction (which is used as an offset to pick the proper animation
 	new_direction = directions[d2y+1][dx+1];
-	// NB: if d2y=0 & dx=0, new_dir = 0
+	// NB: if d2y=0 & dx=0, new_dir = DIRECTION_STOPPED
 
-	if (new_direction)
+	if (new_direction != DIRECTION_STOPPED)
 	{	// We're moving => animate sprite
 
-		framecount++;
-		prisoner_x += dx;
-		prisoner_2y += d2y;
+		if (prisoner_state == STATE_STOPPED)
+		// we were stopped => make sure we start with the proper ani frame
+			animations[prisoner_ani].framecount = 0;
 
-		if (last_direction == 0)
-		{	// We just started moving
-			framecount = 0;
-			// pick up the sprite left of idle one
-			prisoner_sid = p_sid_base + 3*(new_direction-1);
-		}
-		else
-		{	// continuation of movement
-			if (framecount % KEY_FRAME == 0) 
-			{
-				strip_base = 3*(new_direction-1);
-				strip_index = (framecount / KEY_FRAME) % 4;
-				if (strip_index == 3)
-					strip_index = 1;	// 0 1 2 1 ...
-				prisoner_sid = p_sid_base + strip_base + strip_index;
-			}
-		}
+		// Update our prisoner data
+		prisoner_x += prisoner_speed*dx;
+		prisoner_2y += prisoner_speed*d2y;
+		prisoner_state = STATE_MOVING;
+		// Update the animation direction
+		animations[prisoner_ani].direction = new_direction;
+
+		// Force a redisplay
 		redisplay = true;
+
 	}
-	else if (last_direction != 0)
+	else if (prisoner_state == STATE_MOVING)
 	{	// We just stopped
-		// the middle of the current 3 sprites is stopped pos
-		prisoner_sid = p_sid_base + 3*(last_direction-1) + 1;	
+		prisoner_state = STATE_STOPPED;
 		redisplay = true;
 	}
 
-	// Knowing our last pos will come handy
-	last_direction = new_direction;
 
 	if (redisplay) 
 		glut_display();
-/*
-	if (reset_animations)
-		reset_animations = false; */
 }
 
-static void glut_keyboard_up(u8 key, int x, int y)
+// restore guybrush & animation parameters after a one shot ani
+// this function expects the guybrush index as well as the previous ani_index
+// to be concatenated in the lower 2 bytes of the parameter
+void restore_params(u32 param)
 {
-	key_down[key]=false;
+	u8 brush, ani, previous_index;
+	// extract the guybrush index
+	brush = param & 0xFF;
+	// extract the previous animation index
+	previous_index = (param >> 8) & 0xFF;
+
+	ani = guybrush[brush].ani_index;
+	animations[ani].index = previous_index;
+	animations[ani].framecount = 0;
+	animations[ani].end_of_ani_function = NULL;
+	// we always end up in stopped state after a one shot animation
+	guybrush[brush].state = STATE_STOPPED;
 }
 
 // process motion keys
@@ -339,8 +323,46 @@ static void glut_idle(void)
 		d2y = +1;
 
 	// Display our current position
-	if (key_down['p'])
+	if (read_key_once('p'))
 		printf("(px, p2y) = (%d, %d), room = %x\n", prisoner_x, prisoner_2y, current_room_index);
+
+	if (read_key_once(' '))
+	{
+		if (prisoner_speed == 1)
+		{
+			prisoner_speed = 2;
+			animations[prisoner_ani].index = RUN_ANI; // +GERMAN OFFSET
+			animations[prisoner_ani].framecount = 0;
+		}
+		else
+		{
+			prisoner_speed = 1;
+			animations[prisoner_ani].index = WALK_ANI;
+			animations[prisoner_ani].framecount = 0;
+		}
+	}
+
+	// The following keys are only handled if we are in a premissible state
+	if ((prisoner_state == STATE_STOPPED) || (prisoner_state == STATE_MOVING))
+	{
+
+		// 
+		if ( (read_key_once(SPECIAL_KEY_DOWN)) ||
+			 (read_key_once(SPECIAL_KEY_UP)) ) 
+		{
+			prisoner_state = STATE_PICKING;
+			// enqueue our 2 u8 parameters
+			animations[prisoner_ani].end_of_ani_parameter = (PRISONER & 0xFF) | 
+				((animations[prisoner_ani].index << 8) & 0xFF00);
+			animations[prisoner_ani].index = KNEEL_ANI;
+			//animations[prisoner_ani].index = SHOT_ANI;
+			// starting at -1 ensures that we'll go through frame 0
+			// as we need to wait the for the ani counter to increase
+			// for our first animation frame to show
+			animations[prisoner_ani].framecount = -1;
+			animations[prisoner_ani].end_of_ani_function = restore_params;
+		}
+	}
 
 	// Joystick motion overrides keys
 	if (jdx)
@@ -373,9 +395,31 @@ static void glut_joystick(uint buttonMask, int x, int y, int z)
 	else jd2y = 0;
 }
 
-// Handle keyboard special keys (non ASCII)
+// Keyboard handling
+static void glut_keyboard(u8 key, int x, int y)
+{
+//	printf("key = %X\n", key);
+	key_down[key] = true;
+}
+
+static void glut_keyboard_up(u8 key, int x, int y)
+{
+	key_down[key] = false;
+	key_readonce[key] = false;
+}
+
 static void glut_special_keys(int key, int x, int y)
 {
+	key_down[key + SPECIAL_KEY_OFFSET] = true;
+}
+
+static void glut_special_keys_up(int key, int x, int y)
+{
+	key_down[key + SPECIAL_KEY_OFFSET] = false;
+	key_readonce[key + SPECIAL_KEY_OFFSET] = false;
+}
+/*
+	// just use the second part of our key table
 	switch (key) 
 	{
 	case GLUT_KEY_UP:
@@ -414,7 +458,7 @@ static void glut_special_keys(int key, int x, int y)
 		break;
 	}
 }
-
+*/
 
 /* Here we go! */
 int main (int argc, char *argv[])
@@ -475,15 +519,14 @@ int main (int argc, char *argv[])
 	}
 
 	puts ("");
-	puts ("Colditz v1.0 : Colditz map explorer");
-	puts ("by Agent Smith,  July 2008");
+	puts ("Colditz v1.0 : Escape from Colditz port");
+	puts ("by Aperture Software,  May 2009");
 	puts ("");
 
 	if ( ((argc-optind) > 3) || opt_error)
 	{
 		puts ("usage: Colditz [-f] [-s] [-v] [device] [kernel] [general]");
 		puts ("Most features are autodetected, but if you want to specify options:");
-		puts ("If no device is given, DVRFlash will detect all DVR devices and exit");
 		puts ("                -f : force");
 		puts ("                -s : skip TIFF image creation");
 		puts ("                -v : verbose");
@@ -503,14 +546,30 @@ int main (int argc, char *argv[])
 	// Set global variables
 	get_properties();
 
-	guybrush[0].ani_index = 0;
-	guybrush[0].px = 1339;
-	guybrush[0].p2y = 895;
-	guybrush[0].room = ROOM_OUTSIDE;
+	// Define our main prisoner
+	guybrush[PRISONER].ani_index = 0;
+	guybrush[PRISONER].px = 940;
+	guybrush[PRISONER].p2y = 630;
+	guybrush[PRISONER].room = ROOM_OUTSIDE;
+	guybrush[PRISONER].state = STATE_STOPPED;
+	guybrush[PRISONER].speed = 1;
 	g_ani = guybrush[0].ani_index;
-	animations[g_ani].index = GER_WALK_ANI;
+	animations[g_ani].index = WALK_ANI;
 	animations[g_ani].framecount = 0;
 	animations[g_ani].direction = 3;
+	animations[g_ani].end_of_ani_function = NULL;
+	nb_animations++;
+
+	guybrush[1].ani_index = 1;
+	guybrush[1].px = 1300;
+	guybrush[1].p2y = 730;
+	guybrush[1].room = ROOM_OUTSIDE;
+	guybrush[1].state = STATE_MOVING;
+	guybrush[1].speed = 2;
+	g_ani = guybrush[1].ani_index;
+	animations[g_ani].index = GER_WALK_ANI;
+	animations[g_ani].framecount = 0;
+	animations[g_ani].direction = 0;
 	animations[g_ani].end_of_ani_function = NULL;
 	nb_animations++;
 
@@ -540,6 +599,7 @@ int main (int argc, char *argv[])
 	glutKeyboardFunc(glut_keyboard);
 	glutKeyboardUpFunc(glut_keyboard_up);
 	glutSpecialFunc(glut_special_keys);
+	glutSpecialUpFunc(glut_special_keys_up);
 
 	glutJoystickFunc(glut_joystick,30);	
 	// This is what you get from using obsolete libraries

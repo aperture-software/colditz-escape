@@ -24,6 +24,9 @@ extern "C" {
 #ifndef u32
 #define u32 unsigned long
 #endif
+#ifndef s32
+#define s32 long
+#endif
 #ifndef u64
 #define u64 unsigned long long
 #endif
@@ -178,7 +181,8 @@ do {									\
 #define HAT_RABBIT_POS_START	0x3E72
 // Time between animation frames, in ms
 // 66 or 67 is about as close as we can get to the original game
-#define ANIMATION_INTERVAL		100
+#define ANIMATION_INTERVAL		120
+#define DIRECTION_STOPPED		-1
 // Animation data
 #define ANIMATION_OFFSET_BASE	0x896A
 #define REMOVE_ANIMATION		-1
@@ -221,7 +225,47 @@ do {									\
 #define MAX_ANIMATIONS			64
 #define MAX_CURRENTLY_ANIMATED	16
 #define NB_ANIMATED_SPRITES		23
-#define NB_GUYBRUSHES			1
+#define NB_GUYBRUSHES			2
+// The current prisoner is always our first guybrush
+#define PRISONER				0
+
+// Our guy's states
+#define STATE_STOPPED			0
+#define STATE_MOVING			1
+#define STATE_SLEEPING			2
+#define STATE_PICKING			3
+#define STATE_CRAWLING			4
+#define STATE_SHOOTING			5
+#define STATE_SHOT				6
+#define STATE_SHOWERING			7
+#define STATE_STOOGE			8
+
+
+#define SPECIAL_KEY_OFFSET		0x80
+#define SPECIAL_KEY_F1          (GLUT_KEY_F1 + SPECIAL_KEY_OFFSET)
+#define SPECIAL_KEY_F2          (GLUT_KEY_F2 + SPECIAL_KEY_OFFSET)
+#define SPECIAL_KEY_F3          (GLUT_KEY_F3 + SPECIAL_KEY_OFFSET)
+#define SPECIAL_KEY_F4          (GLUT_KEY_F4 + SPECIAL_KEY_OFFSET)
+#define SPECIAL_KEY_F5          (GLUT_KEY_F5 + SPECIAL_KEY_OFFSET)
+#define SPECIAL_KEY_F6          (GLUT_KEY_F6 + SPECIAL_KEY_OFFSET)
+#define SPECIAL_KEY_F7          (GLUT_KEY_F7 + SPECIAL_KEY_OFFSET)
+#define SPECIAL_KEY_F8          (GLUT_KEY_F8 + SPECIAL_KEY_OFFSET)
+#define SPECIAL_KEY_F9          (GLUT_KEY_F9 + SPECIAL_KEY_OFFSET)
+#define SPECIAL_KEY_F10         (GLUT_KEY_F10 + SPECIAL_KEY_OFFSET)
+#define SPECIAL_KEY_F11         (GLUT_KEY_F11 + SPECIAL_KEY_OFFSET)
+#define SPECIAL_KEY_F12         (GLUT_KEY_F12 + SPECIAL_KEY_OFFSET)
+#define SPECIAL_KEY_LEFT        (GLUT_KEY_LEFT + SPECIAL_KEY_OFFSET)
+#define SPECIAL_KEY_UP          (GLUT_KEY_UP + SPECIAL_KEY_OFFSET)
+#define SPECIAL_KEY_RIGHT       (GLUT_KEY_RIGHT + SPECIAL_KEY_OFFSET)
+#define SPECIAL_KEY_DOWN        (GLUT_KEY_DOWN + SPECIAL_KEY_OFFSET)
+#define SPECIAL_KEY_PAGE_UP     (GLUT_KEY_PAGE_UP + SPECIAL_KEY_OFFSET)
+#define SPECIAL_KEY_PAGE_DOWN   (GLUT_KEY_PAGE_DOWN + SPECIAL_KEY_OFFSET)
+#define SPECIAL_KEY_HOME        (GLUT_KEY_HOME + SPECIAL_KEY_OFFSET)
+#define SPECIAL_KEY_END	        (GLUT_KEY_END	+ SPECIAL_KEY_OFFSET)
+#define SPECIAL_KEY_INSERT      (GLUT_KEY_INSERT + SPECIAL_KEY_OFFSET)
+   
+
+
 
 // Stupid VC++ doesn't know the basic formats it can actually use!
 #if !defined(GL_UNSIGNED_SHORT_4_4_4_4_REV)
@@ -260,27 +304,29 @@ typedef struct
 typedef struct
 {
 	u32	index;	// index for the ani in the LOADER table
-	u32	framecount;
+	s32	framecount;
 	/* For animated overlays, direction is one of:
-	 *    5 6 7
-	 *    4   0 
-	 *    3 2 1   */
+	 *    5  6  7
+	 *    4 -1  0 
+	 *    3  2  1   */
 	int	direction;
-	int end_of_ani_parameter;
-	void (*end_of_ani_function)(int);
+	u32 end_of_ani_parameter;
+	void (*end_of_ani_function)(u32);
 } s_animation;
 
 typedef struct
 {
-	u16 room;
-	int px;
-	int p2y;
-	u8	ani_index;
+	u16   room;
+	s16   px;
+	s16   p2y;
+	s16   speed;
+	u8	  state;
+	u8	  ani_index;
 } s_guybrush;
 
 // Bummer! The way they setup their animation overlays and the way I 
 // do it to be more efficient means I need to define a custom table
-// to find out the animations that loop
+// to find out animations that loop
 /*
 ROM:000089EA animation_data: dc.l walk_ani           ; DATA XREF: display_sprites+AEo
 ROM:000089EA                                         ; #00
@@ -402,15 +448,21 @@ extern u16  nb_rooms, nb_cells, nb_sprites, nb_objects;
 
 extern char* fname[NB_FILES];
 extern u32   fsize[NB_FILES];
-extern int	gl_off_x, gl_off_y;
+//extern int	gl_off_x, gl_off_y;
 extern int	gl_width, gl_height;
-extern u8	prisoner_w, prisoner_h;
-extern int  prisoner_x, prisoner_2y;
+//extern u8	prisoner_w, prisoner_h;
+//extern int  prisoner_x, prisoner_2y;
+#define prisoner_x guybrush[PRISONER].px
+#define prisoner_2y guybrush[PRISONER].p2y
+#define current_room_index guybrush[PRISONER].room
+#define prisoner_speed guybrush[PRISONER].speed
+#define prisoner_ani   guybrush[PRISONER].ani_index
+#define prisoner_state guybrush[PRISONER].state
 extern int  last_p_x, last_p_y;
 extern int  dx, d2y;
 extern u8  prisoner_sid;
 
-extern u16  current_room_index;
+//extern u16  current_room_index;
 extern s_sprite		*sprite;
 extern s_overlay	*overlay; 
 extern u8   overlay_index;

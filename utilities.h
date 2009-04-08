@@ -33,8 +33,19 @@ extern "C" {
 	((current_room_index == ROOM_OUTSIDE)?comp_get_exit_offset(x,y):room_get_exit_offset(x,y))
 
 // Toggle the exit open flag
-#define toggle_open_flag(x_flags)		\
+#define toggle_open_flag(x_flags)	\
 	x_flags = (x_flags & 0x10)?(x_flags & 0xEF):(x_flags | 0x10)
+
+// Checks that an overlays is visible onscreen
+#define ignore_offscreen_x(ovl)		\
+	if ((overlay[ovl].x < -64) || (overlay[ovl].x > (PSP_SCR_WIDTH+64)))	\
+			continue
+#define ignore_offscreen_y(ovl)		\
+	if ((overlay[ovl].y < -64) || (overlay[ovl].y > (PSP_SCR_HEIGHT+64)))	\
+			continue
+
+#define get_sid(x)					\
+	((guybrush[x].state == STATE_STOPPED)?get_stop_animation_sid(guybrush[x].ani_index):get_animation_sid(guybrush[x].ani_index))
 
 
 //void cells_to_interleaved(u8* buffer, u32 size);

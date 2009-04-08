@@ -42,7 +42,7 @@ u8  overlay_order[MAX_OVERLAY];
 u8	currently_animated[MAX_ANIMATIONS];
 u32 exit_flags_offset;
 //u32 debug_counter = 0;
-
+s16	gl_off_x = 0, gl_off_y  = 0;
 
 void load_all_files()
 {
@@ -446,7 +446,7 @@ void sprites_to_wGRAB()
 }
 
 // Returns the last frame of an animation (usually the centered position)
-int get_last_animation(u8 index)
+int get_stop_animation_sid(u8 index)
 {
 	u8 frame;
 	int sid;
@@ -465,7 +465,8 @@ int get_animation_sid(u8 index)
 {
 	u8 frame, sid_increment;
 	int sid;
-	u32 ani_base, nb_frames;
+	u32 ani_base;
+	s32 nb_frames;
 	// read the base sid
 
 	// NB: static pointers in the loader are offset by 0x80
@@ -635,7 +636,7 @@ void crm_set_overlays(s16 x, s16 y, u16 current_tile, u32 tile_offset, u16 room_
 
 
 // Populates the tile overlays, if we are on the CoMPressed map
-void cmp_set_overlays(s16 off_x, s16 off_y)
+void cmp_set_overlays()
 {
 	u16 i;
 	u32 bitset, offset;
@@ -685,14 +686,10 @@ void cmp_set_overlays(s16 off_x, s16 off_y)
 		sy += tile_y * 16;
 
 		// Don't forget the displayable area offset
-		overlay[overlay_index].x = off_x + sx - sprite[sid].w + sprite[sid].x_offset;
-		overlay[overlay_index].y = off_y + sy - sprite[sid].h + 1;
-
-		// No need to bother if the overlay is offscreen (with generous margins)
-		if ((overlay[overlay_index].x < -64) || (overlay[overlay_index].x > (PSP_SCR_WIDTH+64)))
-			continue;
-		if ((overlay[overlay_index].y < -64) || (overlay[overlay_index].y > (PSP_SCR_HEIGHT+64)))
-			continue;
+		overlay[overlay_index].x = gl_off_x + sx - sprite[sid].w + sprite[sid].x_offset;
+		ignore_offscreen_x(overlay_index);	// Don't bother if offscreen
+		overlay[overlay_index].y = gl_off_y + sy - sprite[sid].h + 1;
+		ignore_offscreen_y(overlay_index);	// Don't bother if offscreen
 
 		// OK, now let's deal with potential door animations
 		if (i<(4*OUTSIDE_OVL_NB))
@@ -741,8 +738,12 @@ void set_objects()
 		overlay[overlay_index].sid = obs_to_sprite[readword(fbuffer[OBJECTS],i+2+6)];
 		x = readword(fbuffer[OBJECTS],i+2+4) - 15;
 		y = readword(fbuffer[OBJECTS],i+2+2) - 3;
+
 		overlay[overlay_index].x = gl_off_x + x;
+		ignore_offscreen_x(overlay_index);
 		overlay[overlay_index].y = gl_off_y + y;
+		ignore_offscreen_y(overlay_index);
+
 		// all the props should appear behind overlays, expect the ones with no mask
 		// (which are always set at MIN_Z)
 		overlay[overlay_index].z = MIN_Z+1;
@@ -970,18 +971,46 @@ void removable_walls()
 	}
 }
 
-void add_guybrushes(s16 off_x, s16 off_y)
+void add_guybrushes()
 {
 u8 i, sid;
 
-	for (i=0; i< NB_GUYBRUSHES; i++)
+	// Always display our main guy
+	sid = get_sid(guybrush[PRISONER].ani_index);
+	overlay[overlay_index].sid = (opt_sid == -1)?sid:opt_sid;	
+
+	// If you uncomment the lines below, you'll get confirmation that our position 
+	// computations are right to position our guy to the middle of the screen
+	//overlay[overlay_index].x = gl_off_x + guybrush[PRISONER].px + sprite[sid].x_offset;
+	overlay[overlay_index].y = gl_off_y + guybrush[PRISONER].p2y/2 - sprite[sid].h + 5;
+	overlay[overlay_index].x = PSP_SCR_WIDTH/2;  
+	//overlay[overlay_index].y = PSP_SCR_HEIGHT/2 - NORTHWARD_HO - 32; 
+
+	// Our guy's always at the center of our z-buffer
+	overlay[overlay_index].z = 0;
+	overlay_index++;
+/*
+	overlay[overlay_index].x = PSP_SCR_WIDTH/2;  
+	overlay[overlay_index].y = PSP_SCR_HEIGHT/2 - NORTHWARD_HO - 32; 
+	overlay[overlay_index].sid = sid + 0x37;
+	overlay[overlay_index].z = -1;
+	overlay_index++;
+*/
+
+
+	for (i=1; i< NB_GUYBRUSHES; i++)
 	{
 		if (guybrush[i].room != current_room_index)
 			continue;
 
-		sid = get_animation_sid(guybrush[i].ani_index);
-		overlay[overlay_index].x = off_x + guybrush[0].px - sprite[sid].w + sprite[sid].x_offset;
-		overlay[overlay_index].y = off_y + guybrush[0].p2y/2 - sprite[sid].h + 1;
+		sid = get_sid(guybrush[i].ani_index);
+
+		// How I wish there was an easy way to explain these small offsets we add
+		overlay[overlay_index].x = gl_off_x + guybrush[i].px + sprite[sid].x_offset;
+		ignore_offscreen_x(overlay_index);	// Don't bother if offscreen
+		overlay[overlay_index].y = gl_off_y + guybrush[i].p2y/2 - sprite[sid].h + 5;
+		ignore_offscreen_y(overlay_index);	// Don't bother if offscreen
+
 		overlay[overlay_index].z = overlay[overlay_index].y - sprite[sid].z_offset 
 				- PSP_SCR_HEIGHT/2 + NORTHWARD_HO - 3; 
 		overlay[overlay_index].sid = sid;
@@ -989,7 +1018,7 @@ u8 i, sid;
 	}
 
 // Let's add our guy
-	// TO_DO: REMOVE THIS DEBUG FEATURE
+/*	// TO_DO: REMOVE THIS DEBUG FEATURE
 	overlay[overlay_index].sid = (opt_sid == -1)?prisoner_sid:opt_sid;	
 	// 0x85 = tunnel board, 0x91 = safe
 	overlay[overlay_index].x = PSP_SCR_WIDTH/2;  
@@ -997,7 +1026,7 @@ u8 i, sid;
 	// Our guy's always at the center of our z-buffer
 	overlay[overlay_index].z = 0;
 	overlay_index++;
-
+*/
 	if (opt_play_as_the_safe)
 	{
 		overlay[overlay_index].sid = 0x91;	
@@ -1186,10 +1215,11 @@ void display_room()
 			pixel_y += 16;
 		}
 		// On the compressed map, we set all the overlays in one go
-		cmp_set_overlays(gl_off_x, gl_off_y);
+		cmp_set_overlays();
 	}
 
-	add_guybrushes(gl_off_x, gl_off_y);
+	// Add all our guys
+	add_guybrushes();
 
 	// Now that the background is done, and we have all the overlays, display the overlay sprites
 	display_overlays();
@@ -1328,7 +1358,7 @@ void rescale_buffer()
 }
 
 // Open a closed door, or close an open door
-void toggle_exit(int exit_nr)
+void toggle_exit(u32 exit_nr)
 {
 	u32 offset;
 	u16 exit_index;	// exit index in destination room
@@ -1700,7 +1730,7 @@ void switch_room(int exit_nr, int dx, int d2y)
 	// Since we're changing room, reset all animations
 	for (u=0; u<MAX_CURRENTLY_ANIMATED; u++)
 		currently_animated[u] = 0;
-	// only remove anymations that are not related to our guys
+	// only remove animations that are not related to our guys
 	nb_animations = NB_GUYBRUSHES;
 	reset_animations = true;
 	
