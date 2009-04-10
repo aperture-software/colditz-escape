@@ -45,12 +45,13 @@ extern "C" {
 			continue
 
 #define get_sid(x)					\
-	((guybrush[x].state == STATE_STOPPED)?get_stop_animation_sid(guybrush[x].ani_index):get_animation_sid(guybrush[x].ani_index))
+	((guybrush[x].state == STATE_STOP)?get_stop_animation_sid(guybrush[x].ani_index):get_animation_sid(guybrush[x].ani_index))
 
 
 //void cells_to_interleaved(u8* buffer, u32 size);
 //void sprites_to_interleaved(u8* buffer, u32 bitplane_size);
-void to_16bit_palette(u8 palette_index);
+void to_16bit_palette(u8 palette_index, u8 transparent_index, u8 io_file);
+//void to_16bit_palette(int palette_start, u8 io_file);
 //void to_24bit_Palette(u8 palette_index);
 //void to_48bit_Palette(u16 wPalette[3][16], u8 palette_index);
 //void cells_to_RGB(u8* source, u8* dest, u32 size);
@@ -68,7 +69,7 @@ void sprites_to_wGRAB();
 int check_footprint(int dx, int d2y);
 void switch_room(int exit, int dx, int dy);
 void fix_files();
-
+void set_room_props();
 
 #ifdef	__cplusplus
 }

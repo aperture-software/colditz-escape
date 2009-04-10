@@ -97,9 +97,16 @@ s_animation	animations[MAX_ANIMATIONS];
 u8	nb_animations = 0;
 u64 last_mtime;
 s_guybrush guybrush[NB_GUYBRUSHES];
+u8	props[NB_NATIONS][NB_PROPS];
+u8	selected_prop[NB_NATIONS];
+u8	nb_room_props = 0;
+u16	room_props[NB_OBSBIN];
+u8	over_prop = 0, over_prop_id = 0;
+u8  current_nation = 0;
+u8	panel_chars[NB_PANEL_CHARS][8*8*2];
 
 //u16  current_room_index = ROOM_OUTSIDE;
-u16  nb_rooms, nb_cells, nb_sprites, nb_objects;
+u16  nb_rooms, nb_cells, nb_objects;
 u8   palette_index = 4;
 s_sprite*	sprite;
 s_overlay*	overlay;
@@ -107,7 +114,7 @@ u8   overlay_index;
 u8   bPalette[3][16];
 // remapped Amiga Palette
 u16  aPalette[16];
-u32  rem_bitmask = 0x0000003E;
+u32  rem_bitmask = 0x8000001E;
 
 // offsets to sprites according to joystick direction (dx,dy)
 int directions[3][3] = { {3,2,4}, {0,DIRECTION_STOPPED,1}, {6,5,7} };
@@ -217,7 +224,7 @@ void process_motion(void)
 			redisplay = true;
 	}
 	
-	if ( (prisoner_state != STATE_STOPPED) && (prisoner_state != STATE_MOVING) )
+	if ( (prisoner_state != STATE_STOP) && (prisoner_state != STATE_MOVE) )
 	{	// prevent motion for all other
 		dx=0;
 		d2y=0;
@@ -250,14 +257,14 @@ void process_motion(void)
 	if (new_direction != DIRECTION_STOPPED)
 	{	// We're moving => animate sprite
 
-		if (prisoner_state == STATE_STOPPED)
+		if (prisoner_state == STATE_STOP)
 		// we were stopped => make sure we start with the proper ani frame
 			animations[prisoner_ani].framecount = 0;
 
 		// Update our prisoner data
 		prisoner_x += prisoner_speed*dx;
 		prisoner_2y += prisoner_speed*d2y;
-		prisoner_state = STATE_MOVING;
+		prisoner_state = STATE_MOVE;
 		// Update the animation direction
 		animations[prisoner_ani].direction = new_direction;
 
@@ -265,9 +272,9 @@ void process_motion(void)
 		redisplay = true;
 
 	}
-	else if (prisoner_state == STATE_MOVING)
+	else if (prisoner_state == STATE_MOVE)
 	{	// We just stopped
-		prisoner_state = STATE_STOPPED;
+		prisoner_state = STATE_STOP;
 		redisplay = true;
 	}
 
@@ -292,12 +299,16 @@ void restore_params(u32 param)
 	animations[ani].framecount = 0;
 	animations[ani].end_of_ani_function = NULL;
 	// we always end up in stopped state after a one shot animation
-	guybrush[brush].state = STATE_STOPPED;
+	guybrush[brush].state = STATE_STOP;
 }
 
 // process motion keys
 static void glut_idle(void)
 {	
+	u16 prop_offset;
+	u8	prop_id, direction;
+//	int i;
+
 	// Reset the motion
 	dx = 0; 
 	d2y = 0;	
@@ -324,7 +335,7 @@ static void glut_idle(void)
 
 	// Display our current position
 	if (read_key_once('p'))
-		printf("(px, p2y) = (%d, %d), room = %x\n", prisoner_x, prisoner_2y, current_room_index);
+		printf("(px, p2y) = (%d, %d), room = %x, rem = %08X\n", prisoner_x, prisoner_2y, current_room_index, rem_bitmask);
 
 	if (read_key_once(' '))
 	{
@@ -343,14 +354,30 @@ static void glut_idle(void)
 	}
 
 	// The following keys are only handled if we are in a premissible state
-	if ((prisoner_state == STATE_STOPPED) || (prisoner_state == STATE_MOVING))
+	if ((prisoner_state == STATE_STOP) || (prisoner_state == STATE_MOVE))
 	{
+		if ( (read_key_once(SPECIAL_KEY_LEFT)) ||
+			 (read_key_once(SPECIAL_KEY_RIGHT)) ) 
+		{
+			prop_id = selected_prop[current_nation];
+			direction = key_down[SPECIAL_KEY_LEFT]?0x0F:1;
+			do
+				prop_id = (prop_id + direction) & 0x0F;
+			while ( (!props[current_nation][prop_id]) && (prop_id != selected_prop[current_nation]) );
+			if (props[current_nation][prop_id])
+			// we found a non empty item
+				selected_prop[current_nation] = prop_id;
+			else
+				selected_prop[current_nation] = 0;
+//			printf("selected prop = %02X\n", selected_prop[current_nation]);
+		}
 
-		// 
+
+		// Props pickup/dropdown
 		if ( (read_key_once(SPECIAL_KEY_DOWN)) ||
 			 (read_key_once(SPECIAL_KEY_UP)) ) 
 		{
-			prisoner_state = STATE_PICKING;
+			prisoner_state = STATE_PICK;
 			// enqueue our 2 u8 parameters
 			animations[prisoner_ani].end_of_ani_parameter = (PRISONER & 0xFF) | 
 				((animations[prisoner_ani].index << 8) & 0xFF00);
@@ -361,6 +388,65 @@ static void glut_idle(void)
 			// for our first animation frame to show
 			animations[prisoner_ani].framecount = -1;
 			animations[prisoner_ani].end_of_ani_function = restore_params;
+
+
+			if (key_down[SPECIAL_KEY_UP])
+			{	// picking up
+				if (over_prop)
+				{
+//					over_prop--;	// restore the zero based index
+					prop_offset = room_props[over_prop-1];
+					room_props[over_prop-1] = 0;
+					// change the room index to an invalid one
+					writeword(fbuffer[OBJECTS],prop_offset,ROOM_NO_PROP);
+//					prop_id = readbyte(fbuffer[OBJECTS],prop_offset+7);
+//					prop_id = over_prop_id;
+					props[current_nation][over_prop_id]++;
+					selected_prop[current_nation] = over_prop_id;
+//					for (i = 0; i< 16; i++)
+//						printf(" %02X", props[current_nation][i]);
+//					printf("\nselected prop = %02X\n", selected_prop[current_nation]);
+				}
+			}
+			else
+			{	// dropping down
+				if (selected_prop[current_nation])
+				{
+//					prop_offset = room_props[over_prop];
+					over_prop_id = selected_prop[current_nation];
+					// OK, now we'll look for an picked object space in obs.bin to store 
+					// our data
+					for (prop_offset=2; prop_offset<(8*nb_objects+2); prop_offset+=8)
+					{
+						if (readword(fbuffer[OBJECTS],prop_offset) == ROOM_NO_PROP)
+						{	// There should always be at least one
+							// Add the prop to our current room
+							room_props[nb_room_props] = prop_offset; 
+							nb_room_props++;
+							// Write down the relevant value in obs.bin
+							// 1. Room number
+							writeword(fbuffer[OBJECTS],prop_offset,current_room_index);
+							// 2. x & y pos
+							writeword(fbuffer[OBJECTS],prop_offset+4, prisoner_x + 15);
+							writeword(fbuffer[OBJECTS],prop_offset+2, prisoner_2y/2 + 3);
+							// 3. object id
+							writeword(fbuffer[OBJECTS],prop_offset+6, over_prop_id);
+							break;
+						}
+					}
+
+					props[current_nation][over_prop_id]--;
+//					over_prop = prop_id + 1;
+					if (props[current_nation][over_prop_id] == 0)
+					// display the empty box if last prop
+						selected_prop[current_nation] = 0;
+					// don't care to much about reconstructing over_prop, as the next redisplay
+					// will take care of it
+					over_prop = 0;
+					over_prop_id = 0;
+//					printf("selected prop = %02X\n", selected_prop[current_nation]);
+				}
+			}
 		}
 	}
 
@@ -550,8 +636,10 @@ int main (int argc, char *argv[])
 	guybrush[PRISONER].ani_index = 0;
 	guybrush[PRISONER].px = 940;
 	guybrush[PRISONER].p2y = 630;
+//	guybrush[PRISONER].px = 404;
+//	guybrush[PRISONER].p2y = 707;
 	guybrush[PRISONER].room = ROOM_OUTSIDE;
-	guybrush[PRISONER].state = STATE_STOPPED;
+	guybrush[PRISONER].state = STATE_STOP;
 	guybrush[PRISONER].speed = 1;
 	g_ani = guybrush[0].ani_index;
 	animations[g_ani].index = WALK_ANI;
@@ -564,7 +652,7 @@ int main (int argc, char *argv[])
 	guybrush[1].px = 1300;
 	guybrush[1].p2y = 730;
 	guybrush[1].room = ROOM_OUTSIDE;
-	guybrush[1].state = STATE_MOVING;
+	guybrush[1].state = STATE_MOVE;
 	guybrush[1].speed = 2;
 	g_ani = guybrush[1].ani_index;
 	animations[g_ani].index = GER_WALK_ANI;
@@ -583,7 +671,7 @@ int main (int argc, char *argv[])
 	}
 
 	// Get a palette we can work with
-	to_16bit_palette(palette_index);
+	to_16bit_palette(palette_index, 0xFF, PALETTES);
 
 	// Convert the cells to RGBA data
 	cells_to_wGRAB(fbuffer[CELLS],rgbCells);
@@ -591,6 +679,11 @@ int main (int argc, char *argv[])
 	// Do the same for overlay sprites
 	init_sprites();
 	sprites_to_wGRAB();
+
+	// Don't forget to set the room props
+	set_room_props();
+	for (i = 0; i<NB_NATIONS; i++)
+		selected_prop[i] = 0;
 
 	// Now we can proceed with our display
 	glutDisplayFunc(glut_display);

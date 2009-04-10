@@ -111,7 +111,7 @@ do {									\
 
 
 // # files we'll be dealing with
-#define NB_FILES				9
+#define NB_FILES				11
 // Some handy identifier to make code reader friendly
 #define ROOMS					0
 #define CELLS					1
@@ -120,19 +120,27 @@ do {									\
 #define COMPRESSED_MAP			4
 #define SPRITES					5
 #define OBJECTS					6
-#define PANEL					7
+#define SPRITES_PANEL			7
 #define TUNNEL_IO				8
+#define PANEL_BASE1				9
+#define PANEL_BASE2				10
 #define RED						0
 #define GREEN					1
 #define BLUE					2
 // Never be short on filename sizes
 #define NAME_SIZE				256			
 #define FNAMES					{ "COLDITZ_ROOM_MAPS", "COLDITZ_CELLS", "PALS.BIN", "COLDITZ-LOADER",\
-								  "COMPRESSED_MAP", "SPRITES.SPR", "OBS.BIN", "PANEL.RAW", \
-								  "TUNNELIODOORS.BIN" }
+								  "COMPRESSED_MAP", "SPRITES.SPR", "OBS.BIN", "PANEL.BIN",  \
+								  "TUNNELIODOORS.BIN", "panel_base1.raw", "panel_base2.raw" }
 #define FSIZES					{ 58828, 135944, 232, 56080, \
-								  33508, 71056, 2056, 49152, \
-								  120 }
+								  33508, 71056, 2056, 11720, \
+								  120, 6144, 24576 }
+#define NB_NATIONS				4
+#define PANEL_BASE1_W			64
+#define PANEL_BASE2_W			256
+#define PANEL_BASE_H			32
+#define PANEL_OFF_X				79
+#define PANEL_OFF_Y				3
 #define ALT_LOADER				"SKR_COLD"
 #define ALT_LOADER_SIZE			28820
 #define OFFSETS_START			0x2684
@@ -141,6 +149,44 @@ do {									\
 // tiles that need overlay, from LOADER
 #define SPECIAL_TILES_START		0x3EBA
 #define NB_SPECIAL_TILES		0x16
+//Sprites
+#define NB_STANDARD_SPRITES		0xD1
+// Panel sprites 
+#define PANEL_FACES_OFFSET		0x1482
+#define NB_PANEL_FACES			7
+#define PANEL_FACES_W			16
+#define PANEL_FACES_X			PANEL_OFF_X
+#define PANEL_TOP_Y				(PSP_SCR_HEIGHT-PANEL_BASE_H+PANEL_OFF_Y)
+#define PANEL_FLAGS_OFFSET		0x1082
+#define NB_PANEL_FLAGS			NB_NATIONS
+#define PANEL_FLAGS_W			32
+#define PANEL_FLAGS_X			(PANEL_OFF_X+4*PANEL_FACES_W)
+#define NB_PANEL_ITEMS			0x13
+#define PANEL_ITEMS_W			32
+#define PANEL_CLOCK_DIGITS_OFF	0x1802
+#define NB_PANEL_CLOCK_DIGITS	11
+#define PANEL_CLOCK_DIGITS_W	8
+// sid of digit 0
+#define PANEL_CLOCK_DIGITS_BASE	0xDC
+#define PANEL_PROPS_X			(PANEL_FLAGS_X+PANEL_FLAGS_W)
+// sid of prop 0 (empty prop)
+#define PANEL_PROPS_BASE		0xE7
+#define PANEL_STATE_X			(PANEL_PROPS_X+PANEL_ITEMS_W)
+#define PANEL_CLOCK_HOURS_X		(PANEL_STATE_X+PANEL_ITEMS_W+16)
+#define PANEL_CLOCK_MINUTES_X	(PANEL_CLOCK_HOURS_X+3*PANEL_CLOCK_DIGITS_W)
+#define PANEL_ITEMS_OFFSET		0x1AC2
+#define NB_PANEL_SPRITES		(NB_PANEL_FLAGS+NB_PANEL_FACES+NB_PANEL_CLOCK_DIGITS+NB_PANEL_ITEMS)
+#define NB_SPRITES				(NB_STANDARD_SPRITES+NB_PANEL_SPRITES)
+#define NB_PANEL_CHARS			59
+#define PANEL_CHARS_OFFSET		0xF20
+#define PANEL_CHARS_W			8
+#define PANEL_CHARS_H			6
+#define PANEL_CHARS_CORRECTED_H	8
+#define PANEL_MESSAGE_X			(PANEL_FACES_X+5*PANEL_FACES_W)
+#define PANEL_MESSAGE_Y			(PANEL_TOP_Y+16)
+#define PANEL_CHARS_GRAD_BASE	0x98F1
+#define PANEL_CHARS_GRAD_INCR	0x1101
+#define GRAB_TRANSPARENT_COLOUR	0x0000
 #define OBS_TO_SPRITE_START		0x5D02
 #define NB_OBS_TO_SPRITE		15
 #define LOADER_DATA_START		0x10C
@@ -151,6 +197,8 @@ do {									\
 #define CMP_MAP_HEIGHT			0x48
 // On compressed map (outside)
 #define ROOM_OUTSIDE			0xFFFF
+// Room index for picked objects
+#define ROOM_NO_PROP			0x0258
 #define REMOVABLES_MASKS_START	0x86D8
 #define REMOVABLES_MASKS_LENGTH	27
 #define JOY_DEADZONE			450
@@ -210,6 +258,11 @@ do {									\
 #define KNEEL3_ANI				0x15
 #define GER_KNEEL_ANI			0x16
 
+#define STATE_WALK_SID			0xF6
+#define STATE_RUN_SID			0xF7
+#define STATE_CRAWL_SID			0xF8
+#define STATE_STOOGE_SID		0xF9
+
 #define JOY_FIRE				0x35
 // How do we need to shift our whole room up so that the seams don't show
 #define NORTHWARD_HO			28
@@ -230,17 +283,47 @@ do {									\
 #define PRISONER				0
 
 // Our guy's states
-#define STATE_STOPPED			0
-#define STATE_MOVING			1
-#define STATE_SLEEPING			2
-#define STATE_PICKING			3
-#define STATE_CRAWLING			4
-#define STATE_SHOOTING			5
-#define STATE_SHOT				6
-#define STATE_SHOWERING			7
-#define STATE_STOOGE			8
+#define STATE_STOP				0
+#define STATE_MOVE				1
+#define STATE_CRAWL				2
+#define STATE_STOOGE			3
+#define STATE_SLEEP				4
+#define STATE_PICK				5
+#define STATE_SHOOT				6
+#define STATE_SHOT				7
+#define STATE_SHOWER			8
 
+// Nationalities
+#define ENGLISH					0
+#define FRENCH					1
+#define AMERICAN				2
+#define POLISH					3
 
+// Props
+#define NB_PROPS				16
+#define NB_OBSBIN				0xBD
+#define ITEM_NONE				0x00
+#define ITEM_LOCKPICK			0x01
+#define ITEM_KEY_ONE			0x02
+#define ITEM_KEY_TWO			0x03
+#define ITEM_PRISONERS_UNIFORM	0x04
+#define ITEM_GUARDS_UNIFORM		0x05
+#define ITEM_PASS				0x06
+#define ITEM_SHOVEL				0x07
+#define ITEM_PICKAXE			0x08
+#define ITEM_SAW				0x09
+#define ITEM_RIFLE				0x0A
+#define ITEM_STONE				0x0B
+#define ITEM_CANDLE				0x0C
+#define ITEM_PAPERS				0x0D
+#define ITEM_STETHOSCOPE		0x0E
+// Alright, the next item doesn't really exists, but if you add it
+// manually in the original game, you get to "drop" an inflatable 
+// prisoner's dummy ;)
+// In the orginal, the item's identified as "ROUND TOWER"
+#define ITEM_INFLATABLE_DUMMY	0x0F
+
+// Redefinition of GLUT's special keys
 #define SPECIAL_KEY_OFFSET		0x80
 #define SPECIAL_KEY_F1          (GLUT_KEY_F1 + SPECIAL_KEY_OFFSET)
 #define SPECIAL_KEY_F2          (GLUT_KEY_F2 + SPECIAL_KEY_OFFSET)
@@ -280,7 +363,7 @@ do {									\
 #define PSP_SCR_WIDTH		480
 #define PSP_SCR_HEIGHT		272
 
-// Define a structure to hold the RGBA sprites
+// Define a structure to hold the standard RGBA sprites
 typedef struct
 {
     u16 w;
@@ -292,6 +375,13 @@ typedef struct
 	s16 z_offset;
 	u8* data;
 } s_sprite;
+
+typedef struct
+{
+	u16 w;
+	u16 base;
+	u32 offset;
+} s_nonstandard;
 
 typedef struct
 {
@@ -440,11 +530,17 @@ extern FILE *fd;
 extern u8   *rgbCells;
 // Removable walls current bitmask
 extern u32  rem_bitmask;
+extern u8	props[NB_NATIONS][NB_PROPS];
+extern u8	selected_prop[NB_NATIONS];
+extern u8	nb_room_props;
+extern u16	room_props[NB_OBSBIN];
+extern u8	over_prop, over_prop_id;
+extern u8	panel_chars[NB_PANEL_CHARS][8*8*2];
 
 
 
 // Data specific global variables
-extern u16  nb_rooms, nb_cells, nb_sprites, nb_objects;
+extern u16  nb_rooms, nb_cells, nb_objects;
 
 extern char* fname[NB_FILES];
 extern u32   fsize[NB_FILES];
@@ -458,6 +554,7 @@ extern int	gl_width, gl_height;
 #define prisoner_speed guybrush[PRISONER].speed
 #define prisoner_ani   guybrush[PRISONER].ani_index
 #define prisoner_state guybrush[PRISONER].state
+extern u8 current_nation;
 extern int  last_p_x, last_p_y;
 extern int  dx, d2y;
 extern u8  prisoner_sid;

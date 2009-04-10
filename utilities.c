@@ -32,17 +32,19 @@
 /* Whatever you do, you don't want local variables holding textures */
 GLuint* cell_texid;
 GLuint* sprite_texid;
-GLuint panel_texid;
+GLuint* chars_texid;
+GLuint panel1_texid, panel2_texid;
 GLuint render_texid;
 
 /* Some more globals */
 u8  obs_to_sprite[NB_OBS_TO_SPRITE];
 u8	remove_props[CMP_MAP_WIDTH][CMP_MAP_HEIGHT];
-u8  overlay_order[MAX_OVERLAY];
+u8  overlay_order[MAX_OVERLAY], b[MAX_OVERLAY/2+1];
 u8	currently_animated[MAX_ANIMATIONS];
 u32 exit_flags_offset;
 //u32 debug_counter = 0;
 s16	gl_off_x = 0, gl_off_y  = 0;
+char panel_message[256];
 
 void load_all_files()
 {
@@ -174,10 +176,20 @@ void get_properties()
 	GLCHK(glGenTextures(nb_cells, cell_texid));
 	print("nb_cells = %X\n", nb_cells);
 
-	nb_sprites = readword(fbuffer[SPRITES],0) + 1;
-	sprite_texid = malloc(sizeof(GLuint) * nb_sprites);
-	GLCHK(glGenTextures(nb_sprites, sprite_texid));
-	print("nb_sprites = %X\n", nb_sprites);
+//	nb_sprites = readword(fbuffer[SPRITES],0) + 1;
+	if (readword(fbuffer[SPRITES],0) != (NB_STANDARD_SPRITES-1))
+	{
+		perr("Unexpected number of sprites\n");
+		ERR_EXIT;
+	}
+
+	sprite_texid = malloc(sizeof(GLuint) * NB_SPRITES);
+	GLCHK(glGenTextures(NB_SPRITES, sprite_texid));
+	print("nb_sprites = %X\n", NB_SPRITES);
+
+	chars_texid = malloc(sizeof(GLuint) * NB_PANEL_CHARS);
+	GLCHK(glGenTextures(NB_PANEL_CHARS, chars_texid));
+	print("nb_chars = %X\n", NB_PANEL_CHARS);
 
 	nb_objects = readword(fbuffer[OBJECTS],0) + 1;
 	print("nb_objects = %X\n", nb_objects);
@@ -191,19 +203,25 @@ void get_properties()
 			remove_props[i][j] = 0;
 
 	// Set our textures for panel and zoom
-	glGenTextures( 1, &panel_texid );
+	glGenTextures( 1, &panel1_texid );
+	glGenTextures( 1, &panel2_texid );
 	glGenTextures( 1, &render_texid );
-	glBindTexture(GL_TEXTURE_2D, panel_texid);
 
-	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glBindTexture(GL_TEXTURE_2D, panel1_texid);
 	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, PANEL_BASE1_W, PANEL_BASE_H, 0,
+		GL_RGB, GL_UNSIGNED_BYTE, fbuffer[PANEL_BASE1]);
 
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, 512, 32, 0, GL_RGB, GL_UNSIGNED_BYTE, fbuffer[PANEL]);
+	glBindTexture(GL_TEXTURE_2D, panel2_texid);
+	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, PANEL_BASE2_W, PANEL_BASE_H, 0,
+		GL_RGB, GL_UNSIGNED_BYTE, fbuffer[PANEL_BASE2]);
+
 }
 
 
 // Convert an Amiga 12 bit RGB colour palette to 16 bit GRAB
-void to_16bit_palette(u8 palette_index)
+void to_16bit_palette(u8 palette_index, u8 transparent_index, u8 io_file)
 {
 	u32 i;
 	u16 rgb, grab;
@@ -217,7 +235,7 @@ void to_16bit_palette(u8 palette_index)
 
 	for (i=0; i<16; i++)		// 16 colours
 	{
-		rgb = readword(fbuffer[PALETTES], palette_start + 2*i);
+		rgb = readword(fbuffer[io_file], palette_start + 2*i);
 		if (opt_verbose)
 		{
 			print(" %03X", rgb); 
@@ -228,7 +246,8 @@ void to_16bit_palette(u8 palette_index)
 		// 1) Leave the R&B values as they are
 		grab = rgb & 0x0F0F;
 		// 2) Set Alpha to no transparency
-		grab |= 0x00F0;
+		if (i != transparent_index)
+			grab |= 0x00F0;
 		// 3) Set Green
 		grab |= (rgb << 8) & 0xF000;
 		// 4) Write in the palette
@@ -345,6 +364,83 @@ void cells_to_wGRAB(u8* source, u8* dest)
 
 }
 
+// Create the sprites for the panel text characters
+void set_panel_chars()
+{
+	u8 c, y, x, m, b;
+
+	for (c = 0; c < NB_PANEL_CHARS; c++)
+	{
+		// first line is transparent
+		for (x=0; x<PANEL_CHARS_W; x++)
+			writeword((u8*)panel_chars[c],2*x,GRAB_TRANSPARENT_COLOUR);
+		for (y = 1; y < PANEL_CHARS_H+1; y++)
+		{
+			b = readbyte(fbuffer[SPRITES_PANEL], PANEL_CHARS_OFFSET + c*PANEL_CHARS_H + y-1);
+			for (x=0,m=0x80; m!=0; x++,m>>=1)
+			{	// each line is one byte exactly
+				if (b&m)
+					// The bits are inverted => anything set is to be transparent
+					writeword((u8*)panel_chars[c], y*16 + 2*x, 0x0000);
+				else
+					writeword((u8*)panel_chars[c], y*16 + 2*x, 
+					// Respect the nice incremental colour graduation
+						PANEL_CHARS_GRAD_BASE + (y-1)*PANEL_CHARS_GRAD_INCR);					
+			}
+		}
+		// last line is transparent too
+		for (x=0; x<PANEL_CHARS_W; x++)
+			writeword((u8*)panel_chars[c],y*16 + 2*x,GRAB_TRANSPARENT_COLOUR);
+
+		// Convert to textures
+		GLCHK(glBindTexture(GL_TEXTURE_2D, chars_texid[c]));
+		GLCHK(glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, PANEL_CHARS_W, 8, 0, GL_RGBA, 
+			GL_UNSIGNED_SHORT_4_4_4_4_REV, (u8*)panel_chars[c]));
+	}
+
+}
+
+// Get properties for panel sprites
+s_nonstandard nonstandard(u16 sprite_index)
+{
+	s_nonstandard sp;
+
+	if (sprite_index < NB_STANDARD_SPRITES + NB_PANEL_FLAGS)
+	{
+		sp.w =  32;
+		sp.base = NB_STANDARD_SPRITES;
+		sp.offset = PANEL_FLAGS_OFFSET;
+	}
+	else if (sprite_index < NB_STANDARD_SPRITES + NB_PANEL_FLAGS + NB_PANEL_FACES)
+	{
+		sp.w = 16;
+		sp.base = NB_STANDARD_SPRITES + NB_PANEL_FLAGS;
+		sp.offset = PANEL_FACES_OFFSET;
+	}
+	else if (sprite_index < NB_STANDARD_SPRITES + NB_PANEL_FLAGS + NB_PANEL_FACES + 
+		NB_PANEL_CLOCK_DIGITS)
+	{
+		sp.w = 8;
+		sp.base = NB_STANDARD_SPRITES + NB_PANEL_FLAGS + NB_PANEL_FACES;
+		sp.offset = PANEL_CLOCK_DIGITS_OFF;
+	}
+	else if (sprite_index < NB_STANDARD_SPRITES + NB_PANEL_FLAGS + NB_PANEL_FACES + 
+		NB_PANEL_CLOCK_DIGITS + NB_PANEL_ITEMS)
+	{
+		sp.w = 32;
+		sp.base = NB_STANDARD_SPRITES + NB_PANEL_FLAGS + NB_PANEL_FACES + NB_PANEL_CLOCK_DIGITS;
+		sp.offset = PANEL_ITEMS_OFFSET;
+	}
+	else
+	{
+		sp.w = 0;
+		sp.base = 0;
+		sp.offset = 0;
+	}
+
+	return sp;
+}
+
 
 // Initialize the sprite array
 void init_sprites()
@@ -355,12 +451,12 @@ void init_sprites()
 	u32 sprite_address;
 
 	// Allocate the sprites and overlay arrays
-	sprite = aligned_malloc(nb_sprites * sizeof(s_sprite), 16);
+	sprite = aligned_malloc(NB_SPRITES * sizeof(s_sprite), 16);
 	overlay = aligned_malloc(MAX_OVERLAY * sizeof(s_overlay), 16);
 
-	// First thing we do is populate the sprite offsets at the beginning of the table
+	// First thing we do is populate the standard sprite offsets at the beginning of the table
 	sprite_address = index + 4* (readword(fbuffer[SPRITES],0) + 1);
-	for (sprite_index=0; sprite_index<nb_sprites; sprite_index++)
+	for (sprite_index=0; sprite_index<NB_STANDARD_SPRITES; sprite_index++)
 	{
 		sprite_address += readlong(fbuffer[SPRITES],index);
 		writelong(fbuffer[SPRITES],index,sprite_address);
@@ -369,7 +465,7 @@ void init_sprites()
 	// Each sprite is prefixed by 2 words (x size in words, y size in pixels)
 	// and one longword (size of one bitplane, in bytes)
 	// NB: MSb on x size will be set if sprite is animated
-	for (sprite_index=0; sprite_index<nb_sprites; sprite_index++)
+	for (sprite_index=0; sprite_index<NB_STANDARD_SPRITES; sprite_index++)
 	{
 		sprite_address = readlong(fbuffer[SPRITES],2+4*sprite_index);
 //		print("sprite[%X] address = %08X\n", sprite_index, sprite_address);
@@ -390,52 +486,73 @@ void init_sprites()
 			sprite[sprite_index].corrected_w * sprite[sprite_index].corrected_h, 16);
 //		print("  w,h = %0X, %0X\n", sprite[sprite_index].w , sprite[sprite_index].h);
 	}
+
+	// Panel sprites
+	for (sprite_index=NB_STANDARD_SPRITES; sprite_index<NB_SPRITES; sprite_index++)
+	{
+		sprite[sprite_index].w = nonstandard(sprite_index).w;
+		sprite[sprite_index].corrected_w = nonstandard(sprite_index).w;
+		sprite[sprite_index].h = 16;
+		sprite[sprite_index].corrected_h = 16;
+		sprite[sprite_index].x_offset = 1;
+		sprite[sprite_index].data = aligned_malloc( RGBA_SIZE * 
+			sprite[sprite_index].w * sprite[sprite_index].h, 16);
+	}
+
+	// Panel characters
+	set_panel_chars();
 }
+
+
 
 
 // Converts the sprites to 16 bit GRAB data we can handle
 void sprites_to_wGRAB()
 {
 	u16 sprite_index;
-	u16 bitplane_size;
 	u32 sprite_address;
 	u8* sbuffer;
-	u16 w,h;
 	int no_mask = 0;
 
-	for (sprite_index=0; sprite_index<nb_sprites; sprite_index++)
+	for (sprite_index=0; sprite_index<NB_SPRITES; sprite_index++)
 	{
-		// Get the base in the original Colditz sprite file
-		sprite_address = readlong(fbuffer[SPRITES],2+4*sprite_index);
+		if (sprite_index < NB_STANDARD_SPRITES)
+		{
+			// Get the base in the original Colditz sprite file
+			sprite_address = readlong(fbuffer[SPRITES],2+4*sprite_index);
 
-		// if MSb is set, we have 4 bitplanes instead of 5
-		w = readword(fbuffer[SPRITES],sprite_address);
-		no_mask = w & 0x8000;
-		w *= 2;		// width in bytes
-		h = sprite[sprite_index].h;
+			// if MSb is set, we have 4 bitplanes instead of 5
+			no_mask = readword(fbuffer[SPRITES],sprite_address) & 0x8000;
 
-		bitplane_size = readword(fbuffer[SPRITES],sprite_address+6);
-		if (bitplane_size != w*h)
-			print("sprites_to_wGRAB: Integrity check failure on bitplane_size\n");
-
-		// Populate the z_offset, which we'll use later on to decide the z position
-		// of the overlays. We substract h because we use top left corner rather than
-		// bottom right as in original game (speed up computations for later)
-		sprite[sprite_index].z_offset = readword(fbuffer[SPRITES],sprite_address+4) - h;
-		
-		// Source address
-		sbuffer = fbuffer[SPRITES] + sprite_address + 8; 
+			// Populate the z_offset, which we'll use later on to decide the z position
+			// of the overlays. We substract h because we use top left corner rather than
+			// bottom right as in original game (speed up computations for later)
+			sprite[sprite_index].z_offset = readword(fbuffer[SPRITES],sprite_address+4) - 
+				sprite[sprite_index].h;
+			
+			// Compute the source address
+			sbuffer = fbuffer[SPRITES] + sprite_address + 8; 
+		}
+		else 
+		{
+			if (sprite_index == NB_STANDARD_SPRITES)
+			// we're getting into panel overlays => switch to the panel palette
+				to_16bit_palette(0, 1, SPRITES_PANEL);
+			sbuffer = fbuffer[SPRITES_PANEL] + nonstandard(sprite_index).offset + 
+				8*sprite[sprite_index].w*(sprite_index-nonstandard(sprite_index).base);
+			no_mask = 1;
+		}
 
 		if (no_mask)
 		{
 			// Bitplanes that have no mask are line-interleaved, like cells
-			line_interleaved_to_wGRAB(sbuffer, sprite[sprite_index].data, sprite[sprite_index].w, h);
+			line_interleaved_to_wGRAB(sbuffer, sprite[sprite_index].data, sprite[sprite_index].w, sprite[sprite_index].h);
 			// A sprite with no mask should always display under anything else
 			sprite[sprite_index].z_offset = MIN_Z;
 		}
 		else
 			bitplane_to_wGRAB(sbuffer, sprite[sprite_index].data, sprite[sprite_index].w,
-				sprite[sprite_index].corrected_w, h);
+				sprite[sprite_index].corrected_w, sprite[sprite_index].h);
 
 		// Now that we have data in a GL readable format, let's texturize it!
 		GLCHK(glBindTexture(GL_TEXTURE_2D, sprite_texid[sprite_index]));
@@ -726,23 +843,57 @@ void cmp_set_overlays()
 
 
 // Read the props (pickable objects) from obs.bin
-void set_objects()
+// For efficiency reasons, this is only done when switching room
+void set_room_props()
 {
-	u16 i;
+	u16 prop_offset;
+
+	nb_room_props = 0;
+	for (prop_offset=2; prop_offset<(8*nb_objects+2); prop_offset+=8)
+	{
+		if (readword(fbuffer[OBJECTS],prop_offset) != current_room_index)
+			continue;
+			
+		room_props[nb_room_props] = prop_offset; 
+		nb_room_props++;
+	}
+}
+
+
+// Set the props overlays
+void set_props_overlays()
+{
+	u8 u;
+	u32 prop_offset;
 	u16 x, y;
 
-	for (i=0; i<(8*nb_objects); i+=8)
+	// reset the stand over prop
+	over_prop = 0;
+	over_prop_id = 0;
+	for (u=0; u<nb_room_props; u++)
 	{
-		if (readword(fbuffer[OBJECTS],i+2) != current_room_index)
+		prop_offset = room_props[u];
+
+		if (prop_offset == 0)
+		// we might have picked the prop since last time
 			continue;
-		overlay[overlay_index].sid = obs_to_sprite[readword(fbuffer[OBJECTS],i+2+6)];
-		x = readword(fbuffer[OBJECTS],i+2+4) - 15;
-		y = readword(fbuffer[OBJECTS],i+2+2) - 3;
+
+		overlay[overlay_index].sid = obs_to_sprite[readword(fbuffer[OBJECTS],prop_offset+6)];
+		x = readword(fbuffer[OBJECTS],prop_offset+4) - 15;
+		y = readword(fbuffer[OBJECTS],prop_offset+2) - 3;
 
 		overlay[overlay_index].x = gl_off_x + x;
 		ignore_offscreen_x(overlay_index);
 		overlay[overlay_index].y = gl_off_y + y;
 		ignore_offscreen_y(overlay_index);
+
+		// We also take this oppportunity to check if we stand over a prop
+		if ( (prisoner_x > x-8) && (prisoner_x < x+8) && 
+			 (prisoner_2y/2 > y-8) && (prisoner_2y/2 < y+8) ) 
+		{
+			 over_prop = u+1;	// 1 indexed
+			 over_prop_id = readbyte(fbuffer[OBJECTS],prop_offset+7);
+		}
 
 		// all the props should appear behind overlays, expect the ones with no mask
 		// (which are always set at MIN_Z)
@@ -752,12 +903,8 @@ void set_objects()
 		if ((current_room_index == ROOM_OUTSIDE) && (remove_props[x/32][y/16]))
 			// TO_DO: check for an actual props SID?
 				overlay_index--;
-
-		if (opt_debug)
-			print("  pickup object match: sid=%X\n", overlay[overlay_index].sid);
 		overlay_index++;
 	}
-	
 }
 
 
@@ -806,33 +953,51 @@ void display_sprite(float x1, float y1, float w, float h, GLuint texid)
 	glEnd();
 }
 
+// We need a sort to reorganize our overlays according to z
+// We'll use "merge" sort (see: http://www.sorting-algorithms.com/) here,
+// but we probably could have gotten away with "shell" sort
+void sort_overlays(u8 a[], u8 n)
+{
+	u8 m,i,j,k;
+
+	if (n < 2)
+		return;
+
+	// split in half
+	m = n >> 1;
+
+	// recursive sorts
+	sort_overlays(a, m);
+	sort_overlays(a+m, n-m); 
+
+	// merge sorted sub-arrays using temp array
+	// b = copy of a[1..m]
+	for (i=0; i<m; i++)
+		b[i] = a[i];
+
+	i = 0; j = m; k = 0;
+	while ((i < m) && (j < n))
+		a[k++] = (overlay[a[j]].z < overlay[b[i]].z) ? a[j++] : b[i++];
+		// => invariant: a[1..k] in final position
+	while (i < m)
+		a[k++] = b[i++];
+		// => invariant: a[1..k] in final position
+}
+
+
 // Display all our overlays
 void display_overlays()
 {
 	u8 i, j;
-	bool not_ordered = true;
 
 	// OK, first we need to reorganize our overlays according to the z position
 	for (i=0; i<overlay_index; i++)
-		overlay_order[i] = i;
-	
-	while(not_ordered)
-	{	// This is a very basic and not so efficient sort 
-		// however, for a modern CPU with cache, it's not that big a deal
-		// as the values we sort would be in the cache => very fast access
-		not_ordered = false;
-		for (i=0; i<(overlay_index-1); i++)
-		{
-			if (overlay[overlay_order[i]].z > overlay[overlay_order[i+1]].z)
-			{
-				not_ordered = true;
-				j = overlay_order[i];
-				overlay_order[i] = overlay_order[i+1];
-				overlay_order[i+1] = j;
-			}
-		}
-	}
-	/*
+		overlay_order[i] = i;	// dummy indexes
+
+	// Recursive "merge" sort
+	sort_overlays(overlay_order, overlay_index);
+
+/*
 	for (j=0; j<overlay_index; j++)
 	{
 		i = overlay_order[j];
@@ -1067,7 +1232,7 @@ void display_room()
 
 	// Before we do anything, let's set the pickable objects in
 	// our overlay table (so that room overlays go on top of 'em)
-	set_objects();
+	set_props_overlays();
 
 	// No readtile() macros used here, for speed
 	if (current_room_index != ROOM_OUTSIDE)
@@ -1238,6 +1403,8 @@ void display_room()
 void display_panel()
 {
 	u8 w,h;
+	u16 i, sid;
+
 	glColor3f(0.0f, 0.0f, 0.0f);	// Set the colour to black
 
 	glDisable(GL_BLEND);	// Needed for black objects to show
@@ -1249,67 +1416,150 @@ void display_panel()
 	w = 2*h;
 	glBegin(GL_TRIANGLES);
 
-	glVertex2d(0, 0);
-	glVertex2d(w, 0);
-	glVertex2d(0, h);
+	glVertex2f(0, 0);
+	glVertex2f(w, 0);
+	glVertex2f(0, h);
 
-	glVertex2d(PSP_SCR_WIDTH, 0);
-	glVertex2d(PSP_SCR_WIDTH-w, 0);
-	glVertex2d(PSP_SCR_WIDTH, h);
+	glVertex2f(PSP_SCR_WIDTH, 0);
+	glVertex2f(PSP_SCR_WIDTH-w, 0);
+	glVertex2f(PSP_SCR_WIDTH, h);
 
-	glVertex2d(PSP_SCR_WIDTH, PSP_SCR_HEIGHT-32);
-	glVertex2d(PSP_SCR_WIDTH-w, PSP_SCR_HEIGHT-32);
-	glVertex2d(PSP_SCR_WIDTH, PSP_SCR_HEIGHT-32-h);
+	glVertex2f(PSP_SCR_WIDTH, PSP_SCR_HEIGHT-32);
+	glVertex2f(PSP_SCR_WIDTH-w, PSP_SCR_HEIGHT-32);
+	glVertex2f(PSP_SCR_WIDTH, PSP_SCR_HEIGHT-32-h);
 
-	glVertex2d(0, PSP_SCR_HEIGHT-32);
-	glVertex2d(w, PSP_SCR_HEIGHT-32);
-	glVertex2d(0, PSP_SCR_HEIGHT-32-h);
+	glVertex2f(0, PSP_SCR_HEIGHT-32);
+	glVertex2f(w, PSP_SCR_HEIGHT-32);
+	glVertex2f(0, PSP_SCR_HEIGHT-32-h);
 
 	glEnd();
 
-	// Draw our base panel
+	// Black rectangle (panel base) at the bottom
 	glBegin(GL_TRIANGLE_FAN);
 
-	glVertex2d(0, PSP_SCR_HEIGHT-32);
-	glVertex2d(PSP_SCR_WIDTH, PSP_SCR_HEIGHT-32);
-	glVertex2d(PSP_SCR_WIDTH, PSP_SCR_HEIGHT);
-	glVertex2d(0, PSP_SCR_HEIGHT);
+	glVertex2f(0, PSP_SCR_HEIGHT-32);
+	glVertex2f(PSP_SCR_WIDTH, PSP_SCR_HEIGHT-32);
+	glVertex2f(PSP_SCR_WIDTH, PSP_SCR_HEIGHT);
+	glVertex2f(0, PSP_SCR_HEIGHT);
 
 	glEnd();
 
 	// Restore colour
 	glColor3f(1.0f, 1.0f, 1.0f);
 
-	// 
-//	glGenTextures( 1, &panel_texid );
-	glBindTexture(GL_TEXTURE_2D, panel_texid);
+	// Draw the 2 parts of our panel
+ 	glBindTexture(GL_TEXTURE_2D, panel1_texid);
+
+	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 
 //	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 //	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 
-//	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, 512, 32, 0, GL_RGB, GL_UNSIGNED_BYTE, fbuffer[PANEL]);
+	// pspGL does not implement QUADS
+	glBegin(GL_TRIANGLE_FAN);
+
+	glTexCoord2f(0.0f, 0.0f);
+	glVertex2f(PANEL_OFF_X, PSP_SCR_HEIGHT-PANEL_BASE_H+PANEL_OFF_Y );
+
+	glTexCoord2f(1.0f, 0.0f);
+	glVertex2f(PANEL_OFF_X+PANEL_BASE1_W, PSP_SCR_HEIGHT-PANEL_BASE_H+PANEL_OFF_Y );
+
+	glTexCoord2f(1.0, 1.0);
+	glVertex2f(PANEL_OFF_X+PANEL_BASE1_W, PSP_SCR_HEIGHT+PANEL_OFF_Y);
+
+	glTexCoord2f(0.0, 1.0);
+	glVertex2f(PANEL_OFF_X, PSP_SCR_HEIGHT+PANEL_OFF_Y);
+
+	glEnd();
+
+
+ 	glBindTexture(GL_TEXTURE_2D, panel2_texid);
+
+	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+
+//	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+//	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 
 	// pspGL does not implement QUADS
 	glBegin(GL_TRIANGLE_FAN);
-#define OFF_X 79
-#define PAN_W 512
-#define PAN_H 32
 
 	glTexCoord2f(0.0f, 0.0f);
-	glVertex2d(OFF_X, PSP_SCR_HEIGHT-32);
+	glVertex2f(PANEL_OFF_X+PANEL_BASE1_W, PSP_SCR_HEIGHT-PANEL_BASE_H+PANEL_OFF_Y );
 
 	glTexCoord2f(1.0f, 0.0f);
-	glVertex2d(OFF_X+PAN_W, PSP_SCR_HEIGHT-32);
+	glVertex2f(PANEL_OFF_X+PANEL_BASE1_W+PANEL_BASE2_W, PSP_SCR_HEIGHT-PANEL_BASE_H+PANEL_OFF_Y );
 
 	glTexCoord2f(1.0, 1.0);
-	glVertex2d(OFF_X+PAN_W, PSP_SCR_HEIGHT);
+	glVertex2f(PANEL_OFF_X+PANEL_BASE1_W+PANEL_BASE2_W, PSP_SCR_HEIGHT+PANEL_OFF_Y);
 
 	glTexCoord2f(0.0, 1.0);
-	glVertex2d(OFF_X, PSP_SCR_HEIGHT);
+	glVertex2f(PANEL_OFF_X+PANEL_BASE1_W, PSP_SCR_HEIGHT+PANEL_OFF_Y);
 
 	glEnd();
 
 	glEnable(GL_BLEND);	// We'll need blending for the sprites, etc.
+
+	for (i=0; i<4; i++)
+	{
+		sid = 0xd5 + i;
+		display_sprite(PANEL_FACES_X+i*PANEL_FACES_W, PANEL_TOP_Y,
+			sprite[sid].w, sprite[sid].h, sprite_texid[sid]);
+	}
+
+	sid = 0xd1;
+	display_sprite(PANEL_FLAGS_X, PANEL_TOP_Y,
+			sprite[sid].w, sprite[sid].h, sprite_texid[sid]);
+
+	sid = PANEL_CLOCK_DIGITS_BASE + 1;
+	display_sprite(PANEL_CLOCK_HOURS_X, PANEL_TOP_Y,
+			sprite[sid].w, sprite[sid].h, sprite_texid[sid]);
+	sid = PANEL_CLOCK_DIGITS_BASE + 4;
+	display_sprite(PANEL_CLOCK_HOURS_X + PANEL_CLOCK_DIGITS_W, PANEL_TOP_Y,
+			sprite[sid].w, sprite[sid].h, sprite_texid[sid]);
+
+	sid = PANEL_CLOCK_DIGITS_BASE + 0;
+	display_sprite(PANEL_CLOCK_MINUTES_X, PANEL_TOP_Y,
+			sprite[sid].w, sprite[sid].h, sprite_texid[sid]);
+	sid = PANEL_CLOCK_DIGITS_BASE + 3;
+	display_sprite(PANEL_CLOCK_MINUTES_X + PANEL_CLOCK_DIGITS_W, PANEL_TOP_Y,
+			sprite[sid].w, sprite[sid].h, sprite_texid[sid]);
+
+	sid = selected_prop[current_nation] + PANEL_PROPS_BASE;
+	display_sprite(PANEL_PROPS_X, PANEL_TOP_Y,
+			sprite[sid].w, sprite[sid].h, sprite_texid[sid]);
+
+	if (over_prop_id)
+	{
+		sid = over_prop_id + PANEL_PROPS_BASE;
+	}
+	else
+	{
+		switch (prisoner_state)
+		{
+		case STATE_CRAWL:
+			sid = STATE_CRAWL_SID;
+			break;
+		case STATE_STOOGE:
+			sid = STATE_STOOGE_SID;
+			break;
+		default:
+			sid = (prisoner_speed == 1)?STATE_WALK_SID:STATE_RUN_SID;
+			break;
+		}
+	}
+	display_sprite(PANEL_STATE_X, PANEL_TOP_Y,
+		sprite[sid].w, sprite[sid].h, sprite_texid[sid]);
+
+
+	for (i=0; i<28; i++)
+		display_sprite(PANEL_MESSAGE_X+8*i, PANEL_MESSAGE_Y,
+			PANEL_CHARS_W, PANEL_CHARS_CORRECTED_H, chars_texid[17+i]);
+
+	//display_sprite
+	
+	//		printf("ovl(%d,%d), sid = %X\n", overlay[i].x, overlay[i].y, overlay[i].sid);
 
 }
 
@@ -1460,6 +1710,7 @@ int check_footprint(int dx, int d2y)
 	u8	exit_flags;
 	u8	exit_nr;
 
+
 //	printf("prisoner (x,y) = (%d,%d)\n", prisoner_x, prisoner_2y/2);
 	/*
 	 * To check the footprint, we need to set 4 quadrants of masks
@@ -1468,7 +1719,6 @@ int check_footprint(int dx, int d2y)
 
 //	if (TO_DO: CHECK TUNNEL)
 //		sprite_footprint = TUNNEL_FOOTPRINT;
-
 
 	if (current_room_index == ROOM_OUTSIDE)
 	{	// on compressed map (outside)
@@ -1822,6 +2072,9 @@ void switch_room(int exit_nr, int dx, int d2y)
  
 	prisoner_x = tile_x*32 + pixel_x; 
 	prisoner_2y = tile_y*32 + 2*pixel_y + 2*0x20 - 2; 
+
+	// Don't forget to set the room props
+	set_room_props();
 }
 
 
@@ -1840,7 +2093,7 @@ void fix_files()
 	//00001C28                 move.w  #$114,(r116_exits+$E).l ; fix room #116's last exit (0 -> $114)
 	writeword(fbuffer[ROOMS],ROOMS_EXITS_BASE+(0x116<<4),0x0114);
 	//00001C30                 subq.w  #1,(obs_bin).l  ; number of obs.bin items (BB)
-	//00001C30                                         ; 187 items in all...
+	//00001C30                                          ; 187 items in all...
 
 	// OK, because we're not exactly following the exact exit detection routines from the original game
 	// (we took some shortcuts to make things more optimized) upper stairs landings are a major pain in 
@@ -1852,4 +2105,12 @@ void fix_files()
 		mask &= 0xFFFF8000;
 		writelong((u8*)fbuffer[LOADER], EXIT_MASKS_START + 0x280 + 4*i, mask);
 	}
+
+	// The 3rd tunnel removable masks for overlays on the compressed map were not designed 
+	// for widescreen, and as such the tunnel will show open if we don't patch it.
+	writebyte(fbuffer[LOADER], OUTSIDE_OVL_BASE+0x38+1, 0x05);
+
+	// I've always wanted to have the stethoscope!
+	writeword(fbuffer[OBJECTS],32,0x000E);
 }
+
