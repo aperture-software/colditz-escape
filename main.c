@@ -51,6 +51,8 @@ int	opt_verbose				= 0;
 int	opt_debug				= 0;
 int opt_ghost				= 0;
 int opt_play_as_the_safe	= 0;
+// Who needs keys?
+int opt_keymaster			= -1;
 // Force a specific sprite ID for our guy
 int opt_sid					= -1;
 
@@ -64,7 +66,7 @@ u8*	  rgbCells				= NULL;
 
 // OpenGL window size
 int	gl_width, gl_height;
-u8	prisoner_h = 0x23, prisoner_w = 0x10;
+//u8	prisoner_h = 0x23, prisoner_w = 0x10;
 //int prisoner_x = 20, prisoner_2y = 20;
 //int prisoner_x = 900, prisoner_2y = 600;
 //int prisoner_x = 1339, prisoner_2y = 895;
@@ -72,31 +74,24 @@ u8	prisoner_h = 0x23, prisoner_w = 0x10;
 int last_p_x = 0, last_p_y = 0;
 int dx = 0, d2y = 0;
 int jdx, jd2y;
-u8	p_sid_base	 = 0x00;
+//u8	p_sid_base	 = 0x00;
 // prisoner_run = 0x1F
 // german_walk  = 0x37 (with rifle)
 // german_run   = 0x57 (with rifle)
-u8  prisoner_sid = 0x07; // 0x07;
+//u8  prisoner_sid = 0x07; // 0x07;
 
 // Could use a set of flags, but more explicit this way
 bool key_down[256], key_readonce[256];
-static __inline bool read_key_once(u8 k)
-{	
-	if (key_down[k])
-	{
-		if (key_readonce[k])
-			return false;
-		key_readonce[k] = true;
-		return true;
-	}
-	return false;
-}
 
-bool reset_animations = true;
+bool redisplay = true;
+bool init_animations = true;
+bool keep_message_on = false;
 s_animation	animations[MAX_ANIMATIONS];
 u8	nb_animations = 0;
 u64 last_mtime;
+u64 keep_message_mtime_start;
 s_guybrush guybrush[NB_GUYBRUSHES];
+s_event	events[NB_EVENTS];
 u8	props[NB_NATIONS][NB_PROPS];
 u8	selected_prop[NB_NATIONS];
 u8	nb_room_props = 0;
@@ -104,6 +99,7 @@ u16	room_props[NB_OBSBIN];
 u8	over_prop = 0, over_prop_id = 0;
 u8  current_nation = 0;
 u8	panel_chars[NB_PANEL_CHARS][8*8*2];
+char* status_message;
 
 //u16  current_room_index = ROOM_OUTSIDE;
 u16  nb_rooms, nb_cells, nb_objects;
@@ -114,11 +110,14 @@ u8   overlay_index;
 u8   bPalette[3][16];
 // remapped Amiga Palette
 u16  aPalette[16];
-u32  rem_bitmask = 0x8000001E;
+//u32  rem_bitmask = 0x8000001E;
+char nb_props_message[32] = "\499 * ";
 
 // offsets to sprites according to joystick direction (dx,dy)
 int directions[3][3] = { {3,2,4}, {0,DIRECTION_STOPPED,1}, {6,5,7} };
-
+// The direct nation keys might not be sequencial on custom key mapping
+u8 key_nation[NB_NATIONS+2] = {KEY_BRITISH, KEY_FRENCH, KEY_AMERICAN, KEY_POLISH, 
+							 KEY_PRISONERS_LEFT, KEY_PRISONERS_RIGHT};
 
 
 /**
@@ -197,32 +196,11 @@ static void glut_reshape (int w, int h)
 
 
 
-/*
-#if defined(WIN32)
-#define KEY_FRAME 12
-#else
-#define KEY_FRAME 10
-#endif
-*/
 
 void process_motion(void)
 {
-	u8 index;
-	bool redisplay = false;
 	int new_direction;
 	int exit;
-
-	// Increment animations framecounts
-	if ((mtime() - last_mtime) > ANIMATION_INTERVAL)
-	{
-		last_mtime += ANIMATION_INTERVAL;	// closer to ideal rate
-		// but leads to catchup effect when moving window
-		for (index = 0; index < nb_animations; index++)
-			animations[index].framecount++;
-//		if  (nb_animations)
-		// no point issuing a redisplay if there are no animations
-			redisplay = true;
-	}
 	
 	if ( (prisoner_state != STATE_STOP) && (prisoner_state != STATE_MOVE) )
 	{	// prevent motion for all other
@@ -241,9 +219,11 @@ void process_motion(void)
 			{
 //				printf("exit[%d], from room[%X]\n", exit-1, current_room_index);
 				switch_room(exit-1, dx, d2y);
+				// keep_message_on = false;	// we could do without this
 				redisplay = true;
 			}
 			// Change the last direction so that we use the right sid for stopping
+			prisoner_dir = directions[d2y+1][dx+1];
 			animations[prisoner_ani].direction = directions[d2y+1][dx+1];
 			dx = 0;
 			d2y = 0;
@@ -266,6 +246,7 @@ void process_motion(void)
 		prisoner_2y += prisoner_speed*d2y;
 		prisoner_state = STATE_MOVE;
 		// Update the animation direction
+		prisoner_dir = new_direction;
 		animations[prisoner_ani].direction = new_direction;
 
 		// Force a redisplay
@@ -278,9 +259,10 @@ void process_motion(void)
 		redisplay = true;
 	}
 
-
 	if (redisplay) 
 		glut_display();
+//	else
+//		printf("no redisplay [%d]\n", mtime());
 }
 
 // restore guybrush & animation parameters after a one shot ani
@@ -306,80 +288,146 @@ void restore_params(u32 param)
 static void glut_idle(void)
 {	
 	u16 prop_offset;
-	u8	prop_id, direction;
-//	int i;
+	u8	prop_id, direction, i;
+	u64	t;
 
 	// Reset the motion
 	dx = 0; 
 	d2y = 0;	
 
-#if !defined(PSP)
-	if (key_down[27])
-		exit(0);
+	t = mtime();
+	// Increment animations framecounts
+	if ((t - last_mtime) > ANIMATION_INTERVAL)
+	{
+		last_mtime += ANIMATION_INTERVAL;	// closer to ideal rate
+		// but leads to catchup effect when moving window
+		for (i = 0; i < nb_animations; i++)
+			animations[i].framecount++;
+		// Force a redisplay to ensures our animations are updated
+		redisplay = true;
+	}
 
+	// Execute timed events, if any are in the queue
+	for (i = 0; i<NB_EVENTS; i++)
+	{
+		if (events[i].function == NULL)
+			continue;
+		if (t > events[i].expiration_time)
+		{	// Execute the timeout function
+			events[i].function(events[i].parameter);
+			// Make the event available again
+			events[i].function = NULL;
+		}
+	}
+
+	// Take care of message display
+	if ((keep_message_on) && (t > keep_message_mtime_start + KEEP_MESSAGE_DURATION))
+		keep_message_on = false;
+
+	// Reset the status message if needed
+	if (!keep_message_on)
+		status_message = NULL;
+
+
+#if !defined(PSP)
 	// Hey, GLUT, where's my bleeping callback on Windows?
 	// NB: The routine is not called if there's no joystick
-	//     and the force fumc does not exist on PSP
+	//     and the force func does not exist on PSP
 	glutForceJoystickFunc();	
 #endif
 
-	// Keyboard directions
-	if ((key_down['4']) || (key_down['q']))
+	// Return to intro screen
+	if (key_down[KEY_ESCAPE])
+		exit(0);
+
+	// Alternate direction keys (non Joystick)
+	if (key_down[KEY_DIRECTION_LEFT])
 		dx = -1;
-	else if ((key_down['6']) || (key_down['o']))
+	else if (key_down[KEY_DIRECTION_RIGHT])
 		dx = +1;
-	if ((key_down['8']) || (key_down['d']))
+	if (key_down[KEY_DIRECTION_UP])
 		d2y = -1;
-	else if ((key_down['2']) || (key_down['x']))
+	else if (key_down[KEY_DIRECTION_DOWN])
 		d2y = +1;
 
 	// Display our current position
-	if (read_key_once('p'))
+	if (read_key_once(KEY_DEBUG_PRINT_POS))
 		printf("(px, p2y) = (%d, %d), room = %x, rem = %08X\n", prisoner_x, prisoner_2y, current_room_index, rem_bitmask);
 
-	if (read_key_once(' '))
+	// Walk/Run toggle
+	if (read_key_once(KEY_TOGGLE_WALK_RUN))
 	{
 		if (prisoner_speed == 1)
 		{
 			prisoner_speed = 2;
 			animations[prisoner_ani].index = RUN_ANI; // +GERMAN OFFSET
-			animations[prisoner_ani].framecount = 0;
 		}
 		else
 		{
 			prisoner_speed = 1;
 			animations[prisoner_ani].index = WALK_ANI;
-			animations[prisoner_ani].framecount = 0;
 		}
+		animations[prisoner_ani].framecount = 0;
+		redisplay = true;
 	}
 
 	// The following keys are only handled if we are in a premissible state
 	if ((prisoner_state == STATE_STOP) || (prisoner_state == STATE_MOVE))
 	{
-		if ( (read_key_once(SPECIAL_KEY_LEFT)) ||
-			 (read_key_once(SPECIAL_KEY_RIGHT)) ) 
+
+		// Prisoner selection: direct keys or left/right cycle keys
+		for (i=0; i<(NB_NATIONS+2); i++)
+			if (read_key_once(key_nation[i]))
+			{
+				// stop our current prisoner
+				prisoner_state = STATE_STOP;
+				if (i<NB_NATIONS)
+					current_nation = i;
+				else
+					// we want to have +/-1, without going negative, and we
+					// know that we are either at NB_NATIONS or NB_NATIONS+1
+					// so the formula writes itself
+					current_nation = (current_nation+(2*i)-1) % NB_NATIONS;
+				init_animations = true;
+				keep_message_on = false;
+				set_room_props();
+				redisplay = true;
+				break;
+			}
+
+		// Inventory cycle
+		if ( (read_key_once(KEY_INVENTORY_LEFT)) ||
+			 (read_key_once(KEY_INVENTORY_RIGHT)) ) 
 		{
 			prop_id = selected_prop[current_nation];
-			direction = key_down[SPECIAL_KEY_LEFT]?0x0F:1;
+			direction = key_down[KEY_INVENTORY_LEFT]?0x0F:1;
 			do
 				prop_id = (prop_id + direction) & 0x0F;
 			while ( (!props[current_nation][prop_id]) && (prop_id != selected_prop[current_nation]) );
 			if (props[current_nation][prop_id])
 			// we found a non empty item
+			{
 				selected_prop[current_nation] = prop_id;
+				// Display our props count
+				update_props_message(prop_id);
+				keep_message_on = true;
+				keep_message_mtime_start = t;
+			}
 			else
 				selected_prop[current_nation] = 0;
+
+			// We need to update our panel
+			redisplay = true;
 //			printf("selected prop = %02X\n", selected_prop[current_nation]);
 		}
 
-
-		// Props pickup/dropdown
-		if ( (read_key_once(SPECIAL_KEY_DOWN)) ||
-			 (read_key_once(SPECIAL_KEY_UP)) ) 
+		// Inventory pickup/dropdown
+		if ( (read_key_once(KEY_INVENTORY_PICKUP)) ||
+			 (read_key_once(KEY_INVENTORY_DROP)) ) 
 		{
 			prisoner_state = STATE_PICK;
 			// enqueue our 2 u8 parameters
-			animations[prisoner_ani].end_of_ani_parameter = (PRISONER & 0xFF) | 
+			animations[prisoner_ani].end_of_ani_parameter = (current_nation & 0xFF) | 
 				((animations[prisoner_ani].index << 8) & 0xFF00);
 			animations[prisoner_ani].index = KNEEL_ANI;
 			//animations[prisoner_ani].index = SHOT_ANI;
@@ -389,8 +437,7 @@ static void glut_idle(void)
 			animations[prisoner_ani].framecount = -1;
 			animations[prisoner_ani].end_of_ani_function = restore_params;
 
-
-			if (key_down[SPECIAL_KEY_UP])
+			if (key_down[KEY_INVENTORY_PICKUP])
 			{	// picking up
 				if (over_prop)
 				{
@@ -403,13 +450,16 @@ static void glut_idle(void)
 //					prop_id = over_prop_id;
 					props[current_nation][over_prop_id]++;
 					selected_prop[current_nation] = over_prop_id;
+					update_props_message(over_prop_id);
+					keep_message_on = true;
+					keep_message_mtime_start = t;
 //					for (i = 0; i< 16; i++)
 //						printf(" %02X", props[current_nation][i]);
 //					printf("\nselected prop = %02X\n", selected_prop[current_nation]);
 				}
 			}
 			else
-			{	// dropping down
+			{	// dropdown
 				if (selected_prop[current_nation])
 				{
 //					prop_offset = room_props[over_prop];
@@ -436,7 +486,7 @@ static void glut_idle(void)
 					}
 
 					props[current_nation][over_prop_id]--;
-//					over_prop = prop_id + 1;
+
 					if (props[current_nation][over_prop_id] == 0)
 					// display the empty box if last prop
 						selected_prop[current_nation] = 0;
@@ -444,9 +494,9 @@ static void glut_idle(void)
 					// will take care of it
 					over_prop = 0;
 					over_prop_id = 0;
-//					printf("selected prop = %02X\n", selected_prop[current_nation]);
 				}
 			}
+			redisplay = true;
 		}
 	}
 
@@ -456,6 +506,7 @@ static void glut_idle(void)
 	if (jd2y)
 		d2y = jd2y;
 
+	// We always call process motion
 	process_motion();
 
 	// Can't hurt to sleep a while if we're motionless, so that
@@ -484,7 +535,7 @@ static void glut_joystick(uint buttonMask, int x, int y, int z)
 // Keyboard handling
 static void glut_keyboard(u8 key, int x, int y)
 {
-//	printf("key = %X\n", key);
+//	printf("key = %X (%c)\n", key, key);
 	key_down[key] = true;
 }
 
@@ -496,6 +547,7 @@ static void glut_keyboard_up(u8 key, int x, int y)
 
 static void glut_special_keys(int key, int x, int y)
 {
+//	printf("special key = %X\n", key);
 	key_down[key + SPECIAL_KEY_OFFSET] = true;
 }
 
@@ -504,63 +556,30 @@ static void glut_special_keys_up(int key, int x, int y)
 	key_down[key + SPECIAL_KEY_OFFSET] = false;
 	key_readonce[key + SPECIAL_KEY_OFFSET] = false;
 }
-/*
-	// just use the second part of our key table
-	switch (key) 
+
+static void glut_mouse_buttons(int button, int state, int x, int y)
+{
+//	printf("mouse button %X, %s\n", button, (state==GLUT_DOWN)?"down":"up");
+	if (state == GLUT_DOWN)
+		key_down[SPECIAL_MOUSE_BUTTON_BASE + button] = true;
+	else
 	{
-	case GLUT_KEY_UP:
-	case GLUT_KEY_DOWN:
-		if (key == GLUT_KEY_UP)
-		{
-			if (current_room_index == ROOM_OUTSIDE)
-				current_room_index = 0;
-			else if (current_room_index < (nb_rooms-1))
-				current_room_index++;
-		}			
-		if (key == GLUT_KEY_DOWN)
-		{
-			if (current_room_index == 0)
-				current_room_index = ROOM_OUTSIDE;
-			else if (current_room_index != ROOM_OUTSIDE)
-				current_room_index--;
-		}
-		// Refresh
-		glut_display();
-		break;
-	case GLUT_KEY_RIGHT:
-	case GLUT_KEY_LEFT:
-		// Change palette
-		if ((key == GLUT_KEY_RIGHT) && (palette_index<6))
-			palette_index++;
-		if ((key == GLUT_KEY_LEFT) && (palette_index!=0))
-			palette_index--;
-		// Because we can't *PROPERLY* work with 4 bit indexed colours 
-		// in GLUT, we have to recreate the whole cells buffer!
-		to_16bit_palette(palette_index);
-		cells_to_wGRAB(fbuffer[CELLS],rgbCells);
-		sprites_to_wGRAB();
-		// Refresh
-		glut_display();
-		break;
+		key_down[SPECIAL_MOUSE_BUTTON_BASE + button] = false;
+		key_readonce[SPECIAL_MOUSE_BUTTON_BASE + button] = false;
 	}
 }
-*/
+
 
 /* Here we go! */
 int main (int argc, char *argv[])
 {
 
 	// Flags
-	int opt_skip			= 0;	// Skip TIFF Creation
 	int opt_error 			= 0;	// getopt
 
 	// General purpose
 	u32  i;
-	u8	g_ani;
 
-	/*
-     * Init
-     */
 
 #if defined(PSP)
 	setup_callbacks();
@@ -632,34 +651,64 @@ int main (int argc, char *argv[])
 	// Set global variables
 	get_properties();
 
-	// Define our main prisoner
-	guybrush[PRISONER].ani_index = 0;
-	guybrush[PRISONER].px = 940;
-	guybrush[PRISONER].p2y = 630;
-//	guybrush[PRISONER].px = 404;
-//	guybrush[PRISONER].p2y = 707;
-	guybrush[PRISONER].room = ROOM_OUTSIDE;
-	guybrush[PRISONER].state = STATE_STOP;
-	guybrush[PRISONER].speed = 1;
-	g_ani = guybrush[0].ani_index;
-	animations[g_ani].index = WALK_ANI;
-	animations[g_ani].framecount = 0;
-	animations[g_ani].direction = 3;
-	animations[g_ani].end_of_ani_function = NULL;
-	nb_animations++;
+	// clear the events array
+	for (i=0; i< NB_EVENTS; i++)
+		events[i].function = NULL;
 
-	guybrush[1].ani_index = 1;
-	guybrush[1].px = 1300;
-	guybrush[1].p2y = 730;
-	guybrush[1].room = ROOM_OUTSIDE;
-	guybrush[1].state = STATE_MOVE;
-	guybrush[1].speed = 2;
-	g_ani = guybrush[1].ani_index;
-	animations[g_ani].index = GER_WALK_ANI;
-	animations[g_ani].framecount = 0;
-	animations[g_ani].direction = 0;
-	animations[g_ani].end_of_ani_function = NULL;
-	nb_animations++;
+
+	current_nation = 0;
+	// English
+	i = 0;
+	guybrush[i].ani_index = i;
+	guybrush[i].px = 940;
+	guybrush[i].p2y = 630;
+	guybrush[i].room = ROOM_OUTSIDE;
+	guybrush[i].state = STATE_STOP;
+	guybrush[i].speed = 1;
+	guybrush[i].direction = 0;
+	guybrush[i].ext_bitmask = 0x8000001E;
+	i++;
+
+	// French
+	guybrush[i].ani_index = i;
+	guybrush[i].px = 404;
+	guybrush[i].p2y = 707;
+	guybrush[i].room = ROOM_OUTSIDE;
+	guybrush[i].state = STATE_STOP;
+	guybrush[i].speed = 1;
+	guybrush[i].direction = 0;
+	guybrush[i].ext_bitmask = 0x8000007E;
+	i++;
+
+	// American
+	guybrush[i].ani_index = i;
+	guybrush[i].px = 1200;
+	guybrush[i].p2y = 700;
+	guybrush[i].room = ROOM_OUTSIDE;
+	guybrush[i].state = STATE_STOP;
+	guybrush[i].speed = 1;
+	guybrush[i].direction = 0;
+	guybrush[i].ext_bitmask = 0x8000001E;
+	i++;
+
+	// Polish
+	guybrush[i].ani_index = i;
+	guybrush[i].px = 1000;
+	guybrush[i].p2y = 600;
+	guybrush[i].room = ROOM_OUTSIDE;
+	guybrush[i].state = STATE_STOP;
+	guybrush[i].speed = 1;
+	guybrush[i].direction = 0;
+	guybrush[i].ext_bitmask = 0x8000001E;
+	i++;
+
+	guybrush[i].ani_index = i;
+	guybrush[i].px = 1300;
+	guybrush[i].p2y = 730;
+	guybrush[i].room = ROOM_OUTSIDE;
+	guybrush[i].state = STATE_MOVE;
+	guybrush[i].speed = 2;
+	guybrush[i].direction = 0;
 
 	// We're going to convert the cells array, from 2 pixels per byte (paletted)
 	// to on RGB(A) word per pixel
@@ -693,6 +742,7 @@ int main (int argc, char *argv[])
 	glutKeyboardUpFunc(glut_keyboard_up);
 	glutSpecialFunc(glut_special_keys);
 	glutSpecialUpFunc(glut_special_keys_up);
+	glutMouseFunc(glut_mouse_buttons);
 
 	glutJoystickFunc(glut_joystick,30);	
 	// This is what you get from using obsolete libraries

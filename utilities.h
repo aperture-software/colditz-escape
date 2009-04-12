@@ -47,6 +47,12 @@ extern "C" {
 #define get_sid(x)					\
 	((guybrush[x].state == STATE_STOP)?get_stop_animation_sid(guybrush[x].ani_index):get_animation_sid(guybrush[x].ani_index))
 
+#define request_status_message(msg)	\
+	if ((!keep_message_on) && (!status_message)) status_message = (char*)(msg)
+#define force_status_message(msg)		\
+	keep_message_on = false; status_message = (char*)(msg)
+
+
 
 //void cells_to_interleaved(u8* buffer, u32 size);
 //void sprites_to_interleaved(u8* buffer, u32 bitplane_size);
@@ -70,6 +76,9 @@ int check_footprint(int dx, int d2y);
 void switch_room(int exit, int dx, int dy);
 void fix_files();
 void set_room_props();
+
+
+
 
 #ifdef	__cplusplus
 }

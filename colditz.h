@@ -135,6 +135,8 @@ do {									\
 #define FSIZES					{ 58828, 135944, 232, 56080, \
 								  33508, 71056, 2056, 11720, \
 								  120, 6144, 24576 }
+// If we start the loader at address 0x80, we won't have to convert the pointers
+#define LOADER_PADDING			0x80
 #define NB_NATIONS				4
 #define PANEL_BASE1_W			64
 #define PANEL_BASE2_W			256
@@ -147,7 +149,7 @@ do {									\
 #define ROOMS_START				0x2FE4
 #define CM_TILES_START			0x5E80
 // tiles that need overlay, from LOADER
-#define SPECIAL_TILES_START		0x3EBA
+#define SPECIAL_TILES_START		0x3F3A
 #define NB_SPECIAL_TILES		0x16
 //Sprites
 #define NB_STANDARD_SPRITES		0xD1
@@ -159,6 +161,7 @@ do {									\
 #define PANEL_TOP_Y				(PSP_SCR_HEIGHT-PANEL_BASE_H+PANEL_OFF_Y)
 #define PANEL_FLAGS_OFFSET		0x1082
 #define NB_PANEL_FLAGS			NB_NATIONS
+#define PANEL_FLAGS_BASE_SID	0xD1
 #define PANEL_FLAGS_W			32
 #define PANEL_FLAGS_X			(PANEL_OFF_X+4*PANEL_FACES_W)
 #define NB_PANEL_ITEMS			0x13
@@ -184,10 +187,18 @@ do {									\
 #define PANEL_CHARS_CORRECTED_H	8
 #define PANEL_MESSAGE_X			(PANEL_FACES_X+5*PANEL_FACES_W)
 #define PANEL_MESSAGE_Y			(PANEL_TOP_Y+16)
-#define PANEL_CHARS_GRAD_BASE	0x98F1
-#define PANEL_CHARS_GRAD_INCR	0x1101
+#define PANEL_CHARS_GRAB_BASE	0x98F1
+#define PANEL_CHARS_GRAB_INCR	0x1101
+#define MESSAGE_BASE			0x7F12
+#define EXIT_MESSAGE_BASE		MESSAGE_BASE
+#define PROPS_MESSAGE_BASE		(MESSAGE_BASE+16)
+// Time we should keep our inventory messages, in ms
+#define	KEEP_MESSAGE_DURATION	2000
+#define	ROOM_DESC_BASE			0xBCB4
+#define TUNNEL_MSG_ID			0x35
+#define	COURTYARD_MSG_ID		0x36
 #define GRAB_TRANSPARENT_COLOUR	0x0000
-#define OBS_TO_SPRITE_START		0x5D02
+#define OBS_TO_SPRITE_START		0x5D82
 #define NB_OBS_TO_SPRITE		15
 #define LOADER_DATA_START		0x10C
 #define FFs_TO_IGNORE			7
@@ -199,12 +210,12 @@ do {									\
 #define ROOM_OUTSIDE			0xFFFF
 // Room index for picked objects
 #define ROOM_NO_PROP			0x0258
-#define REMOVABLES_MASKS_START	0x86D8
+#define REMOVABLES_MASKS_START	0x8758
 #define REMOVABLES_MASKS_LENGTH	27
 #define JOY_DEADZONE			450
 // These are use to check if our footprint is out of bounds
-#define TILE_MASKS_OFFSETS		0xA168
-#define	TILE_MASKS_START		0xA9D8
+#define TILE_MASKS_OFFSETS		0xA1E8
+#define	TILE_MASKS_START		0xAA58
 #define MASK_EMPTY				TILE_MASKS_START
 #define MASK_FULL				(TILE_MASKS_START+0x2C0)
 #define TILE_MASKS_LENGTH		0x21B
@@ -212,28 +223,29 @@ do {									\
 #define TUNNEL_FOOTPRINT		0xFF000000
 #define FOOTPRINT_HEIGHT		4
 // Exit checks
-#define EXIT_TILES_LIST			0x392E
-#define EXIT_MASKS_OFFSETS		0x3964
-#define EXIT_MASKS_START		0x89C6
+#define EXIT_TILES_LIST			0x39AE
+#define EXIT_MASKS_OFFSETS		0x39E4
+#define EXIT_MASKS_START		0x8A46
 #define NB_EXITS				27
-#define EXIT_CELLS_LIST			0x3E1A
+#define EXIT_CELLS_LIST			0x3E9A
 #define NB_CELLS_EXITS			22
 #define ROOMS_EXITS_BASE		0x0100
-#define OUTSIDE_OVL_BASE		0x525E
+#define OUTSIDE_OVL_BASE		0x52DE
 #define OUTSIDE_OVL_NB			13
 #define TUNNEL_OVL_NB			14
-#define CMP_OVERLAYS			0x535C
+#define CMP_OVERLAYS			0x53DC
 // For our (magical) apparition into a new room after using an exit
-#define HAT_RABBIT_OFFSET		0x3E46
-#define CMP_RABBIT_OFFSET		0x4350
-#define HAT_RABBIT_POS_START	0x3E72
+#define HAT_RABBIT_OFFSET		0x3EC6
+#define CMP_RABBIT_OFFSET		0x43D0
+#define HAT_RABBIT_POS_START	0x3EF2
 // Time between animation frames, in ms
 // 66 or 67 is about as close as we can get to the original game
 #define ANIMATION_INTERVAL		120
 #define DIRECTION_STOPPED		-1
 // Animation data
-#define ANIMATION_OFFSET_BASE	0x896A
-#define REMOVE_ANIMATION		-1
+#define ANIMATION_OFFSET_BASE	0x89EA
+// sids for animation removal or no display
+#define REMOVE_ANIMATION_SID	-1
 #define WALK_ANI				0x00
 #define RUN_ANI					0x01
 #define EMERGE_ANI				0x02
@@ -263,7 +275,9 @@ do {									\
 #define STATE_CRAWL_SID			0xF8
 #define STATE_STOOGE_SID		0xF9
 
-#define JOY_FIRE				0x35
+// doubt we'll need more than simultaneously enqueued events in all
+#define NB_EVENTS				4
+
 // How do we need to shift our whole room up so that the seams don't show
 #define NORTHWARD_HO			28
 // for our z index, for overlays
@@ -278,9 +292,9 @@ do {									\
 #define MAX_ANIMATIONS			64
 #define MAX_CURRENTLY_ANIMATED	16
 #define NB_ANIMATED_SPRITES		23
-#define NB_GUYBRUSHES			2
+#define NB_GUYBRUSHES			32
 // The current prisoner is always our first guybrush
-#define PRISONER				0
+//#define PRISONER				0
 
 // Our guy's states
 #define STATE_STOP				0
@@ -294,7 +308,7 @@ do {									\
 #define STATE_SHOWER			8
 
 // Nationalities
-#define ENGLISH					0
+#define BRITISH					0
 #define FRENCH					1
 #define AMERICAN				2
 #define POLISH					3
@@ -323,7 +337,7 @@ do {									\
 // In the orginal, the item's identified as "ROUND TOWER"
 #define ITEM_INFLATABLE_DUMMY	0x0F
 
-// Redefinition of GLUT's special keys
+// Redefinition of GLUT's special keys so that they fit in our key table
 #define SPECIAL_KEY_OFFSET		0x80
 #define SPECIAL_KEY_F1          (GLUT_KEY_F1 + SPECIAL_KEY_OFFSET)
 #define SPECIAL_KEY_F2          (GLUT_KEY_F2 + SPECIAL_KEY_OFFSET)
@@ -346,7 +360,60 @@ do {									\
 #define SPECIAL_KEY_HOME        (GLUT_KEY_HOME + SPECIAL_KEY_OFFSET)
 #define SPECIAL_KEY_END	        (GLUT_KEY_END	+ SPECIAL_KEY_OFFSET)
 #define SPECIAL_KEY_INSERT      (GLUT_KEY_INSERT + SPECIAL_KEY_OFFSET)
-   
+// Same for mouse buttons (PSP's triggers are mapped to mouse buttons)
+// The GLUT_KEYs above map to [01-0C] & [64-6C], and the mouse buttons range
+// from 0 to 2, so we can safely use...
+#define SPECIAL_MOUSE_BUTTON_BASE	0x90
+#define SPECIAL_LEFT_MOUSE_BUTTON	(SPECIAL_MOUSE_BUTTON_BASE+GLUT_LEFT_BUTTON)
+#define SPECIAL_MIDDLE_MOUSE_BUTTON	(SPECIAL_MOUSE_BUTTON_BASE+GLUT_MIDDLE_BUTTON)
+#define SPECIAL_RIGHT_MOUSE_BUTTON	(SPECIAL_MOUSE_BUTTON_BASE+GLUT_RIGHT_BUTTON)
+
+#define KEY_INVENTORY_LEFT		SPECIAL_KEY_LEFT
+#define KEY_INVENTORY_RIGHT		SPECIAL_KEY_RIGHT
+#define KEY_INVENTORY_PICKUP	SPECIAL_KEY_UP	
+#define KEY_INVENTORY_DROP		SPECIAL_KEY_DOWN
+
+// Key mappings
+#if defined(PSP)
+// q = square, d = triangle, s = select, a = start
+#define KEY_FIRE				'x'
+#define KEY_TOGGLE_WALK_RUN		'o'
+#define KEY_SLEEP				'q'
+#define KEY_STOOGE				'd'
+#define KEY_ESCAPE				'a'
+#define KEY_PAUSE				's'
+#define KEY_PRISONERS_LEFT		SPECIAL_LEFT_MOUSE_BUTTON
+#define KEY_PRISONERS_RIGHT		SPECIAL_RIGHT_MOUSE_BUTTON
+// The following are unused on the PSP
+#define KEY_BRITISH				0
+#define KEY_FRENCH				0
+#define KEY_AMERICAN			0
+#define KEY_POLISH				0
+#define KEY_DIRECTION_LEFT		0
+#define KEY_DIRECTION_RIGHT		0
+#define KEY_DIRECTION_UP		0
+#define KEY_DIRECTION_DOWN		0
+#else
+#define KEY_FIRE				'5'
+#define KEY_TOGGLE_WALK_RUN		' '
+#define KEY_STOOGE				'x'
+#define KEY_ESCAPE				27
+#define KEY_PAUSE				SPECIAL_KEY_F5
+#define KEY_SLEEP				SPECIAL_KEY_F9
+#define KEY_PRISONERS_LEFT		SPECIAL_LEFT_MOUSE_BUTTON
+#define KEY_PRISONERS_RIGHT		SPECIAL_RIGHT_MOUSE_BUTTON
+// The following are unused on the PSP
+#define KEY_BRITISH				SPECIAL_KEY_F1
+#define KEY_FRENCH				SPECIAL_KEY_F2
+#define KEY_AMERICAN			SPECIAL_KEY_F3
+#define KEY_POLISH				SPECIAL_KEY_F4
+#define KEY_DIRECTION_LEFT		'4'
+#define KEY_DIRECTION_RIGHT		'6'
+#define KEY_DIRECTION_UP		'8'
+#define KEY_DIRECTION_DOWN		'2'
+#endif
+
+#define KEY_DEBUG_PRINT_POS		'p'
 
 
 
@@ -399,10 +466,17 @@ typedef struct
 	 *    5  6  7
 	 *    4 -1  0 
 	 *    3  2  1   */
-	int	direction;
+	s16	direction;
 	u32 end_of_ani_parameter;
 	void (*end_of_ani_function)(u32);
 } s_animation;
+
+typedef struct
+{
+	u64	expiration_time;
+	u32 parameter;
+	void (*function)(u32);
+} s_event;
 
 typedef struct
 {
@@ -410,118 +484,19 @@ typedef struct
 	s16   px;
 	s16   p2y;
 	s16   speed;
+	s16   direction;
+	u32	  ext_bitmask;
 	u8	  state;
 	u8	  ani_index;
 } s_guybrush;
 
-// Bummer! The way they setup their animation overlays and the way I 
-// do it to be more efficient means I need to define a custom table
-// to find out animations that loop
-/*
-ROM:000089EA animation_data: dc.l walk_ani           ; DATA XREF: display_sprites+AEo
-ROM:000089EA                                         ; #00
-ROM:000089EE                 dc.l run_ani            ; #04
-ROM:000089F2                 dc.l emerge_ani         ; #08
-ROM:000089F6                 dc.l kneel_ani          ; #0C
-ROM:000089FA                 dc.l sleep_ani          ; #10
-ROM:000089FE                 dc.l wtf_ani            ; #14
-ROM:00008A02                 dc.l ger_walk_ani       ; #18
-ROM:00008A06                 dc.l ger_run_ani        ; #1C
-ROM:00008A0A                 dc.l fireplace_ani      ; #20
-ROM:00008A0E                 dc.l door1_ani          ; #24
-ROM:00008A12                 dc.l door2_ani          ; #28
-ROM:00008A16                 dc.l door3_ani          ; #2C
-ROM:00008A1A                 dc.l door4_ani          ; #30
-ROM:00008A1E                 dc.l door5_ani          ; #34
-ROM:00008A22                 dc.l door6_ani          ; #38
-ROM:00008A26                 dc.l crawl_ani          ; #3C
-ROM:00008A2A                 dc.l ger_crawl_ani      ; #40
-ROM:00008A2E                 dc.l shot_ani           ; #44
-ROM:00008A32                 dc.l ger_shot_ani       ; #48
-ROM:00008A36                 dc.l ger_shoot_ani      ; #4C
-ROM:00008A3A                 dc.l kneel2_ani         ; #50
-ROM:00008A3E                 dc.l kneel3_ani         ; #54
-ROM:00008A42                 dc.l ger_kneel_ani      ; #58
-*/
-static u8 looping_animation[NB_ANIMATED_SPRITES] =
-	{	1, 1, 0, 0, 1, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0 };
-// For the outside map, because of the removable sections and the fact that
-// having a removable section set for the tile does not guarantee that the 
-// prop should be hidden (eg: bottom of a removable wall), we'll define a
-// set of tile where props should always appear. We're actually defining 4
-// prop disaplayable quadrants, deliminated by an X in the tile, with each 
-// bit for a quadrant, starting with the left quadrant (lsb) and going
-// clockwise
-// For the time being, we're not going to use these, but just set the prop
-// 'on' if nonzero, coz it's a bit of an overkill, compare to what the 
-// original game did. Still this is an improvement on the original game's
-// props handling, as if you dropped a prop in front of the chapel in the
-// original, it would simply disappear!
-
-static u16 props_tile [0x213] = {
-// Well, C doesn't have binary constants, so, for maintainability reasons, 
-// we'll use fake "decimal binary" constants, which we'll just convert to
-// proper bitmasks at init time, if we're ever gonna use the actual masks
-	0000,1111,1111,1111,1111,1111,1111,1111,1111,1111,	// 0000
-	1111,1111,1111,1111,1111,1111,1111,1111,1111,1111,	// 0500
-	1111,1111,1111,1111,1111,1111,1111,1111,1111,1111,	// 0A00
-	1111,1111,1111,1111,1111,1111,1111,1111,1111,1111,	// 0F00
-	1111,1111,1111,1111,1111,1111,1111,1111,1111,1111,	// 1400
-	1111,1111,1111,1111,1111,1111,0000,0000,0000,0000,	// 1900
-	1111,0000,0000,0000,0000,1111,0000,0000,0000,0000,	// 1E00
-	0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,	// 2300
-	1111,0000,1111,0000,0000,0000,1111,1111,1111,1111,	// 2800
-	1111,1111,1111,1111,1111,1111,0000,0000,0000,0000,	// 2D00
-	1111,1111,1111,1111,1111,0000,0000,0000,1111,1111,	// 3200
-	1111,1111,1111,1111,1111,0000,1111,1111,1111,1111,	// 3700
-	0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,	// 3C00
-	0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,	// 4100
-	1111,1111,1111,1111,1111,1111,1111,1111,0000,0000,	// 4600
-	0000,0000,0000,0000,1111,1111,0000,0000,0000,1111,	// 4B00
-	0000,0000,1111,1111,1111,1111,0000,0000,1111,0000,	// 5000
-	0011,0110,0000,0000,0000,0000,1111,0000,0000,0000,	// 5500
-	0000,0000,0000,0000,1111,1111,1111,0000,0000,0000,	// 5A00
-	0000,0000,0000,0000,1111,1111,0000,1111,0000,1111,	// 5F00
-	0000,0000,0000,0110,0000,1111,0000,1111,0000,0000,	// 6400
-	1111,1111,1111,0000,0000,1111,0000,0000,1111,0110,	// 6900
-	0000,0000,0000,0011,1111,0000,0000,0000,0000,0000,	// 6E00
-	1111,1111,1111,0000,0000,1111,1111,0000,0000,0000,	// 7300
-	0000,0000,1111,1111,0000,0000,0000,0000,0000,0000,	// 7800
-	0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,	// 7D00
-	0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,	// 8200
-	0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,	// 8700
-	0000,0000,0000,0000,0000,0000,0000,0000,1111,0000,	// 8C00
-	0000,0000,0000,0000,0000,0000,0000,0000,1111,0000,	// 9100
-	0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,	// 9600
-	0000,0000,0000,0000,0000,0000,0000,0000,0110,0000,	// 9B00
-	0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,	// A000
-	0000,0011,0011,0011,0011,0110,0000,0000,0000,0000,	// A500
-	0100,0011,0000,0100,0011,0110,0000,0000,0000,1111,	// AA00
-	0110,0000,0000,0000,0000,0000,0000,0000,1111,0000,	// AF00
-	0000,1111,0000,0000,0000,0000,0000,0000,0000,0000,	// B400
-	1111,1111,0000,0000,0000,0000,0000,0000,0000,0000,	// B900
-	1111,0000,0000,1111,1111,1111,1111,1111,1111,1111,	// BE00
-	1111,0000,0000,0000,0000,1111,1111,0000,0000,0000,	// C300
-	1111,1111,0000,0000,0000,1111,0000,0000,0000,0000,	// C800
-	1111,1111,1111,1111,0000,0000,0000,0000,0000,1111,	// CD00
-	0000,1111,0000,0000,1111,0000,0000,0000,0000,0000,	// D200
-	0000,0000,1111,1111,0000,0000,0000,0000,0000,0000,	// D700
-	0000,0000,0000,1111,0000,1111,1111,0000,0000,0000,	// DC00
-	1111,0000,0000,0000,1111,1111,1111,0000,1111,1111,	// E100
-	1111,0000,1111,0000,1111,1111,1111,1111,1111,1111,	// E600
-	1111,1111,0000,1111,0000,0000,1111,1111,1111,1111,	// EB00
-	0000,1111,1111,1111,1111,1111,1111,1111,1111,1111,	// tunnels, line 1
-	1111,1111,1111,1111,1111,1111,1111,1111,1111,1111,	// tunnels, line 2
-	1111,1111,1111,1111,1111,1111,1111,1111,1111,1111,	// tunnels, line 3
-	1111,1111,1111,1111,1111,1111,1111,1111,1111,1111,	// tunnels, line 4
-	1111,1111,1111,1111,1111,1111,1111,1111,1111,1111,	// tunnels, line 5
-	1111};
 
 // Global variables
 extern int	opt_verbose;
 extern int	opt_debug;
 extern int	opt_sid;
 extern int	opt_play_as_the_safe;
+extern int	opt_keymaster;
 extern int	stat;
 extern int  debug_flag;
 extern u8   *mbuffer;
@@ -536,7 +511,8 @@ extern u8	nb_room_props;
 extern u16	room_props[NB_OBSBIN];
 extern u8	over_prop, over_prop_id;
 extern u8	panel_chars[NB_PANEL_CHARS][8*8*2];
-
+extern char*	status_message;
+extern bool redisplay;
 
 
 // Data specific global variables
@@ -548,13 +524,15 @@ extern u32   fsize[NB_FILES];
 extern int	gl_width, gl_height;
 //extern u8	prisoner_w, prisoner_h;
 //extern int  prisoner_x, prisoner_2y;
-#define prisoner_x guybrush[PRISONER].px
-#define prisoner_2y guybrush[PRISONER].p2y
-#define current_room_index guybrush[PRISONER].room
-#define prisoner_speed guybrush[PRISONER].speed
-#define prisoner_ani   guybrush[PRISONER].ani_index
-#define prisoner_state guybrush[PRISONER].state
 extern u8 current_nation;
+#define prisoner_x guybrush[current_nation].px
+#define prisoner_2y guybrush[current_nation].p2y
+#define current_room_index guybrush[current_nation].room
+#define prisoner_speed guybrush[current_nation].speed
+#define prisoner_ani   guybrush[current_nation].ani_index
+#define prisoner_state guybrush[current_nation].state
+#define prisoner_dir   guybrush[current_nation].direction
+#define rem_bitmask	   guybrush[current_nation].ext_bitmask
 extern int  last_p_x, last_p_y;
 extern int  dx, d2y;
 extern u8  prisoner_sid;
@@ -564,17 +542,39 @@ extern s_sprite		*sprite;
 extern s_overlay	*overlay; 
 extern u8   overlay_index;
 
-extern bool reset_animations;
-extern bool key_down[256];
+extern bool init_animations;
+
+extern bool key_down[256], key_readonce[256];
+static __inline bool read_key_once(u8 k)
+{	
+	if (key_down[k])
+	{
+		if (key_readonce[k])
+			return false;
+		key_readonce[k] = true;
+		return true;
+	}
+	return false;
+}
+
+extern bool	keep_message_on;
 extern s_animation	animations[MAX_ANIMATIONS];
 extern u8	nb_animations;
 extern u64	last_mtime;
 extern s_guybrush	guybrush[NB_GUYBRUSHES];
+extern s_event		events[NB_EVENTS];
 
 
 // Having  a global palette saves a lot of hassle
 extern u8  bPalette[3][16];
 extern u16 aPalette[16];
+
+#define update_props_message(prop_id)												\
+	nb_props_message[1] = (props[current_nation][prop_id] / 10) + 0x30;				\
+	nb_props_message[2] = (props[current_nation][prop_id] % 10) + 0x30;				\
+	strcpy(nb_props_message+6, (char*) fbuffer[LOADER] + readlong(fbuffer[LOADER],	\
+		PROPS_MESSAGE_BASE + 4*(prop_id-1)) + 1);									\
+	status_message = nb_props_message
 
 #ifdef	__cplusplus
 }

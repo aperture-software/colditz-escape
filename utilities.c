@@ -46,11 +46,117 @@ u32 exit_flags_offset;
 s16	gl_off_x = 0, gl_off_y  = 0;
 char panel_message[256];
 
+// Bummer! The way they setup their animation overlays and the way I 
+// do it to be more efficient means I need to define a custom table
+// to find out animations that loop
+/*
+ROM:000089EA animation_data: dc.l walk_ani           ; DATA XREF: display_sprites+AEo
+ROM:000089EA                                         ; #00
+ROM:000089EE                 dc.l run_ani            ; #04
+ROM:000089F2                 dc.l emerge_ani         ; #08
+ROM:000089F6                 dc.l kneel_ani          ; #0C
+ROM:000089FA                 dc.l sleep_ani          ; #10
+ROM:000089FE                 dc.l wtf_ani            ; #14
+ROM:00008A02                 dc.l ger_walk_ani       ; #18
+ROM:00008A06                 dc.l ger_run_ani        ; #1C
+ROM:00008A0A                 dc.l fireplace_ani      ; #20
+ROM:00008A0E                 dc.l door1_ani          ; #24
+ROM:00008A12                 dc.l door2_ani          ; #28
+ROM:00008A16                 dc.l door3_ani          ; #2C
+ROM:00008A1A                 dc.l door4_ani          ; #30
+ROM:00008A1E                 dc.l door5_ani          ; #34
+ROM:00008A22                 dc.l door6_ani          ; #38
+ROM:00008A26                 dc.l crawl_ani          ; #3C
+ROM:00008A2A                 dc.l ger_crawl_ani      ; #40
+ROM:00008A2E                 dc.l shot_ani           ; #44
+ROM:00008A32                 dc.l ger_shot_ani       ; #48
+ROM:00008A36                 dc.l ger_shoot_ani      ; #4C
+ROM:00008A3A                 dc.l kneel2_ani         ; #50
+ROM:00008A3E                 dc.l kneel3_ani         ; #54
+ROM:00008A42                 dc.l ger_kneel_ani      ; #58
+*/
+u8 looping_animation[NB_ANIMATED_SPRITES] =
+	{	1, 1, 0, 0, 1, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0 };
+// For the outside map, because of the removable sections and the fact that
+// having a removable section set for the tile does not guarantee that the 
+// prop should be hidden (eg: bottom of a removable wall), we'll define a
+// set of tile where props should always appear. We're actually defining 4
+// prop disaplayable quadrants, deliminated by an X in the tile, with each 
+// bit for a quadrant, starting with the left quadrant (lsb) and going
+// clockwise
+// For the time being, we're not going to use these, but just set the prop
+// 'on' if nonzero, coz it's a bit of an overkill, compare to what the 
+// original game did. Still this is an improvement on the original game's
+// props handling, as if you dropped a prop in front of the chapel in the
+// original, it would simply disappear!
+
+u16 props_tile [0x213] = {
+// Well, C doesn't have binary constants, so, for maintainability reasons, 
+// we'll use fake "decimal binary" constants, which we'll just convert to
+// proper bitmasks at init time, if we're ever gonna use the actual masks
+	0000,1111,1111,1111,1111,1111,1111,1111,1111,1111,	// 0000
+	1111,1111,1111,1111,1111,1111,1111,1111,1111,1111,	// 0500
+	1111,1111,1111,1111,1111,1111,1111,1111,1111,1111,	// 0A00
+	1111,1111,1111,1111,1111,1111,1111,1111,1111,1111,	// 0F00
+	1111,1111,1111,1111,1111,1111,1111,1111,1111,1111,	// 1400
+	1111,1111,1111,1111,1111,1111,0000,0000,0000,0000,	// 1900
+	1111,0000,0000,0000,0000,1111,0000,0000,0000,0000,	// 1E00
+	0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,	// 2300
+	1111,0000,1111,0000,0000,0000,1111,1111,1111,1111,	// 2800
+	1111,1111,1111,1111,1111,1111,0000,0000,0000,0000,	// 2D00
+	1111,1111,1111,1111,1111,0000,0000,0000,1111,1111,	// 3200
+	1111,1111,1111,1111,1111,0000,1111,1111,1111,1111,	// 3700
+	0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,	// 3C00
+	0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,	// 4100
+	1111,1111,1111,1111,1111,1111,1111,1111,0000,0000,	// 4600
+	0000,0000,0000,0000,1111,1111,0000,0000,0000,1111,	// 4B00
+	0000,0000,1111,1111,1111,1111,0000,0000,1111,0000,	// 5000
+	0011,0110,0000,0000,0000,0000,1111,0000,0000,0000,	// 5500
+	0000,0000,0000,0000,1111,1111,1111,0000,0000,0000,	// 5A00
+	0000,0000,0000,0000,1111,1111,0000,1111,0000,1111,	// 5F00
+	0000,0000,0000,0110,0000,1111,0000,1111,0000,0000,	// 6400
+	1111,1111,1111,0000,0000,1111,0000,0000,1111,0110,	// 6900
+	0000,0000,0000,0011,1111,0000,0000,0000,0000,0000,	// 6E00
+	1111,1111,1111,0000,0000,1111,1111,0000,0000,0000,	// 7300
+	0000,0000,1111,1111,0000,0000,0000,0000,0000,0000,	// 7800
+	0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,	// 7D00
+	0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,	// 8200
+	0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,	// 8700
+	0000,0000,0000,0000,0000,0000,0000,0000,1111,0000,	// 8C00
+	0000,0000,0000,0000,0000,0000,0000,0000,1111,0000,	// 9100
+	0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,	// 9600
+	0000,0000,0000,0000,0000,0000,0000,0000,0110,0000,	// 9B00
+	0000,0000,0000,0000,0000,0000,0000,0000,0000,0000,	// A000
+	0000,0011,0011,0011,0011,0110,0000,0000,0000,0000,	// A500
+	0100,0011,0000,0100,0011,0110,0000,0000,0000,1111,	// AA00
+	0110,0000,0000,0000,0000,0000,0000,0000,1111,0000,	// AF00
+	0000,1111,0000,0000,0000,0000,0000,0000,0000,0000,	// B400
+	1111,1111,0000,0000,0000,0000,0000,0000,0000,0000,	// B900
+	1111,0000,0000,1111,1111,1111,1111,1111,1111,1111,	// BE00
+	1111,0000,0000,0000,0000,1111,1111,0000,0000,0000,	// C300
+	1111,1111,0000,0000,0000,1111,0000,0000,0000,0000,	// C800
+	1111,1111,1111,1111,0000,0000,0000,0000,0000,1111,	// CD00
+	0000,1111,0000,0000,1111,0000,0000,0000,0000,0000,	// D200
+	0000,0000,1111,1111,0000,0000,0000,0000,0000,0000,	// D700
+	0000,0000,0000,1111,0000,1111,1111,0000,0000,0000,	// DC00
+	1111,0000,0000,0000,1111,1111,1111,0000,1111,1111,	// E100
+	1111,0000,1111,0000,1111,1111,1111,1111,1111,1111,	// E600
+	1111,1111,0000,1111,0000,0000,1111,1111,1111,1111,	// EB00
+	0000,1111,1111,1111,1111,1111,1111,1111,1111,1111,	// tunnels, line 1
+	1111,1111,1111,1111,1111,1111,1111,1111,1111,1111,	// tunnels, line 2
+	1111,1111,1111,1111,1111,1111,1111,1111,1111,1111,	// tunnels, line 3
+	1111,1111,1111,1111,1111,1111,1111,1111,1111,1111,	// tunnels, line 4
+	1111,1111,1111,1111,1111,1111,1111,1111,1111,1111,	// tunnels, line 5
+	1111};
+
 void load_all_files()
 {
 	size_t read;
 	u32 i;
 	int compressed_loader = 0;
+
+	// We need a little padding of the loader to keep the offsets happy
+	fsize[LOADER] += LOADER_PADDING;
 
 	for (i=0; i<NB_FILES; i++)
 	{
@@ -58,6 +164,12 @@ void load_all_files()
 		{
 			perr("Could not allocate buffers\n");
 			ERR_EXIT;
+		}
+
+		if (i==LOADER)
+		{
+			fbuffer[LOADER] += LOADER_PADDING;
+			fsize[LOADER] -= LOADER_PADDING;
 		}
 
 		if ((fd = fopen (fname[i], "rb")) == NULL)
@@ -144,6 +256,10 @@ void load_all_files()
 		fclose (fd);
 		fd = NULL;
 	}
+
+	// OK, now we can reset our LOADER's start address
+	fbuffer[LOADER] -= LOADER_PADDING;
+
 }
 
 
@@ -385,7 +501,7 @@ void set_panel_chars()
 				else
 					writeword((u8*)panel_chars[c], y*16 + 2*x, 
 					// Respect the nice incremental colour graduation
-						PANEL_CHARS_GRAD_BASE + (y-1)*PANEL_CHARS_GRAD_INCR);					
+						PANEL_CHARS_GRAB_BASE + (y-1)*PANEL_CHARS_GRAB_INCR);					
 			}
 		}
 		// last line is transparent too
@@ -569,11 +685,10 @@ int get_stop_animation_sid(u8 index)
 	int sid;
 	u32 ani_base;
 
-	// NB: static pointers in the loader are offset by 0x80
-	ani_base = readlong(fbuffer[LOADER], ANIMATION_OFFSET_BASE + 4*animations[index].index) - 0x80;
+	ani_base = readlong(fbuffer[LOADER], ANIMATION_OFFSET_BASE + 4*animations[index].index);
 	sid = readbyte(fbuffer[LOADER], ani_base + 0x0A + animations[index].direction);
 	frame = readbyte(fbuffer[LOADER], ani_base) - 1;
-	sid += readbyte(fbuffer[LOADER], readlong(fbuffer[LOADER], ani_base + 0x06) - 0x80 + frame);
+	sid += readbyte(fbuffer[LOADER], readlong(fbuffer[LOADER], ani_base + 0x06) + frame);
 	return sid;
 }
 
@@ -586,8 +701,7 @@ int get_animation_sid(u8 index)
 	s32 nb_frames;
 	// read the base sid
 
-	// NB: static pointers in the loader are offset by 0x80
-	ani_base = readlong(fbuffer[LOADER], ANIMATION_OFFSET_BASE + 4*animations[index].index) - 0x80;
+	ani_base = readlong(fbuffer[LOADER], ANIMATION_OFFSET_BASE + 4*animations[index].index);
 	sid = readbyte(fbuffer[LOADER], ani_base + 0x0A + animations[index].direction);
 //	printf("sid base = %x\n", sid);
 //	printf("framecount = %d\n", animations[index].framecount);
@@ -609,17 +723,17 @@ int get_animation_sid(u8 index)
 	}
 //	printf("nb_frames = %d, framecount = %d\n", nb_frames, animations[index].framecount);
 	sid_increment = readbyte(fbuffer[LOADER], 
-		readlong(fbuffer[LOADER], ani_base + 0x06) - 0x80 + frame);
+		readlong(fbuffer[LOADER], ani_base + 0x06) + frame);
 //	printf("frame = %d, increment = %x\n", frame, sid_increment);
 	if (sid_increment == 0xFF)
 	{	// play a sound 
 		// sound = yada +1;
 		sid_increment = readbyte(fbuffer[LOADER], 
-			readlong(fbuffer[LOADER], ani_base + 0x06) - 0x80 + frame + 2);
+			readlong(fbuffer[LOADER], ani_base + 0x06) + frame + 2);
 		animations[index].framecount += 2;
 	}
 	if (sid_increment & 0x80)
-		sid = REMOVE_ANIMATION;
+		sid = REMOVE_ANIMATION_SID;
 	else
 		sid += sid_increment;
 //	if (sid != -1)
@@ -649,7 +763,7 @@ void crm_set_overlays(s16 x, s16 y, u16 current_tile, u32 tile_offset, u16 room_
 
 		if (current_tile == 0xE080)
 		{	// The fireplace is the only animated overlay we need to handle beside exits
-			if (reset_animations)
+			if (init_animations)
 			{	// Setup animated tiles, if any
 				currently_animated[0] = nb_animations;
 				animations[nb_animations].index = FIREPLACE_ANI;
@@ -712,9 +826,10 @@ void crm_set_overlays(s16 x, s16 y, u16 current_tile, u32 tile_offset, u16 room_
 			continue;
 		}
 
-		if (animated_sid == REMOVE_ANIMATION)
+		if (animated_sid == REMOVE_ANIMATION_SID)
 		// ignore
-			break;
+			continue;
+			//break;
 
 		sid = (animated_sid)?animated_sid:readword(fbuffer[LOADER], SPECIAL_TILES_START+i+4);
 		overlay[overlay_index].sid = sid;
@@ -823,7 +938,7 @@ void cmp_set_overlays()
 				currently_animated[exit_nr] = sid;
 		}
 
-		if (sid == REMOVE_ANIMATION)	// ignore doors that have ended their animation cycle
+		if (sid == REMOVE_ANIMATION_SID)	// ignore doors that have ended their animation cycle
 			continue;
 
 		// Now we have our definitive sid
@@ -891,8 +1006,12 @@ void set_props_overlays()
 		if ( (prisoner_x > x-8) && (prisoner_x < x+8) && 
 			 (prisoner_2y/2 > y-8) && (prisoner_2y/2 < y+8) ) 
 		{
-			 over_prop = u+1;	// 1 indexed
-			 over_prop_id = readbyte(fbuffer[OBJECTS],prop_offset+7);
+			over_prop = u+1;	// 1 indexed
+			over_prop_id = readbyte(fbuffer[OBJECTS],prop_offset+7);
+			// The props message takes precedence
+			force_status_message(fbuffer[LOADER] + readlong(fbuffer[LOADER], 
+				PROPS_MESSAGE_BASE + 4*(over_prop_id-1)));
+//			printf("over_prop = %x, over_prop_id = %x\n", over_prop, over_prop_id);
 		}
 
 		// all the props should appear behind overlays, expect the ones with no mask
@@ -1141,13 +1260,13 @@ void add_guybrushes()
 u8 i, sid;
 
 	// Always display our main guy
-	sid = get_sid(guybrush[PRISONER].ani_index);
+	sid = get_sid(guybrush[current_nation].ani_index);
 	overlay[overlay_index].sid = (opt_sid == -1)?sid:opt_sid;	
 
 	// If you uncomment the lines below, you'll get confirmation that our position 
 	// computations are right to position our guy to the middle of the screen
 	//overlay[overlay_index].x = gl_off_x + guybrush[PRISONER].px + sprite[sid].x_offset;
-	overlay[overlay_index].y = gl_off_y + guybrush[PRISONER].p2y/2 - sprite[sid].h + 5;
+	overlay[overlay_index].y = gl_off_y + guybrush[current_nation].p2y/2 - sprite[sid].h + 5;
 	overlay[overlay_index].x = PSP_SCR_WIDTH/2;  
 	//overlay[overlay_index].y = PSP_SCR_HEIGHT/2 - NORTHWARD_HO - 32; 
 
@@ -1163,8 +1282,12 @@ u8 i, sid;
 */
 
 
-	for (i=1; i< NB_GUYBRUSHES; i++)
+	for (i=0; i< NB_GUYBRUSHES; i++)
 	{
+		// Our current guy has already been taken care of above
+		if (i==current_nation)
+			continue;
+
 		if (guybrush[i].room != current_room_index)
 			continue;
 
@@ -1203,6 +1326,7 @@ u8 i, sid;
 }
 
 // Display room
+// This function effectively consumes our redisplay boolean
 void display_room()
 {
 // OK, I'll spare you the suspense: this is NOT optimized as hell!
@@ -1223,12 +1347,45 @@ void display_room()
 
 //	printf("prisoner (x,y) = (%d,%d)\n", prisoner_x, prisoner_2y/2);
 
+
+	if (init_animations)
+	{	// We might have to init the room animations after a room switch or nationality change
+		// Reset all animations
+		for (u=0; u<MAX_CURRENTLY_ANIMATED; u++)
+			currently_animated[u] = 0;
+		// TODO_execute all end of ani functions
+		// Set the animation for our prisoner
+		// TO_DO: german uniform/ crawl
+		if (prisoner_speed == 1)
+			animations[prisoner_ani].index = WALK_ANI; 
+		else
+			animations[prisoner_ani].index = RUN_ANI; 
+		animations[prisoner_ani].direction = prisoner_dir;
+		animations[prisoner_ani].end_of_ani_function = NULL;
+		nb_animations++;
+	}
+
 	// Compute GL offsets (position of 0,0 corner of the room wrt center of the screen) 
 	gl_off_x = PSP_SCR_WIDTH/2 - prisoner_x - 1;
 	gl_off_y = PSP_SCR_HEIGHT/2 - (prisoner_2y/2) - NORTHWARD_HO - 2;
 
 	// reset room overlays
 	overlay_index = 0;
+
+	// Update the room description message (NB: we need to do that before the props
+	// overlay call, if we want a props message override
+	if (current_room_index == ROOM_OUTSIDE)
+	{
+		request_status_message(fbuffer[LOADER] + readlong(fbuffer[LOADER], MESSAGE_BASE + 
+			4*COURTYARD_MSG_ID));
+	}
+	else
+	{
+		request_status_message(fbuffer[LOADER] + readlong(fbuffer[LOADER], MESSAGE_BASE + 
+			4*(readbyte(fbuffer[LOADER], ROOM_DESC_BASE	+ current_room_index))));
+//		printf("index = %x\n",readbyte(fbuffer[LOADER], ROOM_DESC_BASE	+ current_room_index));
+	}
+
 
 	// Before we do anything, let's set the pickable objects in
 	// our overlay table (so that room overlays go on top of 'em)
@@ -1283,6 +1440,8 @@ void display_room()
 			}
 			pixel_y += 16;
 		}
+
+
 	}
 	else
 	{	// on compressed map (outside)
@@ -1389,13 +1548,37 @@ void display_room()
 	// Now that the background is done, and we have all the overlays, display the overlay sprites
 	display_overlays();
 
-	// Make sure we only the overlay animations once
-	if (reset_animations)
-		reset_animations = false;
+	// Make sure we only reset the overlay animations once
+	if (init_animations)
+		init_animations = false;
 
 	// We'll need that for next run
 	last_p_x = prisoner_x;
 	last_p_y = prisoner_2y/2; 
+
+	// consume the redisplay variable
+	redisplay = false;
+}
+
+void display_message(char string[])
+{
+	char c;
+	int pos = 0, i = 0;
+
+	if (string == NULL)
+		return;
+
+	if (string[0] < 0x20)
+	{
+		pos = string[0];
+		i = 1;
+	}
+	while ((c = string[i++]))
+	{
+		display_sprite(PANEL_MESSAGE_X+8*pos, PANEL_MESSAGE_Y,
+			PANEL_CHARS_W, PANEL_CHARS_CORRECTED_H, chars_texid[c-0x20]);
+		pos++;
+	}
 }
 
 
@@ -1508,9 +1691,8 @@ void display_panel()
 			sprite[sid].w, sprite[sid].h, sprite_texid[sid]);
 	}
 
-	sid = 0xd1;
-	display_sprite(PANEL_FLAGS_X, PANEL_TOP_Y,
-			sprite[sid].w, sprite[sid].h, sprite_texid[sid]);
+	display_sprite(PANEL_FLAGS_X, PANEL_TOP_Y, sprite[PANEL_FLAGS_BASE_SID+current_nation].w,
+		sprite[PANEL_FLAGS_BASE_SID+current_nation].h, sprite_texid[PANEL_FLAGS_BASE_SID+current_nation]);
 
 	sid = PANEL_CLOCK_DIGITS_BASE + 1;
 	display_sprite(PANEL_CLOCK_HOURS_X, PANEL_TOP_Y,
@@ -1552,15 +1734,7 @@ void display_panel()
 	display_sprite(PANEL_STATE_X, PANEL_TOP_Y,
 		sprite[sid].w, sprite[sid].h, sprite_texid[sid]);
 
-
-	for (i=0; i<28; i++)
-		display_sprite(PANEL_MESSAGE_X+8*i, PANEL_MESSAGE_Y,
-			PANEL_CHARS_W, PANEL_CHARS_CORRECTED_H, chars_texid[17+i]);
-
-	//display_sprite
-	
-	//		printf("ovl(%d,%d), sid = %X\n", overlay[i].x, overlay[i].y, overlay[i].sid);
-
+	display_message(status_message);
 }
 
 
@@ -1685,6 +1859,27 @@ void toggle_exit(u32 exit_nr)
 				break;
 		}
 	}
+}
+
+
+void enqueue_event(void (*f)(u32), u32 p, u64 delay)
+{
+	u8 i;
+
+	// find an empty event to use
+	for (i=0; i< NB_EVENTS; i++)
+		if (events[i].function == NULL)
+			break;
+
+	if (i == NB_EVENTS)
+	{
+		perr("Couldn't enqueue event!!!\n");
+		return;
+	}
+
+	events[i].function = f;
+	events[i].parameter = p;
+	events[i].expiration_time = mtime() + delay;
 }
 
 
@@ -1876,41 +2071,60 @@ int check_footprint(int dx, int d2y)
 				// Is the exit open?
 				if ((!(exit_flags & 0x10)) && (exit_flags & 0x60))
 				{	// exit is closed
-					if (key_down[JOY_FIRE])
-					{	// enqueue the door opening animation
-						exit_nr = (u8) readexit(tile_x+exit_dx[0],tile_y-2) & 0x1F;
-						// The trick is we use currently_animated to store our door sids
-						// even if not yet animated, so that we can quickly access the
-						// right animation data, rather than exhaustively compare tiles
-						sid = currently_animated[exit_nr];
-						ani_offset = 0;
-						switch(sid)
-						{	// let's optimize this a bit
-						case 0x76:	// door_left
-							ani_offset += 0x02;		// +2 because of door close ani
-						case 0x78:	// door right
-							ani_offset += 0x02;
-						case 0x71:	// horizontal door 
-							ani_offset += DOOR_HORI_OPEN_ANI;
-							currently_animated[exit_nr] = nb_animations;
-							animations[nb_animations].index = ani_offset;
-							animations[nb_animations].direction = 0;
-							animations[nb_animations].framecount = 0;
-							animations[nb_animations].end_of_ani_function = &toggle_exit;
-							animations[nb_animations].end_of_ani_parameter = exit_nr;
-							nb_animations++;
-							break;
-						default:	// not an exit we should animate
-							// no animation, but should add delay & play sound
-							break;
+					if (read_key_once(KEY_FIRE))
+					{
+						if ((opt_keymaster) || 
+							// do we have the right key selected
+							(selected_prop[current_nation] == ((exit_flags & 0x60) >> 5)))
+						{
+							// enqueue the door opening animation
+							exit_nr = (u8) readexit(tile_x+exit_dx[0],tile_y-2) & 0x1F;
+							// The trick is we use currently_animated to store our door sids
+							// even if not yet animated, so that we can quickly access the
+							// right animation data, rather than exhaustively compare tiles
+							sid = currently_animated[exit_nr];
+							ani_offset = 0;
+							switch(sid)
+							{	// let's optimize this a bit
+							case 0x76:	// door_left
+								ani_offset += 0x02;		// +2 because of door close ani
+							case 0x78:	// door right
+								ani_offset += 0x02;
+							case 0x71:	// horizontal door 
+								ani_offset += DOOR_HORI_OPEN_ANI;
+								currently_animated[exit_nr] = nb_animations;
+								animations[nb_animations].index = ani_offset;
+								animations[nb_animations].direction = 0;
+								animations[nb_animations].framecount = 0;
+								animations[nb_animations].end_of_ani_function = &toggle_exit;
+								animations[nb_animations].end_of_ani_parameter = exit_nr;
+								nb_animations++;
+								break;
+							default:	// not an exit we should animate
+								// just enqueue the toggle exit event
+								enqueue_event(&toggle_exit, exit_nr, 3*ANIMATION_INTERVAL);
+								break;
+							}
+							
+							if (!opt_keymaster)
+							{	// consume the key
+								props[current_nation][selected_prop[current_nation]]--;
+								if (props[current_nation][selected_prop[current_nation]] == 0)
+									// display the empty box if last prop
+									selected_prop[current_nation] = 0;
+							}
 						}
-						// For now, the exit is not open, so we return failure to progress further
+						// For now, the exit is still closed, so we return failure to progress further
 						return 0;
 					}
 					else
 					{
+						force_status_message(fbuffer[LOADER] + readlong(fbuffer[LOADER], EXIT_MESSAGE_BASE + 
+							((exit_flags & 0x60) >> 3)));
+
+//							display_message(fbuffer[LOADER]+readlong(fbuffer[LOADER], MESSAGES_BASE+12));
 						// display the grade
-						printf("need key grade %d\n", (exit_flags & 0x60) >> 5);
+//						printf("need key grade %d\n", (exit_flags & 0x60) >> 5);
 						// Return failure if we can't exit
 						return 0;
 					}
@@ -1978,11 +2192,11 @@ void switch_room(int exit_nr, int dx, int d2y)
 	}
 
 	// Since we're changing room, reset all animations
-	for (u=0; u<MAX_CURRENTLY_ANIMATED; u++)
-		currently_animated[u] = 0;
-	// only remove animations that are not related to our guys
-	nb_animations = NB_GUYBRUSHES;
-	reset_animations = true;
+//	for (u=0; u<MAX_CURRENTLY_ANIMATED; u++)
+//		currently_animated[u] = 0;
+	// We should always keep at least the animation for our guy
+//	nb_animations = 1;
+	init_animations = true;
 	
 	exit_index++;	// zero based to one based
 //	printf("          to room[%X] (exit_index = %d)\n", current_room_index, exit_index);
