@@ -36,7 +36,7 @@ extern "C" {
 #define toggle_open_flag(x_flags)	\
 	x_flags = (x_flags & 0x10)?(x_flags & 0xEF):(x_flags | 0x10)
 
-// Checks that an overlays is visible onscreen
+// Checks that an overlays is visible onscreen (with generous margins)
 #define ignore_offscreen_x(ovl)		\
 	if ((overlay[ovl].x < -64) || (overlay[ovl].x > (PSP_SCR_WIDTH+64)))	\
 			continue
@@ -44,7 +44,7 @@ extern "C" {
 	if ((overlay[ovl].y < -64) || (overlay[ovl].y > (PSP_SCR_HEIGHT+64)))	\
 			continue
 
-#define get_sid(x)					\
+#define get_guybrush_sid(x)					\
 	((guybrush[x].state == STATE_STOP)?get_stop_animation_sid(guybrush[x].ani_index):get_animation_sid(guybrush[x].ani_index))
 
 #define request_status_message(msg)	\
@@ -67,6 +67,7 @@ void display_room();
 void display_panel();
 void rescale_buffer();
 void get_properties();
+void move_guards();
 #if !defined(PSP)
 void glutPrintf(const char *fmt, ...);
 #endif

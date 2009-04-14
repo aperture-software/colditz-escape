@@ -318,6 +318,12 @@ void get_properties()
 		for (j=0; j<CMP_MAP_HEIGHT; j++)
 			remove_props[i][j] = 0;
 
+	// We need to initialize the current route pos offset (0x0E)
+	for (i=0; i<NB_GUARDS; i++)
+		// simply copy over the route start offset (0x06)
+		writelong(fbuffer[GUARDS], i*MENDAT_ITEM_SIZE+0x0E,
+			readlong(fbuffer[GUARDS], i*MENDAT_ITEM_SIZE+0x06));
+
 	// Set our textures for panel and zoom
 	glGenTextures( 1, &panel1_texid );
 	glGenTextures( 1, &panel2_texid );
@@ -490,6 +496,8 @@ void set_panel_chars()
 		// first line is transparent
 		for (x=0; x<PANEL_CHARS_W; x++)
 			writeword((u8*)panel_chars[c],2*x,GRAB_TRANSPARENT_COLOUR);
+
+		// 6 lines of 1 byte each
 		for (y = 1; y < PANEL_CHARS_H+1; y++)
 		{
 			b = readbyte(fbuffer[SPRITES_PANEL], PANEL_CHARS_OFFSET + c*PANEL_CHARS_H + y-1);
@@ -521,18 +529,21 @@ s_nonstandard nonstandard(u16 sprite_index)
 {
 	s_nonstandard sp;
 
+	// Panel flags (32x16)
 	if (sprite_index < NB_STANDARD_SPRITES + NB_PANEL_FLAGS)
 	{
 		sp.w =  32;
 		sp.base = NB_STANDARD_SPRITES;
 		sp.offset = PANEL_FLAGS_OFFSET;
 	}
+	// Panel's prisoner faces (16x16)
 	else if (sprite_index < NB_STANDARD_SPRITES + NB_PANEL_FLAGS + NB_PANEL_FACES)
 	{
 		sp.w = 16;
 		sp.base = NB_STANDARD_SPRITES + NB_PANEL_FLAGS;
 		sp.offset = PANEL_FACES_OFFSET;
 	}
+	// Clock digits (8x16)
 	else if (sprite_index < NB_STANDARD_SPRITES + NB_PANEL_FLAGS + NB_PANEL_FACES + 
 		NB_PANEL_CLOCK_DIGITS)
 	{
@@ -540,6 +551,7 @@ s_nonstandard nonstandard(u16 sprite_index)
 		sp.base = NB_STANDARD_SPRITES + NB_PANEL_FLAGS + NB_PANEL_FACES;
 		sp.offset = PANEL_CLOCK_DIGITS_OFF;
 	}
+	// inventory props + status (32x16)
 	else if (sprite_index < NB_STANDARD_SPRITES + NB_PANEL_FLAGS + NB_PANEL_FACES + 
 		NB_PANEL_CLOCK_DIGITS + NB_PANEL_ITEMS)
 	{
@@ -547,6 +559,7 @@ s_nonstandard nonstandard(u16 sprite_index)
 		sp.base = NB_STANDARD_SPRITES + NB_PANEL_FLAGS + NB_PANEL_FACES + NB_PANEL_CLOCK_DIGITS;
 		sp.offset = PANEL_ITEMS_OFFSET;
 	}
+	// Never gonna happen
 	else
 	{
 		sp.w = 0;
@@ -603,7 +616,7 @@ void init_sprites()
 //		print("  w,h = %0X, %0X\n", sprite[sprite_index].w , sprite[sprite_index].h);
 	}
 
-	// Panel sprites
+	// We add the panel (nonstandard) sprites at the end of our exitsing sprite array
 	for (sprite_index=NB_STANDARD_SPRITES; sprite_index<NB_SPRITES; sprite_index++)
 	{
 		sprite[sprite_index].w = nonstandard(sprite_index).w;
@@ -615,7 +628,7 @@ void init_sprites()
 			sprite[sprite_index].w * sprite[sprite_index].h, 16);
 	}
 
-	// Panel characters
+	// We use a different sprite array for status message chars
 	set_panel_chars();
 }
 
@@ -632,6 +645,7 @@ void sprites_to_wGRAB()
 
 	for (sprite_index=0; sprite_index<NB_SPRITES; sprite_index++)
 	{
+		// Standard sprites (from SPRITES.SPR)
 		if (sprite_index < NB_STANDARD_SPRITES)
 		{
 			// Get the base in the original Colditz sprite file
@@ -649,6 +663,7 @@ void sprites_to_wGRAB()
 			// Compute the source address
 			sbuffer = fbuffer[SPRITES] + sprite_address + 8; 
 		}
+		// Panel (nonstandard sprites)
 		else 
 		{
 			if (sprite_index == NB_STANDARD_SPRITES)
@@ -667,6 +682,7 @@ void sprites_to_wGRAB()
 			sprite[sprite_index].z_offset = MIN_Z;
 		}
 		else
+			// bitplane interleaved with mask
 			bitplane_to_wGRAB(sbuffer, sprite[sprite_index].data, sprite[sprite_index].w,
 				sprite[sprite_index].corrected_w, sprite[sprite_index].h);
 
@@ -684,9 +700,16 @@ int get_stop_animation_sid(u8 index)
 	u8 frame;
 	int sid;
 	u32 ani_base;
+	s16 dir;
 
+	// Our index will tell us which animation sequence we use (walk, run, kneel, etc.)
 	ani_base = readlong(fbuffer[LOADER], ANIMATION_OFFSET_BASE + 4*animations[index].index);
-	sid = readbyte(fbuffer[LOADER], ani_base + 0x0A + animations[index].direction);
+	// Guybrushes animations need to handle a direction, others do not
+	dir  = (animations[index].guybrush_index == NO_GUYBRUSH)?
+		0:guybrush[animations[index].guybrush_index].direction;
+	// With the direction and animation base, we can get to the base SID of the ani sequence
+	sid = readbyte(fbuffer[LOADER], ani_base + 0x0A + dir);
+	// find out the index of the last animation frame
 	frame = readbyte(fbuffer[LOADER], ani_base) - 1;
 	sid += readbyte(fbuffer[LOADER], readlong(fbuffer[LOADER], ani_base + 0x06) + frame);
 	return sid;
@@ -699,17 +722,21 @@ int get_animation_sid(u8 index)
 	int sid;
 	u32 ani_base;
 	s32 nb_frames;
+	s16 dir;
 	// read the base sid
 
 	ani_base = readlong(fbuffer[LOADER], ANIMATION_OFFSET_BASE + 4*animations[index].index);
-	sid = readbyte(fbuffer[LOADER], ani_base + 0x0A + animations[index].direction);
+	dir  = (animations[index].guybrush_index == NO_GUYBRUSH)?
+		0:guybrush[animations[index].guybrush_index].direction;
+	sid = readbyte(fbuffer[LOADER], ani_base + 0x0A + dir);
 //	printf("sid base = %x\n", sid);
 //	printf("framecount = %d\n", animations[index].framecount);
 	nb_frames = readbyte(fbuffer[LOADER], ani_base);	// offset 0 is nb frames max
 
+
 	if ( (!(looping_animation[animations[index].index])) &&
 		  (animations[index].framecount >= nb_frames) )
-	{
+	{	// one shot
 		frame = nb_frames - 1;	// 0 indexed
 		if (animations[index].end_of_ani_function != NULL)
 		{	// execute the end of animation function (toggle exit)
@@ -761,19 +788,20 @@ void crm_set_overlays(s16 x, s16 y, u16 current_tile, u32 tile_offset, u16 room_
 		if (readword(fbuffer[LOADER], SPECIAL_TILES_START+i) != current_tile)
 			continue;
 
-		if (current_tile == 0xE080)
+		if (current_tile == FIREPLACE_TILE)
 		{	// The fireplace is the only animated overlay we need to handle beside exits
 			if (init_animations)
 			{	// Setup animated tiles, if any
 				currently_animated[0] = nb_animations;
 				animations[nb_animations].index = FIREPLACE_ANI;
-				animations[nb_animations].direction = 0;
+				animations[nb_animations].guybrush_index = NO_GUYBRUSH;
 				animations[nb_animations].framecount = 0;
 				animations[nb_animations].end_of_ani_function = NULL;
 				nb_animations++;
 			}
 			// Even if there's more than one fireplace per room, their sids will match
-			// so we can use currently_animated[0] for all of them
+			// so we can use currently_animated[0] for all of them. Other room animations
+			// will go at currently_animated[1+]
 			animated_sid = get_animation_sid(currently_animated[0]);
 		}
 
@@ -840,6 +868,7 @@ void crm_set_overlays(s16 x, s16 y, u16 current_tile, u32 tile_offset, u16 room_
 		sy = readword(fbuffer[LOADER], SPECIAL_TILES_START+i+6);
 		if (opt_debug)
 			print("    sx: %04X, sy: %04X\n", sx, sy);
+
 		overlay[overlay_index].x = x + sx - sprite[sid].w + sprite[sid].x_offset;
 		overlay[overlay_index].y = y + sy - sprite[sid].h + 1;
 
@@ -994,8 +1023,11 @@ void set_props_overlays()
 			continue;
 
 		overlay[overlay_index].sid = obs_to_sprite[readword(fbuffer[OBJECTS],prop_offset+6)];
+
+		// Man, this positioning of sprites sure is a fucking mess,
+		// with weird offsets having to be manually added everywhere!
 		x = readword(fbuffer[OBJECTS],prop_offset+4) - 15;
-		y = readword(fbuffer[OBJECTS],prop_offset+2) - 3;
+		y = readword(fbuffer[OBJECTS],prop_offset+2) - ((current_room_index == ROOM_OUTSIDE)?4:3);
 
 		overlay[overlay_index].x = gl_off_x + x;
 		ignore_offscreen_x(overlay_index);
@@ -1003,8 +1035,8 @@ void set_props_overlays()
 		ignore_offscreen_y(overlay_index);
 
 		// We also take this oppportunity to check if we stand over a prop
-		if ( (prisoner_x > x-8) && (prisoner_x < x+8) && 
-			 (prisoner_2y/2 > y-8) && (prisoner_2y/2 < y+8) ) 
+		if ( (prisoner_x >= x-9) && (prisoner_x < x+8) && 
+			 (prisoner_2y/2 >= y-9) && (prisoner_2y/2 < y+8) ) 
 		{
 			over_prop = u+1;	// 1 indexed
 			over_prop_id = readbyte(fbuffer[OBJECTS],prop_offset+7);
@@ -1026,7 +1058,7 @@ void set_props_overlays()
 	}
 }
 
-
+// Display a sprite or cell, using the top left corner as the origin
 void display_sprite(float x1, float y1, float w, float h, GLuint texid) 
 {
 	float x2, y2;
@@ -1259,16 +1291,33 @@ void add_guybrushes()
 {
 u8 i, sid;
 
+	// Add our current prisoner's animation
+	if (init_animations)
+	{	// Set the animation for our prisoner
+		// TO_DO: german uniform/ crawl
+		prisoner_ani = nb_animations;
+		if (prisoner_speed == 1)
+			animations[prisoner_ani].index = WALK_ANI; 
+		else
+			animations[prisoner_ani].index = RUN_ANI; 
+		animations[prisoner_ani].framecount = 0;
+		animations[prisoner_ani].guybrush_index = current_nation;
+		animations[prisoner_ani].end_of_ani_function = NULL;
+		guybrush[current_nation].ani_set = true;
+		nb_animations++;
+	}
+
 	// Always display our main guy
-	sid = get_sid(guybrush[current_nation].ani_index);
+	sid = get_guybrush_sid(current_nation);
 	overlay[overlay_index].sid = (opt_sid == -1)?sid:opt_sid;	
 
 	// If you uncomment the lines below, you'll get confirmation that our position 
 	// computations are right to position our guy to the middle of the screen
-	//overlay[overlay_index].x = gl_off_x + guybrush[PRISONER].px + sprite[sid].x_offset;
+//overlay[overlay_index].x = gl_off_x + guybrush[PRISONER].px + sprite[sid].x_offset;
 	overlay[overlay_index].y = gl_off_y + guybrush[current_nation].p2y/2 - sprite[sid].h + 5;
+//	printf("corrected_h = %d\n", sprite[sid].corrected_h);
 	overlay[overlay_index].x = PSP_SCR_WIDTH/2;  
-	//overlay[overlay_index].y = PSP_SCR_HEIGHT/2 - NORTHWARD_HO - 32; 
+//	overlay[overlay_index].y = PSP_SCR_HEIGHT/2 - NORTHWARD_HO - 32; 
 
 	// Our guy's always at the center of our z-buffer
 	overlay[overlay_index].z = 0;
@@ -1281,27 +1330,71 @@ u8 i, sid;
 	overlay_index++;
 */
 
-
+	// Now add all the other guys
 	for (i=0; i< NB_GUYBRUSHES; i++)
 	{
 		// Our current guy has already been taken care of above
 		if (i==current_nation)
 			continue;
 
+		// Guybrush's probably blowing his foghorn in the library again
 		if (guybrush[i].room != current_room_index)
 			continue;
 
-		sid = get_sid(guybrush[i].ani_index);
-
 		// How I wish there was an easy way to explain these small offsets we add
-		overlay[overlay_index].x = gl_off_x + guybrush[i].px + sprite[sid].x_offset;
+		// NB: The positions we compute below are still missing the sprite dimensions
+		// which we will only add at the end. They are just good enough for ignore_offscreen()
+		overlay[overlay_index].x = gl_off_x + guybrush[i].px; // + sprite[sid].x_offset;
 		ignore_offscreen_x(overlay_index);	// Don't bother if offscreen
-		overlay[overlay_index].y = gl_off_y + guybrush[i].p2y/2 - sprite[sid].h + 5;
+		overlay[overlay_index].y = gl_off_y + guybrush[i].p2y/2 + 5; //  - sprite[sid].h + 5;
 		ignore_offscreen_y(overlay_index);	// Don't bother if offscreen
 
+		// If the guy's under a removable wall, we ignore him too
+		if ((current_room_index == ROOM_OUTSIDE) && (remove_props[guybrush[i].px/32][(guybrush[i].p2y+4)/32]))
+			// TO_DO: check for an actual props SID?
+			continue;
+
+		// Ideally, we would remove animations that have gone offscreen here, but 
+		// there's little performance to be gained in doing so, so we don't
+
+		// First we check if the relevant guy's animation was ever initialized
+		if (guybrush[i].ani_set == false)
+		{	// We need to initialize that guy's animation
+			// TO_DO: better thriller dance keeping the german's uniforms
+			guybrush[i].ani_index = (opt_thrillerdance)?prisoner_ani:nb_animations;
+
+			if (guybrush[i].speed == 1)
+				animations[nb_animations].index = ((i<NB_NATIONS)?WALK_ANI:GUARD_WALK_ANI); 
+			else
+				animations[nb_animations].index = ((i<NB_NATIONS)?RUN_ANI:GUARD_RUN_ANI); 
+			animations[nb_animations].framecount = 0;
+			animations[nb_animations].guybrush_index = i;
+			animations[nb_animations].end_of_ani_function = NULL;
+			nb_animations++;
+			guybrush[i].ani_set = true;
+		}
+
+		// OK, now we're good to add the overlay sprite
+		sid = get_guybrush_sid(i);
+		overlay[overlay_index].sid = sid;
+
+		// And now that we have the sprite attributes, we can add the final position adjustments
+		if (i < NB_NATIONS)
+		{
+			overlay[overlay_index].x += sprite[sid].x_offset;
+			overlay[overlay_index].y -= sprite[sid].h;
+		}
+		else
+		{
+			overlay[overlay_index].x += sprite[sid].x_offset - 16;
+			overlay[overlay_index].y -= sprite[sid].h + 4;
+		}
 		overlay[overlay_index].z = overlay[overlay_index].y - sprite[sid].z_offset 
 				- PSP_SCR_HEIGHT/2 + NORTHWARD_HO - 3; 
-		overlay[overlay_index].sid = sid;
+
+//overlay[overlay_index].x = gl_off_x + guybrush[PRISONER].px + sprite[sid].x_offset;
+//overlay[overlay_index].y = gl_off_y + guybrush[current_nation].p2y/2 - sprite[sid].h + 5;
+
 		overlay_index++;
 	}
 
@@ -1322,6 +1415,78 @@ u8 i, sid;
 		overlay[overlay_index].y = PSP_SCR_HEIGHT/2 - NORTHWARD_HO - 32 - (((dx==0)&&(d2y==0))?8:12); 
 		overlay[overlay_index].z = 0;
 		overlay_index++;
+	}
+}
+
+
+void move_guards()
+{
+	int i;
+	u32 route_pos;
+	u16 route_data;
+
+	for (i=0; i<NB_GUARDS; i++)
+	{
+		if (guybrush[i+NB_NATIONS].go_on > 0)
+		{
+			guybrush[i+NB_NATIONS].go_on--;
+
+			// If we're moving, increment our position
+			if (guybrush[i+NB_NATIONS].state == STATE_MOVE)
+			{
+				guybrush[i+NB_NATIONS].px += guybrush[i+NB_NATIONS].speed * 
+					dir_to_dx[guybrush[i+NB_NATIONS].direction];
+				guybrush[i+NB_NATIONS].p2y += guybrush[i+NB_NATIONS].speed * 
+					dir_to_d2y[guybrush[i+NB_NATIONS].direction];
+			}
+			continue;
+		}
+
+		// get our current route position
+		route_pos = readlong(fbuffer[GUARDS], i*MENDAT_ITEM_SIZE + 0x0E);
+
+		// Read the first word
+		route_data = readword(fbuffer[ROUTES], route_pos);
+		if (route_data == 0xFFFF)
+		{	// back to start route
+			route_pos = readlong(fbuffer[GUARDS], i*MENDAT_ITEM_SIZE + 0x06);
+			route_data = readword(fbuffer[ROUTES], route_pos);
+			guybrush[i+NB_NATIONS].px = readword(fbuffer[GUARDS],i*MENDAT_ITEM_SIZE + 2);
+			guybrush[i+NB_NATIONS].p2y = 2*readword(fbuffer[GUARDS],i*MENDAT_ITEM_SIZE);
+			guybrush[i+NB_NATIONS].room = readword(fbuffer[GUARDS],i*MENDAT_ITEM_SIZE + 4);
+		}
+
+		if (route_data & 0x8000)
+		{	// absolute position
+			guybrush[i+NB_NATIONS].room = readword(fbuffer[ROUTES], route_pos + 2);
+			guybrush[i+NB_NATIONS].px = readword(fbuffer[ROUTES], route_pos + 6);
+			guybrush[i+NB_NATIONS].p2y = 2*readword(fbuffer[ROUTES], route_pos + 4);
+			route_pos +=10;
+		}
+		else
+		{
+			// How long do we need to keep at it
+			guybrush[i+NB_NATIONS].go_on = route_data;
+			route_data =  readword(fbuffer[ROUTES], route_pos + 2);
+			if (route_data == 0xFFFF)
+				// pause
+				guybrush[i+NB_NATIONS].state = STATE_STOP;
+			else
+			{
+				guybrush[i+NB_NATIONS].direction = route_data;
+				guybrush[i+NB_NATIONS].state = STATE_MOVE;
+				// Change our position
+				guybrush[i+NB_NATIONS].px += guybrush[i+NB_NATIONS].speed * 
+					dir_to_dx[guybrush[i+NB_NATIONS].direction];
+				guybrush[i+NB_NATIONS].p2y += guybrush[i+NB_NATIONS].speed * 
+					dir_to_d2y[guybrush[i+NB_NATIONS].direction];
+			}
+			route_pos += 4;
+		}
+
+		// save the new current position
+		writelong(fbuffer[GUARDS], i*MENDAT_ITEM_SIZE+0x0E, route_pos);
+
 	}
 }
 
@@ -1347,27 +1512,22 @@ void display_room()
 
 //	printf("prisoner (x,y) = (%d,%d)\n", prisoner_x, prisoner_2y/2);
 
-
 	if (init_animations)
 	{	// We might have to init the room animations after a room switch or nationality change
 		// Reset all animations
+		// TODO_execute all end of ani functions
 		for (u=0; u<MAX_CURRENTLY_ANIMATED; u++)
 			currently_animated[u] = 0;
-		// TODO_execute all end of ani functions
-		// Set the animation for our prisoner
-		// TO_DO: german uniform/ crawl
-		if (prisoner_speed == 1)
-			animations[prisoner_ani].index = WALK_ANI; 
-		else
-			animations[prisoner_ani].index = RUN_ANI; 
-		animations[prisoner_ani].direction = prisoner_dir;
-		animations[prisoner_ani].end_of_ani_function = NULL;
-		nb_animations++;
+		// Reset
+		nb_animations = 0;
+		for (u=0; u<NB_GUYBRUSHES; u++)
+			guybrush[u].ani_set = false;
 	}
 
 	// Compute GL offsets (position of 0,0 corner of the room wrt center of the screen) 
 	gl_off_x = PSP_SCR_WIDTH/2 - prisoner_x - 1;
 	gl_off_y = PSP_SCR_HEIGHT/2 - (prisoner_2y/2) - NORTHWARD_HO - 2;
+
 
 	// reset room overlays
 	overlay_index = 0;
@@ -1570,7 +1730,7 @@ void display_message(char string[])
 
 	if (string[0] < 0x20)
 	{
-		pos = string[0];
+		pos = string[0]+1;
 		i = 1;
 	}
 	while ((c = string[i++]))
@@ -2094,7 +2254,7 @@ int check_footprint(int dx, int d2y)
 								ani_offset += DOOR_HORI_OPEN_ANI;
 								currently_animated[exit_nr] = nb_animations;
 								animations[nb_animations].index = ani_offset;
-								animations[nb_animations].direction = 0;
+								animations[nb_animations].guybrush_index = NO_GUYBRUSH;
 								animations[nb_animations].framecount = 0;
 								animations[nb_animations].end_of_ani_function = &toggle_exit;
 								animations[nb_animations].end_of_ani_parameter = exit_nr;

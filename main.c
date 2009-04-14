@@ -53,6 +53,8 @@ int opt_ghost				= 0;
 int opt_play_as_the_safe	= 0;
 // Who needs keys?
 int opt_keymaster			= -1;
+// "'coz this is triller..."
+int opt_thrillerdance		= 0;
 // Force a specific sprite ID for our guy
 int opt_sid					= -1;
 
@@ -88,7 +90,8 @@ bool init_animations = true;
 bool keep_message_on = false;
 s_animation	animations[MAX_ANIMATIONS];
 u8	nb_animations = 0;
-u64 last_mtime;
+// last time for Animations and rePosition of the guards
+u64 last_atime, last_ptime;
 u64 keep_message_mtime_start;
 s_guybrush guybrush[NB_GUYBRUSHES];
 s_event	events[NB_EVENTS];
@@ -100,6 +103,8 @@ u8	over_prop = 0, over_prop_id = 0;
 u8  current_nation = 0;
 u8	panel_chars[NB_PANEL_CHARS][8*8*2];
 char* status_message;
+bool paused = false;
+u64  paused_time;
 
 //u16  current_room_index = ROOM_OUTSIDE;
 u16  nb_rooms, nb_cells, nb_objects;
@@ -114,7 +119,10 @@ u16  aPalette[16];
 char nb_props_message[32] = "\499 * ";
 
 // offsets to sprites according to joystick direction (dx,dy)
-int directions[3][3] = { {3,2,4}, {0,DIRECTION_STOPPED,1}, {6,5,7} };
+s16 directions[3][3] = { {3,2,4}, {0,DIRECTION_STOPPED,1}, {6,5,7} };
+// reverse table for dx and dy
+s16 dir_to_dx[8] = {-1, 1, 0, -1, 1, 0, -1, 1};
+s16 dir_to_d2y[8] = {0, 0, -1, -1, -1, 1, 1, 1};
 // The direct nation keys might not be sequencial on custom key mapping
 u8 key_nation[NB_NATIONS+2] = {KEY_BRITISH, KEY_FRENCH, KEY_AMERICAN, KEY_POLISH, 
 							 KEY_PRISONERS_LEFT, KEY_PRISONERS_RIGHT};
@@ -224,7 +232,7 @@ void process_motion(void)
 			}
 			// Change the last direction so that we use the right sid for stopping
 			prisoner_dir = directions[d2y+1][dx+1];
-			animations[prisoner_ani].direction = directions[d2y+1][dx+1];
+//			animations[prisoner_ani].direction = directions[d2y+1][dx+1];
 			dx = 0;
 			d2y = 0;
 		}
@@ -247,7 +255,7 @@ void process_motion(void)
 		prisoner_state = STATE_MOVE;
 		// Update the animation direction
 		prisoner_dir = new_direction;
-		animations[prisoner_ani].direction = new_direction;
+//		animations[prisoner_ani].direction = new_direction;
 
 		// Force a redisplay
 		redisplay = true;
@@ -291,21 +299,48 @@ static void glut_idle(void)
 	u8	prop_id, direction, i;
 	u64	t;
 
-	// Reset the motion
-	dx = 0; 
-	d2y = 0;	
+	// Return to intro screen
+	if (key_down[KEY_ESCAPE])
+		exit(0);
 
+	// We'll need the current time value for a bunch of stuff
 	t = mtime();
-	// Increment animations framecounts
-	if ((t - last_mtime) > ANIMATION_INTERVAL)
+
+	if (read_key_once(KEY_PAUSE))
 	{
-		last_mtime += ANIMATION_INTERVAL;	// closer to ideal rate
+		if (paused)
+		{
+			last_atime += (t - paused_time);
+			last_ptime += (t - paused_time);
+			paused = false;
+		}
+		else
+		{
+			paused_time = t;
+			paused = true;
+		}
+	}
+
+	if (paused)
+	{
+		// We should be able to sleep for a while
+		msleep(50);
+		return;
+	}
+
+	// Increment animations framecounts
+	if ((t - last_atime) > ANIMATION_INTERVAL)
+	{
+		last_atime += ANIMATION_INTERVAL;	// closer to ideal rate
+
 		// but leads to catchup effect when moving window
 		for (i = 0; i < nb_animations; i++)
 			animations[i].framecount++;
+
 		// Force a redisplay to ensures our animations are updated
 		redisplay = true;
 	}
+
 
 	// Execute timed events, if any are in the queue
 	for (i = 0; i<NB_EVENTS; i++)
@@ -328,6 +363,9 @@ static void glut_idle(void)
 	if (!keep_message_on)
 		status_message = NULL;
 
+	// Reset the motion
+	dx = 0; 
+	d2y = 0;	
 
 #if !defined(PSP)
 	// Hey, GLUT, where's my bleeping callback on Windows?
@@ -335,10 +373,6 @@ static void glut_idle(void)
 	//     and the force func does not exist on PSP
 	glutForceJoystickFunc();	
 #endif
-
-	// Return to intro screen
-	if (key_down[KEY_ESCAPE])
-		exit(0);
 
 	// Alternate direction keys (non Joystick)
 	if (key_down[KEY_DIRECTION_LEFT])
@@ -506,13 +540,20 @@ static void glut_idle(void)
 	if (jd2y)
 		d2y = jd2y;
 
-	// We always call process motion
-	process_motion();
+	// This ensures that all the motions are in sync
+	if ((t - last_ptime) > REPOSITION_INTERVAL)
+	{
+		last_ptime = t;
+		move_guards();
+		redisplay = true;
+		process_motion();
+	}
 
 	// Can't hurt to sleep a while if we're motionless, so that
 	// we don't hammer down the CPU in a loop
 	if ((dx == 0) && (d2y == 0))
-		msleep(ANIMATION_INTERVAL/4);
+		msleep(1);
+//		msleep(REPOSITION_INTERVAL/5);
 }
 
 
@@ -578,7 +619,7 @@ int main (int argc, char *argv[])
 	int opt_error 			= 0;	// getopt
 
 	// General purpose
-	u32  i;
+	u32  i,j;
 
 
 #if defined(PSP)
@@ -590,8 +631,9 @@ int main (int argc, char *argv[])
 	gl_height = 2*PSP_SCR_HEIGHT;
 #endif
 
-	// Initialize our timer value
-	last_mtime = mtime();
+	// Initialize our timer values
+	last_atime = mtime();
+	last_ptime = last_atime;
 
 	glutInit(&argc, argv);
 
@@ -659,7 +701,6 @@ int main (int argc, char *argv[])
 	current_nation = 0;
 	// English
 	i = 0;
-	guybrush[i].ani_index = i;
 	guybrush[i].px = 940;
 	guybrush[i].p2y = 630;
 	guybrush[i].room = ROOM_OUTSIDE;
@@ -670,7 +711,6 @@ int main (int argc, char *argv[])
 	i++;
 
 	// French
-	guybrush[i].ani_index = i;
 	guybrush[i].px = 404;
 	guybrush[i].p2y = 707;
 	guybrush[i].room = ROOM_OUTSIDE;
@@ -681,7 +721,6 @@ int main (int argc, char *argv[])
 	i++;
 
 	// American
-	guybrush[i].ani_index = i;
 	guybrush[i].px = 1200;
 	guybrush[i].p2y = 700;
 	guybrush[i].room = ROOM_OUTSIDE;
@@ -692,7 +731,6 @@ int main (int argc, char *argv[])
 	i++;
 
 	// Polish
-	guybrush[i].ani_index = i;
 	guybrush[i].px = 1000;
 	guybrush[i].p2y = 600;
 	guybrush[i].room = ROOM_OUTSIDE;
@@ -702,14 +740,20 @@ int main (int argc, char *argv[])
 	guybrush[i].ext_bitmask = 0x8000001E;
 	i++;
 
-	guybrush[i].ani_index = i;
-	guybrush[i].px = 1300;
-	guybrush[i].p2y = 730;
-	guybrush[i].room = ROOM_OUTSIDE;
-	guybrush[i].state = STATE_MOVE;
-	guybrush[i].speed = 2;
-	guybrush[i].direction = 0;
-
+	for (j=0;j<NB_GUARDS;j++)
+	{
+//		guybrush[i].ani_index = i;
+//		animations[i].index = GUARD_WALK_ANI;
+		guybrush[i].px = readword(fbuffer[GUARDS],j*MENDAT_ITEM_SIZE + 2);
+		guybrush[i].p2y = 2*readword(fbuffer[GUARDS],j*MENDAT_ITEM_SIZE);
+		guybrush[i].room = readword(fbuffer[GUARDS],j*MENDAT_ITEM_SIZE+ 4);
+//		printf("%x: (%d,%d) %x\n", j, guybrush[i].px, guybrush[i].p2y,guybrush[i].room);
+		guybrush[i].state = STATE_MOVE;
+		guybrush[i].speed = 1;
+		guybrush[i].direction = 0;
+		i++;
+	}
+		
 	// We're going to convert the cells array, from 2 pixels per byte (paletted)
 	// to on RGB(A) word per pixel
 	rgbCells = (u8*) aligned_malloc(fsize[CELLS]*2*RGBA_SIZE, 16);

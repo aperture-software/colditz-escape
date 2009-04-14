@@ -111,7 +111,7 @@ do {									\
 
 
 // # files we'll be dealing with
-#define NB_FILES				11
+#define NB_FILES				13
 // Some handy identifier to make code reader friendly
 #define ROOMS					0
 #define CELLS					1
@@ -124,20 +124,26 @@ do {									\
 #define TUNNEL_IO				8
 #define PANEL_BASE1				9
 #define PANEL_BASE2				10
+#define GUARDS					11
+#define ROUTES					12
 #define RED						0
 #define GREEN					1
 #define BLUE					2
 // Never be short on filename sizes
 #define NAME_SIZE				256			
-#define FNAMES					{ "COLDITZ_ROOM_MAPS", "COLDITZ_CELLS", "PALS.BIN", "COLDITZ-LOADER",\
-								  "COMPRESSED_MAP", "SPRITES.SPR", "OBS.BIN", "PANEL.BIN",  \
-								  "TUNNELIODOORS.BIN", "panel_base1.raw", "panel_base2.raw" }
-#define FSIZES					{ 58828, 135944, 232, 56080, \
-								  33508, 71056, 2056, 11720, \
-								  120, 6144, 24576 }
+#define FNAMES					{ "COLDITZ_ROOM_MAPS", "COLDITZ_CELLS", "PALS.BIN", "COLDITZ-LOADER",	\
+								  "COMPRESSED_MAP", "SPRITES.SPR", "OBS.BIN", "PANEL.BIN",				\
+								  "TUNNELIODOORS.BIN", "panel_base1.raw", "panel_base2.raw",			\
+								  "MENDAT.BIN", "ROUTES.BIN" }
+#define FSIZES					{ 58828, 135944, 232, 56080,	\
+								  33508, 71056, 2056, 11720,	\
+								  120, 6144, 24576,				\
+								  1288, 13364 }
 // If we start the loader at address 0x80, we won't have to convert the pointers
 #define LOADER_PADDING			0x80
 #define NB_NATIONS				4
+#define NB_GUARDS				0x3D
+#define MENDAT_ITEM_SIZE		0x14
 #define PANEL_BASE1_W			64
 #define PANEL_BASE2_W			256
 #define PANEL_BASE_H			32
@@ -151,6 +157,7 @@ do {									\
 // tiles that need overlay, from LOADER
 #define SPECIAL_TILES_START		0x3F3A
 #define NB_SPECIAL_TILES		0x16
+#define FIREPLACE_TILE			0xE080
 //Sprites
 #define NB_STANDARD_SPRITES		0xD1
 // Panel sprites 
@@ -241,6 +248,8 @@ do {									\
 // Time between animation frames, in ms
 // 66 or 67 is about as close as we can get to the original game
 #define ANIMATION_INTERVAL		120
+// 20 ms provides the same speed (for patrols) as on the Amiga
+#define	REPOSITION_INTERVAL		12
 #define DIRECTION_STOPPED		-1
 // Animation data
 #define ANIMATION_OFFSET_BASE	0x89EA
@@ -252,8 +261,8 @@ do {									\
 #define KNEEL_ANI				0x03
 #define SLEEP_ANI				0x04
 #define WTF_ANI					0x05
-#define GER_WALK_ANI			0x06
-#define GER_RUN_ANI				0x07
+#define GUARD_WALK_ANI			0x06
+#define GUARD_RUN_ANI			0x07
 #define FIREPLACE_ANI			0x08
 #define DOOR_HORI_OPEN_ANI		0x09
 #define DOOR_HORI_CLOSE_ANI		0x0a
@@ -262,13 +271,13 @@ do {									\
 #define DOOR_LEFT_OPEN_ANI		0x0d
 #define DOOR_LEFT_CLOSE_ANI		0x0e
 #define CRAWL_ANI				0x0f
-#define GER_CRAWL_ANI			0x10
+#define GUARD_CRAWL_ANI			0x10
 #define SHOT_ANI				0x11
-#define GER_SHOT_ANI			0x12
-#define GER_SHOOTS_ANI			0x13
+#define GUARD_SHOT_ANI			0x12
+#define GUARD_SHOOTS_ANI		0x13
 #define KNEEL2_ANI				0x14
 #define KNEEL3_ANI				0x15
-#define GER_KNEEL_ANI			0x16
+#define GUARD_KNEEL_ANI			0x16
 
 #define STATE_WALK_SID			0xF6
 #define STATE_RUN_SID			0xF7
@@ -289,10 +298,12 @@ do {									\
 // For data file patching
 #define FIXED_CRM_VECTOR		0x50
 //#define R116_EXITS
-#define MAX_ANIMATIONS			64
+#define MAX_ANIMATIONS			0x80
 #define MAX_CURRENTLY_ANIMATED	16
 #define NB_ANIMATED_SPRITES		23
-#define NB_GUYBRUSHES			32
+// indiactes that no guybrush is associated to an animation
+#define NO_GUYBRUSH				-1
+#define NB_GUYBRUSHES			(NB_NATIONS + NB_GUARDS)
 // The current prisoner is always our first guybrush
 //#define PRISONER				0
 
@@ -312,6 +323,7 @@ do {									\
 #define FRENCH					1
 #define AMERICAN				2
 #define POLISH					3
+#define GUARD					4
 
 // Props
 #define NB_PROPS				16
@@ -400,8 +412,8 @@ do {									\
 #define KEY_ESCAPE				27
 #define KEY_PAUSE				SPECIAL_KEY_F5
 #define KEY_SLEEP				SPECIAL_KEY_F9
-#define KEY_PRISONERS_LEFT		SPECIAL_LEFT_MOUSE_BUTTON
-#define KEY_PRISONERS_RIGHT		SPECIAL_RIGHT_MOUSE_BUTTON
+#define KEY_PRISONERS_LEFT		0
+#define KEY_PRISONERS_RIGHT		0
 // The following are unused on the PSP
 #define KEY_BRITISH				SPECIAL_KEY_F1
 #define KEY_FRENCH				SPECIAL_KEY_F2
@@ -462,11 +474,7 @@ typedef struct
 {
 	u32	index;	// index for the ani in the LOADER table
 	s32	framecount;
-	/* For animated overlays, direction is one of:
-	 *    5  6  7
-	 *    4 -1  0 
-	 *    3  2  1   */
-	s16	direction;
+	s16	guybrush_index;
 	u32 end_of_ani_parameter;
 	void (*end_of_ani_function)(u32);
 } s_animation;
@@ -484,10 +492,16 @@ typedef struct
 	s16   px;
 	s16   p2y;
 	s16   speed;
+	/* For animated overlays, direction is one of:
+	 *    5  6  7
+	 *    4 -1  0 
+	 *    3  2  1   */
 	s16   direction;
 	u32	  ext_bitmask;
 	u8	  state;
 	u8	  ani_index;
+	bool  ani_set;
+	u32   go_on;
 } s_guybrush;
 
 
@@ -497,6 +511,7 @@ extern int	opt_debug;
 extern int	opt_sid;
 extern int	opt_play_as_the_safe;
 extern int	opt_keymaster;
+extern int	opt_thrillerdance;
 extern int	stat;
 extern int  debug_flag;
 extern u8   *mbuffer;
@@ -513,6 +528,7 @@ extern u8	over_prop, over_prop_id;
 extern u8	panel_chars[NB_PANEL_CHARS][8*8*2];
 extern char*	status_message;
 extern bool redisplay;
+extern s16 directions[3][3], dir_to_dx[8], dir_to_d2y[8];
 
 
 // Data specific global variables
@@ -560,7 +576,7 @@ static __inline bool read_key_once(u8 k)
 extern bool	keep_message_on;
 extern s_animation	animations[MAX_ANIMATIONS];
 extern u8	nb_animations;
-extern u64	last_mtime;
+//extern u64	last_mtime;
 extern s_guybrush	guybrush[NB_GUYBRUSHES];
 extern s_event		events[NB_EVENTS];
 
