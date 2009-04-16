@@ -73,9 +73,9 @@ int	gl_width, gl_height;
 //int prisoner_x = 900, prisoner_2y = 600;
 //int prisoner_x = 1339, prisoner_2y = 895;
 //int prisoner_x = 0, prisoner_2y = 0;
-int last_p_x = 0, last_p_y = 0;
-int dx = 0, d2y = 0;
-int jdx, jd2y;
+s16 last_p_x = 0, last_p_y = 0;
+s16 dx = 0, d2y = 0;
+s16 jdx, jd2y;
 //u8	p_sid_base	 = 0x00;
 // prisoner_run = 0x1F
 // german_walk  = 0x37 (with rifle)
@@ -85,13 +85,12 @@ int jdx, jd2y;
 // Could use a set of flags, but more explicit this way
 bool key_down[256], key_readonce[256];
 
-bool redisplay = true;
 bool init_animations = true;
 bool keep_message_on = false;
 s_animation	animations[MAX_ANIMATIONS];
 u8	nb_animations = 0;
 // last time for Animations and rePosition of the guards
-u64 last_atime, last_ptime;
+u64 last_atime, last_ptime, ctime, last_ctime;
 u64 keep_message_mtime_start;
 s_guybrush guybrush[NB_GUYBRUSHES];
 s_event	events[NB_EVENTS];
@@ -207,11 +206,11 @@ static void glut_reshape (int w, int h)
 
 void process_motion(void)
 {
-	int new_direction;
-	int exit;
+	s16 new_direction;
+	s16 exit;
 	
 	if ( (prisoner_state != STATE_STOP) && (prisoner_state != STATE_MOVE) )
-	{	// prevent motion for all other
+	{	// prevent motion in motionless states (kneeling, sleeping, ...)
 		dx=0;
 		d2y=0;
 	}
@@ -226,9 +225,8 @@ void process_motion(void)
 			if (exit>0)
 			{
 //				printf("exit[%d], from room[%X]\n", exit-1, current_room_index);
-				switch_room(exit-1, dx, d2y);
+				switch_room(exit-1);
 				// keep_message_on = false;	// we could do without this
-				redisplay = true;
 			}
 			// Change the last direction so that we use the right sid for stopping
 			prisoner_dir = directions[d2y+1][dx+1];
@@ -256,21 +254,11 @@ void process_motion(void)
 		// Update the animation direction
 		prisoner_dir = new_direction;
 //		animations[prisoner_ani].direction = new_direction;
-
-		// Force a redisplay
-		redisplay = true;
-
 	}
 	else if (prisoner_state == STATE_MOVE)
 	{	// We just stopped
 		prisoner_state = STATE_STOP;
-		redisplay = true;
 	}
-
-	if (redisplay) 
-		glut_display();
-//	else
-//		printf("no redisplay [%d]\n", mtime());
 }
 
 // restore guybrush & animation parameters after a one shot ani
@@ -306,12 +294,17 @@ static void glut_idle(void)
 	// We'll need the current time value for a bunch of stuff
 	t = mtime();
 
+	// clock timer
+	ctime += t;
+
+	// Toggle pause
 	if (read_key_once(KEY_PAUSE))
 	{
 		if (paused)
 		{
 			last_atime += (t - paused_time);
 			last_ptime += (t - paused_time);
+			ctime += (t - paused_time);
 			paused = false;
 		}
 		else
@@ -321,11 +314,18 @@ static void glut_idle(void)
 		}
 	}
 
+	// Are we paused right now
 	if (paused)
 	{
 		// We should be able to sleep for a while
-		msleep(50);
+		msleep(PAUSE_DELAY);
 		return;
+	}
+
+	// Tick?
+	if (ctime - last_ctime > TIME_MARKER)
+	{
+		ctime -= last_ctime;
 	}
 
 	// Increment animations framecounts
@@ -336,9 +336,6 @@ static void glut_idle(void)
 		// but leads to catchup effect when moving window
 		for (i = 0; i < nb_animations; i++)
 			animations[i].framecount++;
-
-		// Force a redisplay to ensures our animations are updated
-		redisplay = true;
 	}
 
 
@@ -402,7 +399,6 @@ static void glut_idle(void)
 			animations[prisoner_ani].index = WALK_ANI;
 		}
 		animations[prisoner_ani].framecount = 0;
-		redisplay = true;
 	}
 
 	// The following keys are only handled if we are in a premissible state
@@ -425,7 +421,6 @@ static void glut_idle(void)
 				init_animations = true;
 				keep_message_on = false;
 				set_room_props();
-				redisplay = true;
 				break;
 			}
 
@@ -450,8 +445,6 @@ static void glut_idle(void)
 			else
 				selected_prop[current_nation] = 0;
 
-			// We need to update our panel
-			redisplay = true;
 //			printf("selected prop = %02X\n", selected_prop[current_nation]);
 		}
 
@@ -530,7 +523,6 @@ static void glut_idle(void)
 					over_prop_id = 0;
 				}
 			}
-			redisplay = true;
 		}
 	}
 
@@ -544,15 +536,24 @@ static void glut_idle(void)
 	if ((t - last_ptime) > REPOSITION_INTERVAL)
 	{
 		last_ptime = t;
-		move_guards();
-		redisplay = true;
+		// Update the guards positions
+		if (move_guards())
+		{	// we have a collision with a guard => kill our motion
+			// but before we do that, change our direction accordingly
+			if (dx || d2y)
+				prisoner_dir = directions[d2y+1][dx+1];
+			dx = 0; d2y = 0;
+		}
+		// Upate our guy's position
 		process_motion();
+		// Always redisplay, as there might be a guard moving
+		glut_display();
 	}
 
 	// Can't hurt to sleep a while if we're motionless, so that
 	// we don't hammer down the CPU in a loop
 	if ((dx == 0) && (d2y == 0))
-		msleep(1);
+		msleep(3);
 //		msleep(REPOSITION_INTERVAL/5);
 }
 
@@ -632,8 +633,9 @@ int main (int argc, char *argv[])
 #endif
 
 	// Initialize our timer values
-	last_atime = mtime();
-	last_ptime = last_atime;
+	last_ctime = mtime();
+	last_atime = last_ctime;
+	last_ptime = last_ctime;
 
 	glutInit(&argc, argv);
 
@@ -751,6 +753,7 @@ int main (int argc, char *argv[])
 		guybrush[i].state = STATE_MOVE;
 		guybrush[i].speed = 1;
 		guybrush[i].direction = 0;
+		guybrush[i].wait = 0;
 		i++;
 	}
 		

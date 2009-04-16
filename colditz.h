@@ -249,7 +249,14 @@ do {									\
 // 66 or 67 is about as close as we can get to the original game
 #define ANIMATION_INTERVAL		120
 // 20 ms provides the same speed (for patrols) as on the Amiga
-#define	REPOSITION_INTERVAL		12
+#define	REPOSITION_INTERVAL		15
+// How long should we sleep when paused (ms)
+#define PAUSE_DELAY				50
+// Muhahahahahaha!!! Fear not, mere mortals, for I will...
+#define TIME_MARKER				20000
+// How long should the guard remain blocked (innb of route steps)
+// default of the game is 0x64
+#define BLOCKED_GUARD_TIMEOUT	0xC0			
 #define DIRECTION_STOPPED		-1
 // Animation data
 #define ANIMATION_OFFSET_BASE	0x89EA
@@ -287,7 +294,7 @@ do {									\
 // doubt we'll need more than simultaneously enqueued events in all
 #define NB_EVENTS				4
 
-// How do we need to shift our whole room up so that the seams don't show
+// How much we need to shift our screen so the seams don't show
 #define NORTHWARD_HO			28
 // for our z index, for overlays
 // Oh, and don't try to be smart and use 0x8000, because unless you do an
@@ -317,6 +324,8 @@ do {									\
 #define STATE_SHOOT				6
 #define STATE_SHOT				7
 #define STATE_SHOWER			8
+#define STATE_BLOCKED_STOP		9
+#define STATE_BLOCKED_MOVE		10
 
 // Nationalities
 #define BRITISH					0
@@ -502,6 +511,7 @@ typedef struct
 	u8	  ani_index;
 	bool  ani_set;
 	u32   go_on;
+	u16   wait;
 } s_guybrush;
 
 
@@ -527,7 +537,6 @@ extern u16	room_props[NB_OBSBIN];
 extern u8	over_prop, over_prop_id;
 extern u8	panel_chars[NB_PANEL_CHARS][8*8*2];
 extern char*	status_message;
-extern bool redisplay;
 extern s16 directions[3][3], dir_to_dx[8], dir_to_d2y[8];
 
 
@@ -549,8 +558,10 @@ extern u8 current_nation;
 #define prisoner_state guybrush[current_nation].state
 #define prisoner_dir   guybrush[current_nation].direction
 #define rem_bitmask	   guybrush[current_nation].ext_bitmask
-extern int  last_p_x, last_p_y;
-extern int  dx, d2y;
+#define guy(i)		   guybrush[i]
+#define guard(i)	   guy(i+NB_NATIONS)
+extern s16  last_p_x, last_p_y;
+extern s16  dx, d2y;
 extern u8  prisoner_sid;
 
 //extern u16  current_room_index;

@@ -45,7 +45,8 @@ extern "C" {
 			continue
 
 #define get_guybrush_sid(x)					\
-	((guybrush[x].state == STATE_STOP)?get_stop_animation_sid(guybrush[x].ani_index):get_animation_sid(guybrush[x].ani_index))
+	(((guybrush[x].state == STATE_STOP)||(guybrush[x].state == STATE_BLOCKED_STOP)||(guybrush[x].state == STATE_BLOCKED_MOVE))?	\
+		get_stop_animation_sid(guybrush[x].ani_index):get_animation_sid(guybrush[x].ani_index))
 
 #define request_status_message(msg)	\
 	if ((!keep_message_on) && (!status_message)) status_message = (char*)(msg)
@@ -67,14 +68,14 @@ void display_room();
 void display_panel();
 void rescale_buffer();
 void get_properties();
-void move_guards();
+int move_guards();
 #if !defined(PSP)
 void glutPrintf(const char *fmt, ...);
 #endif
 void init_sprites();
 void sprites_to_wGRAB();
-int check_footprint(int dx, int d2y);
-void switch_room(int exit, int dx, int dy);
+s16 check_footprint(s16 dx, s16 d2y);
+void switch_room(s16 exit);
 void fix_files();
 void set_room_props();
 

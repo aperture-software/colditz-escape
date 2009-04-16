@@ -1419,67 +1419,138 @@ u8 i, sid;
 }
 
 
-void move_guards()
+int move_guards()
 {
-	int i;
+
+	int i, p;
 	u32 route_pos;
 	u16 route_data;
+	bool continue_parent;
+	bool but_i_just_got_out;
+
+	int	kill_motion = 0;
+
+#define guard_collision(i, pos_x, pos_2y)									\
+	( ((pos_x+16) >= (guard(i).px - 10)) && ((pos_x+16) <= (guard(i).px + 10)) &&	\
+	  ((pos_2y+8) >= (guard(i).p2y - 8)) && ((pos_2y+8) <= (guard(i).p2y + 8)) )
+
 
 	for (i=0; i<NB_GUARDS; i++)
 	{
-		if (guybrush[i+NB_NATIONS].go_on > 0)
+		// 0a. We'll use this variable to break this loop from a child loop if needed
+		continue_parent = false;
+
+		// 0b. This one is to make sure that we execute at least one more step from 
+		// the route at the end of the blocked timeout 
+		// (prevents the blocking of guards by unattended prisoners)
+		but_i_just_got_out = false;
+
+		// 1. Check if we have a collision between our current prisoner and the guard
+		//    (and kill our motion as a result)
+		p = current_nation;
+		if ((guard(i).room == current_room_index) && guard_collision(i, guy(p).px, guy(p).p2y))
+			kill_motion = -1;
+
+		// 2. Deal with guards that are currently being blocked by a prisoner
+		if ((guard(i).state == STATE_BLOCKED_STOP) || (guard(i).state == STATE_BLOCKED_MOVE))
 		{
-			guybrush[i+NB_NATIONS].go_on--;
+			// Did our blocking counter just reach zero
+			if (guard(i).wait == 0)
+			{
+				// Is our prisoner blocked but still trying to get out at the end of the guard's pause?
+				if ((kill_motion) && (dx || d2y))
+				{	
+					// Prevent blocking (butter guard!)
+					kill_motion = 0;
+					continue;
+				}
+
+				// Nicely restore to STATE_MOVE or STATE_STOP
+				guard(i).state -= STATE_BLOCKED_STOP;
+				but_i_just_got_out = true;
+
+				// Not issuing a continue here allows us to progress one step further
+				// even if blocked
+			}
+			else
+			{	// decrement our counter, and ignore motion
+				guard(i).wait--;
+				continue;
+			}
+		}
+
+		// 3. Check for a route collision with one of the prisoners
+		for (p = 0; p<NB_NATIONS; p++)
+		{
+			// is a prisoner in the same room & within a range of our guard
+			if ( (guard(i).room == guybrush[p].room) && guard_collision(i, guy(p).px, guy(p).p2y) 
+				  // Also, have NOT just exited a blocked timeout loop
+				  && (!but_i_just_got_out))
+			{
+				// Setup the blocked counter
+				guard(i).wait = BLOCKED_GUARD_TIMEOUT;
+				// And indicate that we are stopped
+				guard(i).state += STATE_BLOCKED_STOP;
+				// Ah shoot, we need to continue the parent "for" loop
+				continue_parent = true;
+				// Break this loop then
+				break;
+			}
+		}
+
+		// Messy, but works
+		if (continue_parent)
+			continue;
+
+		// Go_on = 0 indicates if there's a change of our current route action
+		if (guard(i).go_on > 0)
+		{	// continue in the same direction
+			guard(i).go_on--;
 
 			// If we're moving, increment our position
-			if (guybrush[i+NB_NATIONS].state == STATE_MOVE)
+			if (guard(i).state == STATE_MOVE)
 			{
-				guybrush[i+NB_NATIONS].px += guybrush[i+NB_NATIONS].speed * 
-					dir_to_dx[guybrush[i+NB_NATIONS].direction];
-				guybrush[i+NB_NATIONS].p2y += guybrush[i+NB_NATIONS].speed * 
-					dir_to_d2y[guybrush[i+NB_NATIONS].direction];
+				guard(i).px += guard(i).speed * dir_to_dx[guard(i).direction];
+				guard(i).p2y += guard(i).speed * dir_to_d2y[guard(i).direction];
 			}
 			continue;
 		}
 
-		// get our current route position
+		// Change in route => get our current route position
 		route_pos = readlong(fbuffer[GUARDS], i*MENDAT_ITEM_SIZE + 0x0E);
 
 		// Read the first word
 		route_data = readword(fbuffer[ROUTES], route_pos);
 		if (route_data == 0xFFFF)
-		{	// back to start route
+		{	// repeat => back to start of route
 			route_pos = readlong(fbuffer[GUARDS], i*MENDAT_ITEM_SIZE + 0x06);
 			route_data = readword(fbuffer[ROUTES], route_pos);
-			guybrush[i+NB_NATIONS].px = readword(fbuffer[GUARDS],i*MENDAT_ITEM_SIZE + 2);
-			guybrush[i+NB_NATIONS].p2y = 2*readword(fbuffer[GUARDS],i*MENDAT_ITEM_SIZE);
-			guybrush[i+NB_NATIONS].room = readword(fbuffer[GUARDS],i*MENDAT_ITEM_SIZE + 4);
+			guard(i).px = readword(fbuffer[GUARDS],i*MENDAT_ITEM_SIZE + 2);
+			guard(i).p2y = 2*readword(fbuffer[GUARDS],i*MENDAT_ITEM_SIZE);
+			guard(i).room = readword(fbuffer[GUARDS],i*MENDAT_ITEM_SIZE + 4);
 		}
 
 		if (route_data & 0x8000)
-		{	// absolute position
-			guybrush[i+NB_NATIONS].room = readword(fbuffer[ROUTES], route_pos + 2);
-			guybrush[i+NB_NATIONS].px = readword(fbuffer[ROUTES], route_pos + 6);
-			guybrush[i+NB_NATIONS].p2y = 2*readword(fbuffer[ROUTES], route_pos + 4);
+		{	// absolute positioning (eg. when switching rooms)
+			guard(i).room = readword(fbuffer[ROUTES], route_pos + 2);
+			guard(i).px = readword(fbuffer[ROUTES], route_pos + 6);
+			guard(i).p2y = 2*readword(fbuffer[ROUTES], route_pos + 4);
 			route_pos +=10;
 		}
 		else
-		{
-			// How long do we need to keep at it
-			guybrush[i+NB_NATIONS].go_on = route_data;
+		{	// standard route action
+			guard(i).go_on = route_data; // How long do we need to keep at it
 			route_data =  readword(fbuffer[ROUTES], route_pos + 2);
 			if (route_data == 0xFFFF)
-				// pause
-				guybrush[i+NB_NATIONS].state = STATE_STOP;
+				// stopped state (pause)
+				guard(i).state = STATE_STOP;
 			else
-			{
-				guybrush[i+NB_NATIONS].direction = route_data;
-				guybrush[i+NB_NATIONS].state = STATE_MOVE;
+			{	// motion state
+				guard(i).direction = route_data;
+				guard(i).state = STATE_MOVE;
 				// Change our position
-				guybrush[i+NB_NATIONS].px += guybrush[i+NB_NATIONS].speed * 
-					dir_to_dx[guybrush[i+NB_NATIONS].direction];
-				guybrush[i+NB_NATIONS].p2y += guybrush[i+NB_NATIONS].speed * 
-					dir_to_d2y[guybrush[i+NB_NATIONS].direction];
+				guard(i).px += guard(i).speed * dir_to_dx[guard(i).direction];
+				guard(i).p2y += guard(i).speed * dir_to_d2y[guard(i).direction];
 			}
 			route_pos += 4;
 		}
@@ -1488,10 +1559,12 @@ void move_guards()
 		writelong(fbuffer[GUARDS], i*MENDAT_ITEM_SIZE+0x0E, route_pos);
 
 	}
+
+	return kill_motion;
 }
 
+
 // Display room
-// This function effectively consumes our redisplay boolean
 void display_room()
 {
 // OK, I'll spare you the suspense: this is NOT optimized as hell!
@@ -1715,9 +1788,6 @@ void display_room()
 	// We'll need that for next run
 	last_p_x = prisoner_x;
 	last_p_y = prisoner_2y/2; 
-
-	// consume the redisplay variable
-	redisplay = false;
 }
 
 void display_message(char string[])
@@ -2048,7 +2118,8 @@ void enqueue_event(void (*f)(u32), u32 p, u64 delay)
 // non zero if allowed (-1 if not an exit, or the exit number)
 // 0 if not allowed
 // TO_DO: remove gotit debug code
-int check_footprint(int dx, int d2y)
+// Be mindful that the dx, d2y used here are not the same as the global values from main!
+s16 check_footprint(s16 dx, s16 d2y)
 {
 	u32 tile, tile_mask, exit_mask, offset=0;
 	u32 ani_offset;
@@ -2058,10 +2129,10 @@ int check_footprint(int dx, int d2y)
 	// maks offsets for upper-left, upper-right, lower-left, lower_right tiles
 	u32 mask_offset[4];	// tile boundary
 	u32 exit_offset[4];	// exit boundary
-	int tile_x, tile_y, exit_dx[2];
+	s16 tile_x, tile_y, exit_dx[2];
 	u8 i,u,sid;
-	int gotit = -1;
-	int px, p2y;
+	s16 gotit = -1;
+	s16 px, p2y;
 	u8	exit_flags;
 	u8	exit_nr;
 
@@ -2320,15 +2391,15 @@ int check_footprint(int dx, int d2y)
 }
 
 
-void switch_room(int exit_nr, int dx, int d2y)
+void switch_room(s16 exit_nr)
 {
 	u32 offset;
 	u16 exit_index;	// exit index in destination room
 	u16 room_x, room_y, tile_data;
-	int tile_x, tile_y;
-	int u;
+	s16 tile_x, tile_y;
+	u32 u;
 	bool found;
-	int pixel_x, pixel_y;
+	s16 pixel_x, pixel_y;
 	u8  bit_index;
 
 
