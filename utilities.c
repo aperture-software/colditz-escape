@@ -45,6 +45,7 @@ u32 exit_flags_offset;
 //u32 debug_counter = 0;
 s16	gl_off_x = 0, gl_off_y  = 0;
 char panel_message[256];
+u32 next_timed_event_ptr = TIMED_EVENTS_INIT;
 
 // Bummer! The way they setup their animation overlays and the way I 
 // do it to be more efficient means I need to define a custom table
@@ -1924,17 +1925,23 @@ void display_panel()
 	display_sprite(PANEL_FLAGS_X, PANEL_TOP_Y, sprite[PANEL_FLAGS_BASE_SID+current_nation].w,
 		sprite[PANEL_FLAGS_BASE_SID+current_nation].h, sprite_texid[PANEL_FLAGS_BASE_SID+current_nation]);
 
-	sid = PANEL_CLOCK_DIGITS_BASE + 1;
+	// Unlike the original game, I like having the zero displayed on hours tens, always
+	sid = PANEL_CLOCK_DIGITS_BASE + hours_digit_h;
 	display_sprite(PANEL_CLOCK_HOURS_X, PANEL_TOP_Y,
 			sprite[sid].w, sprite[sid].h, sprite_texid[sid]);
-	sid = PANEL_CLOCK_DIGITS_BASE + 4;
+
+	// Hours, units
+	sid = PANEL_CLOCK_DIGITS_BASE + hours_digit_l;
 	display_sprite(PANEL_CLOCK_HOURS_X + PANEL_CLOCK_DIGITS_W, PANEL_TOP_Y,
 			sprite[sid].w, sprite[sid].h, sprite_texid[sid]);
 
-	sid = PANEL_CLOCK_DIGITS_BASE + 0;
+	// Minute, tens
+	sid = PANEL_CLOCK_DIGITS_BASE + minutes_digit_h;
 	display_sprite(PANEL_CLOCK_MINUTES_X, PANEL_TOP_Y,
 			sprite[sid].w, sprite[sid].h, sprite_texid[sid]);
-	sid = PANEL_CLOCK_DIGITS_BASE + 3;
+
+	// Minutes, units
+	sid = PANEL_CLOCK_DIGITS_BASE + minutes_digit_l;
 	display_sprite(PANEL_CLOCK_MINUTES_X + PANEL_CLOCK_DIGITS_W, PANEL_TOP_Y,
 			sprite[sid].w, sprite[sid].h, sprite_texid[sid]);
 
@@ -1966,6 +1973,52 @@ void display_panel()
 
 	display_message(status_message);
 }
+
+// Handle timed events (palette change, rollcalls, ...)
+void timed_events(u16 hours, u16 minutes_high, u16 minutes_low)
+{
+	u16 event_data;
+
+	// Read the hour (or reset marker)
+	event_data = readword(fbuffer[LOADER], next_timed_event_ptr);
+
+	// Negative => reset
+	if (event_data & 0x8000)
+		next_timed_event_ptr = TIMED_EVENTS_BASE;
+		// NB: we'll use the next comparison to safely return on above event
+
+	if (event_data != hours)
+		return;
+
+	// Read the minutes tens
+	event_data = readword(fbuffer[LOADER], next_timed_event_ptr+2);
+	if (event_data != minutes_high)
+		return;
+
+	// Read the minutes units
+	event_data = readword(fbuffer[LOADER], next_timed_event_ptr+4);
+	if (event_data != minutes_low)
+		return;
+
+	// Time match => deal with the event
+	event_data = readword(fbuffer[LOADER], next_timed_event_ptr+6);
+
+	// Change the palette
+	if (event_data == TIMED_EVENT_PALETTE)
+	{
+		palette_index = readbyte(fbuffer[LOADER], next_timed_event_ptr+9);
+		to_16bit_palette(palette_index, 0xFF, PALETTES);
+		cells_to_wGRAB(fbuffer[CELLS],rgbCells);
+		sprites_to_wGRAB();
+		next_timed_event_ptr += 10;
+	}
+	else
+	{	// Rollcall, etc.
+		printf("got event %04X\n", event_data);
+		next_timed_event_ptr += 8;
+	}
+}
+
 
 
 // Here is the long sought after "zooming the ****ing 2D colour buffer" function.

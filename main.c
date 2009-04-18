@@ -90,7 +90,7 @@ bool keep_message_on = false;
 s_animation	animations[MAX_ANIMATIONS];
 u8	nb_animations = 0;
 // last time for Animations and rePosition of the guards
-u64 last_atime, last_ptime, ctime, last_ctime;
+u64 last_atime, last_ptime, last_ctime;
 u64 keep_message_mtime_start;
 s_guybrush guybrush[NB_GUYBRUSHES];
 s_event	events[NB_EVENTS];
@@ -104,10 +104,11 @@ u8	panel_chars[NB_PANEL_CHARS][8*8*2];
 char* status_message;
 bool paused = false;
 u64  paused_time;
+u8  hours_digit_h, hours_digit_l, minutes_digit_h, minutes_digit_l;
 
 //u16  current_room_index = ROOM_OUTSIDE;
 u16  nb_rooms, nb_cells, nb_objects;
-u8   palette_index = 4;
+u8	 palette_index = 4;
 s_sprite*	sprite;
 s_overlay*	overlay;
 u8   overlay_index;
@@ -295,7 +296,7 @@ static void glut_idle(void)
 	t = mtime();
 
 	// clock timer
-	ctime += t;
+//	ctime += t;
 
 	// Toggle pause
 	if (read_key_once(KEY_PAUSE))
@@ -304,7 +305,7 @@ static void glut_idle(void)
 		{
 			last_atime += (t - paused_time);
 			last_ptime += (t - paused_time);
-			ctime += (t - paused_time);
+			last_ctime += (t - paused_time);
 			paused = false;
 		}
 		else
@@ -322,11 +323,35 @@ static void glut_idle(void)
 		return;
 	}
 
-	// Tick?
-	if (ctime - last_ctime > TIME_MARKER)
+	// Clock minute tick?
+	if ((t - last_ctime) > TIME_MARKER)
 	{
-		ctime -= last_ctime;
+		last_ctime += TIME_MARKER;
+		minutes_digit_l++;
+		if (minutes_digit_l == 10)
+		{
+			minutes_digit_h++;
+			minutes_digit_l = 0;
+			if (minutes_digit_h == 6)
+			{
+				hours_digit_l++;
+				minutes_digit_h = 0;
+				if (hours_digit_l == 10)
+				{
+					hours_digit_h++;
+					hours_digit_l = 0;
+				}
+				if ((hours_digit_l == 4) && (hours_digit_h == 2))
+				{
+					hours_digit_l = 0;
+					hours_digit_h = 0;
+				}
+			}
+		}
 	}
+
+	// Check for timed events
+	timed_events(hours_digit_h*10+hours_digit_l, minutes_digit_h, minutes_digit_l);
 
 	// Increment animations framecounts
 	if ((t - last_atime) > ANIMATION_INTERVAL)
@@ -636,6 +661,12 @@ int main (int argc, char *argv[])
 	last_ctime = mtime();
 	last_atime = last_ctime;
 	last_ptime = last_ctime;
+
+	// start time
+	hours_digit_h = 0;
+	hours_digit_l = 9;
+	minutes_digit_h = 3;
+	minutes_digit_l = 5;
 
 	glutInit(&argc, argv);
 

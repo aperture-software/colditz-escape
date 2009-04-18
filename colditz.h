@@ -253,10 +253,17 @@ do {									\
 // How long should we sleep when paused (ms)
 #define PAUSE_DELAY				50
 // Muhahahahahaha!!! Fear not, mere mortals, for I will...
-#define TIME_MARKER				20000
+//#define TIME_MARKER				20000
+#define TIME_MARKER				100
 // How long should the guard remain blocked (innb of route steps)
 // default of the game is 0x64
-#define BLOCKED_GUARD_TIMEOUT	0xC0			
+#define BLOCKED_GUARD_TIMEOUT	0xC0
+// Timed events from LOADER (roll call, palette change)
+#define TIMED_EVENTS_BASE		0x2BDE
+// First timed event of the game
+#define TIMED_EVENTS_INIT		0x2C1A
+// Palette change type
+#define TIMED_EVENT_PALETTE		0xFFFF	
 #define DIRECTION_STOPPED		-1
 // Animation data
 #define ANIMATION_OFFSET_BASE	0x89EA
@@ -538,6 +545,8 @@ extern u8	over_prop, over_prop_id;
 extern u8	panel_chars[NB_PANEL_CHARS][8*8*2];
 extern char*	status_message;
 extern s16 directions[3][3], dir_to_dx[8], dir_to_d2y[8];
+extern u8  hours_digit_h, hours_digit_l, minutes_digit_h, minutes_digit_l;
+extern u8	 palette_index;
 
 
 // Data specific global variables

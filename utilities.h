@@ -78,6 +78,7 @@ s16 check_footprint(s16 dx, s16 d2y);
 void switch_room(s16 exit);
 void fix_files();
 void set_room_props();
+void timed_events(u16 hours, u16 minutes_high, u16 minutes_low);
 
 
 
