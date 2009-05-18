@@ -129,8 +129,8 @@ do {									\
 #define RED						0
 #define GREEN					1
 #define BLUE					2
-// Never be short on filename sizes
-#define NAME_SIZE				256			
+// Never be too short on filename sizes
+#define NAME_SIZE				128			
 #define FNAMES					{ "COLDITZ_ROOM_MAPS", "COLDITZ_CELLS", "PALS.BIN", "COLDITZ-LOADER",	\
 								  "COMPRESSED_MAP", "SPRITES.SPR", "OBS.BIN", "PANEL.BIN",				\
 								  "TUNNELIODOORS.BIN", "panel_base1.raw", "panel_base2.raw",			\
@@ -139,6 +139,21 @@ do {									\
 								  33508, 71056, 2056, 11720,	\
 								  120, 6144, 24576,				\
 								  1288, 13364 }
+
+// Static IFF images (intro, events, gameover, etc)
+#define NB_IFFS					20
+#define IFF_NAMES				{ "PIC.1(SOLITARY)", "PIC.1(SOLITARY)FREE", "PIC.2(APPELL)", "PIC.3(SHOT)",	\
+								  "PIC.4(FREE-1)", "PIC.5(CURFEW)", "PIC.6(EXERCISE)", "PIC.7(CONFINED)",	\
+								  "PIC.A(FREE-ALL)", "PIC.B(GAME-OVER)", "PIC.A(FREE-ALL)TEXT",				\
+								  "PIC.B(GAME-OVER)TEXT", "STARTSCREEN0", "STARTSCREEN1", "STARTSCREEN2",	\
+								  "STARTSCREEN3", "STARTSCREEN4", "PIC.8(PASS)", "PIC.9(PAPERS)", "APER"  }
+#define IFF_PAYLOAD_W			{ 320, 320, 320, 320, 320, 320, 320, 320, 320, 320,	\
+								  320, 320, 320, 320, 320, 320, 320, 320, 320, 480 }
+#define IFF_PAYLOAD_H			{ 192, 192, 192, 192, 192, 192, 192, 192, 192, 192,	\
+								  192, 192, 200, 200, 200, 200, 200, 192, 192, 272 }
+// Loader table containing the IFF indexes to use for various events
+#define IFF_INDEX_TABLE			0x7A80
+
 // If we start the loader at address 0x80, we won't have to convert the pointers
 #define LOADER_PADDING			0x80
 #define NB_NATIONS				4
@@ -250,11 +265,13 @@ do {									\
 #define ANIMATION_INTERVAL		120
 // 20 ms provides the same speed (for patrols) as on the Amiga
 #define	REPOSITION_INTERVAL		15
-// How long should we sleep when paused (ms)
-#define PAUSE_DELAY				50
+// How long should we sleep when paused or between each fade step (ms)
+#define PAUSE_DELAY				40
 // Muhahahahahaha!!! Fear not, mere mortals, for I will...
 //#define TIME_MARKER				20000
-#define TIME_MARKER				100
+#define TIME_MARKER				10000
+// NB: This is the duration of a game minute, in ms
+
 // How long should the guard remain blocked (innb of route steps)
 // default of the game is 0x64
 #define BLOCKED_GUARD_TIMEOUT	0xC0
@@ -305,9 +322,9 @@ do {									\
 #define NORTHWARD_HO			28
 // for our z index, for overlays
 // Oh, and don't try to be smart and use 0x8000, because unless you do an
-// explicit cast, you will get strange things line short variables set to
-// MIN_Z never equating MIN_Z in comparisons
-// gcc: comparison is always false due to limited range of data type
+// explicit cast, you will get strange things line short variables that you
+// explicitely set to MIN_Z never equating MIN_Z in comparisons
+// NB: gcc will issue a "comparison is always false due to limited range of data type"
 #define MIN_Z					-32768
 // For data file patching
 #define FIXED_CRM_VECTOR		0x50
@@ -322,6 +339,15 @@ do {									\
 //#define PRISONER				0
 
 // Our guy's states
+// bit 1 = move/stop
+// bit 2 = in_tunnel
+// bit 3 = stooge
+// bit 4 = blocked
+// bit 5 = sleep
+// bit 6 = shower
+// bit 7 = shooting
+// bit 8 = shot
+/*
 #define STATE_STOP				0
 #define STATE_MOVE				1
 #define STATE_CRAWL				2
@@ -333,6 +359,18 @@ do {									\
 #define STATE_SHOWER			8
 #define STATE_BLOCKED_STOP		9
 #define STATE_BLOCKED_MOVE		10
+*/
+// These states allow the handling of keys
+#define STATE_MOTION			1
+#define STATE_TUNNELING			2
+#define STATE_STOOGE			4
+#define STATE_BLOCKED			8
+#define STATE_KNEEL				16
+#define STATE_SHOT				32
+#define MOTION_DISALLOWED		(~(STATE_MOTION|STATE_TUNNELING|STATE_STOOGE))
+#define KNEEL_DISALLOWED		(~(STATE_MOTION|STATE_STOOGE))
+#define STATE_ANIMATED			(STATE_MOTION|STATE_KNEEL)
+
 
 // Nationalities
 #define BRITISH					0
@@ -360,10 +398,14 @@ do {									\
 #define ITEM_PAPERS				0x0D
 #define ITEM_STETHOSCOPE		0x0E
 // Alright, the next item doesn't really exists, but if you add it
-// manually in the original game, you get to "drop" an inflatable 
+// manually in the original game, you get to drop an "inflatable" 
 // prisoner's dummy ;)
 // In the orginal, the item's identified as "ROUND TOWER"
 #define ITEM_INFLATABLE_DUMMY	0x0F
+
+// Because the colours are 4 or 5 bits, starting a fade at 0 is 
+// not advisable
+#define FADE_START_VALUE		0.2f
 
 // Redefinition of GLUT's special keys so that they fit in our key table
 #define SPECIAL_KEY_OFFSET		0x80
@@ -442,7 +484,7 @@ do {									\
 #endif
 
 #define KEY_DEBUG_PRINT_POS		'p'
-
+#define KEY_DEBUG_LOAD_IFF		'#'
 
 
 // Stupid VC++ doesn't know the basic formats it can actually use!
@@ -529,12 +571,14 @@ extern int	opt_sid;
 extern int	opt_play_as_the_safe;
 extern int	opt_keymaster;
 extern int	opt_thrillerdance;
+extern int	opt_no_guards;
 extern int	stat;
 extern int  debug_flag;
 extern u8   *mbuffer;
 extern u8   *fbuffer[NB_FILES];
 extern FILE *fd;
 extern u8   *rgbCells;
+extern u8*  static_image_buffer;
 // Removable walls current bitmask
 extern u32  rem_bitmask;
 extern u8	props[NB_NATIONS][NB_PROPS];
@@ -546,7 +590,10 @@ extern u8	panel_chars[NB_PANEL_CHARS][8*8*2];
 extern char*	status_message;
 extern s16 directions[3][3], dir_to_dx[8], dir_to_d2y[8];
 extern u8  hours_digit_h, hours_digit_l, minutes_digit_h, minutes_digit_l;
-extern u8	 palette_index;
+extern u8  palette_index;
+extern u16 current_iff;
+extern bool  static_picture;
+extern float fade_value;
 
 
 // Data specific global variables
@@ -554,6 +601,9 @@ extern u16  nb_rooms, nb_cells, nb_objects;
 
 extern char* fname[NB_FILES];
 extern u32   fsize[NB_FILES];
+extern char* iff_name[NB_IFFS];
+extern u16   iff_payload_w[NB_IFFS];
+extern u16   iff_payload_h[NB_IFFS];
 //extern int	gl_off_x, gl_off_y;
 extern int	gl_width, gl_height;
 //extern u8	prisoner_w, prisoner_h;
@@ -569,6 +619,7 @@ extern u8 current_nation;
 #define rem_bitmask	   guybrush[current_nation].ext_bitmask
 #define guy(i)		   guybrush[i]
 #define guard(i)	   guy(i+NB_NATIONS)
+#define in_tunnel      (prisoner_state&STATE_TUNNELING)
 extern s16  last_p_x, last_p_y;
 extern s16  dx, d2y;
 extern u8  prisoner_sid;
@@ -578,7 +629,11 @@ extern s_sprite		*sprite;
 extern s_overlay	*overlay; 
 extern u8   overlay_index;
 
+// Variables used to detect tunnel exits
+extern u8 tunexit_nr, tunexit_flags;
+
 extern bool init_animations;
+
 
 extern bool key_down[256], key_readonce[256];
 static __inline bool read_key_once(u8 k)
@@ -603,7 +658,8 @@ extern s_event		events[NB_EVENTS];
 
 // Having  a global palette saves a lot of hassle
 extern u8  bPalette[3][16];
-extern u16 aPalette[16];
+extern u16 aPalette[32];	// This palette is 32 instead of 16, because we also use
+							// it to load 5 bpp IFF images
 
 #define update_props_message(prop_id)												\
 	nb_props_message[1] = (props[current_nation][prop_id] / 10) + 0x30;				\

@@ -68,7 +68,7 @@ const char *to_binary(u32 x)
 
 
 
-// Power-of-two-err... ize!
+// Power-of-two... err... ize!
 // We need this to change a dimension to the closest greater power of two
 // as pspgl can only deal with power of two dimensionned textures
 u16 powerize(u16 n)

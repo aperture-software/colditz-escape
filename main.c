@@ -56,7 +56,11 @@ int opt_keymaster			= -1;
 // "'coz this is triller..."
 int opt_thrillerdance		= 0;
 // Force a specific sprite ID for our guy
+// NB: must be init to -1
 int opt_sid					= -1;
+// Kill the guards
+int	opt_no_guards			= 0;
+
 
 // File stuff
 FILE* fd					= NULL;
@@ -65,6 +69,20 @@ u32   fsize[NB_FILES]		= FSIZES;
 u8*   fbuffer[NB_FILES];
 u8*   mbuffer				= NULL;
 u8*	  rgbCells				= NULL;
+u8*   static_image_buffer   = NULL;
+char* iff_name[NB_IFFS]		= IFF_NAMES;
+u16   iff_payload_w[NB_IFFS] = IFF_PAYLOAD_W;
+u16   iff_payload_h[NB_IFFS] = IFF_PAYLOAD_H;
+
+// Indicate whether we are running the game or displaying
+// a static IFF image
+bool  static_picture		= false;
+// Current static image IFF to load and display
+u16   current_iff = 0x0C;
+// Used for fade in/fade out of static images
+float fade_value = FADE_START_VALUE;
+// 1 for fade in, -1 for fade out
+int fade_direction = 0;
 
 // OpenGL window size
 int	gl_width, gl_height;
@@ -105,6 +123,8 @@ char* status_message;
 bool paused = false;
 u64  paused_time;
 u8  hours_digit_h, hours_digit_l, minutes_digit_h, minutes_digit_l;
+u8  tunexit_nr, tunexit_flags;
+u8*	iff_image;
 
 //u16  current_room_index = ROOM_OUTSIDE;
 u16  nb_rooms, nb_cells, nb_objects;
@@ -114,7 +134,7 @@ s_overlay*	overlay;
 u8   overlay_index;
 u8   bPalette[3][16];
 // remapped Amiga Palette
-u16  aPalette[16];
+u16  aPalette[32];
 //u32  rem_bitmask = 0x8000001E;
 char nb_props_message[32] = "\499 * ";
 
@@ -174,9 +194,17 @@ static void glut_init()
 
 static void glut_display(void)
 {
+	// Always start with a clear to black
 	glClear(GL_COLOR_BUFFER_BIT);
-	display_room();
-	display_panel();
+
+	// Display either the current game frame or a static picture
+	if (static_picture)
+		display_picture();
+	else
+	{	// In game => update room content and panel
+		display_room();
+		display_panel();
+	}
 #if !defined (PSP)
 	rescale_buffer();
 #endif
@@ -210,8 +238,8 @@ void process_motion(void)
 	s16 new_direction;
 	s16 exit;
 	
-	if ( (prisoner_state != STATE_STOP) && (prisoner_state != STATE_MOVE) )
-	{	// prevent motion in motionless states (kneeling, sleeping, ...)
+	if (prisoner_state & MOTION_DISALLOWED)
+	{	// Only a few states will allow motion 
 		dx=0;
 		d2y=0;
 	}
@@ -226,7 +254,7 @@ void process_motion(void)
 			if (exit>0)
 			{
 //				printf("exit[%d], from room[%X]\n", exit-1, current_room_index);
-				switch_room(exit-1);
+				switch_room(exit-1, false);
 				// keep_message_on = false;	// we could do without this
 			}
 			// Change the last direction so that we use the right sid for stopping
@@ -234,6 +262,23 @@ void process_motion(void)
 //			animations[prisoner_ani].direction = directions[d2y+1][dx+1];
 			dx = 0;
 			d2y = 0;
+		}
+	}
+	// We're idle, but we might be trying to open a tunnel exit
+	else if (tunexit_nr)
+	{
+		if (read_key_once(KEY_FIRE))
+		{
+			printf("tunexit_nr = %d, tunexit_flags = %X\n", tunexit_nr, tunexit_flags);
+			if ((opt_keymaster) || 
+				// do we have the right key selected
+				(selected_prop[current_nation] == ((tunexit_flags & 0x60) >> 5)))
+			{
+				// Toggle tunneling state
+				prisoner_state ^= STATE_TUNNELING;
+//				prisoner_state |= STATE_TUNNELING;
+				switch_room(tunexit_nr-1, true);
+			}
 		}
 	}
 
@@ -244,21 +289,21 @@ void process_motion(void)
 	if (new_direction != DIRECTION_STOPPED)
 	{	// We're moving => animate sprite
 
-		if (prisoner_state == STATE_STOP)
+		if (!(prisoner_state & STATE_MOTION))
 		// we were stopped => make sure we start with the proper ani frame
 			animations[prisoner_ani].framecount = 0;
 
 		// Update our prisoner data
 		prisoner_x += prisoner_speed*dx;
 		prisoner_2y += prisoner_speed*d2y;
-		prisoner_state = STATE_MOVE;
+		prisoner_state |= STATE_MOTION;
 		// Update the animation direction
 		prisoner_dir = new_direction;
 //		animations[prisoner_ani].direction = new_direction;
 	}
-	else if (prisoner_state == STATE_MOVE)
+	else if (prisoner_state & STATE_MOTION)
 	{	// We just stopped
-		prisoner_state = STATE_STOP;
+		prisoner_state ^= STATE_MOTION;
 	}
 }
 
@@ -278,7 +323,9 @@ void restore_params(u32 param)
 	animations[ani].framecount = 0;
 	animations[ani].end_of_ani_function = NULL;
 	// we always end up in stopped state after a one shot animation
-	guybrush[brush].state = STATE_STOP;
+	// for now we clear anything except tunneling
+	guybrush[brush].state &= STATE_TUNNELING;
+	//if (guybrush[brush].state & STATE_KNEEL)
 }
 
 // process motion keys
@@ -295,23 +342,77 @@ static void glut_idle(void)
 	// We'll need the current time value for a bunch of stuff
 	t = mtime();
 
-	// clock timer
-//	ctime += t;
-
-	// Toggle pause
-	if (read_key_once(KEY_PAUSE))
+	// Handle the displaying of static pictures, with fading
+	if (static_picture)
 	{
-		if (paused)
+		// Make sure we initialize a pause if needed
+		if (!paused)
 		{
-			last_atime += (t - paused_time);
-			last_ptime += (t - paused_time);
-			last_ctime += (t - paused_time);
-			paused = false;
+			// Pause the game and set static picture variables
+			paused_time = t;
+			fade_direction = 1;
+			paused = true;
 		}
-		else
+
+		// Handle fading in/out of static pictures
+		if (fade_direction)
+		{
+			fade_value += fade_direction*0.1f;
+
+			// End of fading in
+			if (fade_value > 1.0f)
+			{
+				fade_value = 1.0f;
+				fade_direction = 0;
+			}
+
+			// End of fading out
+			if (fade_value < 0.0f)
+			{
+				// for next fade_in
+				fade_value = FADE_START_VALUE;
+				fade_direction = 0;
+				static_picture = false;
+				// This makes sure we reset time variables and pause
+				key_readonce[KEY_PAUSE] = false;
+				key_down[KEY_PAUSE] = true;	
+			}
+
+			// Don't forget to display the image
+			glut_display();
+		}
+
+		// Fire to exit the display of a static picture
+		if (read_key_once(KEY_FIRE))
+			fade_direction = -1;
+	}
+	else
+	{
+		// DEBUG display IFF
+		if (read_key_once(KEY_DEBUG_LOAD_IFF))
 		{
 			paused_time = t;
+			static_picture = true;
+			fade_direction = 1;
 			paused = true;
+		}
+
+
+		// Toggle pause (unless a static picture is being displayed)
+		if (read_key_once(KEY_PAUSE))
+		{
+			if (paused)
+			{
+				last_atime += (t - paused_time);
+				last_ptime += (t - paused_time);
+				last_ctime += (t - paused_time);
+				paused = false;
+			}
+			else
+			{
+				paused_time = t;
+				paused = true;
+			}
 		}
 	}
 
@@ -427,7 +528,7 @@ static void glut_idle(void)
 	}
 
 	// The following keys are only handled if we are in a premissible state
-	if ((prisoner_state == STATE_STOP) || (prisoner_state == STATE_MOVE))
+	if (!(prisoner_state & MOTION_DISALLOWED))
 	{
 
 		// Prisoner selection: direct keys or left/right cycle keys
@@ -435,7 +536,7 @@ static void glut_idle(void)
 			if (read_key_once(key_nation[i]))
 			{
 				// stop our current prisoner
-				prisoner_state = STATE_STOP;
+				prisoner_state &= ~STATE_MOTION;
 				if (i<NB_NATIONS)
 					current_nation = i;
 				else
@@ -474,19 +575,22 @@ static void glut_idle(void)
 		}
 
 		// Inventory pickup/dropdown
-		if ( (read_key_once(KEY_INVENTORY_PICKUP)) ||
-			 (read_key_once(KEY_INVENTORY_DROP)) ) 
+		if ( ( (read_key_once(KEY_INVENTORY_PICKUP)) ||
+			   (read_key_once(KEY_INVENTORY_DROP)) ) &&
+			   (!(prisoner_state & STATE_TUNNELING)) )
 		{
-			prisoner_state = STATE_PICK;
+			prisoner_state |= STATE_KNEEL;
 			// enqueue our 2 u8 parameters
 			animations[prisoner_ani].end_of_ani_parameter = (current_nation & 0xFF) | 
 				((animations[prisoner_ani].index << 8) & 0xFF00);
 			animations[prisoner_ani].index = KNEEL_ANI;
+//			animations[prisoner_ani].
 			//animations[prisoner_ani].index = SHOT_ANI;
 			// starting at -1 ensures that we'll go through frame 0
 			// as we need to wait the for the ani counter to increase
 			// for our first animation frame to show
-			animations[prisoner_ani].framecount = -1;
+			// NO LONGER TRUE DAMMIT!!!!
+			animations[prisoner_ani].framecount = 0;
 			animations[prisoner_ani].end_of_ani_function = restore_params;
 
 			if (key_down[KEY_INVENTORY_PICKUP])
@@ -561,8 +665,8 @@ static void glut_idle(void)
 	if ((t - last_ptime) > REPOSITION_INTERVAL)
 	{
 		last_ptime = t;
-		// Update the guards positions
-		if (move_guards())
+		// Update the guards positions (if not playing with guards disabled)
+		if (!opt_no_guards && move_guards())
 		{	// we have a collision with a guard => kill our motion
 			// but before we do that, change our direction accordingly
 			if (dx || d2y)
@@ -723,8 +827,18 @@ int main (int argc, char *argv[])
 	// fix some of the files
 	fix_files();
 
+	// Allocate the bitmap image buffer (for displaying static IFF images)
+	// The padded size of all our IFF textures is always 512x256
+	static_image_buffer = (u8*) aligned_malloc(512*256*2,16);
+	if (static_image_buffer == NULL)
+	{
+		perr("Could not allocate buffer for static images display\n");
+		return 0;
+	}
+
 	// Set global variables
 	get_properties();
+
 
 	// clear the events array
 	for (i=0; i< NB_EVENTS; i++)
@@ -737,7 +851,7 @@ int main (int argc, char *argv[])
 	guybrush[i].px = 940;
 	guybrush[i].p2y = 630;
 	guybrush[i].room = ROOM_OUTSIDE;
-	guybrush[i].state = STATE_STOP;
+	guybrush[i].state = 0;
 	guybrush[i].speed = 1;
 	guybrush[i].direction = 0;
 	guybrush[i].ext_bitmask = 0x8000001E;
@@ -747,7 +861,7 @@ int main (int argc, char *argv[])
 	guybrush[i].px = 404;
 	guybrush[i].p2y = 707;
 	guybrush[i].room = ROOM_OUTSIDE;
-	guybrush[i].state = STATE_STOP;
+	guybrush[i].state = 0;
 	guybrush[i].speed = 1;
 	guybrush[i].direction = 0;
 	guybrush[i].ext_bitmask = 0x8000007E;
@@ -757,7 +871,7 @@ int main (int argc, char *argv[])
 	guybrush[i].px = 1200;
 	guybrush[i].p2y = 700;
 	guybrush[i].room = ROOM_OUTSIDE;
-	guybrush[i].state = STATE_STOP;
+	guybrush[i].state = 0;
 	guybrush[i].speed = 1;
 	guybrush[i].direction = 0;
 	guybrush[i].ext_bitmask = 0x8000001E;
@@ -767,7 +881,7 @@ int main (int argc, char *argv[])
 	guybrush[i].px = 1000;
 	guybrush[i].p2y = 600;
 	guybrush[i].room = ROOM_OUTSIDE;
-	guybrush[i].state = STATE_STOP;
+	guybrush[i].state = 0;
 	guybrush[i].speed = 1;
 	guybrush[i].direction = 0;
 	guybrush[i].ext_bitmask = 0x8000001E;
@@ -781,7 +895,7 @@ int main (int argc, char *argv[])
 		guybrush[i].p2y = 2*readword(fbuffer[GUARDS],j*MENDAT_ITEM_SIZE);
 		guybrush[i].room = readword(fbuffer[GUARDS],j*MENDAT_ITEM_SIZE+ 4);
 //		printf("%x: (%d,%d) %x\n", j, guybrush[i].px, guybrush[i].p2y,guybrush[i].room);
-		guybrush[i].state = STATE_MOVE;
+		guybrush[i].state = 0;
 		guybrush[i].speed = 1;
 		guybrush[i].direction = 0;
 		guybrush[i].wait = 0;

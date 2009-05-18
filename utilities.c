@@ -34,7 +34,7 @@ GLuint* cell_texid;
 GLuint* sprite_texid;
 GLuint* chars_texid;
 GLuint panel1_texid, panel2_texid;
-GLuint render_texid;
+GLuint render_texid, iff_texid;
 
 /* Some more globals */
 u8  obs_to_sprite[NB_OBS_TO_SPRITE];
@@ -46,6 +46,7 @@ u32 exit_flags_offset;
 s16	gl_off_x = 0, gl_off_y  = 0;
 char panel_message[256];
 u32 next_timed_event_ptr = TIMED_EVENTS_INIT;
+u8*	iff_image;
 
 // Bummer! The way they setup their animation overlays and the way I 
 // do it to be more efficient means I need to define a custom table
@@ -78,6 +79,7 @@ ROM:00008A42                 dc.l ger_kneel_ani      ; #58
 */
 u8 looping_animation[NB_ANIMATED_SPRITES] =
 	{	1, 1, 0, 0, 1, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0 };
+
 // For the outside map, because of the removable sections and the fact that
 // having a removable section set for the tile does not guarantee that the 
 // prop should be hidden (eg: bottom of a removable wall), we'll define a
@@ -260,7 +262,6 @@ void load_all_files()
 
 	// OK, now we can reset our LOADER's start address
 	fbuffer[LOADER] -= LOADER_PADDING;
-
 }
 
 
@@ -325,10 +326,11 @@ void get_properties()
 		writelong(fbuffer[GUARDS], i*MENDAT_ITEM_SIZE+0x0E,
 			readlong(fbuffer[GUARDS], i*MENDAT_ITEM_SIZE+0x06));
 
-	// Set our textures for panel and zoom
+	// Set our textures for panel, zoom and iff images
 	glGenTextures( 1, &panel1_texid );
 	glGenTextures( 1, &panel2_texid );
 	glGenTextures( 1, &render_texid );
+	glGenTextures( 1, &iff_texid );
 
 	glBindTexture(GL_TEXTURE_2D, panel1_texid);
 	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
@@ -339,7 +341,6 @@ void get_properties()
 	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, PANEL_BASE2_W, PANEL_BASE_H, 0,
 		GL_RGB, GL_UNSIGNED_BYTE, fbuffer[PANEL_BASE2]);
-
 }
 
 
@@ -381,14 +382,16 @@ void to_16bit_palette(u8 palette_index, u8 transparent_index, u8 io_file)
 }
 
 
-// Convert a 4 bit line-interleaved source to 16 bit RGBA (GRAB) destination
-void line_interleaved_to_wGRAB(u8* source, u8* dest, u16 w, u16 h)
+// Convert a <bpp> bits line-interleaved source to 16 bit RGBA (GRAB) destination
+// bpp parameter = bits per pixels, a.k.a. colour depth
+// Assumes w to be a multiple of 8, and bpp < 8 as well
+void line_interleaved_to_wGRAB(u8* source, u8* dest, u16 w, u16 h, u8 bpp)
 {
 	u8 colour_index;
 	u32 i,j,l,pos;
 	int k;
 	u32 wb;
-	u8 line_byte[4];
+	u8 line_byte[8];
 
 	// the width of interest to us is the one in bytes.
 	wb = w/8;
@@ -399,15 +402,15 @@ void line_interleaved_to_wGRAB(u8* source, u8* dest, u16 w, u16 h)
 	{	// h lines to process
 		for (j=0; j<wb; j++)
 		{	// wb bytes per line
-			for (k=0; k<4; k++)
-				// Read one byte from each of the 4 lines (starting from max y for openGL)
-				line_byte[3-k] = readbyte(source, 4*(wb*i) + k*wb + j);
+			for (k=0; k<bpp; k++)
+				// Read one byte from each of the <bpp> lines (starting from max y for openGL)
+				line_byte[bpp-k-1] = readbyte(source, bpp*(wb*i) + k*wb + j);
 			// Write 8 RGBA values
 			for (k=0; k<8; k++)
 			{
 				colour_index = 0;
 				// Get the palette colour index and rotate the line bytes
-				for (l=0; l<4; l++)
+				for (l=0; l<bpp; l++)
 				{
 					colour_index <<= 1;
 					colour_index |= (line_byte[l]&0x80)?1:0;
@@ -479,7 +482,7 @@ void cells_to_wGRAB(u8* source, u8* dest)
 	// Convert each 32x16x4bit (=256 bytes) cell to RGB
 	for (i=0; i<nb_cells; i++)
 	{
-		line_interleaved_to_wGRAB(source + (256*i), dest+(2*RGBA_SIZE*256*i), 32, 16);
+		line_interleaved_to_wGRAB(source + (256*i), dest+(2*RGBA_SIZE*256*i), 32, 16, 4);
 		GLCHK(glBindTexture(GL_TEXTURE_2D, cell_texid[i]));
 		GLCHK(glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 32, 16, 0, GL_RGBA, GL_UNSIGNED_SHORT_4_4_4_4_REV, 
 			((u8*)rgbCells) + i*2*RGBA_SIZE*0x100));
@@ -569,6 +572,207 @@ s_nonstandard nonstandard(u16 sprite_index)
 	}
 
 	return sp;
+}
+
+
+// Open an IFF image file. Modified from LBMVIEW V1.0b 
+// http://www.programmersheaven.com/download/6394/download.aspx
+int load_iff()
+{
+	int i, y, bpl, bit_plane;
+	char ch, cmp_type, color_depth;
+	u8 uc, check_flags;
+	u16	w, h;
+	u32 id, len, l;
+	u8  line_buf[5][512/8];	// bytes line buffers (5 bitplanes max, 512 pixels wide)
+
+	if ((fd = fopen (iff_name[current_iff], "rb")) == NULL)
+	{
+		if (opt_verbose)
+			perror ("fopen()");
+		perr("Can't find file '%s'\n", iff_name[current_iff]);
+		return -1;
+	}
+
+	// Check for 'FORM' tag
+	if (freadl(fd) != IFF_FORM)
+	{
+		fclose(fd);
+		perr("IFF_FORM not found\n");
+		return -1;
+	}
+
+	// Skip IFF Form length
+	freadl(fd);						
+
+	// Check for InterLeaved BitMap tag
+	if (freadl(fd) != IFF_ILBM)
+	{
+		fclose(fd);
+		perr("IFF_ILBM not found\n");
+		return -1;
+	}
+
+	// Check for BitMap Header
+	if (freadl(fd) != IFF_BMHD)
+	{
+		fclose(fd);
+		perr("IFF_BMHD not found\n");
+		return -1;
+	}
+
+	// Check header length
+	if (freadl(fd) != 20)
+	{
+		fclose(fd);
+		perr("Bad IFF header length\n");
+		return -1;
+	}
+
+	// Read width and height
+	w = freadw(fd);
+	if (w > 512)
+	{
+		fclose(fd);
+		perr("IFF width must be lower than 512\n");
+		return -1;
+	}
+	if (w & 0x7)
+	{
+		fclose(fd);
+		perr("IFF width must be a multiple of 8\n");
+		return -1;
+	}
+	h = freadw(fd);
+	if (h > 256)
+	{
+		fclose(fd);
+		perr("IFF height must be lower than 256\n");
+		return -1;
+	}
+
+	// Discard initial x and y pos
+	freadw(fd);
+	freadw(fd);
+
+	// Read colour depth
+	color_depth = freadc(fd);
+	if (color_depth > 5)
+	{
+		fclose(fd);
+		perr("IFF: Colour depth must be lower than 5\n");
+		return -1;
+	}
+
+	// Skip masking type
+	freadc(fd);
+
+	// Get compression type
+	cmp_type = freadc(fd);
+	if ((cmp_type != 0) && (cmp_type != 1))
+	{
+		fclose(fd);
+		perr("Unknown IFF compression method\n");
+		return -1;
+	}
+
+	// Skip the bytes we're not interested in
+	freadc(fd);				// skip unused field
+	freadw(fd);				// skip transparent color
+	freadc(fd);				// skip x aspect ratio
+	freadc(fd);				// skip y aspect ratio
+	freadw(fd);				// skip default page width
+	freadw(fd);				// skip default page height
+
+	check_flags = 0;
+
+	do  // We'll use cycle to skip possible junk      
+	{   //  chunks: ANNO, CAMG, GRAB, DEST, TEXT etc.
+		id = freadl(fd);
+		switch(id)
+		{
+		case IFF_CMAP:
+			len = freadl(fd) / 3;
+			for (l=0; l<len; l++)
+			{
+				aPalette[l]  = ((u16)freadc(fd) & 0xF0) << 4;	// Red
+				aPalette[l] |= ((u16)freadc(fd) & 0xF0) << 8;	// Green
+				aPalette[l] |= ((u16)freadc(fd) & 0xF0) >> 4;	// Blue
+				aPalette[l] |= 0x00F0;							// Alpha
+			}
+			check_flags |= 1;				// flag "palette read" 
+			break;
+
+		case IFF_BODY:
+			freadl(fd);						// skip BODY size 
+
+			// Calculate bytes per line. As our width is always a multiple of 8
+			// no special cases are needed
+			bpl = w >> 3;  
+
+			for (y = 0; y < h; y++)
+			{
+				for (bit_plane = 0; bit_plane < color_depth; bit_plane++)
+				{
+					if (cmp_type)
+					{	// Compressed
+						i = 0;
+						while (i < bpl)
+						{
+							uc = freadc(fd);
+							if (uc < 128)
+							{
+								uc++;
+								fread(&line_buf[bit_plane][i], 1, uc, fd);
+								i += uc;
+							} else
+								if (uc > 128)
+								{
+									uc = 257 - uc;
+									ch = freadc(fd);
+									memset(&line_buf[bit_plane][i], ch, uc);
+									i += uc;
+								}
+								// 128 (0x80) means NOP - no operation  
+						}
+						// Set our image extra bytes to colour index 0
+						memset(&line_buf[bit_plane][i], 0, (512/8)-i);
+					}
+					else
+						// Uncompressed
+						fread(&line_buf[bit_plane][0], 1, bpl, fd);
+				}
+				
+
+				// OK, now we have our <color_depth> line buffers
+				// Let's recombine those bits, and convert to GRAB from our palette
+				line_interleaved_to_wGRAB((u8*)line_buf, 
+					static_image_buffer+512*y*2, 512, 1, color_depth);
+
+			}
+			check_flags |= 2;       // flag "bitmap read" 
+			break;
+
+		default:					// Skip unused chunks  
+			len = freadl(fd);		// nb of bytes to skip
+			for (l=0; l<len; l++)
+				freadc(fd);
+		}
+
+	// Exit from loop if we are at the end of file, 
+	// or if both palette and bitmap have been loaded
+	} while ((check_flags != 3) && (!feof(fd)));
+
+	fclose(fd);
+
+	if (check_flags != 3)
+	{
+		if (check_flags & 2)
+			aligned_free(b);
+		return -1;
+	}
+
+	return 0;
 }
 
 
@@ -678,7 +882,8 @@ void sprites_to_wGRAB()
 		if (no_mask)
 		{
 			// Bitplanes that have no mask are line-interleaved, like cells
-			line_interleaved_to_wGRAB(sbuffer, sprite[sprite_index].data, sprite[sprite_index].w, sprite[sprite_index].h);
+			line_interleaved_to_wGRAB(sbuffer, sprite[sprite_index].data, 
+				sprite[sprite_index].w, sprite[sprite_index].h, 4);
 			// A sprite with no mask should always display under anything else
 			sprite[sprite_index].z_offset = MIN_Z;
 		}
@@ -724,20 +929,21 @@ int get_animation_sid(u8 index)
 	u32 ani_base;
 	s32 nb_frames;
 	s16 dir;
-	// read the base sid
 
+	// read the base sid
 	ani_base = readlong(fbuffer[LOADER], ANIMATION_OFFSET_BASE + 4*animations[index].index);
 	dir  = (animations[index].guybrush_index == NO_GUYBRUSH)?
 		0:guybrush[animations[index].guybrush_index].direction;
 	sid = readbyte(fbuffer[LOADER], ani_base + 0x0A + dir);
-//	printf("sid base = %x\n", sid);
 //	printf("framecount = %d\n", animations[index].framecount);
 	nb_frames = readbyte(fbuffer[LOADER], ani_base);	// offset 0 is nb frames max
+//	printf("sid base = %x, nb_frames = %d\n", sid, nb_frames);
+//	printf("ani_index = %d\n", animations[index].index);
 
 
 	if ( (!(looping_animation[animations[index].index])) &&
 		  (animations[index].framecount >= nb_frames) )
-	{	// one shot
+	{	// end of one shot animations
 		frame = nb_frames - 1;	// 0 indexed
 		if (animations[index].end_of_ani_function != NULL)
 		{	// execute the end of animation function (toggle exit)
@@ -746,7 +952,7 @@ int get_animation_sid(u8 index)
 		}
 	}
 	else
-	{	// loop
+	{	// one shot (non end) or loop
 		frame = animations[index].framecount % nb_frames;
 	}
 //	printf("nb_frames = %d, framecount = %d\n", nb_frames, animations[index].framecount);
@@ -767,7 +973,6 @@ int get_animation_sid(u8 index)
 //	if (sid != -1)
 //	if (animations[index].index == GER_WALK_ANI)
 //		printf("sid_increment = %x, framecount = %d\n", sid_increment, animations[index].framecount);
-
 	return sid;
 }
 
@@ -1297,10 +1502,18 @@ u8 i, sid;
 	{	// Set the animation for our prisoner
 		// TO_DO: german uniform/ crawl
 		prisoner_ani = nb_animations;
-		if (prisoner_speed == 1)
-			animations[prisoner_ani].index = WALK_ANI; 
+		if (in_tunnel)
+		{
+			prisoner_speed = 1;
+			animations[prisoner_ani].index = CRAWL_ANI;
+		}
 		else
-			animations[prisoner_ani].index = RUN_ANI; 
+		{
+			if (prisoner_speed == 1)
+				animations[prisoner_ani].index = WALK_ANI; 
+			else
+				animations[prisoner_ani].index = RUN_ANI; 
+		}
 		animations[prisoner_ani].framecount = 0;
 		animations[prisoner_ani].guybrush_index = current_nation;
 		animations[prisoner_ani].end_of_ani_function = NULL;
@@ -1315,9 +1528,9 @@ u8 i, sid;
 	// If you uncomment the lines below, you'll get confirmation that our position 
 	// computations are right to position our guy to the middle of the screen
 //overlay[overlay_index].x = gl_off_x + guybrush[PRISONER].px + sprite[sid].x_offset;
-	overlay[overlay_index].y = gl_off_y + guybrush[current_nation].p2y/2 - sprite[sid].h + 5;
+	overlay[overlay_index].y = gl_off_y + guybrush[current_nation].p2y/2 - sprite[sid].h + (in_tunnel?11:5);
 //	printf("corrected_h = %d\n", sprite[sid].corrected_h);
-	overlay[overlay_index].x = PSP_SCR_WIDTH/2;  
+	overlay[overlay_index].x = PSP_SCR_WIDTH/2 - (in_tunnel?25:0);  
 //	overlay[overlay_index].y = PSP_SCR_HEIGHT/2 - NORTHWARD_HO - 32; 
 
 	// Our guy's always at the center of our z-buffer
@@ -1332,7 +1545,7 @@ u8 i, sid;
 */
 
 	// Now add all the other guys
-	for (i=0; i< NB_GUYBRUSHES; i++)
+	for (i=0; i< (opt_no_guards?NB_NATIONS:NB_GUYBRUSHES); i++)
 	{
 		// Our current guy has already been taken care of above
 		if (i==current_nation)
@@ -1453,7 +1666,7 @@ int move_guards()
 			kill_motion = -1;
 
 		// 2. Deal with guards that are currently being blocked by a prisoner
-		if ((guard(i).state == STATE_BLOCKED_STOP) || (guard(i).state == STATE_BLOCKED_MOVE))
+		if (guard(i).state & STATE_BLOCKED)
 		{
 			// Did our blocking counter just reach zero
 			if (guard(i).wait == 0)
@@ -1467,7 +1680,7 @@ int move_guards()
 				}
 
 				// Nicely restore to STATE_MOVE or STATE_STOP
-				guard(i).state -= STATE_BLOCKED_STOP;
+				guard(i).state ^= STATE_BLOCKED;
 				but_i_just_got_out = true;
 
 				// Not issuing a continue here allows us to progress one step further
@@ -1491,7 +1704,7 @@ int move_guards()
 				// Setup the blocked counter
 				guard(i).wait = BLOCKED_GUARD_TIMEOUT;
 				// And indicate that we are stopped
-				guard(i).state += STATE_BLOCKED_STOP;
+				guard(i).state |= STATE_BLOCKED;
 				// Ah shoot, we need to continue the parent "for" loop
 				continue_parent = true;
 				// Break this loop then
@@ -1509,7 +1722,7 @@ int move_guards()
 			guard(i).go_on--;
 
 			// If we're moving, increment our position
-			if (guard(i).state == STATE_MOVE)
+			if (guard(i).state & STATE_MOTION)
 			{
 				guard(i).px += guard(i).speed * dir_to_dx[guard(i).direction];
 				guard(i).p2y += guard(i).speed * dir_to_d2y[guard(i).direction];
@@ -1544,11 +1757,11 @@ int move_guards()
 			route_data =  readword(fbuffer[ROUTES], route_pos + 2);
 			if (route_data == 0xFFFF)
 				// stopped state (pause)
-				guard(i).state = STATE_STOP;
+				guard(i).state &= ~STATE_MOTION;
 			else
 			{	// motion state
 				guard(i).direction = route_data;
-				guard(i).state = STATE_MOVE;
+				guard(i).state |= STATE_MOTION;
 				// Change our position
 				guard(i).px += guard(i).speed * dir_to_dx[guard(i).direction];
 				guard(i).p2y += guard(i).speed * dir_to_d2y[guard(i).direction];
@@ -1599,8 +1812,8 @@ void display_room()
 	}
 
 	// Compute GL offsets (position of 0,0 corner of the room wrt center of the screen) 
-	gl_off_x = PSP_SCR_WIDTH/2 - prisoner_x - 1;
-	gl_off_y = PSP_SCR_HEIGHT/2 - (prisoner_2y/2) - NORTHWARD_HO - 2;
+	gl_off_x = PSP_SCR_WIDTH/2 - prisoner_x;
+	gl_off_y = PSP_SCR_HEIGHT/2 - (prisoner_2y/2) - NORTHWARD_HO;
 
 
 	// reset room overlays
@@ -1791,6 +2004,8 @@ void display_room()
 	last_p_y = prisoner_2y/2; 
 }
 
+
+// Display location and other strings on panel
 void display_message(char string[])
 {
 	char c;
@@ -1810,6 +2025,49 @@ void display_message(char string[])
 			PANEL_CHARS_W, PANEL_CHARS_CORRECTED_H, chars_texid[c-0x20]);
 		pos++;
 	}
+}
+
+
+// Display a static picture (512x256x16 GRAB texture) that was previously
+// loaded from an IFF file. 
+void display_picture()
+{
+	u16 w, h;
+	// NB, we don't need to clear the screen to black, as this is done 
+	// before calling this function
+
+	// Get the actual picture payload's w & h
+	w = iff_payload_w[current_iff];
+	h = iff_payload_h[current_iff];
+
+	// Set white to the current fade_value for fading effects
+	glColor3f(fade_value, fade_value, fade_value);	
+
+	// Display the current IFF image
+	glBindTexture(GL_TEXTURE_2D, iff_texid);
+
+//	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+//	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+
+	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+
+	// The image
+	glBegin(GL_TRIANGLE_FAN);
+
+	glTexCoord2f(0.0f, 0.0f);
+	glVertex2f((PSP_SCR_WIDTH-w)/2, (PSP_SCR_HEIGHT-h)/2);
+
+	glTexCoord2f(1.0f, 0.0f);
+	glVertex2f(512 + (PSP_SCR_WIDTH-w)/2, (PSP_SCR_HEIGHT-h)/2);
+
+	glTexCoord2f(1.0, 1.0);
+	glVertex2f(512 + (PSP_SCR_WIDTH-w)/2, 256 + (PSP_SCR_HEIGHT-h)/2);
+
+	glTexCoord2f(0.0, 1.0);
+	glVertex2f((PSP_SCR_WIDTH-w)/2, 256 + (PSP_SCR_HEIGHT-h)/2);
+
+	glEnd();
 }
 
 
@@ -1955,18 +2213,12 @@ void display_panel()
 	}
 	else
 	{
-		switch (prisoner_state)
-		{
-		case STATE_CRAWL:
+		if (prisoner_state & STATE_TUNNELING)
 			sid = STATE_CRAWL_SID;
-			break;
-		case STATE_STOOGE:
+		else if (prisoner_state & STATE_STOOGE)
 			sid = STATE_STOOGE_SID;
-			break;
-		default:
+		else
 			sid = (prisoner_speed == 1)?STATE_WALK_SID:STATE_RUN_SID;
-			break;
-		}
 	}
 	display_sprite(PANEL_STATE_X, PANEL_TOP_Y,
 		sprite[sid].w, sprite[sid].h, sprite_texid[sid]);
@@ -2015,6 +2267,26 @@ void timed_events(u16 hours, u16 minutes_high, u16 minutes_low)
 	else
 	{	// Rollcall, etc.
 		printf("got event %04X\n", event_data);
+		// Get the relevant picture index (for events with static images) 
+		// according to the IFF_INDEX_TABLE in the loader
+		current_iff = readword(fbuffer[LOADER], IFF_INDEX_TABLE + 2*event_data);
+		printf("iff to load = %x\n", current_iff);
+		if (current_iff != 0xFFFF)
+		{
+			if (load_iff(current_iff))
+				printf("failed to load IFF\n");
+			else
+			{
+				// Setup the texture for display
+				glBindTexture(GL_TEXTURE_2D, iff_texid);
+				glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+				glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 512, 256, 0, 
+					GL_RGBA, GL_UNSIGNED_SHORT_4_4_4_4_REV, static_image_buffer);
+				
+				// Indicate that we should display a static picture and pause the game
+				static_picture = true;
+			}
+		}
 		next_timed_event_ptr += 8;
 	}
 }
@@ -2182,6 +2454,7 @@ s16 check_footprint(s16 dx, s16 d2y)
 	// maks offsets for upper-left, upper-right, lower-left, lower_right tiles
 	u32 mask_offset[4];	// tile boundary
 	u32 exit_offset[4];	// exit boundary
+	bool is_tunnel[4];
 	s16 tile_x, tile_y, exit_dx[2];
 	u8 i,u,sid;
 	s16 gotit = -1;
@@ -2196,8 +2469,14 @@ s16 check_footprint(s16 dx, s16 d2y)
 	 * in case our rectangular footprint spans more than a single tile
 	 */
 
-//	if (TO_DO: CHECK TUNNEL)
-//		sprite_footprint = TUNNEL_FOOTPRINT;
+	if (in_tunnel)
+		footprint = TUNNEL_FOOTPRINT;
+
+	// As it is convenient to do so here, this function is also used to determine
+	// if we stand over a tunnel exit, and setup the global variables that might be
+	// used if that's the case
+	tunexit_flags = 0;
+	tunexit_nr = 0;
 
 	if (current_room_index == ROOM_OUTSIDE)
 	{	// on compressed map (outside)
@@ -2218,8 +2497,8 @@ s16 check_footprint(s16 dx, s16 d2y)
 	}
 
 	// Compute the tile on which we try to stand
-	px = prisoner_x + dx;
-	p2y = prisoner_2y + 2*d2y -1;
+	px = prisoner_x + dx - (in_tunnel?16:0);
+	p2y = prisoner_2y + 2*d2y - 1; //(in_tunnel?4:1);
 	tile_y = p2y / 32;
 	tile_x = px / 32;
 //	printf("org (x,y) = (%X,%X)\n", tile_x, tile_y);
@@ -2232,13 +2511,14 @@ s16 check_footprint(s16 dx, s16 d2y)
 	for (i=0; i<2; i++)
 	{
 		// Set the left mask offset (tile_x, tile_y(+1)) index, converted to a long offset
-		tile = readtile(tile_x, tile_y);
-//		printf("tile = %04X\n", tile);
+		tile = readtile(tile_x, tile_y) + (in_tunnel?0x1E0:0);
 
 		// Get the exit mask, if we stand on an exit
 		// If we are not on an exit tile we'll use the empty mask from TILE_MASKS 
 		// NB: This is why we add the ####_MASKS_STARTs here, as we might mix EXIT and TILE
 		exit_offset[2*i] = MASK_EMPTY;
+		is_tunnel[2*i] = false;
+		is_tunnel[2*i+1] = false;
 
 		for (u=0; u<NB_EXITS; u++)
 		{
@@ -2255,10 +2535,13 @@ s16 check_footprint(s16 dx, s16 d2y)
 		}
 
 		switch (tile)
-		{	// Ignore tunnel exits
-		case 0xA2: case 0xA3: case 0xC2: case 0xC3:	case 0xCD:
+		{	// Check for tunnel entrances/exits
+		case 0xA2: case 0xA3: case 0xC2: case 0xC3:	case 0xCD:  
 			mask_offset[2*i] = MASK_FULL;	// a tunnel is always walkable (even open), as per the original game
+			is_tunnel[2*i] = true;
 			break;
+		case 0x1F4: case 0x210:	// exit tiles within a tunnel
+			is_tunnel[2*i] = true;
 		default:
 			mask_offset[2*i] = TILE_MASKS_START + readlong((u8*)fbuffer[LOADER], TILE_MASKS_OFFSETS+(tile<<2));
 			break;
@@ -2278,7 +2561,7 @@ s16 check_footprint(s16 dx, s16 d2y)
 
 			if ((tile_x+1) < room_x)
 			{	// only read adjacent if it exists (i.e. < room_x)
-				tile = readtile(tile_x+1, tile_y);
+				tile = readtile(tile_x+1, tile_y) + (in_tunnel?0x1E0:0);
 
 				// Get the exit mask, if we stand on an exit
 				exit_offset[2*i+1] = MASK_EMPTY;
@@ -2301,6 +2584,7 @@ s16 check_footprint(s16 dx, s16 d2y)
 				{	// Ignore tunnel exits
 				case 0xA2: case 0xA3: case 0xC2: case 0xC3:	case 0xCD:
 					mask_offset[2*i+1] = MASK_FULL;	// a tunnel is always walkable (even open), as per the original game
+					is_tunnel[2*i+1] = true;
 					break;
 				default:
 					mask_offset[2*i+1] = TILE_MASKS_START + readlong((u8*)fbuffer[LOADER], TILE_MASKS_OFFSETS+(tile<<2));
@@ -2331,6 +2615,21 @@ s16 check_footprint(s16 dx, s16 d2y)
 	footprint >>= (px & 0x0F);	// rotate our footprint according to our x pos
 ///	printf("%s %s [%d]\n", to_binary(footprint), to_binary(footprint), (px&0x1f));
 
+
+	// Check if we are standing on a tunnel exit (only done for our current pos_y)
+	// and set the global variables accordingly
+	if ( ((is_tunnel[0]) && (px%32 <= 16)) ||
+		 ((is_tunnel[1]) && (px%32 > 16)) )
+	{
+//		printf("is_tunnel (%d,%d)\n", px%32, p2y%32);
+		// We need to spare the exit offset value
+		exit_flags_offset = get_exit_offset(tile_x+(is_tunnel[1]?1:0),tile_y-2);
+		tunexit_flags = readbyte(fbuffer[ROOMS], exit_flags_offset);
+		// as for regular exits, because we use tunexit_nr as a boolean, we start at +1
+		tunexit_nr = readexit(tile_x+(is_tunnel[1]?1:0),tile_y-2) + 1;
+	}
+
+	// On the other hand, we check collisions and exits for multiple py's
 	for (i=0; i<FOOTPRINT_HEIGHT; i++)
 	{
 		tile_mask = to_long(readword((u8*)fbuffer[LOADER], mask_offset[0]),	
@@ -2339,8 +2638,11 @@ s16 check_footprint(s16 dx, s16 d2y)
 		exit_mask = to_long(readword((u8*)fbuffer[LOADER], exit_offset[0]),
 			readword((u8*)fbuffer[LOADER], exit_offset[1]));
 
-///	printf("%s %s\n",to_binary(exit_mask), to_binary(tile_mask));
+
+///	printf("%s ",to_binary(exit_mask));
+///	printf("%s\n", to_binary(tile_mask));
 //		printf("%08X\n",exit_mask);
+
 
 		// see low_level.h for the collisions macros
 		if inverted_collision(footprint,tile_mask)
@@ -2417,8 +2719,8 @@ s16 check_footprint(s16 dx, s16 d2y)
 				// +1 as exits start at 0
 				return(readexit(tile_x+exit_dx[0],tile_y-2)+1);
 			}
-//			gotit = 0;
-			return 0;
+			gotit = 0;
+//			return 0;
 		}
 		mask_y+=4;
 		// Do we need to change tile in y?
@@ -2444,7 +2746,7 @@ s16 check_footprint(s16 dx, s16 d2y)
 }
 
 
-void switch_room(s16 exit_nr)
+void switch_room(s16 exit_nr, bool tunnel_io)
 {
 	u32 offset;
 	u16 exit_index;	// exit index in destination room
@@ -2461,8 +2763,8 @@ void switch_room(s16 exit_nr)
 	{	// If we're on the compressed map, we need to read 2 words (out of 4)
 		// from beginning of the ROOMS_MAP file
 		offset = exit_nr << 3;	// skip 8 bytes
-		current_room_index = readword((u8*)fbuffer[ROOMS], offset) & 0x7FF;
-		exit_index = readword((u8*)fbuffer[ROOMS], offset+2);
+		current_room_index = readword((u8*)fbuffer[tunnel_io?TUNNEL_IO:ROOMS], offset) & 0x7FF;
+		exit_index = readword((u8*)fbuffer[tunnel_io?TUNNEL_IO:ROOMS], offset+2);
 	}
 	else
 	{	// indoors => read from the ROOMS_EXIT_BASE data
@@ -2503,8 +2805,8 @@ void switch_room(s16 exit_nr)
 			exit_flags = readbyte(fbuffer[ROOMS], offset) | 0x10;
 			writebyte(fbuffer[ROOMS], offset, exit_flags);
 		}
-*/		tile_y = readword((u8*)fbuffer[ROOMS], offset+4);
-		tile_x = readword((u8*)fbuffer[ROOMS], offset+6);
+*/		tile_y = readword((u8*)fbuffer[tunnel_io?TUNNEL_IO:ROOMS], offset+4);
+		tile_x = readword((u8*)fbuffer[tunnel_io?TUNNEL_IO:ROOMS], offset+6);
 
 
 		// Now that we're done, switch to our actual outbound marker
@@ -2567,10 +2869,17 @@ void switch_room(s16 exit_nr)
 	// Read the pixel adjustment
 	pixel_y = (s16)(readword((u8*)fbuffer[LOADER], HAT_RABBIT_POS_START + offset));
 	pixel_x = (s16)(readword((u8*)fbuffer[LOADER], HAT_RABBIT_POS_START + offset+2));
- 
+
 	prisoner_x = tile_x*32 + pixel_x; 
 	prisoner_2y = tile_y*32 + 2*pixel_y + 2*0x20 - 2; 
 
+	// Adjust for tunnels
+	if (prisoner_state&STATE_TUNNELING)
+	{
+		prisoner_x += 10;
+		prisoner_2y -= 12;
+	}
+	
 	// Don't forget to set the room props
 	set_room_props();
 }

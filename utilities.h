@@ -45,13 +45,59 @@ extern "C" {
 			continue
 
 #define get_guybrush_sid(x)					\
-	(((guybrush[x].state == STATE_STOP)||(guybrush[x].state == STATE_BLOCKED_STOP)||(guybrush[x].state == STATE_BLOCKED_MOVE))?	\
-		get_stop_animation_sid(guybrush[x].ani_index):get_animation_sid(guybrush[x].ani_index))
+	( ( (guybrush[x].state & STATE_ANIMATED) && (!(guybrush[x].state & STATE_BLOCKED)) ) ?	\
+	get_animation_sid(guybrush[x].ani_index):get_stop_animation_sid(guybrush[x].ani_index))
 
 #define request_status_message(msg)	\
 	if ((!keep_message_on) && (!status_message)) status_message = (char*)(msg)
 #define force_status_message(msg)		\
 	keep_message_on = false; status_message = (char*)(msg)
+
+
+// Adapted up from LBMVIEW V1.0b (copyleft for noncommercial use)
+// http://www.programmersheaven.com/download/6394/download.aspx
+
+/* ------------------ IFF ILBM/PBM loading routine ------------------ */
+
+#define IFF_FORM        0x464F524D    /* 'FORM' - IFF FORM structure  */
+#define IFF_ILBM        0x494C424D    /* 'ILBM' - interleaved bitmap  */
+#define IFF_BMHD        0x424D4844    /* 'BMHD' - bitmap header       */
+#define IFF_CMAP        0x434D4150    /* 'CMAP' - color map (palette) */
+#define IFF_BODY        0x424F4459    /* 'BODY' - bitmap data         */
+
+static __inline u32 freadl(FILE* f)
+{
+	u8	b,i;
+	u32 r = 0;
+	for (i=0; i<4; i++)
+	{
+		fread(&b,1,1,f);
+		r <<= 8;
+		r |= b;
+	}
+	return r;
+}
+static __inline u16 freadw(FILE* f)
+{
+	u8	b,i;
+	u16 r = 0;
+	for (i=0; i<2; i++)
+	{
+		fread(&b,1,1,f);
+		r <<= 8;
+		r |= b;
+	}
+	return r;
+}
+static __inline u8 freadc(FILE* f)
+{
+	u8	b = 0;
+	fread(&b,1,1,f);
+	return b;
+}
+
+
+
 
 
 
@@ -65,6 +111,7 @@ void to_16bit_palette(u8 palette_index, u8 transparent_index, u8 io_file);
 void cells_to_wGRAB(u8* source, u8* dest);
 void load_all_files();
 void display_room();
+void display_picture();
 void display_panel();
 void rescale_buffer();
 void get_properties();
@@ -75,11 +122,11 @@ void glutPrintf(const char *fmt, ...);
 void init_sprites();
 void sprites_to_wGRAB();
 s16 check_footprint(s16 dx, s16 d2y);
-void switch_room(s16 exit);
+void switch_room(s16 exit, bool tunnel_io);
 void fix_files();
 void set_room_props();
 void timed_events(u16 hours, u16 minutes_high, u16 minutes_low);
-
+int  load_iff();
 
 
 
