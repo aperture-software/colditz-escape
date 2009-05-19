@@ -52,7 +52,7 @@ int	opt_debug				= 0;
 int opt_ghost				= 0;
 int opt_play_as_the_safe	= 0;
 // Who needs keys?
-int opt_keymaster			= -1;
+int opt_keymaster			= 0;
 // "'coz this is triller..."
 int opt_thrillerdance		= 0;
 // Force a specific sprite ID for our guy
@@ -123,10 +123,9 @@ char* status_message;
 bool paused = false;
 u64  paused_time;
 u8  hours_digit_h, hours_digit_l, minutes_digit_h, minutes_digit_l;
-u8  tunexit_nr, tunexit_flags;
+u8  tunexit_nr, tunexit_flags, tunnel_tool;
 u8*	iff_image;
 
-//u16  current_room_index = ROOM_OUTSIDE;
 u16  nb_rooms, nb_cells, nb_objects;
 u8	 palette_index = 4;
 s_sprite*	sprite;
@@ -135,7 +134,6 @@ u8   overlay_index;
 u8   bPalette[3][16];
 // remapped Amiga Palette
 u16  aPalette[32];
-//u32  rem_bitmask = 0x8000001E;
 char nb_props_message[32] = "\499 * ";
 
 // offsets to sprites according to joystick direction (dx,dy)
@@ -265,18 +263,38 @@ void process_motion(void)
 		}
 	}
 	// We're idle, but we might be trying to open a tunnel exit
-	else if (tunexit_nr)
+	else if (read_key_once(KEY_FIRE))
 	{
-		if (read_key_once(KEY_FIRE))
-		{
-			printf("tunexit_nr = %d, tunexit_flags = %X\n", tunexit_nr, tunexit_flags);
-			if ((opt_keymaster) || 
-				// do we have the right key selected
-				(selected_prop[current_nation] == ((tunexit_flags & 0x60) >> 5)))
+		// Start by checking where we stand
+		check_footprint(0,0);
+		if (tunexit_nr)
+		{	// Tunnel it is
+// TO_DO: direct exit when using shovel inside a tunnel
+//        remove the need for a move on selet candle (issue a check_footprint?)
+
+			// The opening of a tunnel exit is done in 2 times
+			// 1. If the exit is closed, use the right tool (saw, shovel or pick-axe) to open it
+			if (!(tunexit_flags & 0x10))
+			{	// exit is closed
+				if ( (opt_keymaster) || (selected_prop[current_nation] == tunnel_tool) )
+				{	// Toggle the exit open and consume the relevant item
+					printf("opening exit\n");
+					consume_prop();
+					toggle_exit(tunexit_nr-1);
+				}
+			}
+			// If the exit is open and we're in a tunnel, just exit
+			// Otherwise, consume a candle
+			else if ( (opt_keymaster) || (in_tunnel) ||
+				      (selected_prop[current_nation] == ITEM_CANDLE) )
 			{
+				printf("exit already open\n");
+				if (!in_tunnel)
+				// Only consume the candle
+				// NB: works because we have a if !keymaster in the function
+					consume_prop();
 				// Toggle tunneling state
 				prisoner_state ^= STATE_TUNNELING;
-//				prisoner_state |= STATE_TUNNELING;
 				switch_room(tunexit_nr-1, true);
 			}
 		}
@@ -388,17 +406,7 @@ static void glut_idle(void)
 	}
 	else
 	{
-		// DEBUG display IFF
-		if (read_key_once(KEY_DEBUG_LOAD_IFF))
-		{
-			paused_time = t;
-			static_picture = true;
-			fade_direction = 1;
-			paused = true;
-		}
-
-
-		// Toggle pause (unless a static picture is being displayed)
+		// Toggle pause (if a static picture is not being displayed)
 		if (read_key_once(KEY_PAUSE))
 		{
 			if (paused)
@@ -416,7 +424,7 @@ static void glut_idle(void)
 		}
 	}
 
-	// Are we paused right now
+	// Handle paused state (sleep & exit)
 	if (paused)
 	{
 		// We should be able to sleep for a while
@@ -424,37 +432,7 @@ static void glut_idle(void)
 		return;
 	}
 
-	// Clock minute tick?
-	if ((t - last_ctime) > TIME_MARKER)
-	{
-		last_ctime += TIME_MARKER;
-		minutes_digit_l++;
-		if (minutes_digit_l == 10)
-		{
-			minutes_digit_h++;
-			minutes_digit_l = 0;
-			if (minutes_digit_h == 6)
-			{
-				hours_digit_l++;
-				minutes_digit_h = 0;
-				if (hours_digit_l == 10)
-				{
-					hours_digit_h++;
-					hours_digit_l = 0;
-				}
-				if ((hours_digit_l == 4) && (hours_digit_h == 2))
-				{
-					hours_digit_l = 0;
-					hours_digit_h = 0;
-				}
-			}
-		}
-	}
-
-	// Check for timed events
-	timed_events(hours_digit_h*10+hours_digit_l, minutes_digit_h, minutes_digit_l);
-
-	// Increment animations framecounts
+	// Handle animations and timed events on regular basis
 	if ((t - last_atime) > ANIMATION_INTERVAL)
 	{
 		last_atime += ANIMATION_INTERVAL;	// closer to ideal rate
@@ -462,29 +440,58 @@ static void glut_idle(void)
 		// but leads to catchup effect when moving window
 		for (i = 0; i < nb_animations; i++)
 			animations[i].framecount++;
-	}
 
-
-	// Execute timed events, if any are in the queue
-	for (i = 0; i<NB_EVENTS; i++)
-	{
-		if (events[i].function == NULL)
-			continue;
-		if (t > events[i].expiration_time)
-		{	// Execute the timeout function
-			events[i].function(events[i].parameter);
-			// Make the event available again
-			events[i].function = NULL;
+		// Clock minute tick?
+		if ((t - last_ctime) > TIME_MARKER)
+		{
+			last_ctime += TIME_MARKER;
+			minutes_digit_l++;
+			if (minutes_digit_l == 10)
+			{
+				minutes_digit_h++;
+				minutes_digit_l = 0;
+				if (minutes_digit_h == 6)
+				{
+					hours_digit_l++;
+					minutes_digit_h = 0;
+					if (hours_digit_l == 10)
+					{
+						hours_digit_h++;
+						hours_digit_l = 0;
+					}
+					if ((hours_digit_l == 4) && (hours_digit_h == 2))
+					{
+						hours_digit_l = 0;
+						hours_digit_h = 0;
+					}
+				}
+			}
 		}
+
+		// Check for timed events
+		timed_events(hours_digit_h*10+hours_digit_l, minutes_digit_h, minutes_digit_l);
+
+		// Execute timed events, if any are in the queue
+		for (i = 0; i<NB_EVENTS; i++)
+		{
+			if (events[i].function == NULL)
+				continue;
+			if (t > events[i].expiration_time)
+			{	// Execute the timeout function
+				events[i].function(events[i].parameter);
+				// Make the event available again
+				events[i].function = NULL;
+			}
+		}
+
+		// Take care of message display
+		if ((keep_message_on) && (t > keep_message_mtime_start + KEEP_MESSAGE_DURATION))
+			keep_message_on = false;
+
+		// Reset the status message if needed
+		if (!keep_message_on)
+			status_message = NULL;
 	}
-
-	// Take care of message display
-	if ((keep_message_on) && (t > keep_message_mtime_start + KEEP_MESSAGE_DURATION))
-		keep_message_on = false;
-
-	// Reset the status message if needed
-	if (!keep_message_on)
-		status_message = NULL;
 
 	// Reset the motion
 	dx = 0; 
@@ -510,6 +517,13 @@ static void glut_idle(void)
 	// Display our current position
 	if (read_key_once(KEY_DEBUG_PRINT_POS))
 		printf("(px, p2y) = (%d, %d), room = %x, rem = %08X\n", prisoner_x, prisoner_2y, current_room_index, rem_bitmask);
+
+	// Gimme some props
+	if (read_key_once(KEY_DEBUG_BONANZA))
+	{
+		for (i=1; i<NB_PROPS; i++)
+			props[current_nation][i] += 10;
+	}
 
 	// Walk/Run toggle
 	if (read_key_once(KEY_TOGGLE_WALK_RUN))
@@ -681,9 +695,9 @@ static void glut_idle(void)
 
 	// Can't hurt to sleep a while if we're motionless, so that
 	// we don't hammer down the CPU in a loop
-	if ((dx == 0) && (d2y == 0))
-		msleep(3);
-//		msleep(REPOSITION_INTERVAL/5);
+//	if ((dx == 0) && (d2y == 0))
+//		msleep(3);
+		msleep(REPOSITION_INTERVAL/5);
 }
 
 

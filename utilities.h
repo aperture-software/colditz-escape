@@ -14,7 +14,7 @@ extern "C" {
 #define room_readtile(x,y)			\
 	((u32)(readword((u8*)(fbuffer[ROOMS]+ROOMS_START+offset),((y)*room_x+(x))*2) & 0xFF80) >> 7)
 #define readtile(x,y)				\
-	((current_room_index == ROOM_OUTSIDE)?comp_readtile(x,y):room_readtile(x,y))
+	(is_outside?comp_readtile(x,y):room_readtile(x,y))
 
 // Reads the exit index, which we need to get to the target room index
 #define comp_readexit(x,y)			\
@@ -22,7 +22,7 @@ extern "C" {
 #define room_readexit(x,y)			\
 	((u32)(readword((u8*)(fbuffer[ROOMS]+ROOMS_START+offset),((y)*room_x+(x))*2) & 0x1F))
 #define readexit(x,y)				\
-	((current_room_index == ROOM_OUTSIDE)?comp_readexit(x,y):room_readexit(x,y))
+	(is_outside?comp_readexit(x,y):room_readexit(x,y))
 
 // Returns the offset of the byte that describes the exit status (open/closed, key level...) 
 #define room_get_exit_offset(x,y)	\
@@ -30,11 +30,11 @@ extern "C" {
 #define comp_get_exit_offset(x,y)	\
 	(comp_readexit(x,y) << 3)
 #define get_exit_offset(x,y)		\
-	((current_room_index == ROOM_OUTSIDE)?comp_get_exit_offset(x,y):room_get_exit_offset(x,y))
+	(is_outside?comp_get_exit_offset(x,y):room_get_exit_offset(x,y))
 
 // Toggle the exit open flag
-#define toggle_open_flag(x_flags)	\
-	x_flags = (x_flags & 0x10)?(x_flags & 0xEF):(x_flags | 0x10)
+#define toggle_open_flag(x_flags)  x_flags ^= 0x10
+//	x_flags = (x_flags & 0x10)?(x_flags & 0xEF):(x_flags | 0x10)
 
 // Checks that an overlays is visible onscreen (with generous margins)
 #define ignore_offscreen_x(ovl)		\
@@ -54,16 +54,12 @@ extern "C" {
 	keep_message_on = false; status_message = (char*)(msg)
 
 
-// Adapted up from LBMVIEW V1.0b (copyleft for noncommercial use)
-// http://www.programmersheaven.com/download/6394/download.aspx
-
-/* ------------------ IFF ILBM/PBM loading routine ------------------ */
-
-#define IFF_FORM        0x464F524D    /* 'FORM' - IFF FORM structure  */
-#define IFF_ILBM        0x494C424D    /* 'ILBM' - interleaved bitmap  */
-#define IFF_BMHD        0x424D4844    /* 'BMHD' - bitmap header       */
-#define IFF_CMAP        0x434D4150    /* 'CMAP' - color map (palette) */
-#define IFF_BODY        0x424F4459    /* 'BODY' - bitmap data         */
+// For load_iff()
+#define IFF_FORM        0x464F524D    // 'FORM' - IFF FORM structure  
+#define IFF_ILBM        0x494C424D    // 'ILBM' - interleaved bitmap
+#define IFF_BMHD        0x424D4844    // 'BMHD' - bitmap header
+#define IFF_CMAP        0x434D4150    // 'CMAP' - color map (palette)
+#define IFF_BODY        0x424F4459    // 'BODY' - bitmap data
 
 static __inline u32 freadl(FILE* f)
 {
@@ -101,6 +97,7 @@ static __inline u8 freadc(FILE* f)
 
 
 
+
 //void cells_to_interleaved(u8* buffer, u32 size);
 //void sprites_to_interleaved(u8* buffer, u32 bitplane_size);
 void to_16bit_palette(u8 palette_index, u8 transparent_index, u8 io_file);
@@ -121,6 +118,7 @@ void glutPrintf(const char *fmt, ...);
 #endif
 void init_sprites();
 void sprites_to_wGRAB();
+void toggle_exit(u32 exit_nr);
 s16 check_footprint(s16 dx, s16 d2y);
 void switch_room(s16 exit, bool tunnel_io);
 void fix_files();

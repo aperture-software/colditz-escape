@@ -173,6 +173,7 @@ do {									\
 #define SPECIAL_TILES_START		0x3F3A
 #define NB_SPECIAL_TILES		0x16
 #define FIREPLACE_TILE			0xE080
+#define TUNNEL_TILE_ADDON		0x1E0
 //Sprites
 #define NB_STANDARD_SPRITES		0xD1
 // Panel sprites 
@@ -230,6 +231,8 @@ do {									\
 #define CMP_MAP_HEIGHT			0x48
 // On compressed map (outside)
 #define ROOM_OUTSIDE			0xFFFF
+// Lower index of tunnels
+#define ROOM_TUNNEL				0x0203
 // Room index for picked objects
 #define ROOM_NO_PROP			0x0258
 #define REMOVABLES_MASKS_START	0x8758
@@ -249,6 +252,10 @@ do {									\
 #define EXIT_MASKS_OFFSETS		0x39E4
 #define EXIT_MASKS_START		0x8A46
 #define NB_EXITS				27
+#define NB_TUNNEL_EXITS			7
+#define IN_TUNNEL_EXITS_START	5
+#define TUNNEL_EXIT_TILES_LIST	0x2AEA
+#define TUNNEL_EXIT_TOOLS_LIST	0x2AF8
 #define EXIT_CELLS_LIST			0x3E9A
 #define NB_CELLS_EXITS			22
 #define ROOMS_EXITS_BASE		0x0100
@@ -405,7 +412,7 @@ do {									\
 
 // Because the colours are 4 or 5 bits, starting a fade at 0 is 
 // not advisable
-#define FADE_START_VALUE		0.2f
+#define FADE_START_VALUE		0.1f
 
 // Redefinition of GLUT's special keys so that they fit in our key table
 #define SPECIAL_KEY_OFFSET		0x80
@@ -484,7 +491,7 @@ do {									\
 #endif
 
 #define KEY_DEBUG_PRINT_POS		'p'
-#define KEY_DEBUG_LOAD_IFF		'#'
+#define KEY_DEBUG_BONANZA		'#'
 
 
 // Stupid VC++ doesn't know the basic formats it can actually use!
@@ -620,6 +627,8 @@ extern u8 current_nation;
 #define guy(i)		   guybrush[i]
 #define guard(i)	   guy(i+NB_NATIONS)
 #define in_tunnel      (prisoner_state&STATE_TUNNELING)
+#define is_outside     (current_room_index==ROOM_OUTSIDE)
+#define is_inside      (current_room_index!=ROOM_OUTSIDE)
 extern s16  last_p_x, last_p_y;
 extern s16  dx, d2y;
 extern u8  prisoner_sid;
@@ -630,7 +639,8 @@ extern s_overlay	*overlay;
 extern u8   overlay_index;
 
 // Variables used to detect tunnel exits
-extern u8 tunexit_nr, tunexit_flags;
+extern u8  tunexit_nr, tunexit_flags, tunnel_tool;
+//extern u32 tunexit_flags_offset;
 
 extern bool init_animations;
 
@@ -646,6 +656,17 @@ static __inline bool read_key_once(u8 k)
 		return true;
 	}
 	return false;
+}
+
+static __inline consume_prop()
+{
+	if (!opt_keymaster)
+	{	// consume the prop
+		props[current_nation][selected_prop[current_nation]]--;
+		if (props[current_nation][selected_prop[current_nation]] == 0)
+		// display the empty box if last prop
+			selected_prop[current_nation] = 0;
+	}
 }
 
 extern bool	keep_message_on;
