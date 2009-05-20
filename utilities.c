@@ -42,11 +42,15 @@ u8	remove_props[CMP_MAP_WIDTH][CMP_MAP_HEIGHT];
 u8  overlay_order[MAX_OVERLAY], b[MAX_OVERLAY/2+1];
 u8	currently_animated[MAX_ANIMATIONS];
 u32 exit_flags_offset;
+bool tunnel_toggle;
 //u32 debug_counter = 0;
 s16	gl_off_x = 0, gl_off_y  = 0;
 char panel_message[256];
 u32 next_timed_event_ptr = TIMED_EVENTS_INIT;
 u8*	iff_image;
+
+// For the fatigue bar base sprite (4_4_4_4 GRAB colour values)
+u16 fatigue_colour[8] = {0x29F0, 0x4BF0, 0x29F0, 0x06F0, 0x16F1, 0, 0, 0};
 
 // Bummer! The way they setup their animation overlays and the way I 
 // do it to be more efficient means I need to define a custom table
@@ -563,7 +567,7 @@ s_nonstandard nonstandard(u16 sprite_index)
 		sp.base = NB_STANDARD_SPRITES + NB_PANEL_FLAGS + NB_PANEL_FACES + NB_PANEL_CLOCK_DIGITS;
 		sp.offset = PANEL_ITEMS_OFFSET;
 	}
-	// Never gonna happen
+	// Never gonna happen... or will it???
 	else
 	{
 		sp.w = 0;
@@ -784,6 +788,7 @@ void init_sprites()
 	u16 sprite_w;	// width, in words
 	u32 sprite_address;
 
+
 	// Allocate the sprites and overlay arrays
 	sprite = aligned_malloc(NB_SPRITES * sizeof(s_sprite), 16);
 	overlay = aligned_malloc(MAX_OVERLAY * sizeof(s_overlay), 16);
@@ -822,7 +827,7 @@ void init_sprites()
 	}
 
 	// We add the panel (nonstandard) sprites at the end of our exitsing sprite array
-	for (sprite_index=NB_STANDARD_SPRITES; sprite_index<NB_SPRITES; sprite_index++)
+	for (sprite_index=NB_STANDARD_SPRITES; sprite_index<NB_SPRITES-1; sprite_index++)
 	{
 		sprite[sprite_index].w = nonstandard(sprite_index).w;
 		sprite[sprite_index].corrected_w = nonstandard(sprite_index).w;
@@ -832,6 +837,14 @@ void init_sprites()
 		sprite[sprite_index].data = aligned_malloc( RGBA_SIZE * 
 			sprite[sprite_index].w * sprite[sprite_index].h, 16);
 	}
+
+	// Finally we define the last nonstandard sprite base for fatigue
+	// Dammit!!! - the PSP can't handle 1 pixel wide textures properly!!!
+	sprite[sprite_index].w = 8;
+	sprite[sprite_index].h = 8;
+	sprite[sprite_index].x_offset = 1;
+	sprite[sprite_index].data = aligned_malloc( RGBA_SIZE * 
+			sprite[sprite_index].w * sprite[sprite_index].h, 16);
 
 	// We use a different sprite array for status message chars
 	set_panel_chars();
@@ -847,8 +860,9 @@ void sprites_to_wGRAB()
 	u32 sprite_address;
 	u8* sbuffer;
 	int no_mask = 0;
+	int x,y;
 
-	for (sprite_index=0; sprite_index<NB_SPRITES; sprite_index++)
+	for (sprite_index=0; sprite_index<NB_SPRITES-1; sprite_index++)
 	{
 		// Standard sprites (from SPRITES.SPR)
 		if (sprite_index < NB_STANDARD_SPRITES)
@@ -898,6 +912,21 @@ void sprites_to_wGRAB()
 			sprite[sprite_index].corrected_h, 0, GL_RGBA, GL_UNSIGNED_SHORT_4_4_4_4_REV,
 			sprite[sprite_index].data));
 	}
+
+	// The last sprite (fatigue) is initialized manually
+
+	// Because we're little endian (DAMN YOU INTEL!!!! DAMN YOU TO HELL!!!!) we need
+	// to provide our 4_4_4_4 GRAB values as ABGR.  Oh, and I think I've defined enough
+	// constants as it is, so the hell with it, we'll go manual
+	for (y=0; y<8; y++)
+		for (x=0; x<8; x++)
+			writeword(sprite[sprite_index].data, 16*y+2*x, fatigue_colour[y]);
+
+	GLCHK(glBindTexture(GL_TEXTURE_2D, sprite_texid[sprite_index]));
+	GLCHK(glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, sprite[sprite_index].w, 
+		sprite[sprite_index].h, 0, GL_RGBA, GL_UNSIGNED_SHORT_4_4_4_4_REV,
+		sprite[sprite_index].data));
+
 }
 
 // Returns the last frame of an animation (usually the centered position)
@@ -1500,19 +1529,18 @@ u8 i, sid;
 	// Add our current prisoner's animation
 	if (init_animations)
 	{	// Set the animation for our prisoner
-		// TO_DO: german uniform/ crawl
 		prisoner_ani = nb_animations;
 		if (in_tunnel)
 		{
 			prisoner_speed = 1;
-			animations[prisoner_ani].index = CRAWL_ANI;
+			animations[prisoner_ani].index = prisoner_uni?GUARD_CRAWL_ANI:CRAWL_ANI;
 		}
 		else
 		{
 			if (prisoner_speed == 1)
-				animations[prisoner_ani].index = WALK_ANI; 
+				animations[nb_animations].index = prisoner_uni?GUARD_WALK_ANI:WALK_ANI; 
 			else
-				animations[prisoner_ani].index = RUN_ANI; 
+				animations[nb_animations].index = prisoner_uni?GUARD_RUN_ANI:RUN_ANI; 
 		}
 		animations[prisoner_ani].framecount = 0;
 		animations[prisoner_ani].guybrush_index = current_nation;
@@ -1578,9 +1606,9 @@ u8 i, sid;
 			guybrush[i].ani_index = (opt_thrillerdance)?prisoner_ani:nb_animations;
 
 			if (guybrush[i].speed == 1)
-				animations[nb_animations].index = ((i<NB_NATIONS)?WALK_ANI:GUARD_WALK_ANI); 
+				animations[nb_animations].index = ((guybrush[i].guard_uniform)?GUARD_WALK_ANI:WALK_ANI); 
 			else
-				animations[nb_animations].index = ((i<NB_NATIONS)?RUN_ANI:GUARD_RUN_ANI); 
+				animations[nb_animations].index = ((guybrush[i].guard_uniform)?GUARD_RUN_ANI:RUN_ANI); 
 			animations[nb_animations].framecount = 0;
 			animations[nb_animations].guybrush_index = i;
 			animations[nb_animations].end_of_ani_function = NULL;
@@ -2177,6 +2205,7 @@ void display_panel()
 
 	glEnable(GL_BLEND);	// We'll need blending for the sprites, etc.
 
+	// Display our guy's faces
 	for (i=0; i<4; i++)
 	{
 		sid = 0xd5 + i;
@@ -2184,10 +2213,11 @@ void display_panel()
 			sprite[sid].w, sprite[sid].h, sprite_texid[sid]);
 	}
 
+	// Current flag
 	display_sprite(PANEL_FLAGS_X, PANEL_TOP_Y, sprite[PANEL_FLAGS_BASE_SID+current_nation].w,
 		sprite[PANEL_FLAGS_BASE_SID+current_nation].h, sprite_texid[PANEL_FLAGS_BASE_SID+current_nation]);
 
-	// Unlike the original game, I like having the zero displayed on hours tens, always
+	// Unlike the original game, I like having the zero displayed on hour tens, always
 	sid = PANEL_CLOCK_DIGITS_BASE + hours_digit_h;
 	display_sprite(PANEL_CLOCK_HOURS_X, PANEL_TOP_Y,
 			sprite[sid].w, sprite[sid].h, sprite_texid[sid]);
@@ -2211,6 +2241,11 @@ void display_panel()
 	display_sprite(PANEL_PROPS_X, PANEL_TOP_Y,
 			sprite[sid].w, sprite[sid].h, sprite_texid[sid]);
 
+	// Fatigue
+	display_sprite(PANEL_FATIGUE_X, PANEL_FATIGUE_Y,
+		prisoner_fatigue, sprite[NB_SPRITES-1].h, sprite_texid[NB_SPRITES-1]);
+
+	// Props data
 	if (over_prop_id)
 	{
 		sid = over_prop_id + PANEL_PROPS_BASE;
@@ -2341,13 +2376,13 @@ void rescale_buffer()
 }
 
 // Open a closed door, or close an open door
-// Also uses exit_flags_offset, which is a global variable for utilities
+// Also uses exit_flags_offset and tunnel_toggle, which are a global variable for utilities
 void toggle_exit(u32 exit_nr)
 {
 // On the compressed map, we use either the ROOMS or TUNNEL_IO file 
-// depending on the exit type. We use the previously set tunexit_nr
-// to find out if we're dealing with a tunnel
-#define ROOMS_TUNIO (tunexit_nr?TUNNEL_IO:ROOMS)
+// depending on the exit type. We use the previously set tunnel_toggle 
+// to find out if we're dealing with a tunnel (see check_footprint())
+#define ROOMS_TUNIO (tunnel_toggle?TUNNEL_IO:ROOMS)
 	u32 offset;
 	u16 exit_index;	// exit index in destination room
 	u16 room_x, room_y, tile_data;
@@ -2454,12 +2489,13 @@ void enqueue_event(void (*f)(u32), u32 p, u64 delay)
 }
 
 
-// Checks if the prisoner can go to (px,p2y)
+// Checks if the prisoner can go to (px,p2y) and initiates door/tunnel I/O
 // Returns:
 // non zero if allowed (-1 if not an exit, or the exit number)
 // 0 if not allowed
 // TO_DO: remove gotit debug code
 // Be mindful that the dx, d2y used here are not the same as the global values from main!
+// Note that if (dx,d2y) = (0,0) we'll return a tunnel exit nr rather than a regular exit
 s16 check_footprint(s16 dx, s16 d2y)
 {
 	u32 tile, tile_mask, exit_mask, offset=0;
@@ -2477,6 +2513,7 @@ s16 check_footprint(s16 dx, s16 d2y)
 	u8	exit_flags;
 	u8	exit_nr;
 	u8  tunexit_tool[4] = {ITEM_NONE, ITEM_NONE, ITEM_NONE, ITEM_NONE};
+	bool check_for_tunnel_exits;
 
 
 	/*
@@ -2484,14 +2521,12 @@ s16 check_footprint(s16 dx, s16 d2y)
 	 * in case our rectangular footprint spans more than a single tile
 	 */
 
+	// This function handles tunnel I/O so initiate a few things
+	check_for_tunnel_exits = ((dx == 0) && (d2y == 0));
+	tunnel_toggle=false;
+
 	if (in_tunnel)
 		footprint = TUNNEL_FOOTPRINT;
-
-	// As it is convenient to do so here, this function is also used to determine
-	// if we stand over a tunnel exit, and setup the global variables that might be
-	// used if that's the case
-	tunexit_flags = 0;
-	tunexit_nr = 0;
 
 	if (is_outside)
 	{	// on compressed map
@@ -2548,6 +2583,10 @@ s16 check_footprint(s16 dx, s16 d2y)
 		}
 
 		// Check for tunnel exits, and set the appropriate tool
+		// NB: we need to do that even when not specifically checking for tunnel exits
+		//     to make sure tunnel I/O tiles are walkable (MASK_FULL) as their default
+		//     mask is not
+		// TO_DO: fix the mask offsets for tunnel exits and speed up things by using check_for_tunnel_exits
 		for (u=0; u<NB_TUNNEL_EXITS; u++)
 		{
 			if (readword((u8*)fbuffer[LOADER], TUNNEL_EXIT_TILES_LIST + 2*u) == tile)
@@ -2643,31 +2682,66 @@ s16 check_footprint(s16 dx, s16 d2y)
 
 	// Check if we are standing on a tunnel exit and set the global variables accordingly
 	// If a tunnel exit tool is set, we have a winner
-	for (u=0; u<3; u++)
+	if (check_for_tunnel_exits)
 	{
-		if (tunexit_tool[u] != ITEM_NONE)
+		tunnel_toggle = true;
+		for (u=0; u<3; u++)
 		{
-			// The line below defines the boundaries we'll use for tunnel exits
-			// I'd say we do a much better job than in the original game, as exiting 
-			// tunnels was a complete pain there
-			if ( ( (!in_tunnel) && (((u == 0) && (px%32 <24 )) || ((u == 1) && (px%32 >=24))) ) ||
-				 ( ( in_tunnel) && ((u == 0) || (u == 2)) ) )
+			if (check_for_tunnel_exits && (tunexit_tool[u] != ITEM_NONE))
 			{
-				// We need to spare the exit offset value
-				// NB1: tile_y was incremented twice in the main for loop
-				// NB2: exit_flags_offset is a global that will be used in toggle_exit()
-				exit_flags_offset = get_exit_offset(tile_x+(u%2),tile_y-2+(u/2));
-				tunexit_flags = readbyte(fbuffer[is_inside?ROOMS:TUNNEL_IO], exit_flags_offset);
-				// as for regular exits, because we use tunexit_nr as a boolean, we start at +1
-				tunexit_nr = readexit(tile_x+(u%2),tile_y-2+(u/2)) + 1;
-				tunnel_tool = tunexit_tool[u];
-//				printf("setting tunexit_nr = %x, tunexit_flags = %x, tunnel_tool = %d\n", tunexit_nr, tunexit_flags, tunnel_tool);
+				// The line below defines the boundaries we'll use for tunnel exits
+				// I'd say we do a much better job than in the original game, as exiting 
+				// tunnels was a complete pain there
+				if (
+					 ( ( (!in_tunnel) && (((u == 0) && (px%32 <24 )) || ((u == 1) && (px%32 >=24))) ) ||
+					   ( ( in_tunnel) && ((u == 0) || (u == 2)) ) ) && (is_fire_pressed)
+					)
+				{
+					// We need to spare the exit offset value
+					// NB1: tile_y was incremented twice in the main for loop
+					// NB2: exit_flags_offset is a global that will be used in toggle_exit()
+					exit_flags_offset = get_exit_offset(tile_x+(u%2),tile_y-2+(u/2));
+					exit_flags = readbyte(fbuffer[is_inside?ROOMS:TUNNEL_IO], exit_flags_offset);
+					// as for regular exits, because we use tunexit_nr as a boolean, we start at +1
+					exit_nr = readexit(tile_x+(u%2),tile_y-2+(u/2)) + 1;
+	//				printf("setting tunexit_nr = %x, tunexit_flags = %x, tunnel_tool = %d\n", tunexit_nr, tunexit_flags, tunnel_tool);
+
+					if (!(exit_flags & 0x10))
+					{	// Exit is closed => check for the right prop
+						if ( (opt_keymaster) || (selected_prop[current_nation] == tunexit_tool[u]) )
+						{	// Toggle the exit open and consume the relevant item
+							consume_prop();		// doesn't consume if opt_keymaster
+							show_prop_count();
+
+							toggle_exit(exit_nr-1);
+							if (in_tunnel) 
+								// If we're in a tunnel and used the shovel, we exit directly
+								return exit_nr;
+							else
+								// return 0 as we don't want to switch room just yet
+								return 0;
+						}
+					}
+					else if ( (opt_keymaster) || (in_tunnel) ||
+							  (selected_prop[current_nation] == ITEM_CANDLE) )
+					{	// Exit is open and we're all set to get through it
+						if (!in_tunnel)
+						{
+							// Only consume the candle (because of the if !opt_keymaster in fn)
+							consume_prop();
+							show_prop_count();
+						}
+						return exit_nr;
+					}
+				}
+				break;
 			}
-			break;
 		}
+		// No need to push it further if we are only checking for tunnels
+		return 0;
 	}
 
-	// We check collisions and regular exits for multiple py's
+	// Not tunnel I/O => we check collisions and regular exits for multiple py's
 	for (i=0; i<FOOTPRINT_HEIGHT; i++)
 	{
 		tile_mask = to_long(readword((u8*)fbuffer[LOADER], mask_offset[0]),	
@@ -2695,7 +2769,7 @@ s16 check_footprint(s16 dx, s16 d2y)
 				// Is the exit open?
 				if ((!(exit_flags & 0x10)) && (exit_flags & 0x60))
 				{	// exit is closed
-					if (read_key_once(KEY_FIRE))
+					if (is_fire_pressed)
 					{
 						if ((opt_keymaster) || 
 							// do we have the right key selected
@@ -2731,14 +2805,7 @@ s16 check_footprint(s16 dx, s16 d2y)
 							}
 							
 							consume_prop();
-/*							if (!opt_keymaster)
-							{	// consume the key
-								props[current_nation][selected_prop[current_nation]]--;
-								if (props[current_nation][selected_prop[current_nation]] == 0)
-									// display the empty box if last prop
-									selected_prop[current_nation] = 0;
-							}
-*/						}
+						}
 						// For now, the exit is still closed, so we return failure to progress further
 						return 0;
 					}
@@ -2755,8 +2822,8 @@ s16 check_footprint(s16 dx, s16 d2y)
 				// +1 as exits start at 0
 				return(readexit(tile_x+exit_dx[0],tile_y-2)+1);
 			}
-			gotit = 0;
-//			return 0;
+//			gotit = 0;
+			return 0;
 		}
 		mask_y+=4;
 		// Do we need to change tile in y?
@@ -2777,8 +2844,8 @@ s16 check_footprint(s16 dx, s16 d2y)
 			}
 		}
 	}
-	return gotit;
-//	return -1;
+//	return gotit;
+	return -1;
 }
 
 

@@ -200,8 +200,10 @@ do {									\
 #define PANEL_STATE_X			(PANEL_PROPS_X+PANEL_ITEMS_W)
 #define PANEL_CLOCK_HOURS_X		(PANEL_STATE_X+PANEL_ITEMS_W+16)
 #define PANEL_CLOCK_MINUTES_X	(PANEL_CLOCK_HOURS_X+3*PANEL_CLOCK_DIGITS_W)
+#define PANEL_FATIGUE_X			(PANEL_CLOCK_MINUTES_X + 32)
+#define PANEL_FATIGUE_Y			(PANEL_TOP_Y+10)
 #define PANEL_ITEMS_OFFSET		0x1AC2
-#define NB_PANEL_SPRITES		(NB_PANEL_FLAGS+NB_PANEL_FACES+NB_PANEL_CLOCK_DIGITS+NB_PANEL_ITEMS)
+#define NB_PANEL_SPRITES		(NB_PANEL_FLAGS+NB_PANEL_FACES+NB_PANEL_CLOCK_DIGITS+NB_PANEL_ITEMS+1)
 #define NB_SPRITES				(NB_STANDARD_SPRITES+NB_PANEL_SPRITES)
 #define NB_PANEL_CHARS			59
 #define PANEL_CHARS_OFFSET		0xF20
@@ -520,6 +522,7 @@ typedef struct
 	u8* data;
 } s_sprite;
 
+// for nonstandtard sprites (panel, etc)
 typedef struct
 {
 	u16 w;
@@ -527,6 +530,7 @@ typedef struct
 	u32 offset;
 } s_nonstandard;
 
+// For room overlays (props, bed, stairs, etc)
 typedef struct
 {
 	s16 x;
@@ -535,6 +539,7 @@ typedef struct
 	u8 sid;
 } s_overlay;
 
+// Animated sprites data
 typedef struct
 {
 	u32	index;	// index for the ani in the LOADER table
@@ -544,6 +549,7 @@ typedef struct
 	void (*end_of_ani_function)(u32);
 } s_animation;
 
+// Timed events
 typedef struct
 {
 	u64	expiration_time;
@@ -551,6 +557,7 @@ typedef struct
 	void (*function)(u32);
 } s_event;
 
+// prisoners or guards
 typedef struct
 {
 	u16   room;
@@ -566,6 +573,8 @@ typedef struct
 	u8	  state;
 	u8	  ani_index;
 	bool  ani_set;
+	bool  guard_uniform;
+	u8    fatigue;
 	u32   go_on;
 	u16   wait;
 } s_guybrush;
@@ -629,6 +638,8 @@ extern u8 current_nation;
 #define in_tunnel      (prisoner_state&STATE_TUNNELING)
 #define is_outside     (current_room_index==ROOM_OUTSIDE)
 #define is_inside      (current_room_index!=ROOM_OUTSIDE)
+#define prisoner_uni	guybrush[current_nation].guard_uniform
+#define prisoner_fatigue guybrush[current_nation].fatigue
 extern s16  last_p_x, last_p_y;
 extern s16  dx, d2y;
 extern u8  prisoner_sid;
@@ -639,10 +650,14 @@ extern s_overlay	*overlay;
 extern u8   overlay_index;
 
 // Variables used to detect tunnel exits
-extern u8  tunexit_nr, tunexit_flags, tunnel_tool;
+//extern u8  tunexit_nr, tunexit_flags, tunnel_tool;
 //extern u32 tunexit_flags_offset;
 
 extern bool init_animations;
+extern bool is_fire_pressed;
+extern char nb_props_message[32];
+extern u64	t;
+extern u64 keep_message_mtime_start;
 
 
 extern bool key_down[256], key_readonce[256];
@@ -658,8 +673,9 @@ static __inline bool read_key_once(u8 k)
 	return false;
 }
 
-static __inline consume_prop()
-{
+// A couple of defines to make prop handling more readable
+static __inline void consume_prop()
+{	// we can use an __inline here because we deal with globals
 	if (!opt_keymaster)
 	{	// consume the prop
 		props[current_nation][selected_prop[current_nation]]--;
@@ -668,6 +684,20 @@ static __inline consume_prop()
 			selected_prop[current_nation] = 0;
 	}
 }
+
+#define update_props_message(prop_id)												\
+	nb_props_message[1] = (props[current_nation][prop_id] / 10) + 0x30;				\
+	nb_props_message[2] = (props[current_nation][prop_id] % 10) + 0x30;				\
+	strcpy(nb_props_message+6, (char*) fbuffer[LOADER] + readlong(fbuffer[LOADER],	\
+		PROPS_MESSAGE_BASE + 4*(prop_id-1)) + 1);									\
+	status_message = nb_props_message
+
+#define show_prop_count()													\
+	update_props_message(selected_prop[current_nation]);													\
+	keep_message_on = true;															\
+	keep_message_mtime_start = t													
+
+
 
 extern bool	keep_message_on;
 extern s_animation	animations[MAX_ANIMATIONS];
@@ -682,12 +712,6 @@ extern u8  bPalette[3][16];
 extern u16 aPalette[32];	// This palette is 32 instead of 16, because we also use
 							// it to load 5 bpp IFF images
 
-#define update_props_message(prop_id)												\
-	nb_props_message[1] = (props[current_nation][prop_id] / 10) + 0x30;				\
-	nb_props_message[2] = (props[current_nation][prop_id] % 10) + 0x30;				\
-	strcpy(nb_props_message+6, (char*) fbuffer[LOADER] + readlong(fbuffer[LOADER],	\
-		PROPS_MESSAGE_BASE + 4*(prop_id-1)) + 1);									\
-	status_message = nb_props_message
 
 #ifdef	__cplusplus
 }

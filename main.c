@@ -105,10 +105,11 @@ bool key_down[256], key_readonce[256];
 
 bool init_animations = true;
 bool keep_message_on = false;
+bool is_fire_pressed = false;
 s_animation	animations[MAX_ANIMATIONS];
 u8	nb_animations = 0;
 // last time for Animations and rePosition of the guards
-u64 last_atime, last_ptime, last_ctime;
+u64 t, last_atime, last_ptime, last_ctime;
 u64 keep_message_mtime_start;
 s_guybrush guybrush[NB_GUYBRUSHES];
 s_event	events[NB_EVENTS];
@@ -125,6 +126,7 @@ u64  paused_time;
 u8  hours_digit_h, hours_digit_l, minutes_digit_h, minutes_digit_l;
 u8  tunexit_nr, tunexit_flags, tunnel_tool;
 u8*	iff_image;
+bool found;
 
 u16  nb_rooms, nb_cells, nb_objects;
 u8	 palette_index = 4;
@@ -257,46 +259,10 @@ void process_motion(void)
 			}
 			// Change the last direction so that we use the right sid for stopping
 			prisoner_dir = directions[d2y+1][dx+1];
-//			animations[prisoner_ani].direction = directions[d2y+1][dx+1];
+
+			// "Freeze!"
 			dx = 0;
 			d2y = 0;
-		}
-	}
-	// We're idle, but we might be trying to open a tunnel exit
-	else if (read_key_once(KEY_FIRE))
-	{
-		// Start by checking where we stand
-		check_footprint(0,0);
-		if (tunexit_nr)
-		{	// Tunnel it is
-// TO_DO: direct exit when using shovel inside a tunnel
-//        remove the need for a move on selet candle (issue a check_footprint?)
-
-			// The opening of a tunnel exit is done in 2 times
-			// 1. If the exit is closed, use the right tool (saw, shovel or pick-axe) to open it
-			if (!(tunexit_flags & 0x10))
-			{	// exit is closed
-				if ( (opt_keymaster) || (selected_prop[current_nation] == tunnel_tool) )
-				{	// Toggle the exit open and consume the relevant item
-					printf("opening exit\n");
-					consume_prop();
-					toggle_exit(tunexit_nr-1);
-				}
-			}
-			// If the exit is open and we're in a tunnel, just exit
-			// Otherwise, consume a candle
-			else if ( (opt_keymaster) || (in_tunnel) ||
-				      (selected_prop[current_nation] == ITEM_CANDLE) )
-			{
-				printf("exit already open\n");
-				if (!in_tunnel)
-				// Only consume the candle
-				// NB: works because we have a if !keymaster in the function
-					consume_prop();
-				// Toggle tunneling state
-				prisoner_state ^= STATE_TUNNELING;
-				switch_room(tunexit_nr-1, true);
-			}
 		}
 	}
 
@@ -317,7 +283,6 @@ void process_motion(void)
 		prisoner_state |= STATE_MOTION;
 		// Update the animation direction
 		prisoner_dir = new_direction;
-//		animations[prisoner_ani].direction = new_direction;
 	}
 	else if (prisoner_state & STATE_MOTION)
 	{	// We just stopped
@@ -343,7 +308,6 @@ void restore_params(u32 param)
 	// we always end up in stopped state after a one shot animation
 	// for now we clear anything except tunneling
 	guybrush[brush].state &= STATE_TUNNELING;
-	//if (guybrush[brush].state & STATE_KNEEL)
 }
 
 // process motion keys
@@ -351,7 +315,7 @@ static void glut_idle(void)
 {	
 	u16 prop_offset;
 	u8	prop_id, direction, i;
-	u64	t;
+	s16 exit_nr;
 
 	// Return to intro screen
 	if (key_down[KEY_ESCAPE])
@@ -518,27 +482,79 @@ static void glut_idle(void)
 	if (read_key_once(KEY_DEBUG_PRINT_POS))
 		printf("(px, p2y) = (%d, %d), room = %x, rem = %08X\n", prisoner_x, prisoner_2y, current_room_index, rem_bitmask);
 
-	// Gimme some props
+	// Gimme some props!!!
 	if (read_key_once(KEY_DEBUG_BONANZA))
 	{
-		for (i=1; i<NB_PROPS; i++)
+		for (i=1; i<NB_PROPS-1; i++)
 			props[current_nation][i] += 10;
 	}
 
 	// Walk/Run toggle
-	if (read_key_once(KEY_TOGGLE_WALK_RUN))
+	if ( read_key_once(KEY_TOGGLE_WALK_RUN) && (!in_tunnel) && 
+		// Not checking for the following leads to issues
+	     ( (animations[prisoner_ani].index == RUN_ANI) || 
+		   (animations[prisoner_ani].index == WALK_ANI) ||
+		   (animations[prisoner_ani].index == GUARD_RUN_ANI) ||
+		   (animations[prisoner_ani].index == GUARD_WALK_ANI) ) 
+	   )
 	{
 		if (prisoner_speed == 1)
 		{
 			prisoner_speed = 2;
-			animations[prisoner_ani].index = RUN_ANI; // +GERMAN OFFSET
+			animations[nb_animations].index = prisoner_uni?GUARD_RUN_ANI:RUN_ANI; 
+			init_animations = true;
 		}
 		else
 		{
 			prisoner_speed = 1;
-			animations[prisoner_ani].index = WALK_ANI;
+			animations[nb_animations].index = prisoner_uni?GUARD_WALK_ANI:WALK_ANI; 
+			init_animations = true;
 		}
-		animations[prisoner_ani].framecount = 0;
+	}
+
+	// We're idle, but we might be trying to open a tunnel exit, or use a prop
+	if (read_key_once(KEY_FIRE))
+	{
+		// We need to set this variable as we might check if fire is pressed 
+		// in various subroutines below
+		is_fire_pressed = true;
+
+		// Handle tunnel I/O through a check_footprint() call
+		exit_nr = check_footprint(0,0);		// 0,0 indicates tunnel I/O
+		if (exit_nr)
+		{	// We just went through a tunnel exit
+			// => Toggle tunneling state
+			prisoner_state ^= STATE_TUNNELING;
+			switch_room(exit_nr-1, true);
+		}
+		else
+		{	// Are we trying to use some non tunnel I/O related prop?
+			switch(selected_prop[current_nation])
+			{
+			case ITEM_GUARDS_UNIFORM:
+				if (!prisoner_uni)
+				{	// Only makes sense if we're not already dressed as guard
+					prisoner_uni = true;
+					init_animations = true;
+					consume_prop();
+					show_prop_count();
+				}
+				break;
+			case ITEM_PRISONERS_UNIFORM:
+				if (prisoner_uni)
+				{	// Only makes sense if we're dressed as guard
+					prisoner_uni = false;
+					init_animations = true;
+					consume_prop();
+					show_prop_count();
+				}
+				break;
+			case ITEM_STONE:
+				break;
+			default:
+				break;
+			}
+		}
 	}
 
 	// The following keys are only handled if we are in a premissible state
@@ -584,8 +600,6 @@ static void glut_idle(void)
 			}
 			else
 				selected_prop[current_nation] = 0;
-
-//			printf("selected prop = %02X\n", selected_prop[current_nation]);
 		}
 
 		// Inventory pickup/dropdown
@@ -598,12 +612,7 @@ static void glut_idle(void)
 			animations[prisoner_ani].end_of_ani_parameter = (current_nation & 0xFF) | 
 				((animations[prisoner_ani].index << 8) & 0xFF00);
 			animations[prisoner_ani].index = KNEEL_ANI;
-//			animations[prisoner_ani].
-			//animations[prisoner_ani].index = SHOT_ANI;
-			// starting at -1 ensures that we'll go through frame 0
-			// as we need to wait the for the ani counter to increase
-			// for our first animation frame to show
-			// NO LONGER TRUE DAMMIT!!!!
+			// Make sure we go through frame 0
 			animations[prisoner_ani].framecount = 0;
 			animations[prisoner_ani].end_of_ani_function = restore_params;
 
@@ -611,28 +620,20 @@ static void glut_idle(void)
 			{	// picking up
 				if (over_prop)
 				{
-//					over_prop--;	// restore the zero based index
 					prop_offset = room_props[over_prop-1];
 					room_props[over_prop-1] = 0;
 					// change the room index to an invalid one
 					writeword(fbuffer[OBJECTS],prop_offset,ROOM_NO_PROP);
-//					prop_id = readbyte(fbuffer[OBJECTS],prop_offset+7);
-//					prop_id = over_prop_id;
 					props[current_nation][over_prop_id]++;
 					selected_prop[current_nation] = over_prop_id;
-					update_props_message(over_prop_id);
-					keep_message_on = true;
-					keep_message_mtime_start = t;
-//					for (i = 0; i< 16; i++)
-//						printf(" %02X", props[current_nation][i]);
-//					printf("\nselected prop = %02X\n", selected_prop[current_nation]);
+					show_prop_count();
 				}
 			}
 			else
 			{	// dropdown
 				if (selected_prop[current_nation])
 				{
-//					prop_offset = room_props[over_prop];
+					found = false;
 					over_prop_id = selected_prop[current_nation];
 					// OK, now we'll look for an picked object space in obs.bin to store 
 					// our data
@@ -651,12 +652,14 @@ static void glut_idle(void)
 							writeword(fbuffer[OBJECTS],prop_offset+2, prisoner_2y/2 + 3);
 							// 3. object id
 							writeword(fbuffer[OBJECTS],prop_offset+6, over_prop_id);
+							found = true;
 							break;
 						}
 					}
+					if (!found)		// Somebody's cheating!
+						printf("Could not find any free prop variable => discarding prop.\n");
 
 					props[current_nation][over_prop_id]--;
-
 					if (props[current_nation][over_prop_id] == 0)
 					// display the empty box if last prop
 						selected_prop[current_nation] = 0;
@@ -689,6 +692,8 @@ static void glut_idle(void)
 		}
 		// Upate our guy's position
 		process_motion();
+		// Only reset the fire action AFTER we processed motion
+		is_fire_pressed = false;
 		// Always redisplay, as there might be a guard moving
 		glut_display();
 	}
@@ -732,7 +737,6 @@ static void glut_keyboard_up(u8 key, int x, int y)
 
 static void glut_special_keys(int key, int x, int y)
 {
-//	printf("special key = %X\n", key);
 	key_down[key + SPECIAL_KEY_OFFSET] = true;
 }
 
@@ -744,7 +748,6 @@ static void glut_special_keys_up(int key, int x, int y)
 
 static void glut_mouse_buttons(int button, int state, int x, int y)
 {
-//	printf("mouse button %X, %s\n", button, (state==GLUT_DOWN)?"down":"up");
 	if (state == GLUT_DOWN)
 		key_down[SPECIAL_MOUSE_BUTTON_BASE + button] = true;
 	else
@@ -869,6 +872,8 @@ int main (int argc, char *argv[])
 	guybrush[i].speed = 1;
 	guybrush[i].direction = 0;
 	guybrush[i].ext_bitmask = 0x8000001E;
+	guybrush[i].guard_uniform = false;
+	guybrush[i].fatigue = 88;	// the fatigue bar is 88 pixels long
 	i++;
 
 	// French
@@ -879,6 +884,8 @@ int main (int argc, char *argv[])
 	guybrush[i].speed = 1;
 	guybrush[i].direction = 0;
 	guybrush[i].ext_bitmask = 0x8000007E;
+	guybrush[i].guard_uniform = false;
+	guybrush[i].fatigue = 44;
 	i++;
 
 	// American
@@ -889,6 +896,8 @@ int main (int argc, char *argv[])
 	guybrush[i].speed = 1;
 	guybrush[i].direction = 0;
 	guybrush[i].ext_bitmask = 0x8000001E;
+	guybrush[i].guard_uniform = false;
+	guybrush[i].fatigue = 1;
 	i++;
 
 	// Polish
@@ -899,6 +908,8 @@ int main (int argc, char *argv[])
 	guybrush[i].speed = 1;
 	guybrush[i].direction = 0;
 	guybrush[i].ext_bitmask = 0x8000001E;
+	guybrush[i].guard_uniform = false;
+	guybrush[i].fatigue = 0;
 	i++;
 
 	for (j=0;j<NB_GUARDS;j++)
@@ -913,6 +924,8 @@ int main (int argc, char *argv[])
 		guybrush[i].speed = 1;
 		guybrush[i].direction = 0;
 		guybrush[i].wait = 0;
+		guybrush[i].guard_uniform = true;
+		guybrush[i].fatigue = 0;
 		i++;
 	}
 		
