@@ -76,13 +76,13 @@ u16   iff_payload_h[NB_IFFS] = IFF_PAYLOAD_H;
 
 // Indicate whether we are running the game or displaying
 // a static IFF image
-bool  static_picture		= false;
+//bool  static_picture		= false;
 // Current static image IFF to load and display
 u16   current_iff = 0x0C;
 // Used for fade in/fade out of static images
-float fade_value = FADE_START_VALUE;
+float fade_value = 0.0f;
 // 1 for fade in, -1 for fade out
-int fade_direction = 0;
+int fade_direction = 1;	// make sure it is initialized to 1
 
 // OpenGL window size
 int	gl_width, gl_height;
@@ -106,6 +106,7 @@ bool key_down[256], key_readonce[256];
 bool init_animations = true;
 bool keep_message_on = false;
 bool is_fire_pressed = false;
+bool post_picture_check = false;
 s_animation	animations[MAX_ANIMATIONS];
 u8	nb_animations = 0;
 // last time for Animations and rePosition of the guards
@@ -115,14 +116,16 @@ s_guybrush guybrush[NB_GUYBRUSHES];
 s_event	events[NB_EVENTS];
 u8	props[NB_NATIONS][NB_PROPS];
 u8	selected_prop[NB_NATIONS];
+s_prisoner_event p_event[NB_NATIONS];
 u8	nb_room_props = 0;
 u16	room_props[NB_OBSBIN];
 u8	over_prop = 0, over_prop_id = 0;
 u8  current_nation = 0;
 u8	panel_chars[NB_PANEL_CHARS][8*8*2];
 char* status_message;
-bool paused = false;
-u64  paused_time;
+//bool paused = false;
+u16 game_state;
+u64 paused_time;
 u8  hours_digit_h, hours_digit_l, minutes_digit_h, minutes_digit_l;
 u8  tunexit_nr, tunexit_flags, tunnel_tool;
 u8*	iff_image;
@@ -198,7 +201,7 @@ static void glut_display(void)
 	glClear(GL_COLOR_BUFFER_BIT);
 
 	// Display either the current game frame or a static picture
-	if (static_picture)
+	if (game_state & GAME_STATE_STATIC_PIC)
 		display_picture();
 	else
 	{	// In game => update room content and panel
@@ -278,6 +281,21 @@ void process_motion(void)
 			animations[prisoner_ani].framecount = 0;
 
 		// Update our prisoner data
+		// Update the fatigue
+		if (prisoner_state & STATE_TUNNELING)
+			prisoner_fatigue += 0x28;
+		else
+		{
+			if (prisoner_fatigue >= MAX_FATIGUE)
+			{
+				prisoner_speed = 1;
+				animations[prisoner_ani].index = prisoner_as_guard?GUARD_WALK_ANI:WALK_ANI; 
+			}
+			prisoner_fatigue += (prisoner_speed==1)?1:4;
+		}
+		if (prisoner_fatigue > MAX_FATIGUE)
+			prisoner_fatigue = MAX_FATIGUE;
+
 		prisoner_x += prisoner_speed*dx;
 		prisoner_2y += prisoner_speed*d2y;
 		prisoner_state |= STATE_MOTION;
@@ -286,7 +304,12 @@ void process_motion(void)
 	}
 	else if (prisoner_state & STATE_MOTION)
 	{	// We just stopped
-		prisoner_state ^= STATE_MOTION;
+			prisoner_state ^= STATE_MOTION;
+	}
+	else if (prisoner_state & STATE_SLEEPING)
+	{	// Decrease fatigue
+		if (prisoner_fatigue >= 2)
+			prisoner_fatigue -= 2;
 	}
 }
 
@@ -306,8 +329,7 @@ void restore_params(u32 param)
 	animations[ani].framecount = 0;
 	animations[ani].end_of_ani_function = NULL;
 	// we always end up in stopped state after a one shot animation
-	// for now we clear anything except tunneling
-	guybrush[brush].state &= STATE_TUNNELING;
+	guybrush[brush].state &= ~(STATE_MOTION|STATE_KNEEL);
 }
 
 // process motion keys
@@ -325,17 +347,8 @@ static void glut_idle(void)
 	t = mtime();
 
 	// Handle the displaying of static pictures, with fading
-	if (static_picture)
+	if (game_state & GAME_STATE_STATIC_PIC)
 	{
-		// Make sure we initialize a pause if needed
-		if (!paused)
-		{
-			// Pause the game and set static picture variables
-			paused_time = t;
-			fade_direction = 1;
-			paused = true;
-		}
-
 		// Handle fading in/out of static pictures
 		if (fade_direction)
 		{
@@ -352,44 +365,48 @@ static void glut_idle(void)
 			if (fade_value < 0.0f)
 			{
 				// for next fade_in
-				fade_value = FADE_START_VALUE;
-				fade_direction = 0;
-				static_picture = false;
-				// This makes sure we reset time variables and pause
-				key_readonce[KEY_PAUSE] = false;
-				key_down[KEY_PAUSE] = true;	
-			}
+				fade_value = 0.0f;
+				fade_direction = 1;
 
-			// Don't forget to display the image
-			glut_display();
+				// Indicate that we've juct acknowledge a static picture for check_prisoner()
+				post_picture_check = true;
+
+				// Return to game
+				game_state &= ~GAME_STATE_STATIC_PIC;
+			}
+			else
+				// Don't forget to display the image
+				glut_display();
 		}
 
 		// Fire to exit the display of a static picture
 		if (read_key_once(KEY_FIRE))
 			fade_direction = -1;
 	}
-	else
+
+	// Handle the pausing of the game 
+	// NB: game also pauses when displaying static pictures
+	if (
+		 ( (game_state & GAME_STATE_STATIC_PIC) && (!(game_state & GAME_STATE_PAUSED)) )  ||
+		 ( (!(game_state & GAME_STATE_STATIC_PIC)) && (read_key_once(KEY_PAUSE)) ) ||
+		 ( (game_state & GAME_STATE_PAUSED) && post_picture_check )
+	   )
 	{
-		// Toggle pause (if a static picture is not being displayed)
-		if (read_key_once(KEY_PAUSE))
-		{
-			if (paused)
-			{
-				last_atime += (t - paused_time);
-				last_ptime += (t - paused_time);
-				last_ctime += (t - paused_time);
-				paused = false;
-			}
-			else
-			{
-				paused_time = t;
-				paused = true;
-			}
+		// Toggle
+		if (game_state & GAME_STATE_PAUSED)
+		{	// unpause
+			last_atime += (t - paused_time);
+			last_ptime += (t - paused_time);
+			last_ctime += (t - paused_time);
 		}
+		else	// pause
+			paused_time = t;
+		// Toggle pause flag
+		game_state ^= GAME_STATE_PAUSED;
 	}
 
-	// Handle paused state (sleep & exit)
-	if (paused)
+	// No need to push it further if paused
+	if (game_state & GAME_STATE_PAUSED)
 	{
 		// We should be able to sleep for a while
 		msleep(PAUSE_DELAY);
@@ -415,7 +432,7 @@ static void glut_idle(void)
 				minutes_digit_h++;
 				minutes_digit_l = 0;
 				if (minutes_digit_h == 6)
-				{
+				{	// +1 hour
 					hours_digit_l++;
 					minutes_digit_h = 0;
 					if (hours_digit_l == 10)
@@ -428,12 +445,21 @@ static void glut_idle(void)
 						hours_digit_l = 0;
 						hours_digit_h = 0;
 					}
+					// As per the original game, we also add HOURLY_FATIGUE_INCREASE
+					// for each hour spent awake
+					for (i=0; i<NB_NATIONS; i++)
+						if (!(guy(i).state & STATE_SLEEPING))
+							p_event[i].fatigue += HOURLY_FATIGUE_INCREASE;
 				}
 			}
+
+			// Check for timed events  
+			timed_events(hours_digit_h*10+hours_digit_l, minutes_digit_h, minutes_digit_l);
+			// If we got an event with a static pic, cancel the rest
+			if (game_state & GAME_STATE_STATIC_PIC)
+				return;
 		}
 
-		// Check for timed events
-		timed_events(hours_digit_h*10+hours_digit_l, minutes_digit_h, minutes_digit_l);
 
 		// Execute timed events, if any are in the queue
 		for (i = 0; i<NB_EVENTS; i++)
@@ -480,7 +506,10 @@ static void glut_idle(void)
 
 	// Display our current position
 	if (read_key_once(KEY_DEBUG_PRINT_POS))
+	{
 		printf("(px, p2y) = (%d, %d), room = %x, rem = %08X\n", prisoner_x, prisoner_2y, current_room_index, rem_bitmask);
+		printf("authorized = %s\n", p_event[current_nation].unauthorized?"false":"true");
+	}
 
 	// Gimme some props!!!
 	if (read_key_once(KEY_DEBUG_BONANZA))
@@ -488,6 +517,9 @@ static void glut_idle(void)
 		for (i=1; i<NB_PROPS-1; i++)
 			props[current_nation][i] += 10;
 	}
+
+	if (read_key_once(KEY_DEBUG_CATCH_HIM))
+		prisoner_state ^= STATE_IN_PURSUIT;
 
 	// Walk/Run toggle
 	if ( read_key_once(KEY_TOGGLE_WALK_RUN) && (!in_tunnel) && 
@@ -498,17 +530,15 @@ static void glut_idle(void)
 		   (animations[prisoner_ani].index == GUARD_WALK_ANI) ) 
 	   )
 	{
-		if (prisoner_speed == 1)
+		if  ((prisoner_speed == 1) && (prisoner_fatigue < MAX_FATIGUE) )
 		{
 			prisoner_speed = 2;
-			animations[nb_animations].index = prisoner_uni?GUARD_RUN_ANI:RUN_ANI; 
-			init_animations = true;
+			animations[prisoner_ani].index = prisoner_as_guard?GUARD_RUN_ANI:RUN_ANI; 
 		}
 		else
 		{
 			prisoner_speed = 1;
-			animations[nb_animations].index = prisoner_uni?GUARD_WALK_ANI:WALK_ANI; 
-			init_animations = true;
+			animations[prisoner_ani].index = prisoner_as_guard?GUARD_WALK_ANI:WALK_ANI; 
 		}
 	}
 
@@ -532,18 +562,18 @@ static void glut_idle(void)
 			switch(selected_prop[current_nation])
 			{
 			case ITEM_GUARDS_UNIFORM:
-				if (!prisoner_uni)
+				if (!prisoner_as_guard)
 				{	// Only makes sense if we're not already dressed as guard
-					prisoner_uni = true;
+					prisoner_as_guard = true;
 					init_animations = true;
 					consume_prop();
 					show_prop_count();
 				}
 				break;
 			case ITEM_PRISONERS_UNIFORM:
-				if (prisoner_uni)
+				if (prisoner_as_guard)
 				{	// Only makes sense if we're dressed as guard
-					prisoner_uni = false;
+					prisoner_as_guard = false;
 					init_animations = true;
 					consume_prop();
 					show_prop_count();
@@ -682,6 +712,13 @@ static void glut_idle(void)
 	if ((t - last_ptime) > REPOSITION_INTERVAL)
 	{
 		last_ptime = t;
+	
+/*		guards_motion();
+		prisoner_motion();
+		check_on_prisoners();
+		display();
+*/
+
 		// Update the guards positions (if not playing with guards disabled)
 		if (!opt_no_guards && move_guards())
 		{	// we have a collision with a guard => kill our motion
@@ -689,12 +726,18 @@ static void glut_idle(void)
 			if (dx || d2y)
 				prisoner_dir = directions[d2y+1][dx+1];
 			dx = 0; d2y = 0;
+			prisoner_state &= ~STATE_MOTION;
 		}
-		// Upate our guy's position
-		process_motion();
+		else
+		// Update our guy's position
+			process_motion();
+		// Do we have something going on with a prisoner (request, caught, release...)
+		check_on_prisoners(post_picture_check);
+		// Only reset the post_picture_flag here
+		post_picture_check = false;
 		// Only reset the fire action AFTER we processed motion
 		is_fire_pressed = false;
-		// Always redisplay, as there might be a guard moving
+		// Redisplay, as there might be a guard moving
 		glut_display();
 	}
 
@@ -766,7 +809,7 @@ int main (int argc, char *argv[])
 	int opt_error 			= 0;	// getopt
 
 	// General purpose
-	u32  i,j;
+	u32  i;
 
 
 #if defined(PSP)
@@ -778,16 +821,13 @@ int main (int argc, char *argv[])
 	gl_height = 2*PSP_SCR_HEIGHT;
 #endif
 
+	// Initialize the game state
+	game_state = GAME_STATE_ACTION;
+
 	// Initialize our timer values
 	last_ctime = mtime();
 	last_atime = last_ctime;
 	last_ptime = last_ctime;
-
-	// start time
-	hours_digit_h = 0;
-	hours_digit_l = 9;
-	minutes_digit_h = 3;
-	minutes_digit_l = 5;
 
 	glutInit(&argc, argv);
 
@@ -856,13 +896,43 @@ int main (int argc, char *argv[])
 	// Set global variables
 	get_properties();
 
+	init_variables();
+
 
 	// clear the events array
 	for (i=0; i< NB_EVENTS; i++)
 		events[i].function = NULL;
 
+	// Set the default nation
+	current_nation = BRITISH;
 
-	current_nation = 0;
+	// Initialize the start positions
+	for (i=0; i<NB_NATIONS; i++)
+	{
+		guy(i).px = readword(fbuffer[LOADER],INITIAL_POSITION_BASE+10*i+2);
+		guy(i).p2y = 2*readword(fbuffer[LOADER],INITIAL_POSITION_BASE+10*i);
+		guy(i).room = readword(fbuffer[LOADER],INITIAL_POSITION_BASE+10*i+4);
+		guy(i).state = 0;
+		guy(i).speed = 1;
+		guy(i).direction = 6;
+		guy(i).ext_bitmask = 0x8000001E;
+		guy(i).is_dressed_as_guard = false;
+		p_event[i].from_solitary = false;
+		p_event[i].to_solitary = false;
+		p_event[i].require_papers = false;
+		p_event[i].require_pass = false;
+		p_event[i].fatigue = 0;
+	}
+
+
+	// Debug
+	guy(0).px = 940;
+	guy(0).p2y = 630;
+	guy(0).room = ROOM_OUTSIDE;
+	guy(0).ext_bitmask = 0x8000001E;
+//	p_event[0].fatigue = MAX_FATIGUE-0x1000;
+
+/*
 	// English
 	i = 0;
 	guybrush[i].px = 940;
@@ -911,22 +981,18 @@ int main (int argc, char *argv[])
 	guybrush[i].guard_uniform = false;
 	guybrush[i].fatigue = 0;
 	i++;
-
-	for (j=0;j<NB_GUARDS;j++)
+*/
+	// Initialize the guards
+	for (i=0;i<NB_GUARDS;i++)
 	{
-//		guybrush[i].ani_index = i;
-//		animations[i].index = GUARD_WALK_ANI;
-		guybrush[i].px = readword(fbuffer[GUARDS],j*MENDAT_ITEM_SIZE + 2);
-		guybrush[i].p2y = 2*readword(fbuffer[GUARDS],j*MENDAT_ITEM_SIZE);
-		guybrush[i].room = readword(fbuffer[GUARDS],j*MENDAT_ITEM_SIZE+ 4);
-//		printf("%x: (%d,%d) %x\n", j, guybrush[i].px, guybrush[i].p2y,guybrush[i].room);
-		guybrush[i].state = 0;
-		guybrush[i].speed = 1;
-		guybrush[i].direction = 0;
-		guybrush[i].wait = 0;
-		guybrush[i].guard_uniform = true;
-		guybrush[i].fatigue = 0;
-		i++;
+		guard(i).px = readword(fbuffer[GUARDS],i*MENDAT_ITEM_SIZE + 2);
+		guard(i).p2y = 2*readword(fbuffer[GUARDS],i*MENDAT_ITEM_SIZE);
+		guard(i).room = readword(fbuffer[GUARDS],i*MENDAT_ITEM_SIZE+ 4);
+		guard(i).state = 0;
+		guard(i).speed = 1;
+		guard(i).direction = 0;
+		guard(i).wait = 0;
+		guard(i).is_dressed_as_guard = true;
 	}
 		
 	// We're going to convert the cells array, from 2 pixels per byte (paletted)
@@ -964,7 +1030,7 @@ int main (int argc, char *argv[])
 	glutMouseFunc(glut_mouse_buttons);
 
 	glutJoystickFunc(glut_joystick,30);	
-	// This is what you get from using obsolete libraries
+	// This is what you get from using obsolete libraries!
 	// bloody joystick callback doesn't work on Windows,
 	// so we have to stuff the movement handling in idle!!!
 	glutIdleFunc(glut_idle);

@@ -147,6 +147,11 @@ do {									\
 								  "PIC.A(FREE-ALL)", "PIC.B(GAME-OVER)", "PIC.A(FREE-ALL)TEXT",				\
 								  "PIC.B(GAME-OVER)TEXT", "STARTSCREEN0", "STARTSCREEN1", "STARTSCREEN2",	\
 								  "STARTSCREEN3", "STARTSCREEN4", "PIC.8(PASS)", "PIC.9(PAPERS)", "APER"  }
+#define TO_SOLITARY				0
+#define FROM_SOLITARY			1
+#define REQUIRE_PASS			17
+#define REQUIRE_PAPERS			18
+#define NO_PICTURE				0xFFFF
 #define IFF_PAYLOAD_W			{ 320, 320, 320, 320, 320, 320, 320, 320, 320, 320,	\
 								  320, 320, 320, 320, 320, 320, 320, 320, 320, 480 }
 #define IFF_PAYLOAD_H			{ 192, 192, 192, 192, 192, 192, 192, 192, 192, 192,	\
@@ -181,6 +186,7 @@ do {									\
 #define NB_PANEL_FACES			7
 #define PANEL_FACES_W			16
 #define PANEL_FACES_X			PANEL_OFF_X
+#define PANEL_FACE_IN_PRISON	0xD9
 #define PANEL_TOP_Y				(PSP_SCR_HEIGHT-PANEL_BASE_H+PANEL_OFF_Y)
 #define PANEL_FLAGS_OFFSET		0x1082
 #define NB_PANEL_FLAGS			NB_NATIONS
@@ -202,9 +208,14 @@ do {									\
 #define PANEL_CLOCK_MINUTES_X	(PANEL_CLOCK_HOURS_X+3*PANEL_CLOCK_DIGITS_W)
 #define PANEL_FATIGUE_X			(PANEL_CLOCK_MINUTES_X + 32)
 #define PANEL_FATIGUE_Y			(PANEL_TOP_Y+10)
+// 0x2C000 = 88 pixels * 0x800
+#define MAX_FATIGUE				0x2C000
+#define HOURLY_FATIGUE_INCREASE	0x1000
 #define PANEL_ITEMS_OFFSET		0x1AC2
 #define NB_PANEL_SPRITES		(NB_PANEL_FLAGS+NB_PANEL_FACES+NB_PANEL_CLOCK_DIGITS+NB_PANEL_ITEMS+1)
 #define NB_SPRITES				(NB_STANDARD_SPRITES+NB_PANEL_SPRITES)
+// The fatigue bar base is the last sprite
+#define PANEL_FATIGUE_SPRITE	(NB_SPRITES-1)
 #define NB_PANEL_CHARS			59
 #define PANEL_CHARS_OFFSET		0xF20
 #define PANEL_CHARS_W			8
@@ -222,6 +233,16 @@ do {									\
 #define	ROOM_DESC_BASE			0xBCB4
 #define TUNNEL_MSG_ID			0x35
 #define	COURTYARD_MSG_ID		0x36
+// Boundaries for courtyard authorized access (ROM:00002160)
+#define COURTYARD_MIN_X			0x300
+#define COURTYARD_MAX_X			0x5A0
+#define COURTYARD_MIN_Y			0xD0
+#define COURTYARD_MAX_Y			0x200
+// This loader section defines the list of authorized rooms (through their 
+// message ID) after certain events (appel, exercise, confined)
+#define AUTHORIZED_BASE			0x20EE
+#define NB_AUTHORIZED_POINTERS	7
+#define AUTHORIZED_NATION_BASE	0x210A
 #define GRAB_TRANSPARENT_COLOUR	0x0000
 #define OBS_TO_SPRITE_START		0x5D82
 #define NB_OBS_TO_SPRITE		15
@@ -269,6 +290,8 @@ do {									\
 #define HAT_RABBIT_OFFSET		0x3EC6
 #define CMP_RABBIT_OFFSET		0x43D0
 #define HAT_RABBIT_POS_START	0x3EF2
+#define INITIAL_POSITION_BASE	0x773A
+#define SOLITARY_POSITION_BASE	0x292C
 // Time between animation frames, in ms
 // 66 or 67 is about as close as we can get to the original game
 #define ANIMATION_INTERVAL		120
@@ -280,16 +303,22 @@ do {									\
 //#define TIME_MARKER				20000
 #define TIME_MARKER				10000
 // NB: This is the duration of a game minute, in ms
+#define SOLITARY_DURATION		1000
 
 // How long should the guard remain blocked (innb of route steps)
 // default of the game is 0x64
 #define BLOCKED_GUARD_TIMEOUT	0xC0
+#define WALKING_PURSUIT_TIMEOUT	0x64
+#define RUNNING_PURSUIT_TIMEOUT	0x64
+#define SHOOTING_GUARD_TIMEOUT	0x14
 // Timed events from LOADER (roll call, palette change)
 #define TIMED_EVENTS_BASE		0x2BDE
 // First timed event of the game
 #define TIMED_EVENTS_INIT		0x2C1A
 // Palette change type
 #define TIMED_EVENT_PALETTE		0xFFFF	
+// Rollcall check
+#define TIMED_EVENT_ROLLCALL_CHECK	1
 #define DIRECTION_STOPPED		-1
 // Animation data
 #define ANIMATION_OFFSET_BASE	0x89EA
@@ -369,17 +398,27 @@ do {									\
 #define STATE_BLOCKED_STOP		9
 #define STATE_BLOCKED_MOVE		10
 */
-// These states allow the handling of keys
+// Motion related states
 #define STATE_MOTION			1
 #define STATE_TUNNELING			2
 #define STATE_STOOGE			4
 #define STATE_BLOCKED			8
 #define STATE_KNEEL				16
 #define STATE_SHOT				32
-#define MOTION_DISALLOWED		(~(STATE_MOTION|STATE_TUNNELING|STATE_STOOGE))
-#define KNEEL_DISALLOWED		(~(STATE_MOTION|STATE_STOOGE))
+#define STATE_IN_PURSUIT		64
+#define STATE_SLEEPING			128
+#define STATE_IN_PRISON			256
+// Useful masks
+#define MOTION_DISALLOWED		(~(STATE_MOTION|STATE_TUNNELING|STATE_STOOGE|STATE_IN_PURSUIT|STATE_IN_PRISON))
+#define KNEEL_DISALLOWED		(~(STATE_MOTION|STATE_STOOGE|STATE_IN_PURSUIT|STATE_IN_PRISON))
 #define STATE_ANIMATED			(STATE_MOTION|STATE_KNEEL)
 
+// Game states
+#define GAME_STATE_ACTION		1
+#define GAME_STATE_PAUSED		2
+#define GAME_STATE_STATIC_PIC	4
+#define GAME_STATE_INTRO		8
+#define GAME_STATE_GAME_OVER	16
 
 // Nationalities
 #define BRITISH					0
@@ -414,7 +453,7 @@ do {									\
 
 // Because the colours are 4 or 5 bits, starting a fade at 0 is 
 // not advisable
-#define FADE_START_VALUE		0.1f
+//#define FADE_START_VALUE		0.1f
 
 // Redefinition of GLUT's special keys so that they fit in our key table
 #define SPECIAL_KEY_OFFSET		0x80
@@ -494,6 +533,7 @@ do {									\
 
 #define KEY_DEBUG_PRINT_POS		'p'
 #define KEY_DEBUG_BONANZA		'#'
+#define KEY_DEBUG_CATCH_HIM		'c'
 
 
 // Stupid VC++ doesn't know the basic formats it can actually use!
@@ -570,14 +610,29 @@ typedef struct
 	 *    3  2  1   */
 	s16   direction;
 	u32	  ext_bitmask;
-	u8	  state;
+	u16	  state;
 	u8	  ani_index;
 	bool  ani_set;
-	bool  guard_uniform;
-	u8    fatigue;
+	bool  is_dressed_as_guard;
+	bool  is_onscreen;
 	u32   go_on;
 	u16   wait;
 } s_guybrush;
+
+// Event related states (apply to prisoners only)
+typedef struct
+{
+	bool require_pass;
+	bool require_papers;
+	bool to_solitary;
+	bool from_solitary;
+	bool to_quarters;
+	bool to_appel;
+	bool unauthorized;
+	bool max_fatigue;
+	u32  fatigue;
+	u32  solitary_countdown;
+} s_prisoner_event;
 
 
 // Global variables
@@ -599,6 +654,7 @@ extern u8*  static_image_buffer;
 extern u32  rem_bitmask;
 extern u8	props[NB_NATIONS][NB_PROPS];
 extern u8	selected_prop[NB_NATIONS];
+extern s_prisoner_event p_event[NB_NATIONS];
 extern u8	nb_room_props;
 extern u16	room_props[NB_OBSBIN];
 extern u8	over_prop, over_prop_id;
@@ -608,7 +664,8 @@ extern s16 directions[3][3], dir_to_dx[8], dir_to_d2y[8];
 extern u8  hours_digit_h, hours_digit_l, minutes_digit_h, minutes_digit_l;
 extern u8  palette_index;
 extern u16 current_iff;
-extern bool  static_picture;
+//extern bool  static_picture;
+extern u16	game_state;
 extern float fade_value;
 
 
@@ -625,21 +682,21 @@ extern int	gl_width, gl_height;
 //extern u8	prisoner_w, prisoner_h;
 //extern int  prisoner_x, prisoner_2y;
 extern u8 current_nation;
-#define prisoner_x guybrush[current_nation].px
-#define prisoner_2y guybrush[current_nation].p2y
-#define current_room_index guybrush[current_nation].room
-#define prisoner_speed guybrush[current_nation].speed
-#define prisoner_ani   guybrush[current_nation].ani_index
-#define prisoner_state guybrush[current_nation].state
-#define prisoner_dir   guybrush[current_nation].direction
-#define rem_bitmask	   guybrush[current_nation].ext_bitmask
-#define guy(i)		   guybrush[i]
-#define guard(i)	   guy(i+NB_NATIONS)
-#define in_tunnel      (prisoner_state&STATE_TUNNELING)
-#define is_outside     (current_room_index==ROOM_OUTSIDE)
-#define is_inside      (current_room_index!=ROOM_OUTSIDE)
-#define prisoner_uni	guybrush[current_nation].guard_uniform
-#define prisoner_fatigue guybrush[current_nation].fatigue
+#define prisoner_x			guybrush[current_nation].px
+#define prisoner_2y			guybrush[current_nation].p2y
+#define current_room_index	guybrush[current_nation].room
+#define prisoner_speed		guybrush[current_nation].speed
+#define prisoner_ani		guybrush[current_nation].ani_index
+#define prisoner_state		guybrush[current_nation].state
+#define prisoner_dir		guybrush[current_nation].direction
+#define rem_bitmask			guybrush[current_nation].ext_bitmask
+#define guy(i)				guybrush[i]
+#define guard(i)			guy(i+NB_NATIONS)
+#define in_tunnel			(prisoner_state&STATE_TUNNELING)
+#define is_outside			(current_room_index==ROOM_OUTSIDE)
+#define is_inside			(current_room_index!=ROOM_OUTSIDE)
+#define prisoner_as_guard	guybrush[current_nation].is_dressed_as_guard
+#define prisoner_fatigue	p_event[current_nation].fatigue
 extern s16  last_p_x, last_p_y;
 extern s16  dx, d2y;
 extern u8  prisoner_sid;

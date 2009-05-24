@@ -125,7 +125,8 @@ void fix_files();
 void set_room_props();
 void timed_events(u16 hours, u16 minutes_high, u16 minutes_low);
 int  load_iff();
-
+void check_on_prisoners(bool after_pic);
+void init_variables();
 
 
 #ifdef	__cplusplus

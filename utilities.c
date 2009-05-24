@@ -43,14 +43,21 @@ u8  overlay_order[MAX_OVERLAY], b[MAX_OVERLAY/2+1];
 u8	currently_animated[MAX_ANIMATIONS];
 u32 exit_flags_offset;
 bool tunnel_toggle;
-//u32 debug_counter = 0;
+// Pointer to the message ID list of the currently allowed rooms
+u32 authorized_ptr;
 s16	gl_off_x = 0, gl_off_y  = 0;
 char panel_message[256];
 u32 next_timed_event_ptr = TIMED_EVENTS_INIT;
 u8*	iff_image;
 
-// For the fatigue bar base sprite (4_4_4_4 GRAB colour values)
-u16 fatigue_colour[8] = {0x29F0, 0x4BF0, 0x29F0, 0x06F0, 0x16F1, 0, 0, 0};
+// Fatigue bar base sprite colours (4_4_4_4 GRAB)
+u16 fatigue_colour[8] = {0x29F0, 0x4BF0, 0x29F0, 0x06F0, 
+	0x16F1, GRAB_TRANSPARENT_COLOUR, GRAB_TRANSPARENT_COLOUR, GRAB_TRANSPARENT_COLOUR};
+
+// These are the offsets to the solitary cells doors for each prisoner
+// We use them to make sure the doors are closed after leaving a prisoner in
+u32 solitary_cells_door_offset[NB_NATIONS][2] = { {0x3473, 0x34C1}, {0x3FD1, 0x3F9F}, 
+												  {0x92A1, 0x3FA9}, {0x92C3, 0x3FAD} };
 
 // Bummer! The way they setup their animation overlays and the way I 
 // do it to be more efficient means I need to define a custom table
@@ -290,13 +297,13 @@ void get_properties()
 		}
 	}
 	nb_rooms = room_index;
-	print("nb_rooms = %X\n", nb_rooms);
+//	print("nb_rooms = %X\n", nb_rooms);
 
 	// A backdrop cell is exactly 256 bytes (32*16*4bits)
 	nb_cells = fsize[CELLS] / 0x100;
 	cell_texid = malloc(sizeof(GLuint) * nb_cells);
 	GLCHK(glGenTextures(nb_cells, cell_texid));
-	print("nb_cells = %X\n", nb_cells);
+//	print("nb_cells = %X\n", nb_cells);
 
 //	nb_sprites = readword(fbuffer[SPRITES],0) + 1;
 	if (readword(fbuffer[SPRITES],0) != (NB_STANDARD_SPRITES-1))
@@ -307,14 +314,14 @@ void get_properties()
 
 	sprite_texid = malloc(sizeof(GLuint) * NB_SPRITES);
 	GLCHK(glGenTextures(NB_SPRITES, sprite_texid));
-	print("nb_sprites = %X\n", NB_SPRITES);
+//	print("nb_sprites = %X\n", NB_SPRITES);
 
 	chars_texid = malloc(sizeof(GLuint) * NB_PANEL_CHARS);
 	GLCHK(glGenTextures(NB_PANEL_CHARS, chars_texid));
-	print("nb_chars = %X\n", NB_PANEL_CHARS);
+//	print("nb_chars = %X\n", NB_PANEL_CHARS);
 
 	nb_objects = readword(fbuffer[OBJECTS],0) + 1;
-	print("nb_objects = %X\n", nb_objects);
+//	print("nb_objects = %X\n", nb_objects);
 	for (i=0; i<NB_OBS_TO_SPRITE; i++)
 		obs_to_sprite[i] = readbyte(fbuffer[LOADER],OBS_TO_SPRITE_START+i);
 
@@ -336,6 +343,7 @@ void get_properties()
 	glGenTextures( 1, &render_texid );
 	glGenTextures( 1, &iff_texid );
 
+	// The panel textures have already been loaded, so we map them
 	glBindTexture(GL_TEXTURE_2D, panel1_texid);
 	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, PANEL_BASE1_W, PANEL_BASE_H, 0,
@@ -345,6 +353,29 @@ void get_properties()
 	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, PANEL_BASE2_W, PANEL_BASE_H, 0,
 		GL_RGB, GL_UNSIGNED_BYTE, fbuffer[PANEL_BASE2]);
+}
+
+// init_variables
+void init_variables()
+{
+	// start time
+	hours_digit_h = 0;
+	hours_digit_l = 9;
+	minutes_digit_h = 3;
+	minutes_digit_l = 0;
+
+	next_timed_event_ptr = TIMED_EVENTS_INIT;
+
+	hours_digit_h = 0;
+	hours_digit_l = 9;
+	minutes_digit_h = 5;
+	minutes_digit_l = 4;
+/*
+	next_timed_event_ptr = 0x2BE8; //TIMED_EVENTS_INIT;
+*/
+
+	// Current event is #3 (confined to quarters)
+	authorized_ptr = readlong(fbuffer[LOADER],AUTHORIZED_BASE+4*3);
 }
 
 
@@ -495,7 +526,7 @@ void cells_to_wGRAB(u8* source, u8* dest)
 }
 
 // Create the sprites for the panel text characters
-void set_panel_chars()
+void init_panel_chars()
 {
 	u8 c, y, x, m, b;
 
@@ -579,207 +610,6 @@ s_nonstandard nonstandard(u16 sprite_index)
 }
 
 
-// Open an IFF image file. Modified from LBMVIEW V1.0b 
-// http://www.programmersheaven.com/download/6394/download.aspx
-int load_iff()
-{
-	int i, y, bpl, bit_plane;
-	char ch, cmp_type, color_depth;
-	u8 uc, check_flags;
-	u16	w, h;
-	u32 id, len, l;
-	u8  line_buf[5][512/8];	// bytes line buffers (5 bitplanes max, 512 pixels wide)
-
-	if ((fd = fopen (iff_name[current_iff], "rb")) == NULL)
-	{
-		if (opt_verbose)
-			perror ("fopen()");
-		perr("Can't find file '%s'\n", iff_name[current_iff]);
-		return -1;
-	}
-
-	// Check for 'FORM' tag
-	if (freadl(fd) != IFF_FORM)
-	{
-		fclose(fd);
-		perr("IFF_FORM not found\n");
-		return -1;
-	}
-
-	// Skip IFF Form length
-	freadl(fd);						
-
-	// Check for InterLeaved BitMap tag
-	if (freadl(fd) != IFF_ILBM)
-	{
-		fclose(fd);
-		perr("IFF_ILBM not found\n");
-		return -1;
-	}
-
-	// Check for BitMap Header
-	if (freadl(fd) != IFF_BMHD)
-	{
-		fclose(fd);
-		perr("IFF_BMHD not found\n");
-		return -1;
-	}
-
-	// Check header length
-	if (freadl(fd) != 20)
-	{
-		fclose(fd);
-		perr("Bad IFF header length\n");
-		return -1;
-	}
-
-	// Read width and height
-	w = freadw(fd);
-	if (w > 512)
-	{
-		fclose(fd);
-		perr("IFF width must be lower than 512\n");
-		return -1;
-	}
-	if (w & 0x7)
-	{
-		fclose(fd);
-		perr("IFF width must be a multiple of 8\n");
-		return -1;
-	}
-	h = freadw(fd);
-	if (h > 256)
-	{
-		fclose(fd);
-		perr("IFF height must be lower than 256\n");
-		return -1;
-	}
-
-	// Discard initial x and y pos
-	freadw(fd);
-	freadw(fd);
-
-	// Read colour depth
-	color_depth = freadc(fd);
-	if (color_depth > 5)
-	{
-		fclose(fd);
-		perr("IFF: Colour depth must be lower than 5\n");
-		return -1;
-	}
-
-	// Skip masking type
-	freadc(fd);
-
-	// Get compression type
-	cmp_type = freadc(fd);
-	if ((cmp_type != 0) && (cmp_type != 1))
-	{
-		fclose(fd);
-		perr("Unknown IFF compression method\n");
-		return -1;
-	}
-
-	// Skip the bytes we're not interested in
-	freadc(fd);				// skip unused field
-	freadw(fd);				// skip transparent color
-	freadc(fd);				// skip x aspect ratio
-	freadc(fd);				// skip y aspect ratio
-	freadw(fd);				// skip default page width
-	freadw(fd);				// skip default page height
-
-	check_flags = 0;
-
-	do  // We'll use cycle to skip possible junk      
-	{   //  chunks: ANNO, CAMG, GRAB, DEST, TEXT etc.
-		id = freadl(fd);
-		switch(id)
-		{
-		case IFF_CMAP:
-			len = freadl(fd) / 3;
-			for (l=0; l<len; l++)
-			{
-				aPalette[l]  = ((u16)freadc(fd) & 0xF0) << 4;	// Red
-				aPalette[l] |= ((u16)freadc(fd) & 0xF0) << 8;	// Green
-				aPalette[l] |= ((u16)freadc(fd) & 0xF0) >> 4;	// Blue
-				aPalette[l] |= 0x00F0;							// Alpha
-			}
-			check_flags |= 1;				// flag "palette read" 
-			break;
-
-		case IFF_BODY:
-			freadl(fd);						// skip BODY size 
-
-			// Calculate bytes per line. As our width is always a multiple of 8
-			// no special cases are needed
-			bpl = w >> 3;  
-
-			for (y = 0; y < h; y++)
-			{
-				for (bit_plane = 0; bit_plane < color_depth; bit_plane++)
-				{
-					if (cmp_type)
-					{	// Compressed
-						i = 0;
-						while (i < bpl)
-						{
-							uc = freadc(fd);
-							if (uc < 128)
-							{
-								uc++;
-								fread(&line_buf[bit_plane][i], 1, uc, fd);
-								i += uc;
-							} else
-								if (uc > 128)
-								{
-									uc = 257 - uc;
-									ch = freadc(fd);
-									memset(&line_buf[bit_plane][i], ch, uc);
-									i += uc;
-								}
-								// 128 (0x80) means NOP - no operation  
-						}
-						// Set our image extra bytes to colour index 0
-						memset(&line_buf[bit_plane][i], 0, (512/8)-i);
-					}
-					else
-						// Uncompressed
-						fread(&line_buf[bit_plane][0], 1, bpl, fd);
-				}
-				
-
-				// OK, now we have our <color_depth> line buffers
-				// Let's recombine those bits, and convert to GRAB from our palette
-				line_interleaved_to_wGRAB((u8*)line_buf, 
-					static_image_buffer+512*y*2, 512, 1, color_depth);
-
-			}
-			check_flags |= 2;       // flag "bitmap read" 
-			break;
-
-		default:					// Skip unused chunks  
-			len = freadl(fd);		// nb of bytes to skip
-			for (l=0; l<len; l++)
-				freadc(fd);
-		}
-
-	// Exit from loop if we are at the end of file, 
-	// or if both palette and bitmap have been loaded
-	} while ((check_flags != 3) && (!feof(fd)));
-
-	fclose(fd);
-
-	if (check_flags != 3)
-	{
-		if (check_flags & 2)
-			aligned_free(b);
-		return -1;
-	}
-
-	return 0;
-}
-
-
 // Initialize the sprite array
 void init_sprites()
 {
@@ -838,16 +668,19 @@ void init_sprites()
 			sprite[sprite_index].w * sprite[sprite_index].h, 16);
 	}
 
-	// Finally we define the last nonstandard sprite base for fatigue
-	// Dammit!!! - the PSP can't handle 1 pixel wide textures properly!!!
+	// We define the last nonstandard as sprite base for the fatigue bar
+	// Dammit!!! - the PSP can't handle 1 pixel wide textures properly, so we need
+	// to make it 8 pixels large
 	sprite[sprite_index].w = 8;
+	sprite[sprite_index].corrected_w = 8;
 	sprite[sprite_index].h = 8;
+	sprite[sprite_index].corrected_h = 8;
 	sprite[sprite_index].x_offset = 1;
 	sprite[sprite_index].data = aligned_malloc( RGBA_SIZE * 
 			sprite[sprite_index].w * sprite[sprite_index].h, 16);
 
 	// We use a different sprite array for status message chars
-	set_panel_chars();
+	init_panel_chars();
 }
 
 
@@ -1533,14 +1366,14 @@ u8 i, sid;
 		if (in_tunnel)
 		{
 			prisoner_speed = 1;
-			animations[prisoner_ani].index = prisoner_uni?GUARD_CRAWL_ANI:CRAWL_ANI;
+			animations[prisoner_ani].index = prisoner_as_guard?GUARD_CRAWL_ANI:CRAWL_ANI;
 		}
 		else
 		{
 			if (prisoner_speed == 1)
-				animations[nb_animations].index = prisoner_uni?GUARD_WALK_ANI:WALK_ANI; 
+				animations[nb_animations].index = prisoner_as_guard?GUARD_WALK_ANI:WALK_ANI; 
 			else
-				animations[nb_animations].index = prisoner_uni?GUARD_RUN_ANI:RUN_ANI; 
+				animations[nb_animations].index = prisoner_as_guard?GUARD_RUN_ANI:RUN_ANI; 
 		}
 		animations[prisoner_ani].framecount = 0;
 		animations[prisoner_ani].guybrush_index = current_nation;
@@ -1579,41 +1412,47 @@ u8 i, sid;
 		if (i==current_nation)
 			continue;
 
+		// Everybody is offscreen by default. NB: this is only used for guards, 
+		// so don't care if the prisoner's onscreen status is wrong
+		guy(i).is_onscreen = false;
+
 		// Guybrush's probably blowing his foghorn in the library again
-		if (guybrush[i].room != current_room_index)
+		if (guy(i).room != current_room_index)
 			continue;
 
 		// How I wish there was an easy way to explain these small offsets we add
 		// NB: The positions we compute below are still missing the sprite dimensions
 		// which we will only add at the end. They are just good enough for ignore_offscreen()
-		overlay[overlay_index].x = gl_off_x + guybrush[i].px; // + sprite[sid].x_offset;
+		overlay[overlay_index].x = gl_off_x + guy(i).px; // + sprite[sid].x_offset;
 		ignore_offscreen_x(overlay_index);	// Don't bother if offscreen
-		overlay[overlay_index].y = gl_off_y + guybrush[i].p2y/2 + 5; //  - sprite[sid].h + 5;
+		overlay[overlay_index].y = gl_off_y + guy(i).p2y/2 + 5; //  - sprite[sid].h + 5;
 		ignore_offscreen_y(overlay_index);	// Don't bother if offscreen
 
 		// If the guy's under a removable wall, we ignore him too
-		if (is_outside && (remove_props[guybrush[i].px/32][(guybrush[i].p2y+4)/32]))
+		if (is_outside && (remove_props[guy(i).px/32][(guy(i).p2y+4)/32]))
 			// TO_DO: check for an actual props SID?
 			continue;
 
 		// Ideally, we would remove animations that have gone offscreen here, but 
 		// there's little performance to be gained in doing so, so we don't
+		// We do set the onscreen flag though
+		guy(i).is_onscreen = true;
 
 		// First we check if the relevant guy's animation was ever initialized
-		if (guybrush[i].ani_set == false)
+		if (guy(i).ani_set == false)
 		{	// We need to initialize that guy's animation
 			// TO_DO: better thriller dance keeping the german's uniforms
-			guybrush[i].ani_index = (opt_thrillerdance)?prisoner_ani:nb_animations;
+			guy(i).ani_index = (opt_thrillerdance)?prisoner_ani:nb_animations;
 
 			if (guybrush[i].speed == 1)
-				animations[nb_animations].index = ((guybrush[i].guard_uniform)?GUARD_WALK_ANI:WALK_ANI); 
+				animations[nb_animations].index = ((guy(i).is_dressed_as_guard)?GUARD_WALK_ANI:WALK_ANI); 
 			else
-				animations[nb_animations].index = ((guybrush[i].guard_uniform)?GUARD_RUN_ANI:RUN_ANI); 
+				animations[nb_animations].index = ((guy(i).is_dressed_as_guard)?GUARD_RUN_ANI:RUN_ANI); 
 			animations[nb_animations].framecount = 0;
 			animations[nb_animations].guybrush_index = i;
 			animations[nb_animations].end_of_ani_function = NULL;
 			nb_animations++;
-			guybrush[i].ani_set = true;
+			guy(i).ani_set = true;
 		}
 
 		// OK, now we're good to add the overlay sprite
@@ -1661,20 +1500,40 @@ u8 i, sid;
 }
 
 
+static __inline bool guard_close_by(i, pos_x, pos_2y)
+{
+s16 dx, dy;
+	dx = pos_x+16 - guard(i).px;
+	dy = pos_2y+8 - guard(i).p2y;
+	if ( ((dx>=0 && dx<=144) || (dx<0 && dx>=-144)) &&
+		 ((dy>=0 && dy<=160)  || (dy<0 && dy>-160)) )
+		 return true;
+	return false;
+}
+
+
+static __inline bool guard_collision(i, pos_x, pos_2y)
+{
+s16 dx, dy;
+	dx = pos_x+16 - guard(i).px;
+	dy = pos_2y+8 - guard(i).p2y;
+	if ( ((dx>=0 && dx<=10) || (dx<0 && dx>=-10)) &&
+		 ((dy>=0 && dy<=8)  || (dy<0 && dy>-8)) )
+		 return true;
+	return false;
+}
+
+
 int move_guards()
 {
-
-	int i, p;
+	int i, p, dir_x, dir_y;
 	u32 route_pos;
 	u16 route_data;
 	bool continue_parent;
 	bool but_i_just_got_out;
+	bool in_pursuit_of;
 
 	int	kill_motion = 0;
-
-#define guard_collision(i, pos_x, pos_2y)									\
-	( ((pos_x+16) >= (guard(i).px - 10)) && ((pos_x+16) <= (guard(i).px + 10)) &&	\
-	  ((pos_2y+8) >= (guard(i).p2y - 8)) && ((pos_2y+8) <= (guard(i).p2y + 8)) )
 
 
 	for (i=0; i<NB_GUARDS; i++)
@@ -1721,22 +1580,119 @@ int move_guards()
 			}
 		}
 
-		// 3. Check for a route collision with one of the prisoners
+		in_pursuit_of = false;
+		// 3. Check for an event with one of the prisoners
 		for (p = 0; p<NB_NATIONS; p++)
 		{
-			// is a prisoner in the same room & within a range of our guard
-			if ( (guard(i).room == guybrush[p].room) && guard_collision(i, guy(p).px, guy(p).p2y) 
-				  // Also, have NOT just exited a blocked timeout loop
-				  && (!but_i_just_got_out))
+			// Do we have a prisoner in sight?
+			if ( (guard(i).room == guy(p).room) && guard_close_by(i, guy(p).px, guy(p).p2y) )
 			{
-				// Setup the blocked counter
-				guard(i).wait = BLOCKED_GUARD_TIMEOUT;
-				// And indicate that we are stopped
-				guard(i).state |= STATE_BLOCKED;
-				// Ah shoot, we need to continue the parent "for" loop
-				continue_parent = true;
-				// Break this loop then
-				break;
+				// Don't do jack if we're already in the middle of something
+				if (p_event[p].require_pass || p_event[p].to_solitary)
+					continue;
+
+				// Is that prisoner supposed to be here?
+				if ( (!(guy(p).state & STATE_IN_PURSUIT)) && (p_event[p].unauthorized) )
+				{	// spotted!
+					guy(p).state |= STATE_IN_PURSUIT;
+					// Might be a prisoner on the lose 
+					if (guy(p).state & STATE_IN_PRISON)
+					{	// prison break: the prisoner left his cell!
+						guy(p).state &= ~STATE_IN_PRISON;
+						p_event[p].solitary_countdown = 0;
+					}
+				}
+
+				// Should we be in pursuit of this prisoner?
+				if (guy(p).state & STATE_IN_PURSUIT)
+				{
+					in_pursuit_of = true;
+
+					if (!(guard(i).state & STATE_IN_PURSUIT))
+					{	// Start walking
+						// Indicate that we deviate from the normal flight path
+						guard(i).state |= STATE_IN_PURSUIT;
+						// We always start a pursuit by walking
+						guard(i).speed = 1;
+						guard(i).wait = WALKING_PURSUIT_TIMEOUT;
+						animations[guard(i).ani_index].index = GUARD_WALK_ANI;
+					}
+					else if ((guard(i).speed == 1) && (guard(i).wait == 0))
+					{	// Start running
+						guard(i).speed = 2;
+						guard(i).wait = RUNNING_PURSUIT_TIMEOUT;
+						animations[guard(i).ani_index].index = GUARD_RUN_ANI;
+					}
+					else if ((guard(i).speed == 2) && (guard(i).wait == 0))
+					{	// License to kill
+						if (guy(p).state & STATE_MOTION)
+						{	// Prisoner is still moving => shoot!
+							guard(i).speed = 0;
+//							guard(i).wait = SHOOTING_GUARD_TIMEOUT;
+							animations[guard(i).ani_index].index = GUARD_SHOOTS_ANI;
+							guard(i).state &= ~STATE_MOTION;
+							// The guard just shot
+							guard(i).state |= STATE_SHOT;
+							printf("BANG from %x!!!\n", i);
+						}
+						else
+						{	// The prisoner has stopped => give him another chance
+							guard(i).wait = RUNNING_PURSUIT_TIMEOUT;
+						}
+					}
+					else if (guard(i).wait != 0)
+						guard(i).wait--;
+
+					// Have we caught up with our guy?
+					if (guard_collision(i, guy(p).px, guy(p).p2y))
+					{
+						if (guy(p).is_dressed_as_guard)
+							p_event[p].require_pass = true;
+						else
+							p_event[p].to_solitary = true;
+						// We need to clear the in_pursuit flag too, to prevent
+						// "accidental" shooting after catch
+						guard(i).state &= ~(STATE_MOTION|STATE_IN_PURSUIT);
+						continue_parent = true;
+						break;
+					}
+
+					// Update the guard's direction (also applies when shooting)
+					dir_x = guard(i).px - guy(p).px - 16;
+					dir_y = guard(i).p2y - guy(p).p2y - 8;
+					if (dir_x != 0)
+						dir_x = (dir_x>0)?-1:1;
+					dir_x++;
+					if (dir_y !=0)
+						dir_y = (dir_y>0)?-1:1;
+					dir_y++;
+					guard(i).direction = directions[dir_y][dir_x];
+
+					if (!(guard(i).state & STATE_SHOT))
+					{
+						// Catch him!
+						guard(i).go_on = 1;
+						guard(i).state |= STATE_MOTION;
+					}
+
+				}
+				else
+				{	// Prisoner is not flagged as suspicious... yet
+					// is a prisoner in the same room & within a range of our guard
+					if (guard_collision(i, guy(p).px, guy(p).p2y) 
+						  // Also, have NOT just exited a blocked timeout loop
+						  && (!but_i_just_got_out))
+					{
+						// Setup the blocked counter
+						guard(i).wait = BLOCKED_GUARD_TIMEOUT;
+						// And indicate that we are stopped
+						guard(i).state |= STATE_BLOCKED;
+						// Ah shoot, we need to continue the parent "for" loop
+						continue_parent = true;
+						// Break this loop then
+						break;
+					}
+				}
 			}
 		}
 
@@ -1744,7 +1700,16 @@ int move_guards()
 		if (continue_parent)
 			continue;
 
-		// Go_on = 0 indicates if there's a change of our current route action
+		if ((guard(i).state & STATE_IN_PURSUIT) && (!in_pursuit_of))
+		{	// We were in pursuit but lost our target
+			if (guard(i).state & STATE_MOTION)
+				guard(i).state ^= STATE_MOTION;
+			continue;
+		}
+
+		// Guard no longer has someone to pursue
+
+		// Go_on = 0 indicates that we don't need to read the route data
 		if (guard(i).go_on > 0)
 		{	// continue in the same direction
 			guard(i).go_on--;
@@ -2209,14 +2174,18 @@ void display_panel()
 	for (i=0; i<4; i++)
 	{
 		sid = 0xd5 + i;
+		if ( (guy(i).state & STATE_IN_PRISON) || 
+			 ( (guy(i).state & STATE_IN_PURSUIT) && ((t/1000)%2) ) )
+			sid = PANEL_FACE_IN_PRISON;
 		display_sprite(PANEL_FACES_X+i*PANEL_FACES_W, PANEL_TOP_Y,
 			sprite[sid].w, sprite[sid].h, sprite_texid[sid]);
 	}
 
-	// Current flag
+	// Display the currently selected nation's flag
 	display_sprite(PANEL_FLAGS_X, PANEL_TOP_Y, sprite[PANEL_FLAGS_BASE_SID+current_nation].w,
 		sprite[PANEL_FLAGS_BASE_SID+current_nation].h, sprite_texid[PANEL_FLAGS_BASE_SID+current_nation]);
 
+	// Display the clock
 	// Unlike the original game, I like having the zero displayed on hour tens, always
 	sid = PANEL_CLOCK_DIGITS_BASE + hours_digit_h;
 	display_sprite(PANEL_CLOCK_HOURS_X, PANEL_TOP_Y,
@@ -2241,11 +2210,11 @@ void display_panel()
 	display_sprite(PANEL_PROPS_X, PANEL_TOP_Y,
 			sprite[sid].w, sprite[sid].h, sprite_texid[sid]);
 
-	// Fatigue
+	// Display the fatigue bar
 	display_sprite(PANEL_FATIGUE_X, PANEL_FATIGUE_Y,
-		prisoner_fatigue, sprite[NB_SPRITES-1].h, sprite_texid[NB_SPRITES-1]);
+		(prisoner_fatigue>>0xB), sprite[PANEL_FATIGUE_SPRITE].h, sprite_texid[PANEL_FATIGUE_SPRITE]);
 
-	// Props data
+	// Display the props data
 	if (over_prop_id)
 	{
 		sid = over_prop_id + PANEL_PROPS_BASE;
@@ -2262,13 +2231,16 @@ void display_panel()
 	display_sprite(PANEL_STATE_X, PANEL_TOP_Y,
 		sprite[sid].w, sprite[sid].h, sprite_texid[sid]);
 
+	// Display the current status message
 	display_message(status_message);
 }
+
 
 // Handle timed events (palette change, rollcalls, ...)
 void timed_events(u16 hours, u16 minutes_high, u16 minutes_low)
 {
 	u16 event_data;
+	u8 p;
 
 	// Read the hour (or reset marker)
 	event_data = readword(fbuffer[LOADER], next_timed_event_ptr);
@@ -2306,6 +2278,9 @@ void timed_events(u16 hours, u16 minutes_high, u16 minutes_low)
 	else
 	{	// Rollcall, etc.
 		printf("got event %04X\n", event_data);
+		// Each event changes the list of authorized rooms
+		authorized_ptr = readlong(fbuffer[LOADER],AUTHORIZED_BASE+4*event_data);
+
 		// Get the relevant picture index (for events with static images) 
 		// according to the IFF_INDEX_TABLE in the loader
 		current_iff = readword(fbuffer[LOADER], IFF_INDEX_TABLE + 2*event_data);
@@ -2323,7 +2298,16 @@ void timed_events(u16 hours, u16 minutes_high, u16 minutes_low)
 					GL_RGBA, GL_UNSIGNED_SHORT_4_4_4_4_REV, static_image_buffer);
 				
 				// Indicate that we should display a static picture and pause the game
-				static_picture = true;
+				game_state |= GAME_STATE_STATIC_PIC;
+			}
+		}
+		else if (event_data == TIMED_EVENT_ROLLCALL_CHECK)
+		{	// This is the actual courtyard rollcall check
+			for (p=0; p<NB_NATIONS; p++)
+			{
+				if ( (!(guy(p).state & STATE_IN_PRISON)) && (guy(p).room != ROOM_OUTSIDE) )
+					// neither outside nor in prison => catch him!
+					guy(p).state |= STATE_IN_PURSUIT;
 			}
 		}
 		next_timed_event_ptr += 8;
@@ -2991,6 +2975,161 @@ void switch_room(s16 exit_nr, bool tunnel_io)
 }
 
 
+// Have a look at what our prisoner are doing
+// After pic is a boolean indicating that a static picture event has just
+// been acknowledged
+void check_on_prisoners(bool after_pic)
+{
+	int p,prop;
+	u16 i;
+	bool authorized_id;
+	u8 room_desc_id;
+
+	current_iff = NO_PICTURE;
+
+	for(p=0; p<NB_NATIONS; p++)
+	{
+		if (!after_pic)
+		{	// This is the first part of our event handling,
+
+			// if we need to display a static picture for it
+			// => just start by displaying the picture
+			if (p_event[p].to_solitary)
+				current_iff = TO_SOLITARY;
+			else if (p_event[p].require_pass)
+				current_iff = REQUIRE_PASS;
+			else if (p_event[p].solitary_countdown)
+			{	// Guy's in solitary => decrement counter
+				p_event[p].solitary_countdown--;
+				if (p_event[p].solitary_countdown == 0)
+				{	// "Freeeeeeeedom!"
+					p_event[p].from_solitary = true;
+					current_iff = FROM_SOLITARY;
+				}
+			}
+			else
+			{
+				// Check if we are authorised in our current pos		
+				if (guy(p).room == ROOM_OUTSIDE)
+					room_desc_id = COURTYARD_MSG_ID;
+				else if (guy(p).room < ROOM_TUNNEL)
+					room_desc_id = readbyte(fbuffer[LOADER], ROOM_DESC_BASE	+ guy(p).room);
+				else
+					room_desc_id = TUNNEL_MSG_ID;
+
+				// Now that we have the room desc ID, we can check if it's in the 
+				// currently authrorized list
+				p_event[p].unauthorized = true;
+				for (i=1; i<=readword(fbuffer[LOADER], authorized_ptr)+1; i++)
+				{
+					authorized_id = readword(fbuffer[LOADER], authorized_ptr+2*i);
+					if (authorized_id == 0xFFFF)
+						// prisoner's quarters
+						authorized_id = readbyte(fbuffer[LOADER], AUTHORIZED_NATION_BASE+p);
+
+					if (authorized_id == room_desc_id)
+					{	// if there's a match, we're allowed here
+						p_event[p].unauthorized = false;
+						// Additional boundary check for courtyard
+						if ( (guy(p).room == ROOM_OUTSIDE) && (
+							 (guy(p).px < COURTYARD_MIN_X) || (guy(p).px > COURTYARD_MAX_X) ||
+							 (guy(p).p2y < (2*COURTYARD_MIN_Y)) || (guy(p).p2y > (2*COURTYARD_MAX_Y)) ) )
+							p_event[p].unauthorized = true;
+						break;
+					}
+				}
+			}
+		}
+		else
+		{	// Second part of our event handling, if a static
+			// picture was needed. As this comes after the picture
+			// event was displayed and ack'ed, now we can really 
+			// act on the event (or link to a new picture)
+			if (p_event[p].to_solitary)
+			{	// Sent to jail
+				guy(p).state &= ~STATE_IN_PURSUIT;
+				guy(p).state |= STATE_IN_PRISON;
+				p_event[p].to_solitary = false;	// clear the image
+				p_event[p].solitary_countdown = SOLITARY_DURATION;
+
+				// Make sure the jail doors are closed when we leave the prisoner in!
+				writebyte(fbuffer[ROOMS], solitary_cells_door_offset[p][0], 
+					readbyte(fbuffer[ROOMS], solitary_cells_door_offset[p][0]) & 0xEF);
+				writebyte(fbuffer[ROOMS], solitary_cells_door_offset[p][1], 
+					readbyte(fbuffer[ROOMS], solitary_cells_door_offset[p][1]) & 0xEF);
+
+				// Set our guy in the cell
+				guy(p).room = readword(fbuffer[LOADER],SOLITARY_POSITION_BASE+8*p);
+				guy(p).p2y = 2*readword(fbuffer[LOADER],SOLITARY_POSITION_BASE+8*p+2)-2;
+				guy(p).px = readword(fbuffer[LOADER],SOLITARY_POSITION_BASE+8*p+4)-2;
+				if (!opt_keymaster)
+				{	// Bye bye props!
+					for (prop = 0; prop<NB_PROPS; prop++)
+						props[p][prop] = 0;
+					// display the empty box
+					selected_prop[p] = 0;
+					// Strip of guard uniform if any
+					if (guy(p).is_dressed_as_guard)
+					{	// Only makes sense if we're dressed as guard
+						guy(p).is_dressed_as_guard = false;
+						init_animations = true;
+					}
+				}
+				game_state &= ~GAME_STATE_STATIC_PIC;
+				break;
+			}
+			else if (p_event[p].require_pass)
+			{
+				p_event[p].require_pass = false;
+				if (props[p][ITEM_PASS] != 0)
+				{
+					guy(p).state &= ~STATE_IN_PURSUIT;
+					selected_prop[p] = ITEM_PASS;
+					consume_prop();
+					show_prop_count();
+					game_state &= ~GAME_STATE_STATIC_PIC;
+				}
+				else
+				{
+//					guy(p).state &= ~STATE_IN_PURSUIT;
+					p_event[p].to_solitary = true;
+//					game_state &= ~GAME_STATE_STATIC_PIC;
+					//current_iff = TO_SOLITARY;
+				}
+				break;
+			}
+			else if (p_event[p].from_solitary)
+			{	// Return to quarters
+				guy(p).state &= ~STATE_IN_PRISON;
+				p_event[p].from_solitary = false;
+				if (guy(p).room == readword(fbuffer[LOADER],SOLITARY_POSITION_BASE+8*p))
+				{	// Our guy's was still in his cell
+					guy(p).px = readword(fbuffer[LOADER],INITIAL_POSITION_BASE+10*p+2);
+					guy(p).p2y = 2*readword(fbuffer[LOADER],INITIAL_POSITION_BASE+10*p);
+					guy(p).room = readword(fbuffer[LOADER],INITIAL_POSITION_BASE+10*p+4);
+				}
+				else
+					// Prison break! => catch him
+					guy(p).state |= STATE_IN_PURSUIT;
+				break;
+				game_state &= ~GAME_STATE_STATIC_PIC;
+			}
+		}
+
+		// Setup the static picture, if any
+		if ((current_iff != NO_PICTURE) && (load_iff() == 0))
+		{
+			glBindTexture(GL_TEXTURE_2D, iff_texid);
+			glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 512, 256, 0, 
+				GL_RGBA, GL_UNSIGNED_SHORT_4_4_4_4_REV, static_image_buffer);
+			// Indicate that we should display a static picture and pause the game;
+			game_state |= GAME_STATE_STATIC_PIC;
+			return;
+		}
+	}
+}
+
 // Looks like the original programmer found that some of the data files had issues
 // but rather than fixing the files, they patched them in the loader... go figure!
 void fix_files()
@@ -3036,3 +3175,202 @@ void fix_files()
 	writeword(fbuffer[OBJECTS],32,0x000E);
 }
 
+// Open an IFF image file. Modified from LBMVIEW V1.0b 
+// http://www.programmersheaven.com/download/6394/download.aspx
+int load_iff()
+{
+	int i, y, bpl, bit_plane;
+	char ch, cmp_type, color_depth;
+	u8 uc, check_flags;
+	u16	w, h;
+	u32 id, len, l;
+	u8  line_buf[5][512/8];	// bytes line buffers (5 bitplanes max, 512 pixels wide)
+
+	if ((fd = fopen (iff_name[current_iff], "rb")) == NULL)
+	{
+		if (opt_verbose)
+			perror ("fopen()");
+		perr("Can't find file '%s'\n", iff_name[current_iff]);
+		return -1;
+	}
+
+	// Check for 'FORM' tag
+	if (freadl(fd) != IFF_FORM)
+	{
+		fclose(fd);
+		perr("IFF_FORM not found\n");
+		return -1;
+	}
+
+	// Skip IFF Form length
+	freadl(fd);						
+
+	// Check for InterLeaved BitMap tag
+	if (freadl(fd) != IFF_ILBM)
+	{
+		fclose(fd);
+		perr("IFF_ILBM not found\n");
+		return -1;
+	}
+
+	// Check for BitMap Header
+	if (freadl(fd) != IFF_BMHD)
+	{
+		fclose(fd);
+		perr("IFF_BMHD not found\n");
+		return -1;
+	}
+
+	// Check header length
+	if (freadl(fd) != 20)
+	{
+		fclose(fd);
+		perr("Bad IFF header length\n");
+		return -1;
+	}
+
+	// Read width and height
+	w = freadw(fd);
+	if (w > 512)
+	{
+		fclose(fd);
+		perr("IFF width must be lower than 512\n");
+		return -1;
+	}
+	if (w & 0x7)
+	{
+		fclose(fd);
+		perr("IFF width must be a multiple of 8\n");
+		return -1;
+	}
+	h = freadw(fd);
+	if (h > 256)
+	{
+		fclose(fd);
+		perr("IFF height must be lower than 256\n");
+		return -1;
+	}
+
+	// Discard initial x and y pos
+	freadw(fd);
+	freadw(fd);
+
+	// Read colour depth
+	color_depth = freadc(fd);
+	if (color_depth > 5)
+	{
+		fclose(fd);
+		perr("IFF: Colour depth must be lower than 5\n");
+		return -1;
+	}
+
+	// Skip masking type
+	freadc(fd);
+
+	// Get compression type
+	cmp_type = freadc(fd);
+	if ((cmp_type != 0) && (cmp_type != 1))
+	{
+		fclose(fd);
+		perr("Unknown IFF compression method\n");
+		return -1;
+	}
+
+	// Skip the bytes we're not interested in
+	freadc(fd);				// skip unused field
+	freadw(fd);				// skip transparent color
+	freadc(fd);				// skip x aspect ratio
+	freadc(fd);				// skip y aspect ratio
+	freadw(fd);				// skip default page width
+	freadw(fd);				// skip default page height
+
+	check_flags = 0;
+
+	do  // We'll use cycle to skip possible junk      
+	{   //  chunks: ANNO, CAMG, GRAB, DEST, TEXT etc.
+		id = freadl(fd);
+		switch(id)
+		{
+		case IFF_CMAP:
+			len = freadl(fd) / 3;
+			for (l=0; l<len; l++)
+			{
+				aPalette[l]  = ((u16)freadc(fd) & 0xF0) << 4;	// Red
+				aPalette[l] |= ((u16)freadc(fd) & 0xF0) << 8;	// Green
+				aPalette[l] |= ((u16)freadc(fd) & 0xF0) >> 4;	// Blue
+				aPalette[l] |= 0x00F0;							// Alpha
+			}
+			check_flags |= 1;				// flag "palette read" 
+			break;
+
+		case IFF_BODY:
+			freadl(fd);						// skip BODY size 
+
+			// Calculate bytes per line. As our width is always a multiple of 8
+			// no special cases are needed
+			bpl = w >> 3;  
+
+			for (y = 0; y < h; y++)
+			{
+				for (bit_plane = 0; bit_plane < color_depth; bit_plane++)
+				{
+					if (cmp_type)
+					{	// Compressed
+						i = 0;
+						while (i < bpl)
+						{
+							uc = freadc(fd);
+							if (uc < 128)
+							{
+								uc++;
+								fread(&line_buf[bit_plane][i], 1, uc, fd);
+								i += uc;
+							} else
+								if (uc > 128)
+								{
+									uc = 257 - uc;
+									ch = freadc(fd);
+									memset(&line_buf[bit_plane][i], ch, uc);
+									i += uc;
+								}
+								// 128 (0x80) means NOP - no operation  
+						}
+						// Set our image extra bytes to colour index 0
+						memset(&line_buf[bit_plane][i], 0, (512/8)-i);
+					}
+					else
+						// Uncompressed
+						fread(&line_buf[bit_plane][0], 1, bpl, fd);
+				}
+				
+
+				// OK, now we have our <color_depth> line buffers
+				// Let's recombine those bits, and convert to GRAB from our palette
+				line_interleaved_to_wGRAB((u8*)line_buf, 
+					static_image_buffer+512*y*2, 512, 1, color_depth);
+
+			}
+			check_flags |= 2;       // flag "bitmap read" 
+			break;
+
+		default:					// Skip unused chunks  
+			len = freadl(fd);		// nb of bytes to skip
+			for (l=0; l<len; l++)
+				freadc(fd);
+		}
+
+	// Exit from loop if we are at the end of file, 
+	// or if both palette and bitmap have been loaded
+	} while ((check_flags != 3) && (!feof(fd)));
+
+	fclose(fd);
+
+	if (check_flags != 3)
+	{
+		if (check_flags & 2)
+			aligned_free(b);
+		return -1;
+	}
+
+	return 0;
+}
