@@ -149,6 +149,8 @@ do {									\
 								  "STARTSCREEN3", "STARTSCREEN4", "PIC.8(PASS)", "PIC.9(PAPERS)", "APER"  }
 #define TO_SOLITARY				0
 #define FROM_SOLITARY			1
+#define PRISONER_SHOT			3
+#define PRISONER_FREE			4
 #define REQUIRE_PASS			17
 #define REQUIRE_PAPERS			18
 #define NO_PICTURE				0xFFFF
@@ -187,6 +189,8 @@ do {									\
 #define PANEL_FACES_W			16
 #define PANEL_FACES_X			PANEL_OFF_X
 #define PANEL_FACE_IN_PRISON	0xD9
+#define PANEL_FACE_SHOT			0xDA
+#define PANEL_FACE_FREE			0xDB
 #define PANEL_TOP_Y				(PSP_SCR_HEIGHT-PANEL_BASE_H+PANEL_OFF_Y)
 #define PANEL_FLAGS_OFFSET		0x1082
 #define NB_PANEL_FLAGS			NB_NATIONS
@@ -238,6 +242,14 @@ do {									\
 #define COURTYARD_MAX_X			0x5A0
 #define COURTYARD_MIN_Y			0xD0
 #define COURTYARD_MAX_Y			0x200
+// Boundaries for succesful escape! (ROM:00001E6E)
+#define ESCAPE_MIN_X			0x20
+#define ESCAPE_MAX_X			0xA40
+#define ESCAPE_MIN_Y			0x08
+#define ESCAPE_MAX_Y			0x470
+// Where to send someone we don't want to see around us again
+#define GET_LOST_X				5000;
+#define GET_LOST_Y				5000;
 // This loader section defines the list of authorized rooms (through their 
 // message ID) after certain events (appel, exercise, confined)
 #define AUTHORIZED_BASE			0x20EE
@@ -409,7 +421,7 @@ do {									\
 #define STATE_SLEEPING			128
 #define STATE_IN_PRISON			256
 // Useful masks
-#define MOTION_DISALLOWED		(~(STATE_MOTION|STATE_TUNNELING|STATE_STOOGE|STATE_IN_PURSUIT|STATE_IN_PRISON))
+#define MOTION_DISALLOWED		(~(STATE_MOTION|STATE_TUNNELING|STATE_STOOGE|STATE_IN_PURSUIT|STATE_SHOT|STATE_IN_PRISON))
 #define KNEEL_DISALLOWED		(~(STATE_MOTION|STATE_STOOGE|STATE_IN_PURSUIT|STATE_IN_PRISON))
 #define STATE_ANIMATED			(STATE_MOTION|STATE_KNEEL)
 
@@ -557,7 +569,7 @@ typedef struct
 	// Politicaly correct w & h (power of twos, to keep the PSP happy)
 	u16 corrected_w;
 	u16 corrected_h;
-	u16 x_offset;
+	s16 x_offset;
 	s16 z_offset;
 	u8* data;
 } s_sprite;
@@ -576,7 +588,7 @@ typedef struct
 	s16 x;
 	s16 y;
 	s16 z;
-	u8 sid;
+	u8  sid;
 } s_overlay;
 
 // Animated sprites data
@@ -630,8 +642,12 @@ typedef struct
 	bool to_appel;
 	bool unauthorized;
 	bool max_fatigue;
+	bool killed;
+	bool escaped;
+	bool is_free;
 	u32  fatigue;
 	u32  solitary_countdown;
+	u8   caught_by;
 } s_prisoner_event;
 
 
@@ -643,6 +659,7 @@ extern int	opt_play_as_the_safe;
 extern int	opt_keymaster;
 extern int	opt_thrillerdance;
 extern int	opt_no_guards;
+extern bool	opt_haunted_castle;
 extern int	stat;
 extern int  debug_flag;
 extern u8   *mbuffer;
@@ -693,6 +710,7 @@ extern u8 current_nation;
 #define guy(i)				guybrush[i]
 #define guard(i)			guy(i+NB_NATIONS)
 #define in_tunnel			(prisoner_state&STATE_TUNNELING)
+#define is_dead				(prisoner_state&STATE_SHOT)
 #define is_outside			(current_room_index==ROOM_OUTSIDE)
 #define is_inside			(current_room_index!=ROOM_OUTSIDE)
 #define prisoner_as_guard	guybrush[current_nation].is_dressed_as_guard

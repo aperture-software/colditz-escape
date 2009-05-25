@@ -36,7 +36,7 @@ extern "C" {
 #define toggle_open_flag(x_flags)  x_flags ^= 0x10
 //	x_flags = (x_flags & 0x10)?(x_flags & 0xEF):(x_flags | 0x10)
 
-// Checks that an overlays is visible onscreen (with generous margins)
+// Checks that an overlay is visible onscreen (with generous margins)
 #define ignore_offscreen_x(ovl)		\
 	if ((overlay[ovl].x < -64) || (overlay[ovl].x > (PSP_SCR_WIDTH+64)))	\
 			continue

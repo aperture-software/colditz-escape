@@ -656,6 +656,9 @@ void init_sprites()
 //		print("  w,h = %0X, %0X\n", sprite[sprite_index].w , sprite[sprite_index].h);
 	}
 
+	sprite[0xac].x_offset = -20;
+	printf("x_offset[aa] = %d, x_offset[ac] = %d\n", sprite[0xaa].x_offset, sprite[0xac].x_offset);
+
 	// We add the panel (nonstandard) sprites at the end of our exitsing sprite array
 	for (sprite_index=NB_STANDARD_SPRITES; sprite_index<NB_SPRITES-1; sprite_index++)
 	{
@@ -1226,8 +1229,15 @@ void display_overlays()
 	for (j=0; j<overlay_index; j++)
 	{
 		i = overlay_order[j];
-		display_sprite(overlay[i].x, overlay[i].y, sprite[overlay[i].sid].corrected_w, 
-			sprite[overlay[i].sid].corrected_h, sprite_texid[overlay[i].sid]);
+		// Dammit!!! Now I know why they used bottom-right corner instead of bottom-left as 
+		// the origin for the sprites => dying animation uses 2 width
+		if ( (overlay[i].sid == 0xab) || (overlay[i].sid == 0xac) ||
+			 (overlay[i].sid == 0xaf) || (overlay[i].sid == 0xb0) )
+			display_sprite(overlay[i].x-16, overlay[i].y, sprite[overlay[i].sid].corrected_w, 
+				sprite[overlay[i].sid].corrected_h, sprite_texid[overlay[i].sid]);
+		else
+			display_sprite(overlay[i].x, overlay[i].y, sprite[overlay[i].sid].corrected_w, 
+				sprite[overlay[i].sid].corrected_h, sprite_texid[overlay[i].sid]);
 //		printf("ovl(%d,%d), sid = %X\n", overlay[i].x, overlay[i].y, overlay[i].sid);
 	}
 }
@@ -1368,18 +1378,19 @@ u8 i, sid;
 			prisoner_speed = 1;
 			animations[prisoner_ani].index = prisoner_as_guard?GUARD_CRAWL_ANI:CRAWL_ANI;
 		}
+		else if (prisoner_state & STATE_SHOT)
+			animations[nb_animations].index = prisoner_as_guard?GUARD_SHOT_ANI:SHOT_ANI;
+		else if (prisoner_speed == 1)
+			animations[nb_animations].index = prisoner_as_guard?GUARD_WALK_ANI:WALK_ANI; 
 		else
-		{
-			if (prisoner_speed == 1)
-				animations[nb_animations].index = prisoner_as_guard?GUARD_WALK_ANI:WALK_ANI; 
-			else
-				animations[nb_animations].index = prisoner_as_guard?GUARD_RUN_ANI:RUN_ANI; 
-		}
+			animations[nb_animations].index = prisoner_as_guard?GUARD_RUN_ANI:RUN_ANI; 
+
 		animations[prisoner_ani].framecount = 0;
 		animations[prisoner_ani].guybrush_index = current_nation;
 		animations[prisoner_ani].end_of_ani_function = NULL;
-		guybrush[current_nation].ani_set = true;
-		nb_animations++;
+		guy(current_nation).ani_set = true;
+		if(!(p_event[current_nation].is_free))
+			nb_animations++;
 	}
 
 	// Always display our main guy
@@ -1390,13 +1401,14 @@ u8 i, sid;
 	// computations are right to position our guy to the middle of the screen
 //overlay[overlay_index].x = gl_off_x + guybrush[PRISONER].px + sprite[sid].x_offset;
 	overlay[overlay_index].y = gl_off_y + guybrush[current_nation].p2y/2 - sprite[sid].h + (in_tunnel?11:5);
-//	printf("corrected_h = %d\n", sprite[sid].corrected_h);
 	overlay[overlay_index].x = PSP_SCR_WIDTH/2 - (in_tunnel?25:0);  
 //	overlay[overlay_index].y = PSP_SCR_HEIGHT/2 - NORTHWARD_HO - 32; 
 
 	// Our guy's always at the center of our z-buffer
 	overlay[overlay_index].z = 0;
-	overlay_index++;
+	// Who cares about optimizing for one guy!
+	if(!(p_event[current_nation].is_free))
+		overlay_index++;
 /*
 	overlay[overlay_index].x = PSP_SCR_WIDTH/2;  
 	overlay[overlay_index].y = PSP_SCR_HEIGHT/2 - NORTHWARD_HO - 32; 
@@ -1438,20 +1450,26 @@ u8 i, sid;
 		// We do set the onscreen flag though
 		guy(i).is_onscreen = true;
 
+//		printf("guard(%x).is_onscreen\n", i-4);
+
 		// First we check if the relevant guy's animation was ever initialized
 		if (guy(i).ani_set == false)
 		{	// We need to initialize that guy's animation
 			// TO_DO: better thriller dance keeping the german's uniforms
 			guy(i).ani_index = (opt_thrillerdance)?prisoner_ani:nb_animations;
 
-			if (guybrush[i].speed == 1)
+			if ((i<NB_NATIONS) && (guy(i).state & STATE_SHOT))
+				// Might have a stiff guy to display
+				animations[nb_animations].index = ((guy(i).is_dressed_as_guard)?GUARD_SHOT_ANI:SHOT_ANI);
+			else if (guybrush[i].speed == 1)
 				animations[nb_animations].index = ((guy(i).is_dressed_as_guard)?GUARD_WALK_ANI:WALK_ANI); 
 			else
 				animations[nb_animations].index = ((guy(i).is_dressed_as_guard)?GUARD_RUN_ANI:RUN_ANI); 
 			animations[nb_animations].framecount = 0;
 			animations[nb_animations].guybrush_index = i;
 			animations[nb_animations].end_of_ani_function = NULL;
-			nb_animations++;
+			if ((i>=NB_NATIONS) || ((i<NB_NATIONS) && (!p_event[i].is_free)) )
+				nb_animations++;
 			guy(i).ani_set = true;
 		}
 
@@ -1461,12 +1479,12 @@ u8 i, sid;
 
 		// And now that we have the sprite attributes, we can add the final position adjustments
 		if (i < NB_NATIONS)
-		{
+		{	// prisoners
 			overlay[overlay_index].x += sprite[sid].x_offset;
 			overlay[overlay_index].y -= sprite[sid].h;
 		}
 		else
-		{
+		{	// guards
 			overlay[overlay_index].x += sprite[sid].x_offset - 16;
 			overlay[overlay_index].y -= sprite[sid].h + 4;
 		}
@@ -1497,6 +1515,15 @@ u8 i, sid;
 		overlay[overlay_index].z = 0;
 		overlay_index++;
 	}
+}
+
+void prisoner_killed(u32 p)
+{
+	p_event[p].killed = true;
+	// Prevent the sprite from being animated
+	guy(p).state = STATE_SHOT;
+	// This will reinstantiate the guard when we switch screens
+	guard(p_event[p].caught_by).state = STATE_IN_PURSUIT;
 }
 
 
@@ -1531,7 +1558,7 @@ int move_guards()
 	u16 route_data;
 	bool continue_parent;
 	bool but_i_just_got_out;
-	bool in_pursuit_of;
+	bool still_have_a_prisoner_to_chase;
 
 	int	kill_motion = 0;
 
@@ -1545,7 +1572,10 @@ int move_guards()
 		// the route at the end of the blocked timeout 
 		// (prevents the blocking of guards by unattended prisoners)
 		but_i_just_got_out = false;
-
+/*
+		if (guard(i).is_onscreen)
+			printf("is_onscreen(%x)\n", i);
+*/
 		// 1. Check if we have a collision between our current prisoner and the guard
 		//    (and kill our motion as a result)
 		p = current_nation;
@@ -1580,10 +1610,14 @@ int move_guards()
 			}
 		}
 
-		in_pursuit_of = false;
+		still_have_a_prisoner_to_chase = false;
 		// 3. Check for an event with one of the prisoners
 		for (p = 0; p<NB_NATIONS; p++)
 		{
+			// Don't bother if prisoner's dead or escaped
+			if ( (guy(p).state & STATE_SHOT) || (p_event[p].is_free) )
+				continue;
+
 			// Do we have a prisoner in sight?
 			if ( (guard(i).room == guy(p).room) && guard_close_by(i, guy(p).px, guy(p).p2y) )
 			{
@@ -1606,40 +1640,49 @@ int move_guards()
 				// Should we be in pursuit of this prisoner?
 				if (guy(p).state & STATE_IN_PURSUIT)
 				{
-					in_pursuit_of = true;
+					still_have_a_prisoner_to_chase = true;
 
 					if (!(guard(i).state & STATE_IN_PURSUIT))
-					{	// Start walking
+					{	// Start walking towards prisoner
 						// Indicate that we deviate from the normal flight path
 						guard(i).state |= STATE_IN_PURSUIT;
-						// We always start a pursuit by walking
+						// Set guard to walk
 						guard(i).speed = 1;
 						guard(i).wait = WALKING_PURSUIT_TIMEOUT;
-						animations[guard(i).ani_index].index = GUARD_WALK_ANI;
+						guard(i).ani_set = false;	// change animation
 					}
 					else if ((guard(i).speed == 1) && (guard(i).wait == 0))
-					{	// Start running
+					{	// Start running towards prisoner
 						guard(i).speed = 2;
 						guard(i).wait = RUNNING_PURSUIT_TIMEOUT;
-						animations[guard(i).ani_index].index = GUARD_RUN_ANI;
+						guard(i).ani_set = false;	// change animation
 					}
 					else if ((guard(i).speed == 2) && (guard(i).wait == 0))
-					{	// License to kill
+					{	// We were running, now we're pissed off => License to kill
 						if (guy(p).state & STATE_MOTION)
-						{	// Prisoner is still moving => shoot!
-							guard(i).speed = 0;
-//							guard(i).wait = SHOOTING_GUARD_TIMEOUT;
-							animations[guard(i).ani_index].index = GUARD_SHOOTS_ANI;
+						{	// Moving prisoners make good targets
 							guard(i).state &= ~STATE_MOTION;
-							// The guard just shot
-							guard(i).state |= STATE_SHOT;
-							printf("BANG from %x!!!\n", i);
+							animations[guard(i).ani_index].index = GUARD_SHOOTS_ANI;
+							// The guard just shot + make sure animations play
+							guard(i).state |= STATE_SHOT|STATE_ANIMATED;
+							guy(p).state = STATE_SHOT|STATE_ANIMATED;
+							p_event[p].unauthorized = false;
+							p_event[p].caught_by = i;
+							// enqueue our shot animation
+							animations[prisoner_ani].end_of_ani_parameter = p;
+							animations[prisoner_ani].end_of_ani_function = prisoner_killed;
+							animations[prisoner_ani].index = prisoner_as_guard?GUARD_SHOT_ANI:SHOT_ANI;
+							animations[prisoner_ani].framecount = 0;
 						}
 						else
 						{	// The prisoner has stopped => give him another chance
+							// Restart the run counter
 							guard(i).wait = RUNNING_PURSUIT_TIMEOUT;
 						}
 					}
+					else if (guard(i).state & STATE_SHOT)
+						// The prisoner is supposed to be dead now
+						still_have_a_prisoner_to_chase = false;
 					else if (guard(i).wait != 0)
 						guard(i).wait--;
 
@@ -1647,30 +1690,37 @@ int move_guards()
 					if (guard_collision(i, guy(p).px, guy(p).p2y))
 					{
 						if (guy(p).is_dressed_as_guard)
+						{	// Ask for a pass
 							p_event[p].require_pass = true;
+							// We'll need this for check_on_prisoners()
+							p_event[p].caught_by = i;
+						}
 						else
 							p_event[p].to_solitary = true;
-						// We need to clear the in_pursuit flag too, to prevent
-						// "accidental" shooting after catch
-						guard(i).state &= ~(STATE_MOTION|STATE_IN_PURSUIT);
-						continue_parent = true;
+						// The following ensures that we reset the guard when offscreen
+						guard(i).state &= ~STATE_MOTION;
+						still_have_a_prisoner_to_chase = false;
 						break;
 					}
 
 					// Update the guard's direction (also applies when shooting)
 					dir_x = guard(i).px - guy(p).px - 16;
-					dir_y = guard(i).p2y - guy(p).p2y - 8;
+					// If we don't divide by 2 here, we'll have jerky motion on pursuit
+					dir_y = (guard(i).p2y - guy(p).p2y - 8)/2;
+
 					if (dir_x != 0)
 						dir_x = (dir_x>0)?-1:1;
 					dir_x++;
+
 					if (dir_y !=0)
 						dir_y = (dir_y>0)?-1:1;
 					dir_y++;
+
 					guard(i).direction = directions[dir_y][dir_x];
 
 					if (!(guard(i).state & STATE_SHOT))
 					{
-						// Catch him!
+						// "After him!"
 						guard(i).go_on = 1;
 						guard(i).state |= STATE_MOTION;
 					}
@@ -1700,34 +1750,42 @@ int move_guards()
 		if (continue_parent)
 			continue;
 
-		if ((guard(i).state & STATE_IN_PURSUIT) && (!in_pursuit_of))
+		// Do we need to reinstantiate the guard?
+		if ((guard(i).state & STATE_IN_PURSUIT) && (!still_have_a_prisoner_to_chase))
 		{	// We were in pursuit but lost our target
-			if (guard(i).state & STATE_MOTION)
-				guard(i).state ^= STATE_MOTION;
-			continue;
-		}
-
-		// Guard no longer has someone to pursue
-
-		// Go_on = 0 indicates that we don't need to read the route data
-		if (guard(i).go_on > 0)
-		{	// continue in the same direction
-			guard(i).go_on--;
-
-			// If we're moving, increment our position
-			if (guard(i).state & STATE_MOTION)
-			{
-				guard(i).px += guard(i).speed * dir_to_dx[guard(i).direction];
-				guard(i).p2y += guard(i).speed * dir_to_d2y[guard(i).direction];
+			if (guard(i).is_onscreen)
+			{	// Don't reinstanciate if onscreen. Just freeze
+				if (guard(i).state & STATE_MOTION)
+					guard(i).state ^= STATE_MOTION;
+				continue;
 			}
-			continue;
+			else
+				// Reinstantiate guard
+				route_data = 0xFFFF;
+		}
+		else
+		{
+			// Go_on > 0 indicates that we don't need to read the route data
+			if (guard(i).go_on > 0)
+			{	// continue in the same direction
+				guard(i).go_on--;
+
+				// If we're moving, increment our position
+				if (guard(i).state & STATE_MOTION)
+				{
+					guard(i).px += guard(i).speed * dir_to_dx[guard(i).direction];
+					guard(i).p2y += guard(i).speed * dir_to_d2y[guard(i).direction];
+				}
+				continue;
+			}
+
+			// Change in route => get our current route position
+			route_pos = readlong(fbuffer[GUARDS], i*MENDAT_ITEM_SIZE + 0x0E);
+
+			// Read the first word
+			route_data = readword(fbuffer[ROUTES], route_pos);
 		}
 
-		// Change in route => get our current route position
-		route_pos = readlong(fbuffer[GUARDS], i*MENDAT_ITEM_SIZE + 0x0E);
-
-		// Read the first word
-		route_data = readword(fbuffer[ROUTES], route_pos);
 		if (route_data == 0xFFFF)
 		{	// repeat => back to start of route
 			route_pos = readlong(fbuffer[GUARDS], i*MENDAT_ITEM_SIZE + 0x06);
@@ -1735,6 +1793,9 @@ int move_guards()
 			guard(i).px = readword(fbuffer[GUARDS],i*MENDAT_ITEM_SIZE + 2);
 			guard(i).p2y = 2*readword(fbuffer[GUARDS],i*MENDAT_ITEM_SIZE);
 			guard(i).room = readword(fbuffer[GUARDS],i*MENDAT_ITEM_SIZE + 4);
+			guard(i).state = 0;
+			guard(i).speed = 1;
+			guard(i).ani_set = false;	// reset the animation
 		}
 
 		if (route_data & 0x8000)
@@ -1750,11 +1811,11 @@ int move_guards()
 			route_data =  readword(fbuffer[ROUTES], route_pos + 2);
 			if (route_data == 0xFFFF)
 				// stopped state (pause)
-				guard(i).state &= ~STATE_MOTION;
+				guard(i).state &= ~(STATE_MOTION|STATE_ANIMATED);
 			else
 			{	// motion state
 				guard(i).direction = route_data;
-				guard(i).state |= STATE_MOTION;
+				guard(i).state |= STATE_MOTION|STATE_ANIMATED;
 				// Change our position
 				guard(i).px += guard(i).speed * dir_to_dx[guard(i).direction];
 				guard(i).p2y += guard(i).speed * dir_to_d2y[guard(i).direction];
@@ -2173,10 +2234,17 @@ void display_panel()
 	// Display our guy's faces
 	for (i=0; i<4; i++)
 	{
-		sid = 0xd5 + i;
-		if ( (guy(i).state & STATE_IN_PRISON) || 
-			 ( (guy(i).state & STATE_IN_PURSUIT) && ((t/1000)%2) ) )
-			sid = PANEL_FACE_IN_PRISON;
+		if (guy(i).state & STATE_SHOT)
+			sid = PANEL_FACE_SHOT;
+		else if (p_event[i].is_free)
+			sid = PANEL_FACE_FREE;
+		else
+		{
+			sid = 0xd5 + i;
+			if ( (guy(i).state & STATE_IN_PRISON) || 
+				 ( (guy(i).state & STATE_IN_PURSUIT) && ((t/1000)%2) ) )
+				sid = PANEL_FACE_IN_PRISON;
+		}
 		display_sprite(PANEL_FACES_X+i*PANEL_FACES_W, PANEL_TOP_Y,
 			sprite[sid].w, sprite[sid].h, sprite_texid[sid]);
 	}
@@ -2998,6 +3066,10 @@ void check_on_prisoners(bool after_pic)
 				current_iff = TO_SOLITARY;
 			else if (p_event[p].require_pass)
 				current_iff = REQUIRE_PASS;
+			else if (p_event[p].killed)
+				current_iff = PRISONER_SHOT;
+			else if (p_event[p].escaped)
+				current_iff = PRISONER_FREE;
 			else if (p_event[p].solitary_countdown)
 			{	// Guy's in solitary => decrement counter
 				p_event[p].solitary_countdown--;
@@ -3076,6 +3148,10 @@ void check_on_prisoners(bool after_pic)
 					}
 				}
 				game_state &= ~GAME_STATE_STATIC_PIC;
+
+				// Don't forget to (re)set the room props
+				set_room_props();
+
 				break;
 			}
 			else if (p_event[p].require_pass)
@@ -3088,14 +3164,19 @@ void check_on_prisoners(bool after_pic)
 					consume_prop();
 					show_prop_count();
 					game_state &= ~GAME_STATE_STATIC_PIC;
+					// If pass handling was successful, we reset the guard to the start of 
+					// its route
+					writelong(fbuffer[GUARDS], p_event[p].caught_by*MENDAT_ITEM_SIZE+0x0E, 
+						readlong(fbuffer[GUARDS], p_event[p].caught_by*MENDAT_ITEM_SIZE+0x06));
+					// You got our pass, now get lost (prevents multiple pass requests)
+					printf("GET LOST(%x)!!!\n", p_event[p].caught_by);
+					guard(p_event[p].caught_by).px = GET_LOST_X;
+					guard(p_event[p].caught_by).p2y = GET_LOST_Y;
+					// This ensures that we'll reinstantiate the guard
+					guard(p_event[p].caught_by).go_on = 0;
 				}
 				else
-				{
-//					guy(p).state &= ~STATE_IN_PURSUIT;
 					p_event[p].to_solitary = true;
-//					game_state &= ~GAME_STATE_STATIC_PIC;
-					//current_iff = TO_SOLITARY;
-				}
 				break;
 			}
 			else if (p_event[p].from_solitary)
@@ -3113,6 +3194,15 @@ void check_on_prisoners(bool after_pic)
 					guy(p).state |= STATE_IN_PURSUIT;
 				break;
 				game_state &= ~GAME_STATE_STATIC_PIC;
+			}
+			else if (p_event[p].killed)
+				p_event[p].killed = false;
+			else if (p_event[p].escaped)
+			{
+				game_state &= ~GAME_STATE_STATIC_PIC;
+				guy(p).state |= STATE_IN_PURSUIT;
+				p_event[p].escaped = false;
+				p_event[p].is_free = true;
 			}
 		}
 

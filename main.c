@@ -60,6 +60,8 @@ int opt_thrillerdance		= 0;
 int opt_sid					= -1;
 // Kill the guards
 int	opt_no_guards			= 0;
+// Is the castle haunted by the ghost of shot prisoners
+bool opt_haunted_castle		= true;
 
 
 // File stuff
@@ -298,6 +300,16 @@ void process_motion(void)
 
 		prisoner_x += prisoner_speed*dx;
 		prisoner_2y += prisoner_speed*d2y;
+
+		// Escape condition
+		if ( (current_room_index == ROOM_OUTSIDE) && 
+			 ( (prisoner_x < ESCAPE_MIN_X) || (prisoner_x > ESCAPE_MAX_X) ||
+			   (prisoner_2y < (2*ESCAPE_MIN_Y)) || (prisoner_2y > (2*ESCAPE_MAX_Y)) ) )
+		{
+			printf("yargl?\n");
+			 p_event[current_nation].escaped = true;
+		}
+				
 		prisoner_state |= STATE_MOTION;
 		// Update the animation direction
 		prisoner_dir = new_direction;
@@ -483,6 +495,35 @@ static void glut_idle(void)
 			status_message = NULL;
 	}
 
+
+	// Prisoner selection: direct keys or left/right cycle keys
+	for (i=0; i<(NB_NATIONS+2); i++)
+		if (read_key_once(key_nation[i]) && (current_nation != i))
+		{
+			// stop any motion or animation)
+			// TO_DO: move this ion utilities
+			// if there was any end of ani function, execute it
+			if (animations[prisoner_ani].end_of_ani_function != NULL)
+			{	// execute the end of animation function (toggle exit)
+				animations[prisoner_ani].end_of_ani_function(animations[prisoner_ani].end_of_ani_parameter);
+				animations[prisoner_ani].end_of_ani_function = NULL;
+			}
+			prisoner_state &= ~(STATE_MOTION|STATE_ANIMATED|STATE_KNEEL);
+
+			if (i<NB_NATIONS)
+				current_nation = i;
+			else
+				// we want to have +/-1, without going negative, and we
+				// know that we are either at NB_NATIONS or NB_NATIONS+1
+				// so the formula writes itself
+				current_nation = (current_nation+(2*i)-1) % NB_NATIONS;
+			prisoner_state &= ~(STATE_MOTION|STATE_ANIMATED|STATE_KNEEL);
+			init_animations = true;
+			keep_message_on = false;
+			set_room_props();
+			break;
+		}
+
 	// Reset the motion
 	dx = 0; 
 	d2y = 0;	
@@ -543,7 +584,7 @@ static void glut_idle(void)
 	}
 
 	// We're idle, but we might be trying to open a tunnel exit, or use a prop
-	if (read_key_once(KEY_FIRE))
+	if (read_key_once(KEY_FIRE) && !is_dead)
 	{
 		// We need to set this variable as we might check if fire is pressed 
 		// in various subroutines below
@@ -591,25 +632,6 @@ static void glut_idle(void)
 	if (!(prisoner_state & MOTION_DISALLOWED))
 	{
 
-		// Prisoner selection: direct keys or left/right cycle keys
-		for (i=0; i<(NB_NATIONS+2); i++)
-			if (read_key_once(key_nation[i]))
-			{
-				// stop our current prisoner
-				prisoner_state &= ~STATE_MOTION;
-				if (i<NB_NATIONS)
-					current_nation = i;
-				else
-					// we want to have +/-1, without going negative, and we
-					// know that we are either at NB_NATIONS or NB_NATIONS+1
-					// so the formula writes itself
-					current_nation = (current_nation+(2*i)-1) % NB_NATIONS;
-				init_animations = true;
-				keep_message_on = false;
-				set_room_props();
-				break;
-			}
-
 		// Inventory cycle
 		if ( (read_key_once(KEY_INVENTORY_LEFT)) ||
 			 (read_key_once(KEY_INVENTORY_RIGHT)) ) 
@@ -641,7 +663,8 @@ static void glut_idle(void)
 			// enqueue our 2 u8 parameters
 			animations[prisoner_ani].end_of_ani_parameter = (current_nation & 0xFF) | 
 				((animations[prisoner_ani].index << 8) & 0xFF00);
-			animations[prisoner_ani].index = KNEEL_ANI;
+			animations[prisoner_ani].index = prisoner_as_guard?	//GUARD_KNEEL_ANI:KNEEL_ANI;
+				GUARD_SHOT_ANI:SHOT_ANI; //
 			// Make sure we go through frame 0
 			animations[prisoner_ani].framecount = 0;
 			animations[prisoner_ani].end_of_ani_function = restore_params;
@@ -708,6 +731,11 @@ static void glut_idle(void)
 	if (jd2y)
 		d2y = jd2y;
 
+	if (is_dead)
+	{
+		dx = 0; d2y = 0;
+	}
+
 	// This ensures that all the motions are in sync
 	if ((t - last_ptime) > REPOSITION_INTERVAL)
 	{
@@ -728,7 +756,7 @@ static void glut_idle(void)
 			dx = 0; d2y = 0;
 			prisoner_state &= ~STATE_MOTION;
 		}
-		else
+		else 
 		// Update our guy's position
 			process_motion();
 		// Do we have something going on with a prisoner (request, caught, release...)
@@ -921,6 +949,8 @@ int main (int argc, char *argv[])
 		p_event[i].to_solitary = false;
 		p_event[i].require_papers = false;
 		p_event[i].require_pass = false;
+		p_event[i].escaped = false;
+		p_event[i].is_free = false;
 		p_event[i].fatigue = 0;
 	}
 
@@ -930,6 +960,8 @@ int main (int argc, char *argv[])
 	guy(0).p2y = 630;
 	guy(0).room = ROOM_OUTSIDE;
 	guy(0).ext_bitmask = 0x8000001E;
+	guy(0).is_dressed_as_guard = true;
+	p_event[0].escaped = true;
 //	p_event[0].fatigue = MAX_FATIGUE-0x1000;
 
 /*
