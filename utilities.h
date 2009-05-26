@@ -46,12 +46,24 @@ extern "C" {
 
 #define get_guybrush_sid(x)					\
 	( ( (guybrush[x].state & STATE_ANIMATED) && (!(guybrush[x].state & STATE_BLOCKED)) ) ?	\
-	get_animation_sid(guybrush[x].ani_index):get_stop_animation_sid(guybrush[x].ani_index))
+	get_animation_sid(x, true):get_stop_animation_sid(x, true))
 
 #define request_status_message(msg)	\
 	if ((!keep_message_on) && (!status_message)) status_message = (char*)(msg)
 #define force_status_message(msg)		\
 	keep_message_on = false; status_message = (char*)(msg)
+
+#define safe_nb_animations_increment() {	\
+	if (nb_animations <= (MAX_ANIMATIONS-1))\
+		nb_animations++;					\
+	else									\
+		printf("Too many animations!\n");	}
+
+#define safe_overlay_index_increment() {	\
+	if (overlay_index <= (MAX_OVERLAYS-1))	\
+		overlay_index++;					\
+	else									\
+	printf("Too many overlays!\n");			}	
 
 
 // For load_iff()
@@ -120,6 +132,7 @@ void init_sprites();
 void sprites_to_wGRAB();
 void toggle_exit(u32 exit_nr);
 s16 check_footprint(s16 dx, s16 d2y);
+bool check_guard_footprint(u8 g, s16 dx, s16 d2y);
 void switch_room(s16 exit, bool tunnel_io);
 void fix_files();
 void set_room_props();

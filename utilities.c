@@ -39,8 +39,8 @@ GLuint render_texid, iff_texid;
 /* Some more globals */
 u8  obs_to_sprite[NB_OBS_TO_SPRITE];
 u8	remove_props[CMP_MAP_WIDTH][CMP_MAP_HEIGHT];
-u8  overlay_order[MAX_OVERLAY], b[MAX_OVERLAY/2+1];
-u8	currently_animated[MAX_ANIMATIONS];
+u8  overlay_order[MAX_OVERLAYS], b[MAX_OVERLAYS/2+1];
+int	currently_animated[MAX_ANIMATIONS];
 u32 exit_flags_offset;
 bool tunnel_toggle;
 // Pointer to the message ID list of the currently allowed rooms
@@ -621,7 +621,7 @@ void init_sprites()
 
 	// Allocate the sprites and overlay arrays
 	sprite = aligned_malloc(NB_SPRITES * sizeof(s_sprite), 16);
-	overlay = aligned_malloc(MAX_OVERLAY * sizeof(s_overlay), 16);
+	overlay = aligned_malloc(MAX_OVERLAYS * sizeof(s_overlay), 16);
 
 	// First thing we do is populate the standard sprite offsets at the beginning of the table
 	sprite_address = index + 4* (readword(fbuffer[SPRITES],0) + 1);
@@ -656,8 +656,12 @@ void init_sprites()
 //		print("  w,h = %0X, %0X\n", sprite[sprite_index].w , sprite[sprite_index].h);
 	}
 
-	sprite[0xac].x_offset = -20;
-	printf("x_offset[aa] = %d, x_offset[ac] = %d\n", sprite[0xaa].x_offset, sprite[0xac].x_offset);
+	// Manual correction for the dying prisoners last animations, as these animations
+	// are wider, and we use bottom-left instead of bottom right as origin
+	sprite[0xab].x_offset = -16;
+	sprite[0xac].x_offset = -16;
+	sprite[0xaf].x_offset = -16;
+	sprite[0xb0].x_offset = -16;
 
 	// We add the panel (nonstandard) sprites at the end of our exitsing sprite array
 	for (sprite_index=NB_STANDARD_SPRITES; sprite_index<NB_SPRITES-1; sprite_index++)
@@ -750,10 +754,6 @@ void sprites_to_wGRAB()
 	}
 
 	// The last sprite (fatigue) is initialized manually
-
-	// Because we're little endian (DAMN YOU INTEL!!!! DAMN YOU TO HELL!!!!) we need
-	// to provide our 4_4_4_4 GRAB values as ABGR.  Oh, and I think I've defined enough
-	// constants as it is, so the hell with it, we'll go manual
 	for (y=0; y<8; y++)
 		for (x=0; x<8; x++)
 			writeword(sprite[sprite_index].data, 16*y+2*x, fatigue_colour[y]);
@@ -766,18 +766,20 @@ void sprites_to_wGRAB()
 }
 
 // Returns the last frame of an animation (usually the centered position)
-int get_stop_animation_sid(u8 index)
+int get_stop_animation_sid(u8 index, bool is_guybrush)
 {
 	u8 frame;
 	int sid;
 	u32 ani_base;
 	s16 dir;
+	s_animation* p_ani;
 
+	// Pointer to the animation structure
+	p_ani = is_guybrush?&guybrush[index].animation:&animations[index];
 	// Our index will tell us which animation sequence we use (walk, run, kneel, etc.)
-	ani_base = readlong(fbuffer[LOADER], ANIMATION_OFFSET_BASE + 4*animations[index].index);
+	ani_base = readlong(fbuffer[LOADER], ANIMATION_OFFSET_BASE + 4*p_ani->index);
 	// Guybrushes animations need to handle a direction, others do not
-	dir  = (animations[index].guybrush_index == NO_GUYBRUSH)?
-		0:guybrush[animations[index].guybrush_index].direction;
+	dir = is_guybrush?guybrush[index].direction:0;
 	// With the direction and animation base, we can get to the base SID of the ani sequence
 	sid = readbyte(fbuffer[LOADER], ani_base + 0x0A + dir);
 	// find out the index of the last animation frame
@@ -787,38 +789,40 @@ int get_stop_animation_sid(u8 index)
 }
 
 // Returns an animation frame
-int get_animation_sid(u8 index)
+// index is either the animation[] array index (standard overlays) or the guybrush[] array index
+int get_animation_sid(u8 index, bool is_guybrush)
 {
 	u8 frame, sid_increment;
 	int sid;
 	u32 ani_base;
 	s32 nb_frames;
 	s16 dir;
+	s_animation* p_ani;
 
+	// Pointer to the animation structure
+	p_ani = is_guybrush?&guybrush[index].animation:&animations[index];
 	// read the base sid
-	ani_base = readlong(fbuffer[LOADER], ANIMATION_OFFSET_BASE + 4*animations[index].index);
-	dir  = (animations[index].guybrush_index == NO_GUYBRUSH)?
-		0:guybrush[animations[index].guybrush_index].direction;
+	ani_base = readlong(fbuffer[LOADER], ANIMATION_OFFSET_BASE + 4*p_ani->index);
+	dir = is_guybrush?guybrush[index].direction:0;
 	sid = readbyte(fbuffer[LOADER], ani_base + 0x0A + dir);
-//	printf("framecount = %d\n", animations[index].framecount);
+//	printf("framecount = %d\n", p_ani->framecount);
 	nb_frames = readbyte(fbuffer[LOADER], ani_base);	// offset 0 is nb frames max
 //	printf("sid base = %x, nb_frames = %d\n", sid, nb_frames);
-//	printf("ani_index = %d\n", animations[index].index);
+//	printf("ani_index = %d\n", p_ani->index);
 
 
-	if ( (!(looping_animation[animations[index].index])) &&
-		  (animations[index].framecount >= nb_frames) )
+	if ( (!(looping_animation[p_ani->index])) && (p_ani->framecount >= nb_frames) )
 	{	// end of one shot animations
 		frame = nb_frames - 1;	// 0 indexed
-		if (animations[index].end_of_ani_function != NULL)
+		if (p_ani->end_of_ani_function != NULL)
 		{	// execute the end of animation function (toggle exit)
-			animations[index].end_of_ani_function(animations[index].end_of_ani_parameter);
-			animations[index].end_of_ani_function = NULL;
+			p_ani->end_of_ani_function(p_ani->end_of_ani_parameter);
+			p_ani->end_of_ani_function = NULL;
 		}
 	}
 	else
 	{	// one shot (non end) or loop
-		frame = animations[index].framecount % nb_frames;
+		frame = p_ani->framecount % nb_frames;
 	}
 //	printf("nb_frames = %d, framecount = %d\n", nb_frames, animations[index].framecount);
 	sid_increment = readbyte(fbuffer[LOADER], 
@@ -829,7 +833,7 @@ int get_animation_sid(u8 index)
 		// sound = yada +1;
 		sid_increment = readbyte(fbuffer[LOADER], 
 			readlong(fbuffer[LOADER], ani_base + 0x06) + frame + 2);
-		animations[index].framecount += 2;
+		p_ani->framecount += 2;
 	}
 	if (sid_increment & 0x80)
 		sid = REMOVE_ANIMATION_SID;
@@ -865,15 +869,14 @@ void crm_set_overlays(s16 x, s16 y, u16 current_tile, u32 tile_offset, u16 room_
 			{	// Setup animated tiles, if any
 				currently_animated[0] = nb_animations;
 				animations[nb_animations].index = FIREPLACE_ANI;
-				animations[nb_animations].guybrush_index = NO_GUYBRUSH;
 				animations[nb_animations].framecount = 0;
 				animations[nb_animations].end_of_ani_function = NULL;
-				nb_animations++;
+				safe_nb_animations_increment();
 			}
 			// Even if there's more than one fireplace per room, their sids will match
 			// so we can use currently_animated[0] for all of them. Other room animations
 			// will go at currently_animated[1+]
-			animated_sid = get_animation_sid(currently_animated[0]);
+			animated_sid = get_animation_sid(currently_animated[0], false);
 		}
 
 		sx = readword(fbuffer[LOADER], SPECIAL_TILES_START+i+8);
@@ -888,18 +891,18 @@ void crm_set_overlays(s16 x, s16 y, u16 current_tile, u32 tile_offset, u16 room_
 			// whole ?: increment in parenthesis, you have a problem
 				((i==(12*(NB_SPECIAL_TILES-1)))?0:(4*room_x)));
 
-/*			// Validity check
+			// Validity check
 			if (!(tile2_data & 0x000F))
 				// This is how I know that we can use the exit # as ani index
 				// and leave index 0 for the fireplace ani
 				print("set_overlays: Integrity check failure on exit tile\n");
-*/
+
 			// The door might be in animation
-			if ((currently_animated[tile2_data & 0x000F] > 0) && 
+			if ((currently_animated[tile2_data & 0x000F] >= 0) && 
 				(currently_animated[tile2_data & 0x000F] < 0x70))
 				// the trick of using the currently_animated table to find the door 
 				// direction works because the exit sids are always > 0x70
-				animated_sid = get_animation_sid(currently_animated[tile2_data & 0x000F]);
+				animated_sid = get_animation_sid(currently_animated[tile2_data & 0x000F], false);
 			else
 				currently_animated[tile2_data & 0x000F] = readword(fbuffer[LOADER], SPECIAL_TILES_START+i+4);
 	
@@ -956,7 +959,7 @@ void crm_set_overlays(s16 x, s16 y, u16 current_tile, u32 tile_offset, u16 room_
 			overlay[overlay_index].z = overlay[overlay_index].y - sprite[sid].z_offset 
 				- PSP_SCR_HEIGHT/2 + NORTHWARD_HO - 2; 
 //		printf("z[%x] = %d\n", sid, overlay[overlay_index].z); 
-		overlay_index++;
+		safe_overlay_index_increment();
 		// No point in looking for overlays any further if we met our match 
 		// UNLESS this is a double bed overlay, in which case the same tile
 		// needs to be checked for a double match (in both in +x and -x)
@@ -1028,9 +1031,9 @@ void cmp_set_overlays()
 			// Get the exit_nr (which we need for animated overlays)
 			exit_nr = readexit(tile_x, tile_y);
 
-			if ((currently_animated[exit_nr] > 0) && (currently_animated[exit_nr] < 0x70))
+			if ((currently_animated[exit_nr] >= 0) && (currently_animated[exit_nr] < 0x70))
 			// get the current animation frame on animated overlays
-				sid = get_animation_sid(currently_animated[exit_nr]);
+				sid = get_animation_sid(currently_animated[exit_nr], false);
 			else
 			// if it's not animated, set the sid in the table, so we can find out
 			// our type of exit later on
@@ -1051,7 +1054,7 @@ void cmp_set_overlays()
 			overlay[overlay_index].z = overlay[overlay_index].y - sprite[sid].z_offset 
 				- PSP_SCR_HEIGHT/2 + NORTHWARD_HO -3; 
 
-		overlay_index++;
+		safe_overlay_index_increment();
 	}
 }
 
@@ -1121,10 +1124,9 @@ void set_props_overlays()
 		overlay[overlay_index].z = MIN_Z+1;
 
 		// Because of the removable walls we have a special case for the CMP_MAP
-		if (is_outside && (remove_props[x/32][y/16]))
-			// TO_DO: check for an actual props SID?
-				overlay_index--;
-		overlay_index++;
+		if (!(is_outside && (remove_props[x/32][y/16])))
+			// Don't add overlay if covered by a wall
+			safe_overlay_index_increment();
 	}
 }
 
@@ -1228,15 +1230,8 @@ void display_overlays()
 	for (j=0; j<overlay_index; j++)
 	{
 		i = overlay_order[j];
-		// Dammit!!! Now I know why they used bottom-right corner instead of bottom-left as 
-		// the origin for the sprites => dying animation uses 2 width
-		if ( (overlay[i].sid == 0xab) || (overlay[i].sid == 0xac) ||
-			 (overlay[i].sid == 0xaf) || (overlay[i].sid == 0xb0) )
-			display_sprite(overlay[i].x-16, overlay[i].y, sprite[overlay[i].sid].corrected_w, 
-				sprite[overlay[i].sid].corrected_h, sprite_texid[overlay[i].sid]);
-		else
-			display_sprite(overlay[i].x, overlay[i].y, sprite[overlay[i].sid].corrected_w, 
-				sprite[overlay[i].sid].corrected_h, sprite_texid[overlay[i].sid]);
+		display_sprite(overlay[i].x, overlay[i].y, sprite[overlay[i].sid].corrected_w, 
+			sprite[overlay[i].sid].corrected_h, sprite_texid[overlay[i].sid]);
 //		printf("ovl(%d,%d), sid = %X\n", overlay[i].x, overlay[i].y, overlay[i].sid);
 	}
 }
@@ -1368,47 +1363,43 @@ void add_guybrushes()
 {
 u8 i, sid;
 
-	if(!(p_event[current_nation].is_free))
-	{
-		// Add our current prisoner's animation
-		if (init_animations)
-		{	// Set the animation for our prisoner
-			printf("%d: init ani\n", t);
-			prisoner_ani = nb_animations;
-			if (in_tunnel)
-			{
-				prisoner_speed = 1;
-				animations[prisoner_ani].index = prisoner_as_guard?GUARD_CRAWL_ANI:CRAWL_ANI;
-			}
-			else if (prisoner_state & STATE_SHOT)
-				animations[nb_animations].index = prisoner_as_guard?GUARD_SHOT_ANI:SHOT_ANI;
-			else if (prisoner_speed == 1)
-				animations[nb_animations].index = prisoner_as_guard?GUARD_WALK_ANI:WALK_ANI; 
-			else
-				animations[nb_animations].index = prisoner_as_guard?GUARD_RUN_ANI:RUN_ANI; 
-
-			animations[prisoner_ani].framecount = 0;
-			animations[prisoner_ani].guybrush_index = current_nation;
-			animations[prisoner_ani].end_of_ani_function = NULL;
-			guy(current_nation).ani_set = true;
-			nb_animations++;
+	// Add our current prisoner's animation
+	if (prisoner_reset_ani)
+	{	// Set the animation for our prisoner
+		if (in_tunnel)
+		{
+			prisoner_speed = 1;
+			prisoner_ani.index = prisoner_as_guard?GUARD_CRAWL_ANI:CRAWL_ANI;
 		}
+		else if (prisoner_state & STATE_SHOT)
+			prisoner_ani.index = prisoner_as_guard?GUARD_SHOT_ANI:SHOT_ANI;
+		else if (prisoner_speed == 1)
+			prisoner_ani.index = prisoner_as_guard?GUARD_WALK_ANI:WALK_ANI; 
+		else
+			prisoner_ani.index = prisoner_as_guard?GUARD_RUN_ANI:RUN_ANI; 
 
-		// Always display our main guy
-		sid = get_guybrush_sid(current_nation);
-		overlay[overlay_index].sid = (opt_sid == -1)?sid:opt_sid;	
+		prisoner_ani.framecount = 0;
+		prisoner_ani.end_of_ani_function = NULL;
+		guy(current_nation).reset_animation = false;
+	}
 
-		// If you uncomment the lines below, you'll get confirmation that our position 
-		// computations are right to position our guy to the middle of the screen
-	//overlay[overlay_index].x = gl_off_x + guybrush[PRISONER].px + sprite[sid].x_offset;
-		overlay[overlay_index].y = gl_off_y + guybrush[current_nation].p2y/2 - sprite[sid].h + (in_tunnel?11:5);
-		overlay[overlay_index].x = PSP_SCR_WIDTH/2 - (in_tunnel?25:0);  
-	//	overlay[overlay_index].y = PSP_SCR_HEIGHT/2 - NORTHWARD_HO - 32; 
+	// Always display our main guy
+	sid = get_guybrush_sid(current_nation);
+	overlay[overlay_index].sid = (opt_sid == -1)?sid:opt_sid;	
 
-		// Our guy's always at the center of our z-buffer
-		overlay[overlay_index].z = 0;
-		// Who cares about optimizing for one guy!
-		overlay_index++;
+	// If you uncomment the lines below, you'll get confirmation that our position 
+	// computations are right to position our guy to the middle of the screen
+//overlay[overlay_index].x = gl_off_x + guybrush[PRISONER].px + sprite[sid].x_offset;
+	overlay[overlay_index].y = gl_off_y + guybrush[current_nation].p2y/2 - sprite[sid].h + (in_tunnel?11:5);
+	overlay[overlay_index].x = PSP_SCR_WIDTH/2 + sprite[sid].x_offset - (in_tunnel?24:0);  
+//	overlay[overlay_index].y = PSP_SCR_HEIGHT/2 - NORTHWARD_HO - 32; 
+
+	// Our guy's always at the center of our z-buffer
+	overlay[overlay_index].z = 0;
+	// Who cares about optimizing for one guy!
+	if(!(p_event[current_nation].is_free))
+		// Ignore this overlay if our guy is free
+		safe_overlay_index_increment();
 	/*
 		overlay[overlay_index].x = PSP_SCR_WIDTH/2;  
 		overlay[overlay_index].y = PSP_SCR_HEIGHT/2 - NORTHWARD_HO - 32; 
@@ -1416,7 +1407,7 @@ u8 i, sid;
 		overlay[overlay_index].z = -1;
 		overlay_index++;
 	*/
-	}
+
 
 	// Now add all the other guys
 	for (i=0; i< (opt_no_guards?NB_NATIONS:NB_GUYBRUSHES); i++)
@@ -1457,29 +1448,23 @@ u8 i, sid;
 //		printf("guard(%x).is_onscreen\n", i-4);
 
 		// First we check if the relevant guy's animation was ever initialized
-		if (guy(i).ani_set == false)
+		if (guy(i).reset_animation)
 		{	// We need to initialize that guy's animation
 			// TO_DO: better thriller dance keeping the german's uniforms
-			guy(i).ani_index = (opt_thrillerdance)?prisoner_ani:nb_animations;
+//			guy(i).ani_index = (opt_thrillerdance)?prisoner_ani:nb_animations;
 
 			if ((i<NB_NATIONS) && (guy(i).state & STATE_SHOT))
 				// Might have a stiff guy to display
-				animations[nb_animations].index = ((guy(i).is_dressed_as_guard)?GUARD_SHOT_ANI:SHOT_ANI);
-			else if (guybrush[i].speed == 1)
-				animations[nb_animations].index = ((guy(i).is_dressed_as_guard)?GUARD_WALK_ANI:WALK_ANI); 
+				guy(i).animation.index = ((guy(i).is_dressed_as_guard)?GUARD_SHOT_ANI:SHOT_ANI);
+			else if (guy(i).state&STATE_TUNNELING)
+				guy(i).animation.index = ((guy(i).is_dressed_as_guard)?GUARD_CRAWL_ANI:CRAWL_ANI);
+			else if (guy(i).speed == 1)
+				guy(i).animation.index = ((guy(i).is_dressed_as_guard)?GUARD_WALK_ANI:WALK_ANI); 
 			else
-				animations[nb_animations].index = ((guy(i).is_dressed_as_guard)?GUARD_RUN_ANI:RUN_ANI); 
-			animations[nb_animations].framecount = 0;
-			animations[nb_animations].guybrush_index = i;
-			animations[nb_animations].end_of_ani_function = NULL;
-			nb_animations++;
-			if (nb_animations > MAX_ANIMATIONS)
-			{	// Got burned with that one
-				printf("Too many animations - resetting\n");
-				init_animations = true;
-				return;
-			}
-			guy(i).ani_set = true;
+				guy(i).animation.index = ((guy(i).is_dressed_as_guard)?GUARD_RUN_ANI:RUN_ANI); 
+			guy(i).animation.framecount = 0;
+			guy(i).animation.end_of_ani_function = NULL;
+			guy(i).reset_animation = false;
 		}
 
 		// OK, now we're good to add the overlay sprite
@@ -1489,8 +1474,8 @@ u8 i, sid;
 		// And now that we have the sprite attributes, we can add the final position adjustments
 		if (i < NB_NATIONS)
 		{	// prisoners
-			overlay[overlay_index].x += sprite[sid].x_offset;
-			overlay[overlay_index].y -= sprite[sid].h;
+			overlay[overlay_index].x += sprite[sid].x_offset - ((guy(i).state&STATE_TUNNELING)?24:0);
+			overlay[overlay_index].y -= sprite[sid].h - ((guy(i).state&STATE_TUNNELING)?6:0);
 		}
 		else
 		{	// guards
@@ -1499,11 +1484,7 @@ u8 i, sid;
 		}
 		overlay[overlay_index].z = overlay[overlay_index].y - sprite[sid].z_offset 
 				- PSP_SCR_HEIGHT/2 + NORTHWARD_HO - 3; 
-
-//overlay[overlay_index].x = gl_off_x + guybrush[PRISONER].px + sprite[sid].x_offset;
-//overlay[overlay_index].y = gl_off_y + guybrush[current_nation].p2y/2 - sprite[sid].h + 5;
-
-		overlay_index++;
+		safe_overlay_index_increment();
 	}
 
 // Let's add our guy
@@ -1522,7 +1503,7 @@ u8 i, sid;
 		overlay[overlay_index].x = PSP_SCR_WIDTH/2 - 10;  
 		overlay[overlay_index].y = PSP_SCR_HEIGHT/2 - NORTHWARD_HO - 32 - (((dx==0)&&(d2y==0))?8:12); 
 		overlay[overlay_index].z = 0;
-		overlay_index++;
+		safe_overlay_index_increment();
 	}
 }
 
@@ -1658,32 +1639,32 @@ int move_guards()
 						// Set guard to walk
 						guard(i).speed = 1;
 						guard(i).wait = WALKING_PURSUIT_TIMEOUT;
-						init_animations = true;
-//						guard(i).ani_set = false;	// change animation
+						guard(i).reset_animation = true;
 					}
 					else if ((guard(i).speed == 1) && (guard(i).wait == 0))
 					{	// Start running towards prisoner
 						guard(i).speed = 2;
 						guard(i).wait = RUNNING_PURSUIT_TIMEOUT;
-						init_animations = true;
-//						guard(i).ani_set = false;	// change animation
+						guard(i).reset_animation = true;
 					}
 					else if ((guard(i).speed == 2) && (guard(i).wait == 0))
 					{	// We were running, now we're pissed off => License to kill
 						if (guy(p).state & STATE_MOTION)
 						{	// Moving prisoners make good targets
+							// Stop the guard and set shooting animation
 							guard(i).state &= ~STATE_MOTION;
-							animations[guard(i).ani_index].index = GUARD_SHOOTS_ANI;
-							// The guard just shot + make sure animations play
 							guard(i).state |= STATE_SHOT|STATE_ANIMATED;
+							guard(i).animation.index = GUARD_SHOOTS_ANI;
+							guard(i).animation.framecount = 0;
+							// Stop the prisoner and set shot animation
 							guy(p).state = STATE_SHOT|STATE_ANIMATED;
+							guy(p).animation.end_of_ani_parameter = p;
+							guy(p).animation.end_of_ani_function = prisoner_killed;
+							guy(p).animation.index = guy(p).is_dressed_as_guard?GUARD_SHOT_ANI:SHOT_ANI;
+							guy(p).animation.framecount = 0;
+							// Set the event flags
 							p_event[p].unauthorized = false;
 							p_event[p].caught_by = i;
-							// enqueue our shot animation
-							animations[prisoner_ani].end_of_ani_parameter = p;
-							animations[prisoner_ani].end_of_ani_function = prisoner_killed;
-							animations[prisoner_ani].index = prisoner_as_guard?GUARD_SHOT_ANI:SHOT_ANI;
-							animations[prisoner_ani].framecount = 0;
 						}
 						else
 						{	// The prisoner has stopped => give him another chance
@@ -1715,7 +1696,7 @@ int move_guards()
 					}
 
 					// Update the guard's direction (also applies when shooting)
-					dir_x = guard(i).px - guy(p).px - 16;
+					dir_x = (guard(i).px - guy(p).px - 16)/2;
 					// If we don't divide by 2 here, we'll have jerky motion on pursuit
 					dir_y = (guard(i).p2y - guy(p).p2y - 8)/2;
 
@@ -1767,7 +1748,10 @@ int move_guards()
 			if (guard(i).is_onscreen)
 			{	// Don't reinstanciate if onscreen. Just freeze
 				if (guard(i).state & STATE_MOTION)
-					guard(i).state ^= STATE_MOTION;
+				{	// Set animation to stopped
+					guard(i).state &= ~(STATE_MOTION|STATE_ANIMATED);
+					guard(i).reset_animation = true;
+				}
 				continue;
 			}
 			else
@@ -1781,11 +1765,22 @@ int move_guards()
 			{	// continue in the same direction
 				guard(i).go_on--;
 
-				// If we're moving, increment our position
+				// We want to move
 				if (guard(i).state & STATE_MOTION)
-				{
-					guard(i).px += guard(i).speed * dir_to_dx[guard(i).direction];
-					guard(i).p2y += guard(i).speed * dir_to_d2y[guard(i).direction];
+				{	// Is there an obstacle in the way?
+					dir_x = guard(i).speed * dir_to_dx[guard(i).direction];
+					dir_y = guard(i).speed * dir_to_d2y[guard(i).direction];
+					if ((guard(i).state & STATE_IN_PURSUIT) && (!check_guard_footprint(i, dir_x, dir_y)))
+					{	// Only check footprint when in pursuit
+						// check_guard_footprint() returns false if we can't go there
+						guard(i).state &= ~(STATE_MOTION|STATE_ANIMATED);
+						guard(i).reset_animation = true;
+					}
+					else
+					{	// Just move
+						guard(i).px += dir_x;
+						guard(i).p2y += dir_y;
+					}
 				}
 				continue;
 			}
@@ -1806,8 +1801,7 @@ int move_guards()
 			guard(i).room = readword(fbuffer[GUARDS],i*MENDAT_ITEM_SIZE + 4);
 			guard(i).state = 0;
 			guard(i).speed = 1;
-			init_animations = true;
-//			guard(i).ani_set = false;	// reset the animation
+			guard(i).reset_animation = true;	// reset the animation
 		}
 
 		if (route_data & 0x8000)
@@ -1870,11 +1864,11 @@ void display_room()
 		// Reset all animations
 		// TODO_execute all end of ani functions
 		for (u=0; u<MAX_CURRENTLY_ANIMATED; u++)
-			currently_animated[u] = 0;
-		// Reset
+			currently_animated[u] = -1;	// We use -1, as 0 is a valid index
+		// Reset 
 		nb_animations = 0;
 		for (u=0; u<NB_GUYBRUSHES; u++)
-			guybrush[u].ani_set = false;
+			guybrush[u].reset_animation = true;
 	}
 
 	// Compute GL offsets (position of 0,0 corner of the room wrt center of the screen) 
@@ -2357,14 +2351,14 @@ void timed_events(u16 hours, u16 minutes_high, u16 minutes_low)
 	}
 	else
 	{	// Rollcall, etc.
-		printf("got event %04X\n", event_data);
+///		printf("got event %04X\n", event_data);
 		// Each event changes the list of authorized rooms
 		authorized_ptr = readlong(fbuffer[LOADER],AUTHORIZED_BASE+4*event_data);
 
 		// Get the relevant picture index (for events with static images) 
 		// according to the IFF_INDEX_TABLE in the loader
 		current_iff = readword(fbuffer[LOADER], IFF_INDEX_TABLE + 2*event_data);
-		printf("iff to load = %x\n", current_iff);
+///		printf("iff to load = %x\n", current_iff);
 		if (current_iff != 0xFFFF)
 		{
 			if (load_iff(current_iff))
@@ -2856,18 +2850,16 @@ s16 check_footprint(s16 dx, s16 d2y)
 								ani_offset += DOOR_HORI_OPEN_ANI;
 								currently_animated[exit_nr] = nb_animations;
 								animations[nb_animations].index = ani_offset;
-								animations[nb_animations].guybrush_index = NO_GUYBRUSH;
 								animations[nb_animations].framecount = 0;
 								animations[nb_animations].end_of_ani_function = &toggle_exit;
 								animations[nb_animations].end_of_ani_parameter = exit_nr;
-								nb_animations++;
+								safe_nb_animations_increment();
 								break;
 							default:	// not an exit we should animate
 								// just enqueue the toggle exit event
 								enqueue_event(&toggle_exit, exit_nr, 3*ANIMATION_INTERVAL);
 								break;
 							}
-							
 							consume_prop();
 						}
 						// For now, the exit is still closed, so we return failure to progress further
@@ -2912,6 +2904,117 @@ s16 check_footprint(s16 dx, s16 d2y)
 	return -1;
 }
 
+bool check_guard_footprint(u8 g, s16 dx, s16 d2y)
+{
+	u32 tile, tile_mask, offset=0;
+	u32 footprint = SPRITE_FOOTPRINT;
+	u16 room_x, room_y;
+	u16 mask_y;
+	// maks offsets for upper-left, upper-right, lower-left, lower_right tiles
+	u32 mask_offset[4];	// tile boundary
+	s16 tile_x, tile_y;
+	u8 i,u;
+	s16 gx, g2y;
+
+	/*
+	 * To check the footprint, we need to set 4 quadrants of masks
+	 * in case our rectangular footprint spans more than a single tile
+	 */
+
+	if (guard(g).room == ROOM_OUTSIDE)
+	{	// on compressed map
+		room_x = CMP_MAP_WIDTH;
+		room_y = CMP_MAP_HEIGHT;
+	}
+	else
+	{	// in a room (inside)
+		offset = readlong((u8*)fbuffer[ROOMS], OFFSETS_START+4*guard(g).room);
+		if (offset == 0xFFFFFFFF)
+			return -1;
+		room_y = readword((u8*)fbuffer[ROOMS], ROOMS_START+offset);
+		offset +=2;
+		room_x = readword((u8*)fbuffer[ROOMS], ROOMS_START+offset);
+		offset +=2;		// remember offset is used in readtile/readexit and needs
+						// to be constant from there on
+	}
+
+	// Compute the tile on which we try to stand
+	gx = guard(g).px + dx - 16;
+	g2y = guard(g).p2y + 2*d2y - 1 -4;
+	tile_y = g2y / 32;
+	tile_x = gx / 32;
+//	printf("org (x,y) = (%X,%X)\n", tile_x, tile_y);
+
+	// check if we are trying to overflow our room left or up
+	if ((gx<0) || (g2y<0))
+		return 0;
+
+	// y and y+1
+	for (i=0; i<2; i++)
+	{
+		// Set the left mask offset (tile_x, tile_y(+1)) index, converted to a long offset
+		tile = readtile(tile_x, tile_y);
+		mask_offset[2*i] = TILE_MASKS_START + readlong((u8*)fbuffer[LOADER], TILE_MASKS_OFFSETS+(tile<<2));
+
+		// Set the upper right mask offset
+		if ((gx&0x1F) < 16)
+		// we're on the left handside of the tile
+			mask_offset[2*i+1] = mask_offset[2*i] + 2;	// Just shift 16 bits on the same tile
+		else
+		{	// right handside = > need to lookup the adjacent 
+			// (tile_x+1, tile_y(+1)) mask
+			mask_offset[2*i] += 2;	// first, we need to offset our first quadrant
+
+			if ((tile_x+1) < room_x)
+			{	// only read adjacent if it exists (i.e. < room_x)
+				tile = readtile(tile_x+1, tile_y);
+				mask_offset[2*i+1] = TILE_MASKS_START + readlong((u8*)fbuffer[LOADER], TILE_MASKS_OFFSETS+(tile<<2));
+			}
+			else	
+				mask_offset[2*i+1] = MASK_EMPTY;
+		}
+		tile_y++;	// process lower tiles
+	}
+
+
+	// OK, now we have our 4 mask offsets
+	mask_y = (g2y & 0x1E)<<1;	// one mask line is 4 bytes (and g2y is already 2*gy)
+
+	mask_offset[0] += mask_y;	// start at the right line
+	mask_offset[1] += mask_y;
+
+	footprint >>= (gx & 0x0F);	// rotate our footprint according to our x pos
+///	printf("%s %s [%d]\n", to_binary(footprint), to_binary(footprint), (px&0x1f));
+
+	// Not tunnel I/O => we check collisions and regular exits for multiple py's
+	for (i=0; i<FOOTPRINT_HEIGHT; i++)
+	{
+		tile_mask = to_long(readword((u8*)fbuffer[LOADER], mask_offset[0]),	
+			readword((u8*)fbuffer[LOADER], mask_offset[1]));
+
+///	printf("%s\n", to_binary(tile_mask));
+
+		// see low_level.h for the collisions macros
+		if inverted_collision(footprint,tile_mask)
+			return false;
+
+		mask_y+=4;
+		// Do we need to change tile in y?
+		for (u=0;u<2;u++)
+		{
+			if (mask_y == 0x40)
+				// went over the tile boundary
+				// => replace upper mask offsets with lower
+				mask_offset[u] = mask_offset[u+2];
+			else
+				// just scroll one mask line down
+				mask_offset[u] +=4;
+		}
+	}
+	return true;
+}
+
+
 
 void switch_room(s16 exit_nr, bool tunnel_io)
 {
@@ -2948,6 +3051,7 @@ void switch_room(s16 exit_nr, bool tunnel_io)
 //		currently_animated[u] = 0;
 	// We should always keep at least the animation for our guy
 //	nb_animations = 1;
+//	nb_animations = 0;
 	init_animations = true;
 	
 	exit_index++;	// zero based to one based
@@ -3081,7 +3185,12 @@ void check_on_prisoners(bool after_pic)
 			else if (p_event[p].killed)
 				current_iff = PRISONER_SHOT;
 			else if (p_event[p].escaped)
-				current_iff = PRISONER_FREE;
+			{
+				if (props[current_nation][ITEM_PAPERS])
+					current_iff = PRISONER_FREE;
+				else
+					current_iff = REQUIRE_PAPERS;
+			}
 			else if (p_event[p].solitary_countdown)
 			{	// Guy's in solitary => decrement counter
 				p_event[p].solitary_countdown--;
@@ -3156,7 +3265,7 @@ void check_on_prisoners(bool after_pic)
 					if (guy(p).is_dressed_as_guard)
 					{	// Only makes sense if we're dressed as guard
 						guy(p).is_dressed_as_guard = false;
-						init_animations = true;
+						guy(p).reset_animation = true;
 					}
 				}
 				game_state &= ~GAME_STATE_STATIC_PIC;
@@ -3181,7 +3290,6 @@ void check_on_prisoners(bool after_pic)
 					writelong(fbuffer[GUARDS], p_event[p].caught_by*MENDAT_ITEM_SIZE+0x0E, 
 						readlong(fbuffer[GUARDS], p_event[p].caught_by*MENDAT_ITEM_SIZE+0x06));
 					// You got our pass, now get lost (prevents multiple pass requests)
-					printf("GET LOST(%x)!!!\n", p_event[p].caught_by);
 					guard(p_event[p].caught_by).px = GET_LOST_X;
 					guard(p_event[p].caught_by).p2y = GET_LOST_Y;
 					// This ensures that we'll reinstantiate the guard
@@ -3214,7 +3322,11 @@ void check_on_prisoners(bool after_pic)
 				game_state &= ~GAME_STATE_STATIC_PIC;
 				guy(p).state |= STATE_IN_PURSUIT;
 				p_event[p].escaped = false;
-				p_event[p].is_free = true;
+				if (props[current_nation][ITEM_PAPERS])
+					p_event[p].is_free = true;
+				else
+					p_event[p].to_solitary = true;
+
 			}
 		}
 

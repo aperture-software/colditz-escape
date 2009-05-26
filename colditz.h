@@ -260,7 +260,7 @@ do {									\
 #define NB_OBS_TO_SPRITE		15
 #define LOADER_DATA_START		0x10C
 #define FFs_TO_IGNORE			7
-#define MAX_OVERLAY				0x80
+#define MAX_OVERLAYS			0x80
 #define RGBA_SIZE				2
 #define CMP_MAP_WIDTH			0x54
 #define CMP_MAP_HEIGHT			0x48
@@ -379,8 +379,9 @@ do {									\
 // For data file patching
 #define FIXED_CRM_VECTOR		0x50
 //#define R116_EXITS
-#define MAX_ANIMATIONS			0x80
-#define MAX_CURRENTLY_ANIMATED	16
+// For animations that are NOT guybrushes (guybrushes embed their own animation struct)
+#define MAX_ANIMATIONS			0x20
+#define MAX_CURRENTLY_ANIMATED	0x20
 #define NB_ANIMATED_SPRITES		23
 // indiactes that no guybrush is associated to an animation
 #define NO_GUYBRUSH				-1
@@ -596,7 +597,7 @@ typedef struct
 {
 	u32	index;	// index for the ani in the LOADER table
 	s32	framecount;
-	s16	guybrush_index;
+//	s16	guybrush_index;
 	u32 end_of_ani_parameter;
 	void (*end_of_ani_function)(u32);
 } s_animation;
@@ -612,23 +613,24 @@ typedef struct
 // prisoners or guards
 typedef struct
 {
-	u16   room;
-	s16   px;
-	s16   p2y;
-	s16   speed;
+	u16				room;
+	s16				px;
+	s16				p2y;
+	s16				speed;
 	/* For animated overlays, direction is one of:
 	 *    5  6  7
 	 *    4 -1  0 
 	 *    3  2  1   */
-	s16   direction;
-	u32	  ext_bitmask;
-	u16	  state;
-	u8	  ani_index;
-	bool  ani_set;
-	bool  is_dressed_as_guard;
-	bool  is_onscreen;
-	u32   go_on;
-	u16   wait;
+	s16				direction;
+	u32				ext_bitmask;
+	u16				state;
+	s_animation		animation;
+//	u8	  ani_index;
+	bool			reset_animation;
+	bool			is_dressed_as_guard;
+	bool			is_onscreen;
+	u32				go_on;
+	u16				wait;
 } s_guybrush;
 
 // Event related states (apply to prisoners only)
@@ -703,7 +705,8 @@ extern u8 current_nation;
 #define prisoner_2y			guybrush[current_nation].p2y
 #define current_room_index	guybrush[current_nation].room
 #define prisoner_speed		guybrush[current_nation].speed
-#define prisoner_ani		guybrush[current_nation].ani_index
+#define prisoner_ani		guybrush[current_nation].animation
+#define prisoner_reset_ani	guybrush[current_nation].reset_animation
 #define prisoner_state		guybrush[current_nation].state
 #define prisoner_dir		guybrush[current_nation].direction
 #define rem_bitmask			guybrush[current_nation].ext_bitmask
@@ -711,6 +714,7 @@ extern u8 current_nation;
 #define guard(i)			guy(i+NB_NATIONS)
 #define in_tunnel			(prisoner_state&STATE_TUNNELING)
 #define is_dead				(prisoner_state&STATE_SHOT)
+#define has_escaped			p_event[current_nation].is_free
 #define is_outside			(current_room_index==ROOM_OUTSIDE)
 #define is_inside			(current_room_index!=ROOM_OUTSIDE)
 #define prisoner_as_guard	guybrush[current_nation].is_dressed_as_guard

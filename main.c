@@ -280,7 +280,7 @@ void process_motion(void)
 
 		if (!(prisoner_state & STATE_MOTION))
 		// we were stopped => make sure we start with the proper ani frame
-			animations[prisoner_ani].framecount = 0;
+			prisoner_ani.framecount = 0;
 
 		// Update our prisoner data
 		// Update the fatigue
@@ -291,7 +291,7 @@ void process_motion(void)
 			if (prisoner_fatigue >= MAX_FATIGUE)
 			{
 				prisoner_speed = 1;
-				animations[prisoner_ani].index = prisoner_as_guard?GUARD_WALK_ANI:WALK_ANI; 
+				prisoner_ani.index = prisoner_as_guard?GUARD_WALK_ANI:WALK_ANI; 
 			}
 			prisoner_fatigue += (prisoner_speed==1)?1:4;
 		}
@@ -306,7 +306,6 @@ void process_motion(void)
 			 ( (prisoner_x < ESCAPE_MIN_X) || (prisoner_x > ESCAPE_MAX_X) ||
 			   (prisoner_2y < (2*ESCAPE_MIN_Y)) || (prisoner_2y > (2*ESCAPE_MAX_Y)) ) )
 		{
-			printf("yargl?\n");
 			 p_event[current_nation].escaped = true;
 		}
 				
@@ -330,16 +329,15 @@ void process_motion(void)
 // to be concatenated in the lower 2 bytes of the parameter
 void restore_params(u32 param)
 {
-	u8 brush, ani, previous_index;
+	u8 brush, previous_index;
 	// extract the guybrush index
 	brush = param & 0xFF;
 	// extract the previous animation index
 	previous_index = (param >> 8) & 0xFF;
 
-	ani = guybrush[brush].ani_index;
-	animations[ani].index = previous_index;
-	animations[ani].framecount = 0;
-	animations[ani].end_of_ani_function = NULL;
+	guybrush[brush].animation.index = previous_index;
+	guybrush[brush].animation.framecount = 0;
+	guybrush[brush].animation.end_of_ani_function = NULL;
 	// we always end up in stopped state after a one shot animation
 	guybrush[brush].state &= ~(STATE_MOTION|STATE_KNEEL);
 }
@@ -433,6 +431,8 @@ static void glut_idle(void)
 		// but leads to catchup effect when moving window
 		for (i = 0; i < nb_animations; i++)
 			animations[i].framecount++;
+		for (i = 0; i < NB_GUYBRUSHES; i++)
+			guy(i).animation.framecount++;
 
 		// Clock minute tick?
 		if ((t - last_ctime) > TIME_MARKER)
@@ -503,10 +503,10 @@ static void glut_idle(void)
 			// stop any motion or animation)
 			// TO_DO: move this ion utilities
 			// if there was any end of ani function, execute it
-			if (animations[prisoner_ani].end_of_ani_function != NULL)
+			if (prisoner_ani.end_of_ani_function != NULL)
 			{	// execute the end of animation function (toggle exit)
-				animations[prisoner_ani].end_of_ani_function(animations[prisoner_ani].end_of_ani_parameter);
-				animations[prisoner_ani].end_of_ani_function = NULL;
+				prisoner_ani.end_of_ani_function(prisoner_ani.end_of_ani_parameter);
+				prisoner_ani.end_of_ani_function = NULL;
 			}
 			prisoner_state &= ~(STATE_MOTION|STATE_ANIMATED|STATE_KNEEL);
 
@@ -518,7 +518,7 @@ static void glut_idle(void)
 				// so the formula writes itself
 				current_nation = (current_nation+(2*i)-1) % NB_NATIONS;
 			prisoner_state &= ~(STATE_MOTION|STATE_ANIMATED|STATE_KNEEL);
-			init_animations = true;
+			prisoner_reset_ani = true;
 			keep_message_on = false;
 			set_room_props();
 			break;
@@ -527,6 +527,10 @@ static void glut_idle(void)
 	// Reset the motion
 	dx = 0; 
 	d2y = 0;	
+
+	// I'm sorry, but using goto in C is a GREAT way to get some clarity out
+	if (has_escaped || is_dead)
+		goto update_motion;
 
 #if !defined(PSP)
 	// Hey, GLUT, where's my bleeping callback on Windows?
@@ -565,21 +569,21 @@ static void glut_idle(void)
 	// Walk/Run toggle
 	if ( read_key_once(KEY_TOGGLE_WALK_RUN) && (!in_tunnel) && 
 		// Not checking for the following leads to issues
-	     ( (animations[prisoner_ani].index == RUN_ANI) || 
-		   (animations[prisoner_ani].index == WALK_ANI) ||
-		   (animations[prisoner_ani].index == GUARD_RUN_ANI) ||
-		   (animations[prisoner_ani].index == GUARD_WALK_ANI) ) 
+	     ( (prisoner_ani.index == RUN_ANI) || 
+		   (prisoner_ani.index == WALK_ANI) ||
+		   (prisoner_ani.index == GUARD_RUN_ANI) ||
+		   (prisoner_ani.index == GUARD_WALK_ANI) ) 
 	   )
 	{
 		if  ((prisoner_speed == 1) && (prisoner_fatigue < MAX_FATIGUE) )
 		{
 			prisoner_speed = 2;
-			animations[prisoner_ani].index = prisoner_as_guard?GUARD_RUN_ANI:RUN_ANI; 
+			prisoner_ani.index = prisoner_as_guard?GUARD_RUN_ANI:RUN_ANI; 
 		}
 		else
 		{
 			prisoner_speed = 1;
-			animations[prisoner_ani].index = prisoner_as_guard?GUARD_WALK_ANI:WALK_ANI; 
+			prisoner_ani.index = prisoner_as_guard?GUARD_WALK_ANI:WALK_ANI; 
 		}
 	}
 
@@ -606,7 +610,7 @@ static void glut_idle(void)
 				if (!prisoner_as_guard)
 				{	// Only makes sense if we're not already dressed as guard
 					prisoner_as_guard = true;
-					init_animations = true;
+					prisoner_reset_ani = true;
 					consume_prop();
 					show_prop_count();
 				}
@@ -615,7 +619,7 @@ static void glut_idle(void)
 				if (prisoner_as_guard)
 				{	// Only makes sense if we're dressed as guard
 					prisoner_as_guard = false;
-					init_animations = true;
+					prisoner_reset_ani = true;
 					consume_prop();
 					show_prop_count();
 				}
@@ -661,13 +665,12 @@ static void glut_idle(void)
 		{
 			prisoner_state |= STATE_KNEEL;
 			// enqueue our 2 u8 parameters
-			animations[prisoner_ani].end_of_ani_parameter = (current_nation & 0xFF) | 
-				((animations[prisoner_ani].index << 8) & 0xFF00);
-			animations[prisoner_ani].index = prisoner_as_guard?	//GUARD_KNEEL_ANI:KNEEL_ANI;
-				GUARD_SHOT_ANI:SHOT_ANI; //
+			prisoner_ani.end_of_ani_parameter = (current_nation & 0xFF) | 
+				((prisoner_ani.index << 8) & 0xFF00);
+			prisoner_ani.index = prisoner_as_guard?GUARD_KNEEL_ANI:KNEEL_ANI;
 			// Make sure we go through frame 0
-			animations[prisoner_ani].framecount = 0;
-			animations[prisoner_ani].end_of_ani_function = restore_params;
+			prisoner_ani.framecount = 0;
+			prisoner_ani.end_of_ani_function = restore_params;
 
 			if (key_down[KEY_INVENTORY_PICKUP])
 			{	// picking up
@@ -731,22 +734,14 @@ static void glut_idle(void)
 	if (jd2y)
 		d2y = jd2y;
 
-	if (is_dead)
-	{
-		dx = 0; d2y = 0;
-	}
+// Why are jumps considered so evil when the CPU is doing them all the time?
+update_motion:
 
 	// This ensures that all the motions are in sync
 	if ((t - last_ptime) > REPOSITION_INTERVAL)
 	{
 		last_ptime = t;
 	
-/*		guards_motion();
-		prisoner_motion();
-		check_on_prisoners();
-		display();
-*/
-
 		// Update the guards positions (if not playing with guards disabled)
 		if (!opt_no_guards && move_guards())
 		{	// we have a collision with a guard => kill our motion
@@ -956,13 +951,19 @@ int main (int argc, char *argv[])
 
 
 	// Debug
-	guy(0).px = 940;
-	guy(0).p2y = 630;
-	guy(0).room = ROOM_OUTSIDE;
+//	guy(0).px = 940;
+	guy(0).p2y += 200; //630;
+	guy(0).room = 9; //ROOM_OUTSIDE;
 	guy(0).ext_bitmask = 0x8000001E;
 	guy(0).is_dressed_as_guard = true;
-	p_event[0].escaped = true;
+//	p_event[0].escaped = true;
 //	p_event[0].fatigue = MAX_FATIGUE-0x1000;
+
+
+	guy(1).px += 100;
+	guy(1).p2y += 220; //630;
+	guy(1).room = 9; //ROOM_OUTSIDE;
+
 
 /*
 	// English
