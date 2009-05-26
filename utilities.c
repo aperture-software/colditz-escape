@@ -928,7 +928,6 @@ void crm_set_overlays(s16 x, s16 y, u16 current_tile, u32 tile_offset, u16 room_
 		if (animated_sid == REMOVE_ANIMATION_SID)
 		// ignore
 			continue;
-			//break;
 
 		sid = (animated_sid)?animated_sid:readword(fbuffer[LOADER], SPECIAL_TILES_START+i+4);
 		overlay[overlay_index].sid = sid;
@@ -1369,53 +1368,55 @@ void add_guybrushes()
 {
 u8 i, sid;
 
-	// Add our current prisoner's animation
-	if (init_animations)
-	{	// Set the animation for our prisoner
-		prisoner_ani = nb_animations;
-		if (in_tunnel)
-		{
-			prisoner_speed = 1;
-			animations[prisoner_ani].index = prisoner_as_guard?GUARD_CRAWL_ANI:CRAWL_ANI;
-		}
-		else if (prisoner_state & STATE_SHOT)
-			animations[nb_animations].index = prisoner_as_guard?GUARD_SHOT_ANI:SHOT_ANI;
-		else if (prisoner_speed == 1)
-			animations[nb_animations].index = prisoner_as_guard?GUARD_WALK_ANI:WALK_ANI; 
-		else
-			animations[nb_animations].index = prisoner_as_guard?GUARD_RUN_ANI:RUN_ANI; 
-
-		animations[prisoner_ani].framecount = 0;
-		animations[prisoner_ani].guybrush_index = current_nation;
-		animations[prisoner_ani].end_of_ani_function = NULL;
-		guy(current_nation).ani_set = true;
-		if(!(p_event[current_nation].is_free))
-			nb_animations++;
-	}
-
-	// Always display our main guy
-	sid = get_guybrush_sid(current_nation);
-	overlay[overlay_index].sid = (opt_sid == -1)?sid:opt_sid;	
-
-	// If you uncomment the lines below, you'll get confirmation that our position 
-	// computations are right to position our guy to the middle of the screen
-//overlay[overlay_index].x = gl_off_x + guybrush[PRISONER].px + sprite[sid].x_offset;
-	overlay[overlay_index].y = gl_off_y + guybrush[current_nation].p2y/2 - sprite[sid].h + (in_tunnel?11:5);
-	overlay[overlay_index].x = PSP_SCR_WIDTH/2 - (in_tunnel?25:0);  
-//	overlay[overlay_index].y = PSP_SCR_HEIGHT/2 - NORTHWARD_HO - 32; 
-
-	// Our guy's always at the center of our z-buffer
-	overlay[overlay_index].z = 0;
-	// Who cares about optimizing for one guy!
 	if(!(p_event[current_nation].is_free))
+	{
+		// Add our current prisoner's animation
+		if (init_animations)
+		{	// Set the animation for our prisoner
+			printf("%d: init ani\n", t);
+			prisoner_ani = nb_animations;
+			if (in_tunnel)
+			{
+				prisoner_speed = 1;
+				animations[prisoner_ani].index = prisoner_as_guard?GUARD_CRAWL_ANI:CRAWL_ANI;
+			}
+			else if (prisoner_state & STATE_SHOT)
+				animations[nb_animations].index = prisoner_as_guard?GUARD_SHOT_ANI:SHOT_ANI;
+			else if (prisoner_speed == 1)
+				animations[nb_animations].index = prisoner_as_guard?GUARD_WALK_ANI:WALK_ANI; 
+			else
+				animations[nb_animations].index = prisoner_as_guard?GUARD_RUN_ANI:RUN_ANI; 
+
+			animations[prisoner_ani].framecount = 0;
+			animations[prisoner_ani].guybrush_index = current_nation;
+			animations[prisoner_ani].end_of_ani_function = NULL;
+			guy(current_nation).ani_set = true;
+			nb_animations++;
+		}
+
+		// Always display our main guy
+		sid = get_guybrush_sid(current_nation);
+		overlay[overlay_index].sid = (opt_sid == -1)?sid:opt_sid;	
+
+		// If you uncomment the lines below, you'll get confirmation that our position 
+		// computations are right to position our guy to the middle of the screen
+	//overlay[overlay_index].x = gl_off_x + guybrush[PRISONER].px + sprite[sid].x_offset;
+		overlay[overlay_index].y = gl_off_y + guybrush[current_nation].p2y/2 - sprite[sid].h + (in_tunnel?11:5);
+		overlay[overlay_index].x = PSP_SCR_WIDTH/2 - (in_tunnel?25:0);  
+	//	overlay[overlay_index].y = PSP_SCR_HEIGHT/2 - NORTHWARD_HO - 32; 
+
+		// Our guy's always at the center of our z-buffer
+		overlay[overlay_index].z = 0;
+		// Who cares about optimizing for one guy!
 		overlay_index++;
-/*
-	overlay[overlay_index].x = PSP_SCR_WIDTH/2;  
-	overlay[overlay_index].y = PSP_SCR_HEIGHT/2 - NORTHWARD_HO - 32; 
-	overlay[overlay_index].sid = sid + 0x37;
-	overlay[overlay_index].z = -1;
-	overlay_index++;
-*/
+	/*
+		overlay[overlay_index].x = PSP_SCR_WIDTH/2;  
+		overlay[overlay_index].y = PSP_SCR_HEIGHT/2 - NORTHWARD_HO - 32; 
+		overlay[overlay_index].sid = sid + 0x37;
+		overlay[overlay_index].z = -1;
+		overlay_index++;
+	*/
+	}
 
 	// Now add all the other guys
 	for (i=0; i< (opt_no_guards?NB_NATIONS:NB_GUYBRUSHES); i++)
@@ -1427,6 +1428,9 @@ u8 i, sid;
 		// Everybody is offscreen by default. NB: this is only used for guards, 
 		// so don't care if the prisoner's onscreen status is wrong
 		guy(i).is_onscreen = false;
+
+		if ((i<NB_NATIONS) && (p_event[i].is_free))
+			continue;
 
 		// Guybrush's probably blowing his foghorn in the library again
 		if (guy(i).room != current_room_index)
@@ -1468,8 +1472,13 @@ u8 i, sid;
 			animations[nb_animations].framecount = 0;
 			animations[nb_animations].guybrush_index = i;
 			animations[nb_animations].end_of_ani_function = NULL;
-			if ((i>=NB_NATIONS) || ((i<NB_NATIONS) && (!p_event[i].is_free)) )
-				nb_animations++;
+			nb_animations++;
+			if (nb_animations > MAX_ANIMATIONS)
+			{	// Got burned with that one
+				printf("Too many animations - resetting\n");
+				init_animations = true;
+				return;
+			}
 			guy(i).ani_set = true;
 		}
 
@@ -1649,13 +1658,15 @@ int move_guards()
 						// Set guard to walk
 						guard(i).speed = 1;
 						guard(i).wait = WALKING_PURSUIT_TIMEOUT;
-						guard(i).ani_set = false;	// change animation
+						init_animations = true;
+//						guard(i).ani_set = false;	// change animation
 					}
 					else if ((guard(i).speed == 1) && (guard(i).wait == 0))
 					{	// Start running towards prisoner
 						guard(i).speed = 2;
 						guard(i).wait = RUNNING_PURSUIT_TIMEOUT;
-						guard(i).ani_set = false;	// change animation
+						init_animations = true;
+//						guard(i).ani_set = false;	// change animation
 					}
 					else if ((guard(i).speed == 2) && (guard(i).wait == 0))
 					{	// We were running, now we're pissed off => License to kill
@@ -1795,7 +1806,8 @@ int move_guards()
 			guard(i).room = readword(fbuffer[GUARDS],i*MENDAT_ITEM_SIZE + 4);
 			guard(i).state = 0;
 			guard(i).speed = 1;
-			guard(i).ani_set = false;	// reset the animation
+			init_animations = true;
+//			guard(i).ani_set = false;	// reset the animation
 		}
 
 		if (route_data & 0x8000)
