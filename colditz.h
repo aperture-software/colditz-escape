@@ -110,6 +110,8 @@ do {									\
 	} while (0)
 
 
+#define CHEATMODE_ENABLED
+
 // # files we'll be dealing with
 #define NB_FILES				13
 // Some handy identifier to make code reader friendly
@@ -141,23 +143,31 @@ do {									\
 								  1288, 13364 }
 
 // Static IFF images (intro, events, gameover, etc)
-#define NB_IFFS					20
+#define NB_IFFS					19
 #define IFF_NAMES				{ "PIC.1(SOLITARY)", "PIC.1(SOLITARY)FREE", "PIC.2(APPELL)", "PIC.3(SHOT)",	\
 								  "PIC.4(FREE-1)", "PIC.5(CURFEW)", "PIC.6(EXERCISE)", "PIC.7(CONFINED)",	\
 								  "PIC.A(FREE-ALL)", "PIC.B(GAME-OVER)", "PIC.A(FREE-ALL)TEXT",				\
 								  "PIC.B(GAME-OVER)TEXT", "STARTSCREEN0", "STARTSCREEN1", "STARTSCREEN2",	\
-								  "STARTSCREEN3", "STARTSCREEN4", "PIC.8(PASS)", "PIC.9(PAPERS)", "APER"  }
+								  "STARTSCREEN3", "STARTSCREEN4", "PIC.8(PASS)", "PIC.9(PAPERS)" }
+// Additional Static RGB RAW images. Those images all have a 480x272 PSP dimension
+#define NB_RAWS					1
+#define RAW_NAMES				{ "aperture-software.raw" }
 #define TO_SOLITARY				0
 #define FROM_SOLITARY			1
 #define PRISONER_SHOT			3
 #define PRISONER_FREE			4
+#define PRISONER_FREE_ALL		8
+#define GAME_OVER				9
+#define PRISONER_FREE_ALL_TEXT	10
+#define GAME_OVER_TEXT			11
 #define REQUIRE_PASS			17
 #define REQUIRE_PAPERS			18
+#define APERTURE_SOFTWARE		(0+ NB_IFFS)
 #define NO_PICTURE				0xFFFF
 #define IFF_PAYLOAD_W			{ 320, 320, 320, 320, 320, 320, 320, 320, 320, 320,	\
-								  320, 320, 320, 320, 320, 320, 320, 320, 320, 480 }
+								  320, 320, 320, 320, 320, 320, 320, 320, 320 }
 #define IFF_PAYLOAD_H			{ 192, 192, 192, 192, 192, 192, 192, 192, 192, 192,	\
-								  192, 192, 200, 200, 200, 200, 200, 192, 192, 272 }
+								  192, 192, 200, 200, 200, 200, 200, 192, 192 }
 // Loader table containing the IFF indexes to use for various events
 #define IFF_INDEX_TABLE			0x7A80
 
@@ -315,7 +325,9 @@ do {									\
 //#define TIME_MARKER				20000
 #define TIME_MARKER				10000
 // NB: This is the duration of a game minute, in ms
-#define SOLITARY_DURATION		1000
+#define SOLITARY_DURATION		100000
+// How long should we keep a static picture on, in ms
+#define PICTURE_TIMEOUT			5000
 
 // How long should the guard remain blocked (innb of route steps)
 // default of the game is 0x64
@@ -381,7 +393,7 @@ do {									\
 //#define R116_EXITS
 // For animations that are NOT guybrushes (guybrushes embed their own animation struct)
 #define MAX_ANIMATIONS			0x20
-#define MAX_CURRENTLY_ANIMATED	0x20
+#define MAX_CURRENTLY_ANIMATED	MAX_ANIMATIONS
 #define NB_ANIMATED_SPRITES		23
 // indiactes that no guybrush is associated to an animation
 #define NO_GUYBRUSH				-1
@@ -468,6 +480,16 @@ do {									\
 // not advisable
 //#define FADE_START_VALUE		0.1f
 
+// States for the displaying of static pictures
+#define GAME_FADE_OUT		0
+#define PICTURE_FADE_IN		1
+#define PICTURE_WAIT		2
+#define PICTURE_FADE_OUT	3
+#define GAME_FADE_IN		4
+#define PICTURE_EXIT		5
+#define NB_PICTURE_STATES	6
+#define FADE_INCREMENT		0.05f
+
 // Redefinition of GLUT's special keys so that they fit in our key table
 #define SPECIAL_KEY_OFFSET		0x80
 #define SPECIAL_KEY_F1          (GLUT_KEY_F1 + SPECIAL_KEY_OFFSET)
@@ -547,6 +569,9 @@ do {									\
 #define KEY_DEBUG_PRINT_POS		'p'
 #define KEY_DEBUG_BONANZA		'#'
 #define KEY_DEBUG_CATCH_HIM		'c'
+
+
+
 
 
 // Stupid VC++ doesn't know the basic formats it can actually use!
@@ -639,14 +664,10 @@ typedef struct
 	bool require_pass;
 	bool require_papers;
 	bool to_solitary;
-	bool from_solitary;
-	bool to_quarters;
-	bool to_appel;
 	bool unauthorized;
-	bool max_fatigue;
+	bool display_shot;
 	bool killed;
 	bool escaped;
-	bool is_free;
 	u32  fatigue;
 	u32  solitary_countdown;
 	u8   caught_by;
@@ -662,6 +683,7 @@ extern int	opt_keymaster;
 extern int	opt_thrillerdance;
 extern int	opt_no_guards;
 extern bool	opt_haunted_castle;
+extern int	nb_escaped;
 extern int	stat;
 extern int  debug_flag;
 extern u8   *mbuffer;
@@ -682,7 +704,7 @@ extern char*	status_message;
 extern s16 directions[3][3], dir_to_dx[8], dir_to_d2y[8];
 extern u8  hours_digit_h, hours_digit_l, minutes_digit_h, minutes_digit_l;
 extern u8  palette_index;
-extern u16 current_iff;
+//extern u16 current_iff;
 //extern bool  static_picture;
 extern u16	game_state;
 extern float fade_value;
@@ -696,7 +718,7 @@ extern u32   fsize[NB_FILES];
 extern char* iff_name[NB_IFFS];
 extern u16   iff_payload_w[NB_IFFS];
 extern u16   iff_payload_h[NB_IFFS];
-//extern int	gl_off_x, gl_off_y;
+extern char* raw_name[NB_RAWS];
 extern int	gl_width, gl_height;
 //extern u8	prisoner_w, prisoner_h;
 //extern int  prisoner_x, prisoner_2y;
@@ -714,7 +736,7 @@ extern u8 current_nation;
 #define guard(i)			guy(i+NB_NATIONS)
 #define in_tunnel			(prisoner_state&STATE_TUNNELING)
 #define is_dead				(prisoner_state&STATE_SHOT)
-#define has_escaped			p_event[current_nation].is_free
+#define has_escaped			p_event[current_nation].escaped
 #define is_outside			(current_room_index==ROOM_OUTSIDE)
 #define is_inside			(current_room_index!=ROOM_OUTSIDE)
 #define prisoner_as_guard	guybrush[current_nation].is_dressed_as_guard
@@ -751,6 +773,9 @@ static __inline bool read_key_once(u8 k)
 	}
 	return false;
 }
+
+
+
 
 // A couple of defines to make prop handling more readable
 static __inline void consume_prop()
@@ -790,6 +815,8 @@ extern s_event		events[NB_EVENTS];
 extern u8  bPalette[3][16];
 extern u16 aPalette[32];	// This palette is 32 instead of 16, because we also use
 							// it to load 5 bpp IFF images
+
+void static_screen(u8 iff_id, void (*func)(u32), u32 param);
 
 
 #ifdef	__cplusplus

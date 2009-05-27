@@ -62,6 +62,8 @@ int opt_sid					= -1;
 int	opt_no_guards			= 0;
 // Is the castle haunted by the ghost of shot prisoners
 bool opt_haunted_castle		= true;
+// Number of escaped prisoners
+int nb_escaped				= 0;
 
 
 // File stuff
@@ -75,14 +77,10 @@ u8*   static_image_buffer   = NULL;
 char* iff_name[NB_IFFS]		= IFF_NAMES;
 u16   iff_payload_w[NB_IFFS] = IFF_PAYLOAD_W;
 u16   iff_payload_h[NB_IFFS] = IFF_PAYLOAD_H;
+char* raw_name[NB_RAWS]		= RAW_NAMES;
 
-// Indicate whether we are running the game or displaying
-// a static IFF image
-//bool  static_picture		= false;
-// Current static image IFF to load and display
-u16   current_iff = 0x0C;
 // Used for fade in/fade out of static images
-float fade_value = 0.0f;
+float fade_value = 1.0f;
 // 1 for fade in, -1 for fade out
 int fade_direction = 1;	// make sure it is initialized to 1
 
@@ -105,10 +103,43 @@ s16 jdx, jd2y;
 // Could use a set of flags, but more explicit this way
 bool key_down[256], key_readonce[256];
 
+#if defined (CHEATMODE_ENABLED)
+// We don't want to pollute the key_readonce table for cheat keys, yet
+// we need to check if the cheat keys have been pressed once
+bool key_cheat_readonce[256];
+u8 last_key_used = 0;
+static __inline bool read_cheat_key_once(u8 k)
+{	
+	if (key_down[k])
+	{
+		if (key_cheat_readonce[k])
+			return false;
+		key_cheat_readonce[k] = true;
+		return true;
+	}
+	return false;
+}
+typedef struct
+{
+	u8  nb_keys;
+	u8  cur_pos;
+	u8* keys;
+} s_cheat_sequence;
+#define NB_CHEAT_SEQUENCES 3
+#define CHEAT_PROP_BONANZA	0
+#define CHEAT_KEYMASTER		1
+#define CHEAT_NOGUARDS		2
+static u8 sequence0[4]  = {KEY_INVENTORY_LEFT, KEY_INVENTORY_LEFT, KEY_INVENTORY_RIGHT, KEY_INVENTORY_RIGHT};
+static u8 sequence1[9]  = {'k', 'e', 'y', 'm', 'a', 's', 't', 'e', 'r'};
+static u8 sequence2[11] = {'d', 'i', 'e', ' ', 'd', 'i', 'e', ' ', 'd', 'i', 'e'};
+s_cheat_sequence cheat_sequence[NB_CHEAT_SEQUENCES] = {
+	{4, 0, sequence0}, {9, 0, sequence1}, {11, 0, sequence2}
+};
+#endif
+
 bool init_animations = true;
 bool keep_message_on = false;
 bool is_fire_pressed = false;
-bool post_picture_check = false;
 s_animation	animations[MAX_ANIMATIONS];
 u8	nb_animations = 0;
 // last time for Animations and rePosition of the guards
@@ -132,6 +163,8 @@ u8  hours_digit_h, hours_digit_l, minutes_digit_h, minutes_digit_l;
 u8  tunexit_nr, tunexit_flags, tunnel_tool;
 u8*	iff_image;
 bool found;
+void (*static_screen_func)(u32) = NULL;
+u32  static_screen_param;
 
 u16  nb_rooms, nb_cells, nb_objects;
 u8	 palette_index = 4;
@@ -140,8 +173,15 @@ s_overlay*	overlay;
 u8   overlay_index;
 u8   bPalette[3][16];
 // remapped Amiga Palette
-u16  aPalette[32];
+u16  aPalette[32];	
 char nb_props_message[32] = "\499 * ";
+
+// static picture
+u64 picture_t;
+u8 picture_state;
+float fade_step[NB_PICTURE_STATES] = { -FADE_INCREMENT, FADE_INCREMENT, 0.0f,
+									   -FADE_INCREMENT, FADE_INCREMENT, 0.0f };
+
 
 // offsets to sprites according to joystick direction (dx,dy)
 s16 directions[3][3] = { {3,2,4}, {0,DIRECTION_STOPPED,1}, {6,5,7} };
@@ -301,14 +341,6 @@ void process_motion(void)
 		prisoner_x += prisoner_speed*dx;
 		prisoner_2y += prisoner_speed*d2y;
 
-		// Escape condition
-		if ( (current_room_index == ROOM_OUTSIDE) && 
-			 ( (prisoner_x < ESCAPE_MIN_X) || (prisoner_x > ESCAPE_MAX_X) ||
-			   (prisoner_2y < (2*ESCAPE_MIN_Y)) || (prisoner_2y > (2*ESCAPE_MAX_Y)) ) )
-		{
-			 p_event[current_nation].escaped = true;
-		}
-				
 		prisoner_state |= STATE_MOTION;
 		// Update the animation direction
 		prisoner_dir = new_direction;
@@ -342,11 +374,12 @@ void restore_params(u32 param)
 	guybrush[brush].state &= ~(STATE_MOTION|STATE_KNEEL);
 }
 
+
 // process motion keys
 static void glut_idle(void)
 {	
 	u16 prop_offset;
-	u8	prop_id, direction, i;
+	u8	prop_id, direction, i, j;
 	s16 exit_nr;
 
 	// Return to intro screen
@@ -356,51 +389,51 @@ static void glut_idle(void)
 	// We'll need the current time value for a bunch of stuff
 	t = mtime();
 
-	// Handle the displaying of static pictures, with fading
-	if (game_state & GAME_STATE_STATIC_PIC)
+
+#if defined (CHEATMODE_ENABLED)
+	// Check cheat sequences
+	if (read_cheat_key_once(last_key_used))
 	{
-		// Handle fading in/out of static pictures
-		if (fade_direction)
+		for (i=0; i<NB_CHEAT_SEQUENCES; i++)
 		{
-			fade_value += fade_direction*0.1f;
-
-			// End of fading in
-			if (fade_value > 1.0f)
-			{
-				fade_value = 1.0f;
-				fade_direction = 0;
-			}
-
-			// End of fading out
-			if (fade_value < 0.0f)
-			{
-				// for next fade_in
-				fade_value = 0.0f;
-				fade_direction = 1;
-
-				// Indicate that we've juct acknowledge a static picture for check_prisoner()
-				post_picture_check = true;
-
-				// Return to game
-				game_state &= ~GAME_STATE_STATIC_PIC;
+			if (cheat_sequence[i].keys[cheat_sequence[i].cur_pos] == last_key_used)
+			{	// The right key was read
+				cheat_sequence[i].cur_pos++;
+				if (cheat_sequence[i].cur_pos == cheat_sequence[i].nb_keys)
+				// We completed cheat sequence #i
+				{
+					switch(i)
+					{
+					case CHEAT_PROP_BONANZA:
+						keep_message_on = true;
+						keep_message_mtime_start = t;
+						for (j=1; j<NB_PROPS-1; j++)
+							props[current_nation][j] += 10;
+//						status_message = "1234567890123456789012345678";
+						status_message = "    ENJOY YOUR PROPS ;)     ";
+						break;
+					case CHEAT_KEYMASTER:
+						opt_keymaster = ~opt_keymaster;
+						break;
+					default:
+						keep_message_on = true;
+						keep_message_mtime_start = t;
+						status_message = "        DIE DIE DIE         ";
+						break;
+					}
+					printf("CHEAT[%d] activated!\n", i);
+					cheat_sequence[i].cur_pos = 0;
+				}
 			}
 			else
-				// Don't forget to display the image
-				glut_display();
+				// Reset the cheat sequence index
+				cheat_sequence[i].cur_pos = 0;
 		}
-
-		// Fire to exit the display of a static picture
-		if (read_key_once(KEY_FIRE))
-			fade_direction = -1;
 	}
+#endif
 
 	// Handle the pausing of the game 
-	// NB: game also pauses when displaying static pictures
-	if (
-		 ( (game_state & GAME_STATE_STATIC_PIC) && (!(game_state & GAME_STATE_PAUSED)) )  ||
-		 ( (!(game_state & GAME_STATE_STATIC_PIC)) && (read_key_once(KEY_PAUSE)) ) ||
-		 ( (game_state & GAME_STATE_PAUSED) && post_picture_check )
-	   )
+	if (read_key_once(KEY_PAUSE))
 	{
 		// Toggle
 		if (game_state & GAME_STATE_PAUSED)
@@ -588,7 +621,7 @@ static void glut_idle(void)
 	}
 
 	// We're idle, but we might be trying to open a tunnel exit, or use a prop
-	if (read_key_once(KEY_FIRE) && !is_dead)
+	if (read_key_once(KEY_FIRE))
 	{
 		// We need to set this variable as we might check if fire is pressed 
 		// in various subroutines below
@@ -755,9 +788,7 @@ update_motion:
 		// Update our guy's position
 			process_motion();
 		// Do we have something going on with a prisoner (request, caught, release...)
-		check_on_prisoners(post_picture_check);
-		// Only reset the post_picture_flag here
-		post_picture_check = false;
+		check_on_prisoners();
 		// Only reset the fire action AFTER we processed motion
 		is_fire_pressed = false;
 		// Redisplay, as there might be a guard moving
@@ -769,6 +800,119 @@ update_motion:
 //	if ((dx == 0) && (d2y == 0))
 //		msleep(3);
 		msleep(REPOSITION_INTERVAL/5);
+}
+
+
+// We'll use a different idle function for static picture
+static void glut_idle_static_pic(void)
+{
+	// in intro start at PIC_FADE_IN instead of GAME_FADE_OUT
+	// GAME_FADE_OUT
+	// PICTURE_FADE_IN
+	// PICTURE_WAIT
+	// PICTURE_FADE_OUT
+	// GAME_FADE_IN
+
+
+	// We'll need the current time value for a bunch of stuff
+	t = mtime();
+
+	// Start by incrementing/decrementing fade value
+	fade_value += fade_step[picture_state];
+
+	// Have we reached a fade boundary
+	if ((fade_value > 1.0f) || (fade_value < 0.0f))
+	{
+		fade_value = (fade_value < 0.0f)?0.0f:1.0f;
+		picture_state++;
+	}
+/*
+	printf("    fade_value = %f\n", fade_value);
+	printf("    picture_state = %d\n", picture_state);
+	printf("    fade_step = %f\n",  fade_step[picture_state]);
+*/
+
+	// Act on the various game states
+	switch(picture_state)
+	{
+	case GAME_FADE_OUT:
+		break;
+	case PICTURE_FADE_IN:
+		game_state |= GAME_STATE_STATIC_PIC;
+		picture_t = t;
+		break;
+	case PICTURE_WAIT:
+		if (read_key_once(KEY_FIRE) || (t-picture_t > PICTURE_TIMEOUT))
+			picture_state++;
+		// We might want to call a function to update the prisoner pos at this stage
+		if (static_screen_func != NULL)
+		{
+			static_screen_func(static_screen_param);
+			static_screen_func = NULL;
+		}
+		break;
+	case PICTURE_FADE_OUT:
+		break;
+	case GAME_FADE_IN:
+		game_state &= ~GAME_STATE_STATIC_PIC;
+		break;
+	case PICTURE_EXIT:
+		// restore time marker
+		last_atime += (t - paused_time);
+		last_ptime += (t - paused_time);
+		last_ctime += (t - paused_time);
+		// restore glut_idle
+		glutIdleFunc(glut_idle);
+		break;
+	default:
+		printf("glut_idle_static_pic(): should never be here!\n");
+		break;
+	}
+
+	// Don't forget to display the image
+	glut_display();
+
+	// We should be able to sleep for a while
+	msleep(PAUSE_DELAY);
+}
+
+
+// This function handles the displaying of static screens
+// The last 2 parameters are for a function callback while we are in
+// the middle of a static picture
+void static_screen(u8 picture_id, void (*func)(u32), u32 param)
+{
+bool loaded_ok;
+
+	// This function call will be initiated in idle_static_pic()
+	static_screen_func = func;
+	static_screen_param = param;
+
+	// if the picture_id >= NB_IFFS then we need to load an display an
+	// RGB RAW (with
+	if (picture_id >= NB_IFFS)
+		// The pictures are always padded to 512 in w
+		loaded_ok = load_raw_rgb(PSP_SCR_WIDTH, PSP_SCR_HEIGHT, raw_name[picture_id-NB_IFFS]);
+	else
+		loaded_ok = load_iff(picture_id);
+	if (!loaded_ok)
+	{	// There was a problem loading the file
+		if (static_screen_func != NULL)
+		{	// If we don't execute the function, we might get stuck
+			static_screen_func(static_screen_param);
+			static_screen_func = NULL;
+		}
+		return;
+	}
+
+	// As we pause the game, we'll need to restore the time markers
+	paused_time = t;
+
+	// start with the following picture state
+	picture_state = GAME_FADE_OUT;
+
+	// First thing we do is remove the call to glut_idle()
+	glutIdleFunc(glut_idle_static_pic);
 }
 
 
@@ -793,33 +937,55 @@ static void glut_keyboard(u8 key, int x, int y)
 {
 //	printf("key = %X (%c)\n", key, key);
 	key_down[key] = true;
+#if defined (CHEATMODE_ENABLED)
+	last_key_used = key;
+#endif
+
 }
 
 static void glut_keyboard_up(u8 key, int x, int y)
 {
 	key_down[key] = false;
 	key_readonce[key] = false;
+#if defined (CHEATMODE_ENABLED)
+	key_cheat_readonce[key] = false;
+#endif
 }
 
 static void glut_special_keys(int key, int x, int y)
 {
 	key_down[key + SPECIAL_KEY_OFFSET] = true;
+#if defined (CHEATMODE_ENABLED)
+	last_key_used = key + SPECIAL_KEY_OFFSET;
+#endif
+
 }
 
 static void glut_special_keys_up(int key, int x, int y)
 {
 	key_down[key + SPECIAL_KEY_OFFSET] = false;
 	key_readonce[key + SPECIAL_KEY_OFFSET] = false;
+#if defined (CHEATMODE_ENABLED)
+	key_cheat_readonce[key + SPECIAL_KEY_OFFSET] = false;
+#endif
 }
 
 static void glut_mouse_buttons(int button, int state, int x, int y)
 {
 	if (state == GLUT_DOWN)
+	{
 		key_down[SPECIAL_MOUSE_BUTTON_BASE + button] = true;
+#if defined (CHEATMODE_ENABLED)
+		last_key_used = SPECIAL_MOUSE_BUTTON_BASE + button;
+#endif
+	}
 	else
 	{
 		key_down[SPECIAL_MOUSE_BUTTON_BASE + button] = false;
 		key_readonce[SPECIAL_MOUSE_BUTTON_BASE + button] = false;
+#if defined (CHEATMODE_ENABLED)
+		key_cheat_readonce[SPECIAL_MOUSE_BUTTON_BASE + button] = false;
+#endif
 	}
 }
 
@@ -901,24 +1067,35 @@ int main (int argc, char *argv[])
 	// Need to have a working GL before we proceed
 	glut_init();
 
-	// Load the data
-	load_all_files();
-
-	// fix some of the files
-	fix_files();
-
-	// Allocate the bitmap image buffer (for displaying static IFF images)
-	// The padded size of all our IFF textures is always 512x256
-	static_image_buffer = (u8*) aligned_malloc(512*256*2,16);
+	// Allocate the bitmap image buffer (for displaying static IFF or RAW RGB 
+	// images). The padded size of all our static image textures is always 
+	// 512x256x2 (IFF) or 512x512x3 (RAW RGB) bytes
+	// NOTE that because we don't want to waste the 512x(512-272)x3 (=360 KB) extra
+	// space on the PSP (the PSP can only deal with texture dimensions that are in 
+	// power of twos), we are doing something really dodgy here, which is that we
+	// pretend the extra 360K have been allocated, and let the system blatantly 
+	// overflow our image buffer if it wants to (since it should never display that 
+	// data anyway - and thus not access it). As a matter of fact, this is why we 
+	// chose to allocate this bufer first, so that, if the system really tries to 
+	// read that data, these extra 360K should map to something that's accessible.
+	// 
+	// If you're really unhappy about this kind of practice, just allocate 512x512x3
+	static_image_buffer = (u8*) aligned_malloc(512*PSP_SCR_HEIGHT*3,16);
 	if (static_image_buffer == NULL)
 	{
 		perr("Could not allocate buffer for static images display\n");
 		return 0;
 	}
 
+	// Load the data
+	load_all_files();
+
+	// fix some of the files
+	fix_files();
+
+
 	// Set global variables
 	get_properties();
-
 	init_variables();
 
 
@@ -940,12 +1117,14 @@ int main (int argc, char *argv[])
 		guy(i).direction = 6;
 		guy(i).ext_bitmask = 0x8000001E;
 		guy(i).is_dressed_as_guard = false;
-		p_event[i].from_solitary = false;
-		p_event[i].to_solitary = false;
-		p_event[i].require_papers = false;
+		p_event[i].unauthorized = false;
 		p_event[i].require_pass = false;
+		p_event[i].require_papers = false;
+		p_event[i].to_solitary = false;
+		p_event[i].display_shot = false;
+		p_event[i].killed = false;
+		p_event[i].solitary_countdown = 0;
 		p_event[i].escaped = false;
-		p_event[i].is_free = false;
 		p_event[i].fatigue = 0;
 	}
 
@@ -964,57 +1143,6 @@ int main (int argc, char *argv[])
 	guy(1).p2y += 220; //630;
 	guy(1).room = 9; //ROOM_OUTSIDE;
 
-
-/*
-	// English
-	i = 0;
-	guybrush[i].px = 940;
-	guybrush[i].p2y = 630;
-	guybrush[i].room = ROOM_OUTSIDE;
-	guybrush[i].state = 0;
-	guybrush[i].speed = 1;
-	guybrush[i].direction = 0;
-	guybrush[i].ext_bitmask = 0x8000001E;
-	guybrush[i].guard_uniform = false;
-	guybrush[i].fatigue = 88;	// the fatigue bar is 88 pixels long
-	i++;
-
-	// French
-	guybrush[i].px = 404;
-	guybrush[i].p2y = 707;
-	guybrush[i].room = ROOM_OUTSIDE;
-	guybrush[i].state = 0;
-	guybrush[i].speed = 1;
-	guybrush[i].direction = 0;
-	guybrush[i].ext_bitmask = 0x8000007E;
-	guybrush[i].guard_uniform = false;
-	guybrush[i].fatigue = 44;
-	i++;
-
-	// American
-	guybrush[i].px = 1200;
-	guybrush[i].p2y = 700;
-	guybrush[i].room = ROOM_OUTSIDE;
-	guybrush[i].state = 0;
-	guybrush[i].speed = 1;
-	guybrush[i].direction = 0;
-	guybrush[i].ext_bitmask = 0x8000001E;
-	guybrush[i].guard_uniform = false;
-	guybrush[i].fatigue = 1;
-	i++;
-
-	// Polish
-	guybrush[i].px = 1000;
-	guybrush[i].p2y = 600;
-	guybrush[i].room = ROOM_OUTSIDE;
-	guybrush[i].state = 0;
-	guybrush[i].speed = 1;
-	guybrush[i].direction = 0;
-	guybrush[i].ext_bitmask = 0x8000001E;
-	guybrush[i].guard_uniform = false;
-	guybrush[i].fatigue = 0;
-	i++;
-*/
 	// Initialize the guards
 	for (i=0;i<NB_GUARDS;i++)
 	{

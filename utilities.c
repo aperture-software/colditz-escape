@@ -34,7 +34,9 @@ GLuint* cell_texid;
 GLuint* sprite_texid;
 GLuint* chars_texid;
 GLuint panel1_texid, panel2_texid;
-GLuint render_texid, iff_texid;
+GLuint render_texid, picture_texid;
+
+u16 picture_w, picture_h;
 
 /* Some more globals */
 u8  obs_to_sprite[NB_OBS_TO_SPRITE];
@@ -341,7 +343,7 @@ void get_properties()
 	glGenTextures( 1, &panel1_texid );
 	glGenTextures( 1, &panel2_texid );
 	glGenTextures( 1, &render_texid );
-	glGenTextures( 1, &iff_texid );
+	glGenTextures( 1, &picture_texid );
 
 	// The panel textures have already been loaded, so we map them
 	glBindTexture(GL_TEXTURE_2D, panel1_texid);
@@ -364,15 +366,18 @@ void init_variables()
 	minutes_digit_h = 3;
 	minutes_digit_l = 0;
 
-	next_timed_event_ptr = TIMED_EVENTS_INIT;
-
-	hours_digit_h = 0;
-	hours_digit_l = 9;
 	minutes_digit_h = 5;
 	minutes_digit_l = 4;
-/*
-	next_timed_event_ptr = 0x2BE8; //TIMED_EVENTS_INIT;
-*/
+
+	next_timed_event_ptr = TIMED_EVENTS_INIT;
+
+	// First rollcall
+	hours_digit_h = 0;
+	hours_digit_l = 5;
+	minutes_digit_h = 5;
+	minutes_digit_l = 4;
+
+	next_timed_event_ptr = 0x2BE8;
 
 	// Current event is #3 (confined to quarters)
 	authorized_ptr = readlong(fbuffer[LOADER],AUTHORIZED_BASE+4*3);
@@ -1397,7 +1402,7 @@ u8 i, sid;
 	// Our guy's always at the center of our z-buffer
 	overlay[overlay_index].z = 0;
 	// Who cares about optimizing for one guy!
-	if(!(p_event[current_nation].is_free))
+	if(!(p_event[current_nation].escaped))
 		// Ignore this overlay if our guy is free
 		safe_overlay_index_increment();
 	/*
@@ -1420,7 +1425,8 @@ u8 i, sid;
 		// so don't care if the prisoner's onscreen status is wrong
 		guy(i).is_onscreen = false;
 
-		if ((i<NB_NATIONS) && (p_event[i].is_free))
+		// Guy already on the loose?
+		if ((i<NB_NATIONS) && (p_event[i].escaped))
 			continue;
 
 		// Guybrush's probably blowing his foghorn in the library again
@@ -1509,7 +1515,7 @@ u8 i, sid;
 
 void prisoner_killed(u32 p)
 {
-	p_event[p].killed = true;
+	p_event[p].display_shot = true;
 	// Prevent the sprite from being animated
 	guy(p).state = STATE_SHOT;
 	// This will reinstantiate the guard when we switch screens
@@ -1605,7 +1611,7 @@ int move_guards()
 		for (p = 0; p<NB_NATIONS; p++)
 		{
 			// Don't bother if prisoner's dead or escaped
-			if ( (guy(p).state & STATE_SHOT) || (p_event[p].is_free) )
+			if ( (guy(p).state & STATE_SHOT) || (p_event[p].escaped) )
 				continue;
 
 			// Do we have a prisoner in sight?
@@ -1859,6 +1865,8 @@ void display_room()
 
 //	printf("prisoner (x,y) = (%d,%d)\n", prisoner_x, prisoner_2y/2);
 
+	glColor3f(fade_value, fade_value, fade_value);
+
 	if (init_animations)
 	{	// We might have to init the room animations after a room switch or nationality change
 		// Reset all animations
@@ -2096,19 +2104,14 @@ void display_message(char string[])
 // loaded from an IFF file. 
 void display_picture()
 {
-	u16 w, h;
 	// NB, we don't need to clear the screen to black, as this is done 
 	// before calling this function
-
-	// Get the actual picture payload's w & h
-	w = iff_payload_w[current_iff];
-	h = iff_payload_h[current_iff];
 
 	// Set white to the current fade_value for fading effects
 	glColor3f(fade_value, fade_value, fade_value);	
 
 	// Display the current IFF image
-	glBindTexture(GL_TEXTURE_2D, iff_texid);
+	glBindTexture(GL_TEXTURE_2D, picture_texid);
 
 //	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 //	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
@@ -2120,16 +2123,16 @@ void display_picture()
 	glBegin(GL_TRIANGLE_FAN);
 
 	glTexCoord2f(0.0f, 0.0f);
-	glVertex2f((PSP_SCR_WIDTH-w)/2, (PSP_SCR_HEIGHT-h)/2);
+	glVertex2f((PSP_SCR_WIDTH-picture_w)/2, (PSP_SCR_HEIGHT-picture_h)/2);
 
 	glTexCoord2f(1.0f, 0.0f);
-	glVertex2f(512 + (PSP_SCR_WIDTH-w)/2, (PSP_SCR_HEIGHT-h)/2);
+	glVertex2f(512 + (PSP_SCR_WIDTH-picture_w)/2, (PSP_SCR_HEIGHT-picture_h)/2);
 
 	glTexCoord2f(1.0, 1.0);
-	glVertex2f(512 + (PSP_SCR_WIDTH-w)/2, 256 + (PSP_SCR_HEIGHT-h)/2);
+	glVertex2f(512 + (PSP_SCR_WIDTH-picture_w)/2, 512 + (PSP_SCR_HEIGHT-picture_h)/2);
 
 	glTexCoord2f(0.0, 1.0);
-	glVertex2f((PSP_SCR_WIDTH-w)/2, 256 + (PSP_SCR_HEIGHT-h)/2);
+	glVertex2f((PSP_SCR_WIDTH-picture_w)/2, 512 + (PSP_SCR_HEIGHT-picture_h)/2);
 
 	glEnd();
 }
@@ -2181,7 +2184,7 @@ void display_panel()
 	glEnd();
 
 	// Restore colour
-	glColor3f(1.0f, 1.0f, 1.0f);
+	glColor3f(fade_value, fade_value, fade_value);
 
 	// Draw the 2 parts of our panel
  	glBindTexture(GL_TEXTURE_2D, panel1_texid);
@@ -2242,7 +2245,7 @@ void display_panel()
 	{
 		if (guy(i).state & STATE_SHOT)
 			sid = PANEL_FACE_SHOT;
-		else if (p_event[i].is_free)
+		else if (p_event[i].escaped)
 			sid = PANEL_FACE_FREE;
 		else
 		{
@@ -2314,7 +2317,7 @@ void display_panel()
 void timed_events(u16 hours, u16 minutes_high, u16 minutes_low)
 {
 	u16 event_data;
-	u8 p;
+	u16 p, iff_id;
 
 	// Read the hour (or reset marker)
 	event_data = readword(fbuffer[LOADER], next_timed_event_ptr);
@@ -2357,24 +2360,10 @@ void timed_events(u16 hours, u16 minutes_high, u16 minutes_low)
 
 		// Get the relevant picture index (for events with static images) 
 		// according to the IFF_INDEX_TABLE in the loader
-		current_iff = readword(fbuffer[LOADER], IFF_INDEX_TABLE + 2*event_data);
+		iff_id = readword(fbuffer[LOADER], IFF_INDEX_TABLE + 2*event_data);
 ///		printf("iff to load = %x\n", current_iff);
-		if (current_iff != 0xFFFF)
-		{
-			if (load_iff(current_iff))
-				printf("failed to load IFF\n");
-			else
-			{
-				// Setup the texture for display
-				glBindTexture(GL_TEXTURE_2D, iff_texid);
-				glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-				glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 512, 256, 0, 
-					GL_RGBA, GL_UNSIGNED_SHORT_4_4_4_4_REV, static_image_buffer);
-				
-				// Indicate that we should display a static picture and pause the game
-				game_state |= GAME_STATE_STATIC_PIC;
-			}
-		}
+		if (iff_id != 0xFFFF)
+			static_screen(iff_id, NULL, 0);
 		else if (event_data == TIMED_EVENT_ROLLCALL_CHECK)
 		{	// This is the actual courtyard rollcall check
 			for (p=0; p<NB_NATIONS; p++)
@@ -3159,188 +3148,203 @@ void switch_room(s16 exit_nr, bool tunnel_io)
 }
 
 
+// The next 2 functions are called while displaying the go to / released from
+// solitary static screen, so that the prisoner position has been switched
+// when we fade in on the game
+void go_to_jail(u32 p)
+{
+	int prop;
+
+	guy(p).state &= ~STATE_IN_PURSUIT;
+	guy(p).state |= STATE_IN_PRISON;
+
+	// Make sure the jail doors are closed when we leave the prisoner in!
+	writebyte(fbuffer[ROOMS], solitary_cells_door_offset[p][0], 
+		readbyte(fbuffer[ROOMS], solitary_cells_door_offset[p][0]) & 0xEF);
+	writebyte(fbuffer[ROOMS], solitary_cells_door_offset[p][1], 
+		readbyte(fbuffer[ROOMS], solitary_cells_door_offset[p][1]) & 0xEF);
+
+	// Set our guy in the cell
+	guy(p).room = readword(fbuffer[LOADER],SOLITARY_POSITION_BASE+8*p);
+	guy(p).p2y = 2*readword(fbuffer[LOADER],SOLITARY_POSITION_BASE+8*p+2)-2;
+	guy(p).px = readword(fbuffer[LOADER],SOLITARY_POSITION_BASE+8*p+4)-2;
+	if (!opt_keymaster)
+	{	// Bye bye props!
+		for (prop = 0; prop<NB_PROPS; prop++)
+			props[p][prop] = 0;
+		// display the empty box
+		selected_prop[p] = 0;
+		// Strip of guard uniform if any
+		if (guy(p).is_dressed_as_guard)
+		{	// Only makes sense if we're dressed as guard
+			guy(p).is_dressed_as_guard = false;
+			guy(p).reset_animation = true;
+		}
+	}
+
+	// Don't forget to (re)set the room props
+	set_room_props();
+}
+
+
+void out_of_jail(u32 p)
+{
+	guy(p).state &= ~STATE_IN_PRISON;
+
+	guy(p).px = readword(fbuffer[LOADER],INITIAL_POSITION_BASE+10*p+2);
+	guy(p).p2y = 2*readword(fbuffer[LOADER],INITIAL_POSITION_BASE+10*p);
+	guy(p).room = readword(fbuffer[LOADER],INITIAL_POSITION_BASE+10*p+4);
+
+	// Don't forget to (re)set the room props
+	set_room_props();
+}
+
 // Have a look at what our prisoner are doing
 // After pic is a boolean indicating that a static picture event has just
 // been acknowledged
-void check_on_prisoners(bool after_pic)
+void check_on_prisoners()
 {
-	int p,prop;
+	int p;
 	u16 i;
 	bool authorized_id;
 	u8 room_desc_id;
+	int game_over;
 
-	current_iff = NO_PICTURE;
-
-	for(p=0; p<NB_NATIONS; p++)
+	// Check escape condition (for current prisoner only)
+	if ( (!has_escaped) && (current_room_index == ROOM_OUTSIDE) && 
+		 ( (prisoner_x < ESCAPE_MIN_X) || (prisoner_x > ESCAPE_MAX_X) ||
+		   (prisoner_2y < (2*ESCAPE_MIN_Y)) || (prisoner_2y > (2*ESCAPE_MAX_Y)) ) )
 	{
-		if (!after_pic)
-		{	// This is the first part of our event handling,
-
-			// if we need to display a static picture for it
-			// => just start by displaying the picture
-			if (p_event[p].to_solitary)
-				current_iff = TO_SOLITARY;
-			else if (p_event[p].require_pass)
-				current_iff = REQUIRE_PASS;
-			else if (p_event[p].killed)
-				current_iff = PRISONER_SHOT;
-			else if (p_event[p].escaped)
+		if (props[current_nation][ITEM_PAPERS])
+		{
+			nb_escaped++;
+			if (nb_escaped >= NB_NATIONS)
 			{
-				if (props[current_nation][ITEM_PAPERS])
-					current_iff = PRISONER_FREE;
-				else
-					current_iff = REQUIRE_PAPERS;
-			}
-			else if (p_event[p].solitary_countdown)
-			{	// Guy's in solitary => decrement counter
-				p_event[p].solitary_countdown--;
-				if (p_event[p].solitary_countdown == 0)
-				{	// "Freeeeeeeedom!"
-					p_event[p].from_solitary = true;
-					current_iff = FROM_SOLITARY;
-				}
+				static_screen(PRISONER_FREE_ALL_TEXT, NULL, 0);
+				static_screen(PRISONER_FREE_ALL, NULL, 0);
 			}
 			else
 			{
-				// Check if we are authorised in our current pos		
-				if (guy(p).room == ROOM_OUTSIDE)
-					room_desc_id = COURTYARD_MSG_ID;
-				else if (guy(p).room < ROOM_TUNNEL)
-					room_desc_id = readbyte(fbuffer[LOADER], ROOM_DESC_BASE	+ guy(p).room);
-				else
-					room_desc_id = TUNNEL_MSG_ID;
-
-				// Now that we have the room desc ID, we can check if it's in the 
-				// currently authrorized list
-				p_event[p].unauthorized = true;
-				for (i=1; i<=readword(fbuffer[LOADER], authorized_ptr)+1; i++)
-				{
-					authorized_id = readword(fbuffer[LOADER], authorized_ptr+2*i);
-					if (authorized_id == 0xFFFF)
-						// prisoner's quarters
-						authorized_id = readbyte(fbuffer[LOADER], AUTHORIZED_NATION_BASE+p);
-
-					if (authorized_id == room_desc_id)
-					{	// if there's a match, we're allowed here
-						p_event[p].unauthorized = false;
-						// Additional boundary check for courtyard
-						if ( (guy(p).room == ROOM_OUTSIDE) && (
-							 (guy(p).px < COURTYARD_MIN_X) || (guy(p).px > COURTYARD_MAX_X) ||
-							 (guy(p).p2y < (2*COURTYARD_MIN_Y)) || (guy(p).p2y > (2*COURTYARD_MAX_Y)) ) )
-							p_event[p].unauthorized = true;
-						break;
-					}
-				}
+				static_screen(PRISONER_FREE, NULL, 0);
+				p_event[current_nation].escaped = true;
 			}
 		}
 		else
-		{	// Second part of our event handling, if a static
-			// picture was needed. As this comes after the picture
-			// event was displayed and ack'ed, now we can really 
-			// act on the event (or link to a new picture)
-			if (p_event[p].to_solitary)
-			{	// Sent to jail
-				guy(p).state &= ~STATE_IN_PURSUIT;
-				guy(p).state |= STATE_IN_PRISON;
-				p_event[p].to_solitary = false;	// clear the image
-				p_event[p].solitary_countdown = SOLITARY_DURATION;
-
-				// Make sure the jail doors are closed when we leave the prisoner in!
-				writebyte(fbuffer[ROOMS], solitary_cells_door_offset[p][0], 
-					readbyte(fbuffer[ROOMS], solitary_cells_door_offset[p][0]) & 0xEF);
-				writebyte(fbuffer[ROOMS], solitary_cells_door_offset[p][1], 
-					readbyte(fbuffer[ROOMS], solitary_cells_door_offset[p][1]) & 0xEF);
-
-				// Set our guy in the cell
-				guy(p).room = readword(fbuffer[LOADER],SOLITARY_POSITION_BASE+8*p);
-				guy(p).p2y = 2*readword(fbuffer[LOADER],SOLITARY_POSITION_BASE+8*p+2)-2;
-				guy(p).px = readword(fbuffer[LOADER],SOLITARY_POSITION_BASE+8*p+4)-2;
-				if (!opt_keymaster)
-				{	// Bye bye props!
-					for (prop = 0; prop<NB_PROPS; prop++)
-						props[p][prop] = 0;
-					// display the empty box
-					selected_prop[p] = 0;
-					// Strip of guard uniform if any
-					if (guy(p).is_dressed_as_guard)
-					{	// Only makes sense if we're dressed as guard
-						guy(p).is_dressed_as_guard = false;
-						guy(p).reset_animation = true;
-					}
-				}
-				game_state &= ~GAME_STATE_STATIC_PIC;
-
-				// Don't forget to (re)set the room props
-				set_room_props();
-
-				break;
-			}
-			else if (p_event[p].require_pass)
-			{
-				p_event[p].require_pass = false;
-				if (props[p][ITEM_PASS] != 0)
-				{
-					guy(p).state &= ~STATE_IN_PURSUIT;
-					selected_prop[p] = ITEM_PASS;
-					consume_prop();
-					show_prop_count();
-					game_state &= ~GAME_STATE_STATIC_PIC;
-					// If pass handling was successful, we reset the guard to the start of 
-					// its route
-					writelong(fbuffer[GUARDS], p_event[p].caught_by*MENDAT_ITEM_SIZE+0x0E, 
-						readlong(fbuffer[GUARDS], p_event[p].caught_by*MENDAT_ITEM_SIZE+0x06));
-					// You got our pass, now get lost (prevents multiple pass requests)
-					guard(p_event[p].caught_by).px = GET_LOST_X;
-					guard(p_event[p].caught_by).p2y = GET_LOST_Y;
-					// This ensures that we'll reinstantiate the guard
-					guard(p_event[p].caught_by).go_on = 0;
-				}
-				else
-					p_event[p].to_solitary = true;
-				break;
-			}
-			else if (p_event[p].from_solitary)
-			{	// Return to quarters
-				guy(p).state &= ~STATE_IN_PRISON;
-				p_event[p].from_solitary = false;
-				if (guy(p).room == readword(fbuffer[LOADER],SOLITARY_POSITION_BASE+8*p))
-				{	// Our guy's was still in his cell
-					guy(p).px = readword(fbuffer[LOADER],INITIAL_POSITION_BASE+10*p+2);
-					guy(p).p2y = 2*readword(fbuffer[LOADER],INITIAL_POSITION_BASE+10*p);
-					guy(p).room = readword(fbuffer[LOADER],INITIAL_POSITION_BASE+10*p+4);
-				}
-				else
-					// Prison break! => catch him
-					guy(p).state |= STATE_IN_PURSUIT;
-				break;
-				game_state &= ~GAME_STATE_STATIC_PIC;
-			}
-			else if (p_event[p].killed)
-				p_event[p].killed = false;
-			else if (p_event[p].escaped)
-			{
-				game_state &= ~GAME_STATE_STATIC_PIC;
-				guy(p).state |= STATE_IN_PURSUIT;
-				p_event[p].escaped = false;
-				if (props[current_nation][ITEM_PAPERS])
-					p_event[p].is_free = true;
-				else
-					p_event[p].to_solitary = true;
-
-			}
-		}
-
-		// Setup the static picture, if any
-		if ((current_iff != NO_PICTURE) && (load_iff() == 0))
 		{
-			glBindTexture(GL_TEXTURE_2D, iff_texid);
-			glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 512, 256, 0, 
-				GL_RGBA, GL_UNSIGNED_SHORT_4_4_4_4_REV, static_image_buffer);
-			// Indicate that we should display a static picture and pause the game;
-			game_state |= GAME_STATE_STATIC_PIC;
-			return;
+			static_screen(REQUIRE_PAPERS, NULL, 0);
+			p_event[current_nation].to_solitary = true;
 		}
+	}
+
+	game_over = 0;
+	// Game over condition
+	for(p=0; p<NB_NATIONS; p++)
+	{
+		if ( (p_event[p].killed) || (p_event[p].escaped) || 
+			 (guy(p).state & STATE_IN_PRISON) )
+			 game_over++;
+	}
+	if (game_over == NB_NATIONS)
+	{
+		static_screen(GAME_OVER_TEXT, NULL, 0);
+		return;
+	}
+
+
+	for(p=0; p<NB_NATIONS; p++)
+	{
+		if ((p_event[p].escaped) || (p_event[p].killed))
+			continue;
+		else if (p_event[p].to_solitary)
+		{	// Sent to jail
+			static_screen(APERTURE_SOFTWARE, go_to_jail, p);
+//			static_screen(TO_SOLITARY, go_to_jail, p);
+			p_event[p].to_solitary = false;
+			// Start solitary countdown
+			p_event[p].solitary_countdown = SOLITARY_DURATION;
+		}
+		else if (p_event[p].require_pass)
+		{
+			static_screen(REQUIRE_PASS, NULL, 0);
+			p_event[p].require_pass = false;
+			if (props[p][ITEM_PASS] != 0)
+			{
+				guy(p).state &= ~STATE_IN_PURSUIT;
+//				selected_prop[p] = ITEM_PASS;		// Doing this is bothersome
+				consume_prop();
+//				show_prop_count();					// Ditto
+				// If pass handling was successful, we reset the guard's route
+				writelong(fbuffer[GUARDS], p_event[p].caught_by*MENDAT_ITEM_SIZE+0x0E, 
+					readlong(fbuffer[GUARDS], p_event[p].caught_by*MENDAT_ITEM_SIZE+0x06));
+				// You got our pass, now get lost (prevents multiple pass requests)
+				guard(p_event[p].caught_by).px = GET_LOST_X;
+				guard(p_event[p].caught_by).p2y = GET_LOST_Y;
+				// This ensures that we'll reinstantiate the guard
+				guard(p_event[p].caught_by).go_on = 0;
+			}
+			else
+				p_event[p].to_solitary = true;
+		}
+		else if (p_event[p].display_shot)
+		{
+			static_screen(PRISONER_SHOT, NULL, 0);
+			p_event[p].display_shot = false;
+			p_event[p].killed = true;
+		}
+		else if (p_event[p].solitary_countdown)
+		{	// Guy's in solitary => decrement counter
+			p_event[p].solitary_countdown--;
+
+			if (guy(p).room == readword(fbuffer[LOADER],SOLITARY_POSITION_BASE+8*p))
+			{	// Still in his cell?
+				if (p_event[p].solitary_countdown == 0)
+				// "Freeeeeeeedom!"
+					static_screen(FROM_SOLITARY, out_of_jail, p);
+			}
+			else
+			{	// Jailbreak!
+				// We'll keep showing the guy behind bars until the guards 
+				// come to release (in which case pursuit mode is activated)
+				if (p_event[p].solitary_countdown == 0)
+					guy(p).state &= ~STATE_IN_PRISON;
+				else
+					guy(p).state |= STATE_IN_PURSUIT;
+			}
+		}
+		else
+		{	// Common motion checks
+
+			// Check if we are authorised in our current pos		
+			if (guy(p).room == ROOM_OUTSIDE)
+				room_desc_id = COURTYARD_MSG_ID;
+			else if (guy(p).room < ROOM_TUNNEL)
+				room_desc_id = readbyte(fbuffer[LOADER], ROOM_DESC_BASE	+ guy(p).room);
+			else
+				room_desc_id = TUNNEL_MSG_ID;
+
+			// Now that we have the room desc ID, we can check if it's in the 
+			// currently authrorized list
+			p_event[p].unauthorized = true;
+			for (i=1; i<=readword(fbuffer[LOADER], authorized_ptr)+1; i++)
+			{
+				authorized_id = readword(fbuffer[LOADER], authorized_ptr+2*i);
+				if (authorized_id == 0xFFFF)
+					// prisoner's quarters
+					authorized_id = readbyte(fbuffer[LOADER], AUTHORIZED_NATION_BASE+p);
+
+				if (authorized_id == room_desc_id)
+				{	// if there's a match, we're allowed here
+					p_event[p].unauthorized = false;
+					// Additional boundary check for courtyard
+					if ( (guy(p).room == ROOM_OUTSIDE) && (
+						 (guy(p).px < COURTYARD_MIN_X) || (guy(p).px > COURTYARD_MAX_X) ||
+						 (guy(p).p2y < (2*COURTYARD_MIN_Y)) || (guy(p).p2y > (2*COURTYARD_MAX_Y)) ) )
+						p_event[p].unauthorized = true;
+					break;
+				}
+			}
+		}
+
 	}
 }
 
@@ -3391,21 +3395,21 @@ void fix_files()
 
 // Open an IFF image file. Modified from LBMVIEW V1.0b 
 // http://www.programmersheaven.com/download/6394/download.aspx
-int load_iff()
+bool load_iff(u8 iff_id)
 {
 	int i, y, bpl, bit_plane;
 	char ch, cmp_type, color_depth;
 	u8 uc, check_flags;
 	u16	w, h;
 	u32 id, len, l;
-	u8  line_buf[5][512/8];	// bytes line buffers (5 bitplanes max, 512 pixels wide)
+	u8  line_buf[8][512/8];	// bytes line buffers (8 bitplanes max, 512 pixels wide)
 
-	if ((fd = fopen (iff_name[current_iff], "rb")) == NULL)
+	if ((fd = fopen (iff_name[iff_id], "rb")) == NULL)
 	{
 		if (opt_verbose)
 			perror ("fopen()");
-		perr("Can't find file '%s'\n", iff_name[current_iff]);
-		return -1;
+		perr("Can't find file '%s'\n", iff_name[iff_id]);
+		return false;
 	}
 
 	// Check for 'FORM' tag
@@ -3413,7 +3417,7 @@ int load_iff()
 	{
 		fclose(fd);
 		perr("IFF_FORM not found\n");
-		return -1;
+		return false;
 	}
 
 	// Skip IFF Form length
@@ -3424,7 +3428,7 @@ int load_iff()
 	{
 		fclose(fd);
 		perr("IFF_ILBM not found\n");
-		return -1;
+		return false;
 	}
 
 	// Check for BitMap Header
@@ -3432,7 +3436,7 @@ int load_iff()
 	{
 		fclose(fd);
 		perr("IFF_BMHD not found\n");
-		return -1;
+		return false;
 	}
 
 	// Check header length
@@ -3440,7 +3444,7 @@ int load_iff()
 	{
 		fclose(fd);
 		perr("Bad IFF header length\n");
-		return -1;
+		return false;
 	}
 
 	// Read width and height
@@ -3449,20 +3453,20 @@ int load_iff()
 	{
 		fclose(fd);
 		perr("IFF width must be lower than 512\n");
-		return -1;
+		return false;
 	}
 	if (w & 0x7)
 	{
 		fclose(fd);
 		perr("IFF width must be a multiple of 8\n");
-		return -1;
+		return false;
 	}
 	h = freadw(fd);
 	if (h > 256)
 	{
 		fclose(fd);
 		perr("IFF height must be lower than 256\n");
-		return -1;
+		return false;
 	}
 
 	// Discard initial x and y pos
@@ -3475,7 +3479,7 @@ int load_iff()
 	{
 		fclose(fd);
 		perr("IFF: Colour depth must be lower than 5\n");
-		return -1;
+		return false;
 	}
 
 	// Skip masking type
@@ -3487,7 +3491,7 @@ int load_iff()
 	{
 		fclose(fd);
 		perr("Unknown IFF compression method\n");
-		return -1;
+		return false;
 	}
 
 	// Skip the bytes we're not interested in
@@ -3556,7 +3560,6 @@ int load_iff()
 						// Uncompressed
 						fread(&line_buf[bit_plane][0], 1, bpl, fd);
 				}
-				
 
 				// OK, now we have our <color_depth> line buffers
 				// Let's recombine those bits, and convert to GRAB from our palette
@@ -3564,6 +3567,10 @@ int load_iff()
 					static_image_buffer+512*y*2, 512, 1, color_depth);
 
 			}
+			// We need to blank the extra padding we have, at least for
+			// the PSP Screen height
+			memset(static_image_buffer+512*h*2, 0, (PSP_SCR_HEIGHT-h)*512*2);
+
 			check_flags |= 2;       // flag "bitmap read" 
 			break;
 
@@ -3578,13 +3585,59 @@ int load_iff()
 	} while ((check_flags != 3) && (!feof(fd)));
 
 	fclose(fd);
+	fd = NULL;
 
 	if (check_flags != 3)
 	{
 		if (check_flags & 2)
 			aligned_free(b);
-		return -1;
+		return false;
 	}
 
-	return 0;
+	// The iff is good => we can set our texture
+	glBindTexture(GL_TEXTURE_2D, picture_texid);
+		glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 512, 512, 0, 
+		GL_RGBA, GL_UNSIGNED_SHORT_4_4_4_4_REV, static_image_buffer);
+
+	// Also don't forget to update the global picture dimension variables
+	picture_w = iff_payload_w[iff_id];
+	picture_h = iff_payload_h[iff_id];
+
+	return true;
+}
+
+bool load_raw_rgb(int w, int h, char* filename)
+{
+
+	if ((fd = fopen (filename, "rb")) == NULL)
+	{
+		if (opt_verbose)
+			perror ("fopen()");
+		perr("Can't find file '%s'\n", filename);
+		return false;
+	}
+
+	if (fread (static_image_buffer, 1, 512*h*3, fd) != (512*h*3))
+	{
+		if (opt_verbose)
+			perror ("fread()");
+		perr("'%s': Unexpected file size or read error\n", filename);
+		return false;
+	}
+
+	fclose (fd);
+	fd = NULL;
+
+	glBindTexture(GL_TEXTURE_2D, picture_texid);
+	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, 512, 512, 0,
+		GL_RGB, GL_UNSIGNED_BYTE, static_image_buffer);
+
+	picture_w = w;
+	picture_h = h;
+
+
+	return true;
+
 }

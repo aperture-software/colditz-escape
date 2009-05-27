@@ -137,8 +137,9 @@ void switch_room(s16 exit, bool tunnel_io);
 void fix_files();
 void set_room_props();
 void timed_events(u16 hours, u16 minutes_high, u16 minutes_low);
-int  load_iff();
-void check_on_prisoners(bool after_pic);
+int  load_iff(u8 iff_id);
+bool load_raw_rgb(int w, int h, char* filename);
+void check_on_prisoners();
 void init_variables();
 
 
