@@ -34,6 +34,7 @@
 #include <GL/gl.h>
 #include <GL/glu.h>
 #include <GL/glut.h>
+#include <pspaudiolib.h>
 #include "psp-setup.h"
 #endif
 
@@ -75,6 +76,7 @@ u8*   mbuffer				= NULL;
 u8*	  rgbCells				= NULL;
 u8*   static_image_buffer   = NULL;
 char* iff_name[NB_IFFS]		= IFF_NAMES;
+char* mod_name[NB_MODS]		= MOD_NAMES;
 u16   iff_payload_w[NB_IFFS] = IFF_PAYLOAD_W;
 u16   iff_payload_h[NB_IFFS] = IFF_PAYLOAD_H;
 char* raw_name[NB_RAWS]		= RAW_NAMES;
@@ -138,13 +140,14 @@ s_cheat_sequence cheat_sequence[NB_CHEAT_SEQUENCES] = {
 #endif
 
 bool init_animations = true;
-bool keep_message_on = false;
+// bool keep_message_on = false;
 bool is_fire_pressed = false;
 s_animation	animations[MAX_ANIMATIONS];
 u8	nb_animations = 0;
 // last time for Animations and rePosition of the guards
 u64 t, last_atime, last_ptime, last_ctime;
-u64 keep_message_mtime_start;
+u64 t_status_message_timeout;
+int	 status_message_priority;
 s_guybrush guybrush[NB_GUYBRUSHES];
 s_event	events[NB_EVENTS];
 u8	props[NB_NATIONS][NB_PROPS];
@@ -405,20 +408,16 @@ static void glut_idle(void)
 					switch(i)
 					{
 					case CHEAT_PROP_BONANZA:
-						keep_message_on = true;
-						keep_message_mtime_start = t;
 						for (j=1; j<NB_PROPS-1; j++)
 							props[current_nation][j] += 10;
 //						status_message = "1234567890123456789012345678";
-						status_message = "    ENJOY YOUR PROPS ;)     ";
+						set_status_message("    ENJOY YOUR PROPS ;)     ", 3, CHEAT_MESSAGE_TIMEOUT);
 						break;
 					case CHEAT_KEYMASTER:
 						opt_keymaster = ~opt_keymaster;
 						break;
 					default:
-						keep_message_on = true;
-						keep_message_mtime_start = t;
-						status_message = "        DIE DIE DIE         ";
+						set_status_message("        DIE DIE DIE         ", 3, CHEAT_MESSAGE_TIMEOUT);
 						break;
 					}
 					printf("CHEAT[%d] activated!\n", i);
@@ -520,12 +519,15 @@ static void glut_idle(void)
 		}
 
 		// Take care of message display
-		if ((keep_message_on) && (t > keep_message_mtime_start + KEEP_MESSAGE_DURATION))
-			keep_message_on = false;
+		if (t > t_status_message_timeout)
+		{
+//			status_message_timeout_start = 0;
+			status_message_priority = 0;
+		}
 
-		// Reset the status message if needed
-		if (!keep_message_on)
-			status_message = NULL;
+//		// Reset the status message if needed
+//		if (!keep_message_on)
+//			status_message = NULL;
 	}
 
 
@@ -552,7 +554,8 @@ static void glut_idle(void)
 				current_nation = (current_nation+(2*i)-1) % NB_NATIONS;
 			prisoner_state &= ~(STATE_MOTION|STATE_ANIMATED|STATE_KNEEL);
 			prisoner_reset_ani = true;
-			keep_message_on = false;
+			t_status_message_timeout = 0;
+			status_message_priority = 0;
 			set_room_props();
 			break;
 		}
@@ -684,8 +687,7 @@ static void glut_idle(void)
 				selected_prop[current_nation] = prop_id;
 				// Display our props count
 				update_props_message(prop_id);
-				keep_message_on = true;
-				keep_message_mtime_start = t;
+				show_prop_count();
 			}
 			else
 				selected_prop[current_nation] = 0;
@@ -1003,6 +1005,7 @@ int main (int argc, char *argv[])
 
 #if defined(PSP)
 	setup_callbacks();
+	pspAudioInit();
 	gl_width = PSP_SCR_WIDTH;
 	gl_height = PSP_SCR_HEIGHT;
 #else
@@ -1195,6 +1198,9 @@ int main (int argc, char *argv[])
 	// bloody joystick callback doesn't work on Windows,
 	// so we have to stuff the movement handling in idle!!!
 	glutIdleFunc(glut_idle);
+
+	init_mod();
+	play_mod(mod_name[0]);
 
 	glutMainLoop();
 

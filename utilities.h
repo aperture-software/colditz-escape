@@ -48,10 +48,6 @@ extern "C" {
 	( ( (guybrush[x].state & STATE_ANIMATED) && (!(guybrush[x].state & STATE_BLOCKED)) ) ?	\
 	get_animation_sid(x, true):get_stop_animation_sid(x, true))
 
-#define request_status_message(msg)	\
-	if ((!keep_message_on) && (!status_message)) status_message = (char*)(msg)
-#define force_status_message(msg)		\
-	keep_message_on = false; status_message = (char*)(msg)
 
 #define safe_nb_animations_increment() {	\
 	if (nb_animations <= (MAX_ANIMATIONS-1))\
@@ -141,7 +137,9 @@ int  load_iff(u8 iff_id);
 bool load_raw_rgb(int w, int h, char* filename);
 void check_on_prisoners();
 void init_variables();
-
+void init_mod();
+void play_mod(char* mod_name);
+void stop_mod();
 
 #ifdef	__cplusplus
 }

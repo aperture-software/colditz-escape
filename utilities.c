@@ -22,6 +22,7 @@
 #include <GL/gl.h>
 #include <GL/glu.h>
 #include <GL/glut.h>
+#include "psp-modplayer.h"
 #endif
 
 #include "colditz.h"
@@ -1119,8 +1120,8 @@ void set_props_overlays()
 			over_prop = u+1;	// 1 indexed
 			over_prop_id = readbyte(fbuffer[OBJECTS],prop_offset+7);
 			// The props message takes precedence
-			force_status_message(fbuffer[LOADER] + readlong(fbuffer[LOADER], 
-				PROPS_MESSAGE_BASE + 4*(over_prop_id-1)));
+			set_status_message(fbuffer[LOADER] + readlong(fbuffer[LOADER], 
+				PROPS_MESSAGE_BASE + 4*(over_prop_id-1)), 1, PROPS_MESSAGE_TIMEOUT);
 //			printf("over_prop = %x, over_prop_id = %x\n", over_prop, over_prop_id);
 		}
 
@@ -1891,18 +1892,18 @@ void display_room()
 	// overlay call, if we want a props message override
 	if (is_outside)
 	{	// Outside
-		request_status_message(fbuffer[LOADER] + readlong(fbuffer[LOADER], MESSAGE_BASE + 
-			4*COURTYARD_MSG_ID));
+		set_status_message(fbuffer[LOADER] + readlong(fbuffer[LOADER], MESSAGE_BASE + 
+			4*COURTYARD_MSG_ID), 0, NO_MESSAGE_TIMEOUT);
 	}
 	else if (current_room_index < ROOM_TUNNEL)
 	{	// Standard room
-		request_status_message(fbuffer[LOADER] + readlong(fbuffer[LOADER], MESSAGE_BASE + 
-			4*(readbyte(fbuffer[LOADER], ROOM_DESC_BASE	+ current_room_index))));
+		set_status_message(fbuffer[LOADER] + readlong(fbuffer[LOADER], MESSAGE_BASE + 
+			4*(readbyte(fbuffer[LOADER], ROOM_DESC_BASE	+ current_room_index))), 0, NO_MESSAGE_TIMEOUT);
 	}
 	else
 	{	// Tunnel
-		request_status_message(fbuffer[LOADER] + readlong(fbuffer[LOADER], MESSAGE_BASE + 
-			4*TUNNEL_MSG_ID));
+		set_status_message(fbuffer[LOADER] + readlong(fbuffer[LOADER], MESSAGE_BASE + 
+			4*TUNNEL_MSG_ID), 0, NO_MESSAGE_TIMEOUT);
 	}
 
 
@@ -2098,6 +2099,11 @@ void display_message(char string[])
 		pos++;
 	}
 }
+
+
+
+
+
 
 
 // Display a static picture (512x256x16 GRAB texture) that was previously
@@ -2857,8 +2863,8 @@ s16 check_footprint(s16 dx, s16 d2y)
 					else
 					{
 						// Display the key grade message
-						force_status_message(fbuffer[LOADER] + readlong(fbuffer[LOADER], EXIT_MESSAGE_BASE + 
-							((exit_flags & 0x60) >> 3)));
+						set_status_message(fbuffer[LOADER] + readlong(fbuffer[LOADER], EXIT_MESSAGE_BASE + 
+							((exit_flags & 0x60) >> 3)), 2, NO_MESSAGE_TIMEOUT);
 						// Return failure if we can't exit
 						return 0;
 					}
@@ -3257,8 +3263,7 @@ void check_on_prisoners()
 			continue;
 		else if (p_event[p].to_solitary)
 		{	// Sent to jail
-			static_screen(APERTURE_SOFTWARE, go_to_jail, p);
-//			static_screen(TO_SOLITARY, go_to_jail, p);
+			static_screen(TO_SOLITARY, go_to_jail, p);
 			p_event[p].to_solitary = false;
 			// Start solitary countdown
 			p_event[p].solitary_countdown = SOLITARY_DURATION;
@@ -3270,9 +3275,9 @@ void check_on_prisoners()
 			if (props[p][ITEM_PASS] != 0)
 			{
 				guy(p).state &= ~STATE_IN_PURSUIT;
-//				selected_prop[p] = ITEM_PASS;		// Doing this is bothersome
-				consume_prop();
-//				show_prop_count();					// Ditto
+//				selected_prop[p] = ITEM_PASS;		// Doing this is bothersome if
+				consume_prop();						// we have to re-cycle in a hurry
+//				show_prop_count();					// let's comment 2 lines out
 				// If pass handling was successful, we reset the guard's route
 				writelong(fbuffer[GUARDS], p_event[p].caught_by*MENDAT_ITEM_SIZE+0x0E, 
 					readlong(fbuffer[GUARDS], p_event[p].caught_by*MENDAT_ITEM_SIZE+0x06));
@@ -3393,7 +3398,7 @@ void fix_files()
 	writeword(fbuffer[OBJECTS],32,0x000E);
 }
 
-// Open an IFF image file. Modified from LBMVIEW V1.0b 
+// Open and texturize an IFF image file. Modified from LBMVIEW V1.0b 
 // http://www.programmersheaven.com/download/6394/download.aspx
 bool load_iff(u8 iff_id)
 {
@@ -3462,10 +3467,10 @@ bool load_iff(u8 iff_id)
 		return false;
 	}
 	h = freadw(fd);
-	if (h > 256)
+	if (h > PSP_SCR_HEIGHT)
 	{
 		fclose(fd);
-		perr("IFF height must be lower than 256\n");
+		perr("IFF height must be lower than %d\n", PSP_SCR_HEIGHT);
 		return false;
 	}
 
@@ -3567,9 +3572,11 @@ bool load_iff(u8 iff_id)
 					static_image_buffer+512*y*2, 512, 1, color_depth);
 
 			}
+
 			// We need to blank the extra padding we have, at least for
 			// the PSP Screen height
-			memset(static_image_buffer+512*h*2, 0, (PSP_SCR_HEIGHT-h)*512*2);
+			if (h < PSP_SCR_HEIGHT)
+				memset(static_image_buffer+512*h*2, 0, (PSP_SCR_HEIGHT-h)*512*2);
 
 			check_flags |= 2;       // flag "bitmap read" 
 			break;
@@ -3607,6 +3614,7 @@ bool load_iff(u8 iff_id)
 	return true;
 }
 
+// Open and texturize an RGB RAW image 
 bool load_raw_rgb(int w, int h, char* filename)
 {
 
@@ -3640,4 +3648,27 @@ bool load_raw_rgb(int w, int h, char* filename)
 
 	return true;
 
+}
+
+void init_mod()
+{
+#if defined (PSP)
+	Mod_Init(1);
+#endif
+}
+
+void play_mod(char* mod_name)
+{
+#if defined (PSP)
+	Mod_Load(mod_name);
+	Mod_Play();
+#endif
+}
+
+void stop_mod()
+{
+#if defined (PSP)
+	Mod_Stop();
+//	Mod_FreeTune();
+#endif
 }

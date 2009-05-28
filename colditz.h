@@ -152,6 +152,9 @@ do {									\
 // Additional Static RGB RAW images. Those images all have a 480x272 PSP dimension
 #define NB_RAWS					1
 #define RAW_NAMES				{ "aperture-software.raw" }
+// Music mods
+#define NB_MODS					1
+#define MOD_NAMES				{ "LOADTUNE.MOD" }
 #define TO_SOLITARY				0
 #define FROM_SOLITARY			1
 #define PRISONER_SHOT			3
@@ -242,8 +245,6 @@ do {									\
 #define MESSAGE_BASE			0x7F12
 #define EXIT_MESSAGE_BASE		MESSAGE_BASE
 #define PROPS_MESSAGE_BASE		(MESSAGE_BASE+16)
-// Time we should keep our inventory messages, in ms
-#define	KEEP_MESSAGE_DURATION	2000
 #define	ROOM_DESC_BASE			0xBCB4
 #define TUNNEL_MSG_ID			0x35
 #define	COURTYARD_MSG_ID		0x36
@@ -328,6 +329,11 @@ do {									\
 #define SOLITARY_DURATION		100000
 // How long should we keep a static picture on, in ms
 #define PICTURE_TIMEOUT			5000
+// Time we should keep our inventory messages, in ms
+#define	PROPS_MESSAGE_TIMEOUT	2000
+#define CHEAT_MESSAGE_TIMEOUT	2000
+#define NO_MESSAGE_TIMEOUT		0
+
 
 // How long should the guard remain blocked (innb of route steps)
 // default of the game is 0x64
@@ -700,7 +706,8 @@ extern u8	nb_room_props;
 extern u16	room_props[NB_OBSBIN];
 extern u8	over_prop, over_prop_id;
 extern u8	panel_chars[NB_PANEL_CHARS][8*8*2];
-extern char*	status_message;
+extern char* status_message;
+extern int	 status_message_priority;
 extern s16 directions[3][3], dir_to_dx[8], dir_to_d2y[8];
 extern u8  hours_digit_h, hours_digit_l, minutes_digit_h, minutes_digit_l;
 extern u8  palette_index;
@@ -716,6 +723,7 @@ extern u16  nb_rooms, nb_cells, nb_objects;
 extern char* fname[NB_FILES];
 extern u32   fsize[NB_FILES];
 extern char* iff_name[NB_IFFS];
+extern char* mod_name[NB_MODS];
 extern u16   iff_payload_w[NB_IFFS];
 extern u16   iff_payload_h[NB_IFFS];
 extern char* raw_name[NB_RAWS];
@@ -745,20 +753,15 @@ extern s16  last_p_x, last_p_y;
 extern s16  dx, d2y;
 extern u8  prisoner_sid;
 
-//extern u16  current_room_index;
 extern s_sprite		*sprite;
 extern s_overlay	*overlay; 
 extern u8   overlay_index;
-
-// Variables used to detect tunnel exits
-//extern u8  tunexit_nr, tunexit_flags, tunnel_tool;
-//extern u32 tunexit_flags_offset;
 
 extern bool init_animations;
 extern bool is_fire_pressed;
 extern char nb_props_message[32];
 extern u64	t;
-extern u64 keep_message_mtime_start;
+extern u64  t_status_message_timeout;
 
 
 extern bool key_down[256], key_readonce[256];
@@ -777,7 +780,17 @@ static __inline bool read_key_once(u8 k)
 
 
 
-// A couple of defines to make prop handling more readable
+// A few defintions to make prop handling and status messages more readable
+static __inline void set_status_message(void* msg, int priority, u64 timeout_duration)	
+{
+	if (priority >= status_message_priority)
+	{
+		t_status_message_timeout = t + timeout_duration;	
+		status_message = (char*)(msg);
+		status_message_priority = priority;
+	}
+}
+
 static __inline void consume_prop()
 {	// we can use an __inline here because we deal with globals
 	if (!opt_keymaster)
@@ -793,20 +806,17 @@ static __inline void consume_prop()
 	nb_props_message[1] = (props[current_nation][prop_id] / 10) + 0x30;				\
 	nb_props_message[2] = (props[current_nation][prop_id] % 10) + 0x30;				\
 	strcpy(nb_props_message+6, (char*) fbuffer[LOADER] + readlong(fbuffer[LOADER],	\
-		PROPS_MESSAGE_BASE + 4*(prop_id-1)) + 1);									\
-	status_message = nb_props_message
+		PROPS_MESSAGE_BASE + 4*(prop_id-1)) + 1);									
 
-#define show_prop_count()													\
-	update_props_message(selected_prop[current_nation]);													\
-	keep_message_on = true;															\
-	keep_message_mtime_start = t													
+#define show_prop_count()															\
+	update_props_message(selected_prop[current_nation]);							\
+	set_status_message(nb_props_message, 1, PROPS_MESSAGE_TIMEOUT)
 
 
 
-extern bool	keep_message_on;
+
 extern s_animation	animations[MAX_ANIMATIONS];
 extern u8	nb_animations;
-//extern u64	last_mtime;
 extern s_guybrush	guybrush[NB_GUYBRUSHES];
 extern s_event		events[NB_EVENTS];
 
