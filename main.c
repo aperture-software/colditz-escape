@@ -35,10 +35,11 @@
 #include <GL/glu.h>
 #include <GL/glut.h>
 #include <pspaudiolib.h>
-#include "psp-setup.h"
+#include "psp/psp-setup.h"
 #endif
 
 #include "getopt.h"	
+#include "data-types.h"
 #include "colditz.h"
 #include "low-level.h"
 #include "utilities.h"

@@ -11,15 +11,15 @@ extern "C" {
 #endif
 
 //  Function prototypes for private functions
-    void Mod_Init(int channel);
-    int Mod_Play();
+    bool Mod_Init();
+    bool Mod_Play();
     void Mod_Pause();
-    int Mod_Stop();
+    bool Mod_Stop();
     void Mod_End();
-    int Mod_Load(char *filename);
+    bool Mod_Load(char *filename);
     void Mod_Tick();
     void Mod_Close();
-    int Mod_EndOfStream();
+    bool Mod_EndOfStream();
 
     void Mod_GetTimeString(char *);
 

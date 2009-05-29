@@ -1,6 +1,6 @@
-// modplayer.c: Module Player Implementation in C for Sony PSP
+// modplayer.c: Module Player Implementation in C for Sony PSP and Windows
 //
-// "PSP ModPlayer v1.0" by adresd
+// based on the PSP SDK "PSP ModPlayer v1.0" by adresd
 //
 // Much of the information in this file (particularly the code used to do 
 // the effects) came from Brett Paterson's MOD Player Tutorial.
@@ -19,24 +19,38 @@
 //                   -- adresd
 ////////////////////////////////////////////////////////////////////////////
 
+
 #if defined(PSP)
 #include <pspkernel.h>
-#include <pspdebug.h>
+#include <pspaudiolib.h>
+#endif
+
+#if defined(WIN32)
+#define _WIN32_DCOM
+#define _CRT_SECURE_NO_WARNINGS 1 
+#pragma warning(disable:4995)
+#include <windows.h>
+// If you don't include that "£$%^&^%$ thing before xaudio2.h, you'll get
+// error LNK2001: unresolved external symbol _CLSID_XAudio2
+#include <initguid.h>
+#include <xaudio2.h>
+#include <strsafe.h>
+#include <shellapi.h>
+#include <mmsystem.h>
+#include <conio.h>
+#include "win32/winXAudio2.h"
+#endif
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-#include <pspaudiolib.h>
-#include "psp-modplayer.h"
-#include "psp-modplayeri.h"
-#include "psp-modtables.h"
+#include "data-types.h"
+#include "modplayer.h"
+#include "modplayeri.h"
+#include "modtables.h"
 
-#define FALSE 0
-#define TRUE !FALSE
-#define min(a,b) (((a)<(b))?(a):(b))
-#define max(a,b) (((a)>(b))?(a):(b))
+//#include "SDKwavefile.h"
 
-/* Define printf, just to make typing easier */
-#define printf  pspDebugScreenPrintf
 
 // As a sample is being mixed into the buffer it's position pointer is updated.
 // The position pointer is a 32-bit integer that is used to store a fixed-point
@@ -55,16 +69,18 @@
 // Function Prototypes
 //////////////////////////////////////////////////////////////////////
 static void SetMasterVolume(int volume);
-static int ReadModWord(unsigned char *data, int index);
+static int  ReadModWord(unsigned char *data, int index);
 static void DoTremalo(int track);
 static void DoVibrato(int track);
 static void DoPorta(int track);
 static void SlideVolume(int track, int amount);
-static int VolumeTable[65][256];
+static int  VolumeTable[65][256];
 static void UpdateEffects();
 static void UpdateRow();
-static int MixChunk(int numsamples, short *buffer);
-static int MixSubChunk(short *buffer, int numsamples);
+static bool MixChunk(int numsamples, short *buffer);
+static bool MixSubChunk(short *buffer, int numsamples);
+static void ModPlayCallback(void *_buf2, unsigned int length, void *pdata);
+
 
 //////////////////////////////////////////////////////////////////////
 // Global local variables
@@ -97,20 +113,66 @@ static int m_nNumTracks;	// Number of tracks in this mod
 static int m_TrackDat_num;
 static TrackData *m_TrackDat;	// Stores info for each track being played
 static RowData *m_CurrentRow;	// Pointer to the current row being played
-static int m_bPlaying;		// Set to true when a mod is being played
+static bool m_bPlaying;		// Set to true when a mod is being played
 static u8 *data;
 int size = 0;
+
+
+/*
+//////////////////////////////////////////////////////////////////////
+// Windows specific
+//////////////////////////////////////////////////////////////////////
+#if defined(WIN32)
+//#define BUFFER_SIZE 65536
+//#define NB_BUFFERS 2
+// We'll use double simple double buffering to fill our MOD data
+static bool even_buffer = true;
+short  _buf_data[NB_BUFFERS*BUFFER_SIZE*2];
+short* buf_data[NB_BUFFERS] = {_buf_data, _buf_data+2*BUFFER_SIZE};
+XAUDIO2_BUFFER buffer[NB_BUFFERS];
+IXAudio2* pXAudio2 = NULL;
+IXAudio2MasteringVoice* pMasteringVoice = NULL;
+IXAudio2SourceVoice* pSourceVoice;
+
+class VoiceCallback : public IXAudio2VoiceCallback
+{
+public:
+	//Called when the voice starts playing a new buffer
+	STDMETHOD_(void, OnBufferStart) (THIS_ void* pBufferContext) 
+	{ 
+		// update the next buffer we'll submit
+		int buffer_to_fill = even_buffer?1:0;
+//		printf("OnBufferStart, to_fill %d\n", buffer_to_fill);
+		ModPlayCallback(buf_data[buffer_to_fill], BUFFER_SIZE/2, NULL);
+		pSourceVoice->SubmitSourceBuffer( &(buffer[buffer_to_fill]) ); 
+		even_buffer = !even_buffer;
+	}
+
+    //Unused methods are stubs
+	STDMETHOD_(void, OnStreamEnd)() { }; 
+	STDMETHOD_(void, OnVoiceProcessingPassEnd)() { }
+    STDMETHOD_(void, OnVoiceProcessingPassStart)(UINT32 SamplesRequired) {    }
+    STDMETHOD_(void, OnBufferEnd)(void * pBufferContext)    { }
+    STDMETHOD_(void, OnLoopEnd)(void * pBufferContext) {    }
+    STDMETHOD_(void, OnVoiceError)(void * pBufferContext, HRESULT Error) { }
+};
+
+// Create the source voice callbacks
+static	VoiceCallback voiceCallback;
+
+#endif
+*/
+
+
+
 //////////////////////////////////////////////////////////////////////
 // These are the public functions
 //////////////////////////////////////////////////////////////////////
 static int modplayint_channel;
 
-/* Define printf, just to make typing easier */
-#define printf  pspDebugScreenPrintf
-
-int Mod_EndOfStream()
+bool Mod_EndOfStream()
 {
-    return 0;
+    return false;
 }
 
 void Mod_GetTimeString(char *dest)
@@ -120,47 +182,136 @@ void Mod_GetTimeString(char *dest)
     sprintf(dest, "%02d:%02d:%02d", m_nOrder, m_nRow, m_nTick);
 }
 
-void Mod_DebugPrint()
-{
-    int count;
-    int x, y;
-    printf("\nName : %s\n", m_szName);
-    printf("Num Tracks : %d\n", m_nNumTracks);
-    printf("Num Samples: %d\n\n", m_Samples_num);
-
-    x = pspDebugScreenGetX();
-    y = pspDebugScreenGetY();
-    for (count = 1; count < m_Samples_num; count++) {
-        if (count == (m_Samples_num / 2)) {
-            x += 30;
-            y -= count;
-        }
-        pspDebugScreenSetXY(x, y + count);
-        printf("  %02d - %s", count, m_Samples[count].szName);
-    }
-}
-
+//fillOutputBuffer(void* buffer, unsigned int samplesToWrite, void* userData)
 static void ModPlayCallback(void *_buf2, unsigned int length, void *pdata)
 {
   short *_buf = (short *)_buf2;
-    if (m_bPlaying == TRUE) {	//  Playing , so mix up a buffer
+    if (m_bPlaying == true) {	//  Playing , so mix up a buffer
         MixChunk(length, _buf);
     } else {			//  Not Playing , so clear buffer
         {
-            int count;
+            unsigned int count;
             for (count = 0; count < length * 2; count++)
                 *(_buf + count) = 0;
         }
     }
 }
 
-
-void Mod_Init(int channel)
+bool Mod_Init()
 {
-    modplayint_channel = channel;
-    m_bPlaying = FALSE;
-    pspAudioSetChannelCallback(modplayint_channel, ModPlayCallback,0);
-    //Mod_Load("",data);
+    m_bPlaying = false;
+#if defined(PSP)
+    pspAudioSetChannelCallback(1, ModPlayCallback,0);
+#endif
+#if defined(WIN32)
+	if (!winXAudio2SetVoiceCallback(1, ModPlayCallback,0))
+		return false;
+#endif
+#if defined(YARGL)
+	HRESULT hr = S_OK;
+	//	winX2AudioSetChannelCallback(1, 
+
+	// Get a handle to the XAudio engine
+	CoInitializeEx( NULL, COINIT_MULTITHREADED );
+    if( FAILED( XAudio2Create(&pXAudio2, 0) ) )
+    {
+        printf( "Failed to init XAudio2 engine\n" );
+        CoUninitialize();
+        return false;
+    }
+
+	// Create the master voice
+    pMasteringVoice = NULL;
+    if( FAILED( pXAudio2->CreateMasteringVoice( &pMasteringVoice ) ) )
+    {
+        printf( "Failed creating mastering voice\n" );
+        SAFE_RELEASE( pXAudio2 );
+        CoUninitialize();
+        return false;
+    }
+
+    // Set the format of the source voice
+	WAVEFORMATEX* pwfx = ( WAVEFORMATEX* )new CHAR[ sizeof( WAVEFORMATEX ) ];
+	pwfx->wFormatTag = WAVE_FORMAT_PCM;
+	pwfx->wBitsPerSample = 16;
+	pwfx->cbSize = 0;
+	pwfx->nChannels = NUMCHANNELS;
+	pwfx->nSamplesPerSec = PLAYBACK_FREQ;
+	pwfx->nBlockAlign = pwfx->wBitsPerSample * pwfx->nChannels / 8;
+	pwfx->nAvgBytesPerSec = pwfx->nSamplesPerSec * pwfx->nBlockAlign;
+
+/*
+/// DEBUG
+    WCHAR strFilePath[MAX_PATH];
+    if( FAILED( hr = FindMediaFileCch( strFilePath, MAX_PATH, L"LOADTUNE.WAV" ) ) )
+    {
+        wprintf( L"Failed to find media file\n" );
+        return hr;
+    }
+
+    //
+    // Read in the wave file
+    //
+    CWaveFile wav;
+    if( FAILED( hr = wav.Open( strFilePath, NULL, WAVEFILE_READ ) ) )
+    {
+        wprintf( L"Failed reading WAV file: %#X (%s)\n", hr, strFilePath );
+        return hr;
+    }
+
+    // Get format of wave file
+    WAVEFORMATEX* pwfx = wav.GetFormat();
+
+    // Calculate how many bytes and samples are in the wave
+    DWORD cbWaveSize = wav.GetSize();
+
+    // Read the sample data into memory
+    BYTE* pbWaveData = new BYTE[ cbWaveSize ];
+
+    if( FAILED( hr = wav.Read( pbWaveData, cbWaveSize, &cbWaveSize ) ) )
+    {
+        wprintf( L"Failed to read WAV data: %#X\n", hr );
+        SAFE_DELETE_ARRAY( pbWaveData );
+        return hr;
+    }
+/// end of debug
+
+*/
+
+	// Create the source voice and set it to have buffer callback
+    if( FAILED( hr = pXAudio2->CreateSourceVoice( &pSourceVoice, pwfx,
+		0, XAUDIO2_DEFAULT_FREQ_RATIO, &voiceCallback, NULL, NULL) ) )
+    {
+        printf( "Error %X creating source voice\n", hr );
+        return false;
+    }
+
+	// Initialize our Xaudio2 buffer structures
+	buffer[0].pAudioData = (BYTE*) buf_data[0];
+	buffer[0].AudioBytes = 2*BUFFER_SIZE;
+	buffer[1].pAudioData = (BYTE*) buf_data[1];
+	buffer[1].AudioBytes = 2*BUFFER_SIZE;
+
+/*
+    // Submit the wave sample data using an XAUDIO2_BUFFER structure
+    XAUDIO2_BUFFER buffer = {0};
+
+    buffer.pAudioData = pbWaveData;
+    buffer.Flags = XAUDIO2_END_OF_STREAM;  // tell the source voice not to expect any data after this buffer
+    buffer.AudioBytes = cbWaveSize;
+
+    if( FAILED( pSourceVoice->SubmitSourceBuffer( &buffer ) ) )
+    {
+        printf( "Error submitting source buffer\n" );
+        pSourceVoice->DestroyVoice();
+        SAFE_DELETE_ARRAY( pbWaveData );
+        return false;
+    }
+
+*/
+
+#endif
+	return true;
 }
 
 
@@ -194,7 +345,12 @@ void Mod_FreeTune()
 void Mod_End()
 {
     Mod_Stop();
+#if defined(PSP)
     pspAudioSetChannelCallback(modplayint_channel, 0,0);
+#endif
+#if defined(WIN32)
+	winXAudio2Release();
+#endif
     Mod_FreeTune();
 }
 
@@ -210,30 +366,33 @@ void Mod_End()
 //
 //  It basically loads into an internal format, so once this function
 //  has returned the buffer at 'data' will not be needed again.
-int Mod_Load(char *filename)
+bool Mod_Load(char *filename)
 {
     int i, numpatterns, row, note;
     int index = 0;
     int numsamples;
     char modname[21];
-    int fd;
-    if ((fd = sceIoOpen(filename, PSP_O_RDONLY, 0777)) > 0) {
+    FILE* fd;
+
+	if ((fd = fopen (filename, "rb")) != NULL) {
         //  opened file, so get size now
-        size = sceIoLseek(fd, 0, PSP_SEEK_END);
-        sceIoLseek(fd, 0, PSP_SEEK_SET);
+        fseek(fd, 0, SEEK_END);
+		size = ftell(fd);
+		fseek(fd, 0, SEEK_SET);
         data = (unsigned char *) malloc(size + 8);
         memset(data, 0, size + 8);
         if (data != 0) {	// Read file in
-            sceIoRead(fd, data, size);
+			fread(data, 1, size, fd);
         } else {
             printf("Error allocing\n");
-            sceIoClose(fd);
-            return 0;
+			fclose(fd);
+            return false;
         }
         // Close file
-        sceIoClose(fd);
+		fclose(fd);
     } else {			//if we couldn't open the file
-        return 0;
+		printf("no file\n");
+        return false;
     }
 
     BPM_RATE = 130;
@@ -265,6 +424,9 @@ int Mod_Load(char *filename)
     // Read in all the instrument headers - mod files have 31, sample #0 is ignored
     m_Samples_num = numsamples;
     m_Samples = (Sample *) malloc(m_Samples_num * sizeof(Sample));
+	// BUGFIX: If you don't memset the first Sample to 0, 
+	// all kind of bad things can happen on Win32!!!
+	memset(m_Samples, 0, sizeof(Sample));
     for (i = 1; i < numsamples; i++) {
         // Read the sample name
         char samplename[23];
@@ -354,6 +516,7 @@ int Mod_Load(char *filename)
         int length;
         m_Samples[i].data_length = m_Samples[i].nLength;
         m_Samples[i].data = (char *) malloc(m_Samples[i].data_length + 1);
+		memset(m_Samples[i].data, 0, m_Samples[i].data_length + 1);
 
         if (m_Samples[i].nLength) {
             memcpy(&m_Samples[i].data[0], &data[index], m_Samples[i].nLength);
@@ -371,17 +534,18 @@ int Mod_Load(char *filename)
     }
     //  Set volume to full ready to play
     SetMasterVolume(64);
-    m_bPlaying = FALSE;
-    return 1;
+    m_bPlaying = false;
+
+    return true;
 }
 
 // This function initialises for playing, and starts
-int Mod_Play()
+bool Mod_Play()
 {
     int track;
     // See if I'm already playing
     if (m_bPlaying)
-        return FALSE;
+        return false;
 
     // Reset all track data
     for (track = 0; track < m_nNumTracks; track++) {
@@ -412,13 +576,20 @@ int Mod_Play()
     m_CurrentRow = &m_Patterns[m_nOrders[m_nOrder]].row[m_nRow];
     m_nTick = 0;
 
-    Mod_DebugPrint();
-    {
-        m_bPlaying = TRUE;
-        return TRUE;
-    }
-    // Oops...something went wrong.
-    return FALSE;
+
+	m_bPlaying = true;
+
+#if defined(WIN32)
+	winXAudio2Start();
+	// Fill in the first buffer
+//	ModPlayCallback(buf_data[0], BUFFER_SIZE/2, NULL);
+	// Submit it
+//	pSourceVoice->SubmitSourceBuffer( &(buffer[0]) );
+	// And play!
+//    pSourceVoice->Start();
+#endif
+
+	return true;
 }
 
 void Mod_Pause()
@@ -426,16 +597,19 @@ void Mod_Pause()
     m_bPlaying = !m_bPlaying;
 }
 
-int Mod_Stop()
+bool Mod_Stop()
 {
     // Close it
-    m_bPlaying = FALSE;
-    return TRUE;
+    m_bPlaying = false;
+#if defined(WIN32)
+	winXAudio2Stop();
+#endif
+    return true;
 }
 
 // This function mixes an entire chunk of sound which is then 
 // to be sent to the sound driver, in this case the IOP module.
-static int MixChunk(int numsamples, short *buffer)
+static bool MixChunk(int numsamples, short *buffer)
 {
     // Calculate the number of samples per beat
     //  48000 / (125 * 2 / 5) = 48000/ 50 = 960
@@ -492,7 +666,7 @@ static int MixChunk(int numsamples, short *buffer)
         MixSubChunk(&buffer[tickdata * 2], thiscount);
         tickdata += thiscount;
     }
-    return TRUE;
+    return true;
 }
 
 // This function is called whenever a new row is encountered. 
@@ -570,7 +744,7 @@ static void UpdateRow()
             // Porta to Note (3) and Porta + Vol Slide (5)
         case 0x03:
         case 0x05:
-            m_TrackDat[track].porta = PeriodTable[m_TrackDat[track].period_index + m_Samples[sample].nFineTune];
+			m_TrackDat[track].porta = PeriodTable[m_TrackDat[track].period_index + m_Samples[sample].nFineTune];
             if (eparm > 0 && effect == 0x3)
                 m_TrackDat[track].portasp = eparm;
             break;
@@ -740,7 +914,7 @@ static void UpdateRow()
     m_nOrder = neworder;
 }
 
-static int MixSubChunk(short *buffer, int numsamples)
+static bool MixSubChunk(short *buffer, int numsamples)
 {
     int i, track;
     // Setup left and right channels
@@ -830,7 +1004,7 @@ static int MixSubChunk(short *buffer, int numsamples)
         }
     }
 
-    return TRUE;
+    return true;
 }
 
 static void UpdateEffects()
@@ -1049,4 +1223,3 @@ static int ReadModWord(unsigned char *data, int index)
     int byte2 = (int) (unsigned char) *(data + index + 1);
     return ((byte1 * 256) + byte2) * 2;
 }
-#endif

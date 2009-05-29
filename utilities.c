@@ -22,12 +22,13 @@
 #include <GL/gl.h>
 #include <GL/glu.h>
 #include <GL/glut.h>
-#include "psp-modplayer.h"
 #endif
 
+#include "data-types.h"
 #include "colditz.h"
 #include "utilities.h"
 #include "low-level.h"
+#include "modplayer.h"
 
 
 /* Whatever you do, you don't want local variables holding textures */
@@ -3652,23 +3653,17 @@ bool load_raw_rgb(int w, int h, char* filename)
 
 void init_mod()
 {
-#if defined (PSP)
-	Mod_Init(1);
-#endif
+	Mod_Init();
 }
 
 void play_mod(char* mod_name)
 {
-#if defined (PSP)
 	Mod_Load(mod_name);
 	Mod_Play();
-#endif
 }
 
 void stop_mod()
 {
-#if defined (PSP)
 	Mod_Stop();
 //	Mod_FreeTune();
-#endif
 }

@@ -10,30 +10,6 @@ extern "C" {
 #pragma warning(disable:4996)
 #endif
 
-// On the PSP, these are defined in psp-types.h
-#if !defined(PSP)
-#ifndef u8
-#define u8 unsigned char
-#endif
-#ifndef u16
-#define u16 unsigned short
-#endif
-#ifndef s16
-#define s16 short
-#endif
-#ifndef u32
-#define u32 unsigned long
-#endif
-#ifndef s32
-#define s32 long
-#endif
-#ifndef u64
-#define u64 unsigned long long
-#endif
-#ifndef uint
-#define uint unsigned int
-#endif
-#endif 
 
 
 // Define our msleep function
@@ -85,17 +61,6 @@ static __inline u64 mtime(void)
 #define perrv(...)		if(opt_verbose) perr(__VA_ARGS__)
 #define printb(...)		if(opt_debug) print(__VA_ARGS__)
 #define perrb(...)		if(opt_debug) perr(__VA_ARGS__)
-
-#if !defined(bool)
-#define bool int
-#endif
-#if !defined(true)
-#define true (-1)
-#endif
-#if !defined(false)
-#define false (0)
-#endif
-
 
 
 #define GLCHK(x)						\
