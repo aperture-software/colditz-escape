@@ -137,9 +137,8 @@ int  load_iff(u8 iff_id);
 bool load_raw_rgb(int w, int h, char* filename);
 void check_on_prisoners();
 void init_variables();
-void init_mod();
-void play_mod(char* mod_name);
-void stop_mod();
+void play_sfx(int sfx_id);
+void depack_loadtune();
 
 #ifdef	__cplusplus
 }

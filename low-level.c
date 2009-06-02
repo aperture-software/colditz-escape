@@ -4,6 +4,7 @@
  **  Low level helper functions (byte/bit manipulation, etc.)
  **
  **  Aligned malloc code from Satya Kiran Popuri (http://www.cs.uic.edu/~spopuri/amalloc.html)
+ **  PowerPacker unpack code from ppdepack by Marc Espie 
  **
  **/
 
@@ -12,47 +13,17 @@
 #include <string.h>
 #include "data-types.h"
 #include "colditz.h"
+#include "low-level.h"
 
 // Some global variables
 int  underflow_flag = 0;
 u32	compressed_size, checksum;
 
-// The handy ones, in big endian mode
-u32 readlong(u8* buffer, u32 addr)
-{
-	return ((((u32)buffer[addr+0])<<24) + (((u32)buffer[addr+1])<<16) +
-		(((u32)buffer[addr+2])<<8) + ((u32)buffer[addr+3]));
-}
+// For ppdepack
+u32 shift_in;
+u32 counter = 0;
+u8 *source;
 
-void writelong(u8* buffer, u32 addr, u32 value)
-{
-	buffer[addr]   = (u8)(value>>24);
-	buffer[addr+1] = (u8)(value>>16);
-	buffer[addr+2] = (u8)(value>>8);
-	buffer[addr+3] = (u8)value;
-}
-
-u16 readword(u8* buffer, u32 addr)
-{
-	return ((((u16)buffer[addr+0])<<8) + ((u16)buffer[addr+1]));
-}
-
-void writeword(u8* buffer, u32 addr, u16 value)
-{
-	buffer[addr]   = (u8)(value>>8);
-	buffer[addr+1] = (u8)value;
-}
-
-
-u8 readbyte(u8* buffer, u32 addr)
-{
-	return buffer[addr];
-}
-
-void writebyte(u8* buffer, u32 addr, u8 value)
-{
-	buffer[addr] = value;
-}
 
 // dammit %b should be a standard!
 // converts a 32 bit to string
@@ -355,4 +326,92 @@ void aligned_free(void *ptr)
         free(malloc_ptr);
 }
 
+u32 get_bits(u32 n)
+{
+	u32 result = 0;
+	u32 i;
 
+	for (i = 0; i < n; i++)
+	{
+		if (counter == 0)
+		{
+			counter = 8;
+			shift_in = *--source;
+		}
+		result = (result<<1) | (shift_in & 1);
+		shift_in >>= 1;
+		counter--;
+	}
+	return result;
+}
+
+
+void ppdepack(u8 *packed, u8 *depacked, u32 plen, u32 unplen)
+{
+	u8 *dest;
+	int n_bits;
+	int idx;
+	u32 bytes;
+	int to_add;
+	u32 offset;
+	u8 offset_sizes[4];
+	u32 i;
+
+	offset_sizes[0] = packed[4];	/* skip signature */
+	offset_sizes[1] = packed[5];
+	offset_sizes[2] = packed[6];
+	offset_sizes[3] = packed[7];	
+
+	/* initialize source of bits */
+	source = packed + plen - 4;
+
+	dest = depacked + unplen;
+
+	/* skip bits */
+	get_bits(source[3]);
+
+	/* do it forever, i.e., while the whole file isn't unpacked */
+	while (1)
+	{
+		/* copy some bytes from the source anyway */
+		if (get_bits(1) == 0)
+		{
+			bytes = 0;
+			do {
+				to_add = get_bits(2);
+				bytes += to_add;
+			} while (to_add == 3);
+			for (i = 0; i <= bytes; i++)
+				*--dest = (u8)get_bits(8);
+			if (dest <= depacked)
+				return;
+		}
+		/* decode what to copy from the destination file */
+		idx = get_bits(2);
+		n_bits = offset_sizes[idx];
+		/* bytes to copy */
+		bytes = idx+1;
+		if (bytes == 4)	/* 4 means >=4 */
+		{
+			/* and maybe a bigger offset */
+			if (get_bits(1) == 0)
+				offset = get_bits(7);
+			else
+				offset = get_bits(n_bits);
+
+			do {
+				to_add = get_bits(3);
+				bytes += to_add;
+			} while (to_add == 7);
+		}
+		else
+			offset = get_bits(n_bits);
+		for (i = 0; i <= bytes; i++)
+		{
+			dest[-1] = dest[offset];
+			dest--;
+		}
+		if (dest <= depacked)
+			return;
+	}
+}

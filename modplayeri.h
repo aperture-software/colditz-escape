@@ -12,13 +12,6 @@
 extern "C" {
 #endif
 
-// These next few lines determine how the sound will be mixed. 
-// Set PLAYBACK_FREQ to whatever you want. 
-#define PLAYBACK_FREQ 44100
-
-// OVERSAMPLE can be commented out to disable that function 
-// (takes up less CPU time, but doesnt sound as good). 
-#define OVERSAMPLE
 
 // The NoteData structure stores the information for a single note and/or effect.
     typedef struct {

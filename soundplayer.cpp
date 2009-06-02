@@ -1,27 +1,14 @@
-// modplayer.c: Module Player Implementation in C for Sony PSP and Windows
+// soundplayer.c: SFX and MOD Player Implementation in C for Sony PSP and Windows
 //
-// based on the PSP SDK "PSP ModPlayer v1.0" by adresd
+// Copied almost 100% from PSP SDK's "PSP ModPlayer v1.0" by adresd
+// (http://svn.pspdev.org/listing.php?repname=pspware&path=%2Ftrunk%2FPSPMediaCenter%2Fcodec%2Fmod%2F&rev=0&sc=0)
 //
-// Much of the information in this file (particularly the code used to do 
-// the effects) came from Brett Paterson's MOD Player Tutorial.
-// Also contains some code by Mark Feldman, which is not subject to a license
-// of any kind.
-//
-// This is not the most efficient bit of code in the world and there are a lot
-// of optimisations that could be done, but it is released as a working 
-// modplayer for PSP which can be used and expanded upon by others.
-// I would ask that anyone who expands or improves it considers releasing
-// an updated version of the source, as a courtesy.
-//
-// This code is released with no implied warranty or assurance that it works
-// it is not subject to any GPL or suchlike license, so use and enjoy.
-//
-//                   -- adresd
 ////////////////////////////////////////////////////////////////////////////
 
 
 #if defined(PSP)
 #include <pspkernel.h>
+#include <pspaudio.h>
 #include <pspaudiolib.h>
 #endif
 
@@ -30,7 +17,7 @@
 #define _CRT_SECURE_NO_WARNINGS 1 
 #pragma warning(disable:4995)
 #include <windows.h>
-// If you don't include that "£$%^&^%$ thing before xaudio2.h, you'll get
+// If you don't include initguid.h before xaudio2.h, you'll get
 // error LNK2001: unresolved external symbol _CLSID_XAudio2
 #include <initguid.h>
 #include <xaudio2.h>
@@ -45,25 +32,24 @@
 #include <stdio.h>
 #include <string.h>
 #include "data-types.h"
-#include "modplayer.h"
+#include "low-level.h"
+#include "soundplayer.h"
 #include "modplayeri.h"
 #include "modtables.h"
 
-//#include "SDKwavefile.h"
 
 
-// As a sample is being mixed into the buffer it's position pointer is updated.
+// As a sample is being mixed into the buffer its position pointer is updated.
 // The position pointer is a 32-bit integer that is used to store a fixed-point
 // number. The following constant specifies how many of the bits should be used
 // for the fractional part.
 #define FRAC_BITS 10
 
-#define NUMCHANNELS 2
+// MAximum number of channels we'll handle
+#define NB_CHANNELS	4
 
-// This #define is used to convert an Amiga period number to a frequency. 
-// The freqency returned is the frequency that the sample should be played at.
-//  3579545.25f / 428 = 8363.423 Hz for Middle C (PAL)
-#define Period2Freq(period) (3579545.25f / (period))
+#define AMIGA_VOLUME_MAX 64
+
 
 //////////////////////////////////////////////////////////////////////
 // Function Prototypes
@@ -118,69 +104,88 @@ static u8 *data;
 int size = 0;
 
 
-/*
-//////////////////////////////////////////////////////////////////////
-// Windows specific
-//////////////////////////////////////////////////////////////////////
-#if defined(WIN32)
-//#define BUFFER_SIZE 65536
-//#define NB_BUFFERS 2
-// We'll use double simple double buffering to fill our MOD data
-static bool even_buffer = true;
-short  _buf_data[NB_BUFFERS*BUFFER_SIZE*2];
-short* buf_data[NB_BUFFERS] = {_buf_data, _buf_data+2*BUFFER_SIZE};
-XAUDIO2_BUFFER buffer[NB_BUFFERS];
-IXAudio2* pXAudio2 = NULL;
-IXAudio2MasteringVoice* pMasteringVoice = NULL;
-IXAudio2SourceVoice* pSourceVoice;
-
-class VoiceCallback : public IXAudio2VoiceCallback
-{
-public:
-	//Called when the voice starts playing a new buffer
-	STDMETHOD_(void, OnBufferStart) (THIS_ void* pBufferContext) 
-	{ 
-		// update the next buffer we'll submit
-		int buffer_to_fill = even_buffer?1:0;
-//		printf("OnBufferStart, to_fill %d\n", buffer_to_fill);
-		ModPlayCallback(buf_data[buffer_to_fill], BUFFER_SIZE/2, NULL);
-		pSourceVoice->SubmitSourceBuffer( &(buffer[buffer_to_fill]) ); 
-		even_buffer = !even_buffer;
-	}
-
-    //Unused methods are stubs
-	STDMETHOD_(void, OnStreamEnd)() { }; 
-	STDMETHOD_(void, OnVoiceProcessingPassEnd)() { }
-    STDMETHOD_(void, OnVoiceProcessingPassStart)(UINT32 SamplesRequired) {    }
-    STDMETHOD_(void, OnBufferEnd)(void * pBufferContext)    { }
-    STDMETHOD_(void, OnLoopEnd)(void * pBufferContext) {    }
-    STDMETHOD_(void, OnVoiceError)(void * pBufferContext, HRESULT Error) { }
-};
-
-// Create the source voice callbacks
-static	VoiceCallback voiceCallback;
-
-#endif
-*/
-
-
 
 //////////////////////////////////////////////////////////////////////
 // These are the public functions
 //////////////////////////////////////////////////////////////////////
-static int modplayint_channel;
+// This could be used to set a different channel/voice for mod playout
+static int mod_channel = 0;
+static int sfx_channel = 0;
 
-bool Mod_EndOfStream()
+// Play a MONO sound sample. channel = -1 => autoallocated 
+bool play_sample(int channel, unsigned int volume, void *address, unsigned int length, unsigned int frequency, unsigned int bits_per_sample)
 {
-    return false;
+	int play_channel;
+	if (channel == -1)
+	{
+		play_channel = sfx_channel;
+		sfx_channel = (sfx_channel+1)%NB_CHANNELS;
+	}
+	else
+		play_channel = channel;
+
+#if defined(PSP)
+	if (frequency != PLAYBACK_FREQ)
+	{
+		printf("play_sfx: frequency must be %d for PSP SFX\n", PLAYBACK_FREQ);
+		return false;
+	}
+	if (bits_per_sample != 16)
+	{
+		printf("play_sfx: samples must be 16 bit for PSP SFX\n");
+		return false;
+	}
+	// Release channel if needed
+	sceAudioChRelease(play_channel);
+	sceAudioChReserve(play_channel, length, PSP_AUDIO_FORMAT_MONO);
+	sceAudioOutput(play_channel, PSP_AUDIO_VOLUME_MAX, address);
+	sceAudioChangeChannelVolume(play_channel, volume * PSP_VOLUME_MAX/AMIGA_VOLUME_MAX, volume * PSP_VOLUME_MAX/AMIGA_VOLUME_MAX);
+
+#endif
+#if defined(WIN32)
+	winXAudio2ReleaseVoice(play_channel);
+	// Our SFXs are always mono
+	winXAudio2SetVoice(play_channel, (BYTE*) address, length, frequency, bits_per_sample, false);
+	winXAudio2SetVoiceVolume(play_channel, (float) volume/AMIGA_VOLUME_MAX);
+	winXAudio2StartVoice(play_channel);
+#endif
+	return true;
 }
 
-void Mod_GetTimeString(char *dest)
+
+#if defined(PSP)
+// This upconverts an 8 bit PCM file @ any frequency to 16 bit/PLAYBACK_FREQ  
+void psp_upsample(short **upconverted_address, unsigned long *upconverted_length, char *src_sample, 
+				  unsigned long src_numsamples, unsigned short src_frequency)
 {
-    *dest = '\0';
-    //HH:MM:SS
-    sprintf(dest, "%02d:%02d:%02d", m_nOrder, m_nRow, m_nTick);
+	int src_fracpos = 0;
+	int dst_pos = 0;
+	int delta_pos = (int) (src_frequency * (1 << FRAC_BITS) / PLAYBACK_FREQ);
+	int src_fraclength = src_numsamples << FRAC_BITS;
+	int dst_length = (src_fraclength - 1) / delta_pos + 1;
+	int dst_length_aligned = PSP_AUDIO_SAMPLE_ALIGN(dst_length);
+	short* dst_sample = (short*) aligned_malloc(2*dst_length_aligned, 64);
+
+	for (dst_pos = 0; dst_pos < dst_length; dst_pos++) 
+	{
+		// Mix this sample in and update our position
+	#ifdef OVERSAMPLE
+		int sample1 = src_sample[src_fracpos >> FRAC_BITS] << 8;
+		int sample2 = src_sample[(src_fracpos >> FRAC_BITS) + 1] << 8;
+		int frac1 = src_fracpos & ((1 << FRAC_BITS) - 1);
+		int frac2 = (1 << FRAC_BITS) - frac1;
+		dst_sample[dst_pos] = ((sample1 * frac2) + (sample2 * frac1)) >> FRAC_BITS;
+	#else
+		dst_sample[dst_pos] = (src_sample[src_fracpos >> FRAC_BITS]) << 8;
+	#endif
+		src_fracpos += delta_pos;
+	}
+
+	*upconverted_address = dst_sample;
+	*upconverted_length = dst_length_aligned;
 }
+#endif
+
 
 //fillOutputBuffer(void* buffer, unsigned int samplesToWrite, void* userData)
 static void ModPlayCallback(void *_buf2, unsigned int length, void *pdata)
@@ -197,130 +202,45 @@ static void ModPlayCallback(void *_buf2, unsigned int length, void *pdata)
     }
 }
 
-bool Mod_Init()
+
+// Initialize the audio engine
+bool audio_init()
 {
-    m_bPlaying = false;
-#if defined(PSP)
-    pspAudioSetChannelCallback(1, ModPlayCallback,0);
-#endif
+audio_release();
 #if defined(WIN32)
-	if (!winXAudio2SetVoiceCallback(1, ModPlayCallback,0))
+	if (!winXAudio2Init())
 		return false;
-#endif
-#if defined(YARGL)
-	HRESULT hr = S_OK;
-	//	winX2AudioSetChannelCallback(1, 
-
-	// Get a handle to the XAudio engine
-	CoInitializeEx( NULL, COINIT_MULTITHREADED );
-    if( FAILED( XAudio2Create(&pXAudio2, 0) ) )
-    {
-        printf( "Failed to init XAudio2 engine\n" );
-        CoUninitialize();
-        return false;
-    }
-
-	// Create the master voice
-    pMasteringVoice = NULL;
-    if( FAILED( pXAudio2->CreateMasteringVoice( &pMasteringVoice ) ) )
-    {
-        printf( "Failed creating mastering voice\n" );
-        SAFE_RELEASE( pXAudio2 );
-        CoUninitialize();
-        return false;
-    }
-
-    // Set the format of the source voice
-	WAVEFORMATEX* pwfx = ( WAVEFORMATEX* )new CHAR[ sizeof( WAVEFORMATEX ) ];
-	pwfx->wFormatTag = WAVE_FORMAT_PCM;
-	pwfx->wBitsPerSample = 16;
-	pwfx->cbSize = 0;
-	pwfx->nChannels = NUMCHANNELS;
-	pwfx->nSamplesPerSec = PLAYBACK_FREQ;
-	pwfx->nBlockAlign = pwfx->wBitsPerSample * pwfx->nChannels / 8;
-	pwfx->nAvgBytesPerSec = pwfx->nSamplesPerSec * pwfx->nBlockAlign;
-
-/*
-/// DEBUG
-    WCHAR strFilePath[MAX_PATH];
-    if( FAILED( hr = FindMediaFileCch( strFilePath, MAX_PATH, L"LOADTUNE.WAV" ) ) )
-    {
-        wprintf( L"Failed to find media file\n" );
-        return hr;
-    }
-
-    //
-    // Read in the wave file
-    //
-    CWaveFile wav;
-    if( FAILED( hr = wav.Open( strFilePath, NULL, WAVEFILE_READ ) ) )
-    {
-        wprintf( L"Failed reading WAV file: %#X (%s)\n", hr, strFilePath );
-        return hr;
-    }
-
-    // Get format of wave file
-    WAVEFORMATEX* pwfx = wav.GetFormat();
-
-    // Calculate how many bytes and samples are in the wave
-    DWORD cbWaveSize = wav.GetSize();
-
-    // Read the sample data into memory
-    BYTE* pbWaveData = new BYTE[ cbWaveSize ];
-
-    if( FAILED( hr = wav.Read( pbWaveData, cbWaveSize, &cbWaveSize ) ) )
-    {
-        wprintf( L"Failed to read WAV data: %#X\n", hr );
-        SAFE_DELETE_ARRAY( pbWaveData );
-        return hr;
-    }
-/// end of debug
-
-*/
-
-	// Create the source voice and set it to have buffer callback
-    if( FAILED( hr = pXAudio2->CreateSourceVoice( &pSourceVoice, pwfx,
-		0, XAUDIO2_DEFAULT_FREQ_RATIO, &voiceCallback, NULL, NULL) ) )
-    {
-        printf( "Error %X creating source voice\n", hr );
-        return false;
-    }
-
-	// Initialize our Xaudio2 buffer structures
-	buffer[0].pAudioData = (BYTE*) buf_data[0];
-	buffer[0].AudioBytes = 2*BUFFER_SIZE;
-	buffer[1].pAudioData = (BYTE*) buf_data[1];
-	buffer[1].AudioBytes = 2*BUFFER_SIZE;
-
-/*
-    // Submit the wave sample data using an XAUDIO2_BUFFER structure
-    XAUDIO2_BUFFER buffer = {0};
-
-    buffer.pAudioData = pbWaveData;
-    buffer.Flags = XAUDIO2_END_OF_STREAM;  // tell the source voice not to expect any data after this buffer
-    buffer.AudioBytes = cbWaveSize;
-
-    if( FAILED( pSourceVoice->SubmitSourceBuffer( &buffer ) ) )
-    {
-        printf( "Error submitting source buffer\n" );
-        pSourceVoice->DestroyVoice();
-        SAFE_DELETE_ARRAY( pbWaveData );
-        return false;
-    }
-
-*/
-
 #endif
 	return true;
 }
 
 
-void Mod_FreeTune()
+// Release the audio engine
+bool audio_release()
+{
+#if defined(WIN32)
+	if (!winXAudio2Release())
+		return false;
+#endif
+	return true;
+}
+
+
+// Terminate MOD playout
+void mod_release()
 {
     int i;
     int row;
 
-    // Tear down all the mallocs done
+    mod_stop();
+#if defined(PSP)
+    pspAudioSetChannelCallback(mod_channel, 0, 0);
+#endif
+#if defined(WIN32)
+	winXAudio2ReleaseVoice(mod_channel);
+#endif
+
+	// Tear down all the mallocs done
     //free the file itself
     if (data)
         free(data);
@@ -342,23 +262,7 @@ void Mod_FreeTune()
     free(m_TrackDat);
 }
 
-void Mod_End()
-{
-    Mod_Stop();
-#if defined(PSP)
-    pspAudioSetChannelCallback(modplayint_channel, 0,0);
-#endif
-#if defined(WIN32)
-	winXAudio2Release();
-#endif
-    Mod_FreeTune();
-}
 
-
-
-//////////////////////////////////////////////////////////////////////
-// Functions - Local and not public
-//////////////////////////////////////////////////////////////////////
 
 //  This is the initialiser and module loader
 //  This is a general call, which loads the module from the 
@@ -366,13 +270,22 @@ void Mod_End()
 //
 //  It basically loads into an internal format, so once this function
 //  has returned the buffer at 'data' will not be needed again.
-bool Mod_Load(char *filename)
+bool mod_init(char *filename)
 {
     int i, numpatterns, row, note;
     int index = 0;
     int numsamples;
     char modname[21];
     FILE* fd;
+
+    m_bPlaying = false;
+#if defined(PSP)
+    pspAudioSetChannelCallback(mod_channel, ModPlayCallback, NULL);
+#endif
+#if defined(WIN32)
+	if (!winXAudio2SetVoiceCallback(mod_channel, ModPlayCallback, NULL, PLAYBACK_FREQ, 16, true))
+		return false;
+#endif
 
 	if ((fd = fopen (filename, "rb")) != NULL) {
         //  opened file, so get size now
@@ -539,8 +452,8 @@ bool Mod_Load(char *filename)
     return true;
 }
 
-// This function initialises for playing, and starts
-bool Mod_Play()
+// Starts playing a MOD
+bool mod_play()
 {
     int track;
     // See if I'm already playing
@@ -580,32 +493,32 @@ bool Mod_Play()
 	m_bPlaying = true;
 
 #if defined(WIN32)
-	winXAudio2Start();
-	// Fill in the first buffer
-//	ModPlayCallback(buf_data[0], BUFFER_SIZE/2, NULL);
-	// Submit it
-//	pSourceVoice->SubmitSourceBuffer( &(buffer[0]) );
-	// And play!
-//    pSourceVoice->Start();
+	winXAudio2StartVoice(0);
 #endif
 
 	return true;
 }
 
-void Mod_Pause()
+
+void mod_pause()
 {
-    m_bPlaying = !m_bPlaying;
+	m_bPlaying = !m_bPlaying;
 }
 
-bool Mod_Stop()
+
+bool mod_stop()
 {
-    // Close it
     m_bPlaying = false;
 #if defined(WIN32)
-	winXAudio2Stop();
+	winXAudio2StopVoice(0);
 #endif
     return true;
 }
+
+
+//////////////////////////////////////////////////////////////////////
+// Functions - Local and not public
+//////////////////////////////////////////////////////////////////////
 
 // This function mixes an entire chunk of sound which is then 
 // to be sent to the sound driver, in this case the IOP module.

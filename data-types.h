@@ -5,6 +5,7 @@
 extern "C" {
 #endif
 
+
 // On the PSP, these are defined in psp-types.h
 #if !defined(PSP)
 #ifndef u8
@@ -33,11 +34,11 @@ extern "C" {
 #if !defined(bool)
 #define bool int
 #endif
-#if !defined(true)
-#define true (-1)
-#endif
 #if !defined(false)
-#define false (0)
+#define false ((bool)0)
+#endif
+#if !defined(true)
+#define true ((bool)(!false))
 #endif
 
 #if !defined(min)
@@ -46,6 +47,7 @@ extern "C" {
 #if !defined(max)
 #define max(a,b) (((a)>(b))?(a):(b))
 #endif
+
 
 #ifdef	__cplusplus
 }

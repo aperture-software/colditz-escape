@@ -118,8 +118,13 @@ do {									\
 #define NB_RAWS					1
 #define RAW_NAMES				{ "aperture-software.raw" }
 // Music mods
-#define NB_MODS					1
-#define MOD_NAMES				{ "LOADTUNE.MOD" }
+#define NB_MODS					3
+#define MOD_NAMES				{ "LOADTUNE.MOD", "GAMEOVER.MUS", "WHENWIN.MUS" }
+#define MOD_LOADTUNE			0
+#define MOD_GAMEOVER			1
+#define MOD_WHENWIN				2
+#define PP_LOADTUNE_NAME		"LOADTUNE.MUS"
+#define PP_LOADTUNE_SIZE		66956
 #define TO_SOLITARY				0
 #define FROM_SOLITARY			1
 #define PRISONER_SHOT			3
@@ -299,6 +304,15 @@ do {									\
 #define CHEAT_MESSAGE_TIMEOUT	2000
 #define NO_MESSAGE_TIMEOUT		0
 
+
+#define NB_SFXS					5
+#define SFX_TABLE_START			0x0000CA3E
+#define SFX_ADDRESS_START		0x0000CA6A
+#define SFX_DOOR				0
+#define SFX_WTF					1
+#define SFX_SAW					2
+#define SFX_FOOTSTEPS			3
+#define SFX_SHOOT				4
 
 // How long should the guard remain blocked (innb of route steps)
 // default of the game is 0x64
@@ -606,6 +620,20 @@ typedef struct
 	void (*function)(u32);
 } s_event;
 
+
+
+// Sound FX
+typedef struct
+{
+	u32				address;
+	u16				length;
+	u16				psp_length;
+	u16				frequency;
+	u8				volume;
+	short*			upconverted_address;
+	unsigned long	upconverted_length;
+} s_sfx;
+
 // prisoners or guards
 typedef struct
 {
@@ -676,8 +704,6 @@ extern int	 status_message_priority;
 extern s16 directions[3][3], dir_to_dx[8], dir_to_d2y[8];
 extern u8  hours_digit_h, hours_digit_l, minutes_digit_h, minutes_digit_l;
 extern u8  palette_index;
-//extern u16 current_iff;
-//extern bool  static_picture;
 extern u16	game_state;
 extern float fade_value;
 
@@ -693,9 +719,8 @@ extern u16   iff_payload_w[NB_IFFS];
 extern u16   iff_payload_h[NB_IFFS];
 extern char* raw_name[NB_RAWS];
 extern int	gl_width, gl_height;
-//extern u8	prisoner_w, prisoner_h;
-//extern int  prisoner_x, prisoner_2y;
 extern u8 current_nation;
+extern s_sfx sfx[NB_SFXS];
 #define prisoner_x			guybrush[current_nation].px
 #define prisoner_2y			guybrush[current_nation].p2y
 #define current_room_index	guybrush[current_nation].room
@@ -741,9 +766,6 @@ static __inline bool read_key_once(u8 k)
 	}
 	return false;
 }
-
-
-
 
 // A few defintions to make prop handling and status messages more readable
 static __inline void set_status_message(void* msg, int priority, u64 timeout_duration)	

@@ -40,9 +40,10 @@
 
 #include "getopt.h"	
 #include "data-types.h"
-#include "colditz.h"
 #include "low-level.h"
 #include "utilities.h"
+#include "soundplayer.h"
+#include "colditz.h"
 
 
 // Global variables
@@ -66,6 +67,7 @@ int	opt_no_guards			= 0;
 bool opt_haunted_castle		= true;
 // Number of escaped prisoners
 int nb_escaped				= 0;
+int intro_screen			= 12;
 
 
 // File stuff
@@ -81,6 +83,7 @@ char* mod_name[NB_MODS]		= MOD_NAMES;
 u16   iff_payload_w[NB_IFFS] = IFF_PAYLOAD_W;
 u16   iff_payload_h[NB_IFFS] = IFF_PAYLOAD_H;
 char* raw_name[NB_RAWS]		= RAW_NAMES;
+s_sfx sfx[NB_SFXS];
 
 // Used for fade in/fade out of static images
 float fade_value = 1.0f;
@@ -105,6 +108,7 @@ s16 jdx, jd2y;
 
 // Could use a set of flags, but more explicit this way
 bool key_down[256], key_readonce[256];
+bool skip_game_display = false;
 
 #if defined (CHEATMODE_ENABLED)
 // We don't want to pollute the key_readonce table for cheat keys, yet
@@ -386,13 +390,30 @@ static void glut_idle(void)
 	u8	prop_id, direction, i, j;
 	s16 exit_nr;
 
-	// Return to intro screen
-	if (key_down[KEY_ESCAPE])
-		exit(0);
-
 	// We'll need the current time value for a bunch of stuff
 	t = mtime();
 
+	// Return to intro screen
+	if (key_down[KEY_ESCAPE])
+	{
+		//game_state = GAME_STATE_INTRO | GAME_STATE_STATIC_PIC;
+		exit(0);
+	}
+
+	if (game_state & GAME_STATE_INTRO)
+	{
+		if (intro_screen == 12)
+		{
+			glClear(GL_COLOR_BUFFER_BIT);
+			glutSwapBuffers();
+			msleep(1000);
+		}
+		static_screen(intro_screen, NULL, 0);
+		intro_screen++;
+		if (intro_screen == 17)
+			intro_screen = 12;
+		return;
+	}
 
 #if defined (CHEATMODE_ENABLED)
 	// Check cheat sequences
@@ -435,6 +456,7 @@ static void glut_idle(void)
 	// Handle the pausing of the game 
 	if (read_key_once(KEY_PAUSE))
 	{
+		mod_pause();
 		// Toggle
 		if (game_state & GAME_STATE_PAUSED)
 		{	// unpause
@@ -762,6 +784,9 @@ static void glut_idle(void)
 				}
 			}
 		}
+
+		if (read_key_once(KEY_STOOGE))
+			play_sfx(0);
 	}
 
 	// Joystick motion overrides keys
@@ -857,6 +882,11 @@ static void glut_idle_static_pic(void)
 	case PICTURE_FADE_OUT:
 		break;
 	case GAME_FADE_IN:
+		if (skip_game_display)
+		{
+			glutIdleFunc(glut_idle);
+			return;
+		}
 		game_state &= ~GAME_STATE_STATIC_PIC;
 		break;
 	case PICTURE_EXIT:
@@ -912,7 +942,18 @@ bool loaded_ok;
 	paused_time = t;
 
 	// start with the following picture state
-	picture_state = GAME_FADE_OUT;
+	if (skip_game_display)
+	{
+		picture_state = PICTURE_FADE_IN;
+		fade_value = 0.0f;
+		fade_direction = 1;
+	}
+	else
+	{
+		picture_state = GAME_FADE_OUT;
+		fade_value = 1.0f;
+		fade_direction = -1;
+	}
 
 	// First thing we do is remove the call to glut_idle()
 	glutIdleFunc(glut_idle_static_pic);
@@ -999,6 +1040,7 @@ int main (int argc, char *argv[])
 
 	// Flags
 	int opt_error 			= 0;	// getopt
+	int opt_sfx				= 0;
 
 	// General purpose
 	u32  i;
@@ -1031,7 +1073,7 @@ int main (int argc, char *argv[])
 		fbuffer[i] = NULL;
 
 	// Process commandline options (works for PSP too with psplink)
-	while ((i = getopt (argc, argv, "vbghs:")) != -1)
+	while ((i = getopt (argc, argv, "vbghs:f:")) != -1)
 		switch (i)
 	{
 		case 'v':		// Print verbose messages
@@ -1045,6 +1087,9 @@ int main (int argc, char *argv[])
 			break;
 		case 's':
 			sscanf(optarg, ("%x"), &opt_sid); 
+			break;
+		case 'f':
+			sscanf(optarg, ("%d"), &opt_sfx); 
 			break;
 		case 'h':
 		default:		// Unknown option
@@ -1079,9 +1124,8 @@ int main (int argc, char *argv[])
 	// power of twos), we are doing something really dodgy here, which is that we
 	// pretend the extra 360K have been allocated, and let the system blatantly 
 	// overflow our image buffer if it wants to (since it should never display that 
-	// data anyway - and thus not access it). As a matter of fact, this is why we 
-	// chose to allocate this bufer first, so that, if the system really tries to 
-	// read that data, these extra 360K should map to something that's accessible.
+	// data anyway). As a matter of fact, this is why we allocate this buffer first.
+	// 
 	// 
 	// If you're really unhappy about this kind of practice, just allocate 512x512x3
 	static_image_buffer = (u8*) aligned_malloc(512*PSP_SCR_HEIGHT*3,16);
@@ -1091,17 +1135,20 @@ int main (int argc, char *argv[])
 		return 0;
 	}
 
-	// Load the data
+	// Load the data. If it's the first time we run the game, we might have
+	// to uncompress LOADTUNE.MUS (PowerPack) and SKR_COLD (custom compression)
+	depack_loadtune();
 	load_all_files();
 
-	// fix some of the files
+	// Some of the files need patching
 	fix_files();
-
 
 	// Set global variables
 	get_properties();
 	init_variables();
 
+	// We might want some sound
+	audio_init();
 
 	// clear the events array
 	for (i=0; i< NB_EVENTS; i++)
@@ -1159,6 +1206,15 @@ int main (int argc, char *argv[])
 		guard(i).wait = 0;
 		guard(i).is_dressed_as_guard = true;
 	}
+
+	// We start with the Intro state
+/*	skip_game_display = true;
+	intro_screen = 12;
+	game_state = GAME_STATE_INTRO | GAME_STATE_STATIC_PIC;
+*/	if (mod_init(mod_name[0]))
+		mod_play();
+
+	game_state = GAME_STATE_ACTION;
 		
 	// We're going to convert the cells array, from 2 pixels per byte (paletted)
 	// to on RGB(A) word per pixel
@@ -1200,8 +1256,12 @@ int main (int argc, char *argv[])
 	// so we have to stuff the movement handling in idle!!!
 	glutIdleFunc(glut_idle);
 
-	init_mod();
-	play_mod(mod_name[0]);
+//	if (mod_init(mod_name[0]))
+//		mod_play();
+//	else
+//		printf("mod_init error\n");
+//	printf("mod_play_kk\n");
+//	play_sfx(opt_sfx);
 
 	glutMainLoop();
 

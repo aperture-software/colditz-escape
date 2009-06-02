@@ -25,11 +25,10 @@
 #endif
 
 #include "data-types.h"
-#include "colditz.h"
 #include "utilities.h"
 #include "low-level.h"
-#include "modplayer.h"
-
+#include "soundplayer.h"
+#include "colditz.h"
 
 /* Whatever you do, you don't want local variables holding textures */
 GLuint* cell_texid;
@@ -280,13 +279,100 @@ void load_all_files()
 }
 
 
+// Uncompress the PowerPacked LOADTUNE.MUS if needed
+void depack_loadtune()
+{
+	size_t read;
+	u32 length;
+	u8 *ppbuffer, *buffer;
+
+	// Don't bother if we already have an uncompressed LOADTUNE
+	if ((fd = fopen (mod_name[MOD_LOADTUNE], "rb")) != NULL)
+	{
+		fclose(fd);
+		return;
+	}
+
+	// No uncompressed LOADTUNE? Look for the PowerPacked one
+	if (opt_verbose)
+		perr("Uncompressed %s doesn't exist - trying PowerPacked one", mod_name[0]);
+
+	if ((fd = fopen (PP_LOADTUNE_NAME, "rb")) == NULL)
+	{
+		perr("Can't find file PowerPacked MOD '%s' - Aborting.\n", PP_LOADTUNE_NAME);
+		return;
+	}
+
+	if ( (ppbuffer = (u8*) malloc(PP_LOADTUNE_SIZE)) == NULL)
+	{
+		perr("Could not allocate buffer for ppunpack\n");
+		fclose(fd);
+		return;
+	}
+
+	// So far so good
+	read = fread (ppbuffer, 1, PP_LOADTUNE_SIZE, fd);
+	fclose(fd);
+
+	// Is it the file we are looking for?
+	if (read != PP_LOADTUNE_SIZE)
+	{
+		perr("'%s': Unexpected file size or read error\n", PP_LOADTUNE_NAME);
+		free(ppbuffer); return;
+	}
+
+	if (ppbuffer[0] != 'P' || ppbuffer[1] != 'P' || 
+		ppbuffer[2] != '2' || ppbuffer[3] != '0')
+	{
+		perr("'%s': Not a PowerPacked file\n", PP_LOADTUNE_NAME);
+		free(ppbuffer); return;
+	}
+
+	// The uncompressed length is given at the end of the file
+	length = read24(ppbuffer, PP_LOADTUNE_SIZE-4);
+
+	if ( (buffer = (u8*) malloc(length)) == NULL)
+	{
+		perr("Could not allocate buffer for ppunpack\n");
+		free(ppbuffer); return;
+	}
+
+	// Call the PowerPacker unpack subroutine
+	ppdepack(ppbuffer, buffer, PP_LOADTUNE_SIZE, length);
+	free(ppbuffer);
+	
+	// We'll play MOD directly from files, so write it
+	perr("  OK. Now saving file as '%s'\n", mod_name[0]);
+	if ((fd = fopen (mod_name[0], "wb")) == NULL)
+	{
+		if (opt_verbose)
+			perror ("fopen()");
+		perr("Can't create file '%s'\n", mod_name[0]);
+		free(buffer); return;
+	}
+
+	if (opt_verbose)
+		print("Writing file '%s'...\n", mod_name[0]);
+	read = fwrite (buffer, 1, length, fd);
+	if (read != length)
+	{
+		if (opt_verbose)
+			perror ("fwrite()");
+		perr("'%s': Unexpected file size or write error\n", mod_name[0]);
+	}				
+	fclose(fd);
+	free(buffer);
+}
+
+
 // Get some properties (max/min/...) according to file data
 void get_properties()
 {
 	u16 room_index;
 	u32 ignore = 0;
 	u32 offset;
-	u8  i,j;
+	u16  i,j;
+//	float upsample_length;
 
 	// Get the number of rooms
 	for (room_index=0; ;room_index++)
@@ -357,6 +443,31 @@ void get_properties()
 	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, PANEL_BASE2_W, PANEL_BASE_H, 0,
 		GL_RGB, GL_UNSIGNED_BYTE, fbuffer[PANEL_BASE2]);
+
+	// SFX setup
+	for (i=0; i<NB_SFXS; i++)
+	{
+		sfx[i].address   = SFX_ADDRESS_START + readword(fbuffer[LOADER], SFX_TABLE_START + 8*i);
+		sfx[i].volume    = readbyte(fbuffer[LOADER], SFX_TABLE_START + 8*i+3);
+		sfx[i].frequency = (u16)(Period2Freq((float)readword(fbuffer[LOADER], SFX_TABLE_START + 8*i+4))/1.0);
+		sfx[i].length    = readword(fbuffer[LOADER], SFX_TABLE_START + 8*i+6);
+#if defined(WIN32)
+		// Why, of course Microsoft has to use UNSIGNED for 8 bit WAV data (but signed for 16), 
+		// whereas Commodore et al. did the LOGICAL thing of using signed ALWAYS.
+		// Therefore, we need to convert our Audio samples
+		for (j=0; j<sfx[i].length; j++)
+			writebyte(fbuffer[LOADER], sfx[i].address+j, 
+				(u8) (readbyte(fbuffer[LOADER], sfx[i].address+j) + 0x80));
+		sfx[i].upconverted_address = NULL;
+		sfx[i].upconverted_length = 0;
+#endif
+#if defined(PSP)
+		// On the PSP, we must upconvert our 8 bit mono samples to a PCM format 
+		// that the PSP can handle. The psp_upsample() helper is there for that
+		psp_upsample(&(sfx[i].upconverted_address), &(sfx[i].upconverted_length),
+			(char*)(fbuffer[LOADER] + sfx[i].address), sfx[i].length, sfx[i].frequency);
+#endif
+	}
 }
 
 // init_variables
@@ -368,18 +479,18 @@ void init_variables()
 	minutes_digit_h = 3;
 	minutes_digit_l = 0;
 
-	minutes_digit_h = 5;
-	minutes_digit_l = 4;
+//	minutes_digit_h = 5;
+//	minutes_digit_l = 4;
 
 	next_timed_event_ptr = TIMED_EVENTS_INIT;
 
 	// First rollcall
-	hours_digit_h = 0;
-	hours_digit_l = 5;
-	minutes_digit_h = 5;
-	minutes_digit_l = 4;
+//	hours_digit_h = 0;
+//	hours_digit_l = 5;
+//	minutes_digit_h = 5;
+//	minutes_digit_l = 4;
 
-	next_timed_event_ptr = 0x2BE8;
+//	next_timed_event_ptr = 0x2BE8;
 
 	// Current event is #3 (confined to quarters)
 	authorized_ptr = readlong(fbuffer[LOADER],AUTHORIZED_BASE+4*3);
@@ -805,6 +916,7 @@ int get_animation_sid(u8 index, bool is_guybrush)
 	s32 nb_frames;
 	s16 dir;
 	s_animation* p_ani;
+	u8 sfx_id;
 
 	// Pointer to the animation structure
 	p_ani = is_guybrush?&guybrush[index].animation:&animations[index];
@@ -837,7 +949,9 @@ int get_animation_sid(u8 index, bool is_guybrush)
 //	printf("frame = %d, increment = %x\n", frame, sid_increment);
 	if (sid_increment == 0xFF)
 	{	// play a sound 
-		// sound = yada +1;
+		sfx_id = readbyte(fbuffer[LOADER], 
+			readlong(fbuffer[LOADER], ani_base + 0x06) + frame + 1);
+		play_sfx(sfx_id);
 		sid_increment = readbyte(fbuffer[LOADER], 
 			readlong(fbuffer[LOADER], ani_base + 0x06) + frame + 2);
 		p_ani->framecount += 2;
@@ -1673,6 +1787,8 @@ int move_guards()
 							// Set the event flags
 							p_event[p].unauthorized = false;
 							p_event[p].caught_by = i;
+							// Play the relevant SFX
+							play_sfx(SFX_SHOOT);
 						}
 						else
 						{	// The prisoner has stopped => give him another chance
@@ -2764,6 +2880,12 @@ s16 check_footprint(s16 dx, s16 d2y)
 					{	// Exit is closed => check for the right prop
 						if ( (opt_keymaster) || (selected_prop[current_nation] == tunexit_tool[u]) )
 						{	// Toggle the exit open and consume the relevant item
+							// Play the relevant SFX if needed
+							if (selected_prop[current_nation] == ITEM_SAW)
+								play_sfx(SFX_SAW);
+							else if (!in_tunnel)
+								play_sfx(SFX_WTF);
+
 							consume_prop();		// doesn't consume if opt_keymaster
 							show_prop_count();
 
@@ -2829,6 +2951,8 @@ s16 check_footprint(s16 dx, s16 d2y)
 							// do we have the right key selected
 							(selected_prop[current_nation] == ((exit_flags & 0x60) >> 5)))
 						{
+							// Play the door SFX
+							play_sfx(SFX_DOOR);
 							// enqueue the door opening animation
 							exit_nr = (u8) readexit(tile_x+exit_dx[0],tile_y-2) & 0x1F;
 							// The trick is we use currently_animated[] to store our door sids
@@ -3394,6 +3518,11 @@ void fix_files()
 	writeword(fbuffer[LOADER], TUNNEL_EXIT_TILES_LIST+2*IN_TUNNEL_EXITS_START+2,
 		readword(fbuffer[LOADER], TUNNEL_EXIT_TILES_LIST+2*IN_TUNNEL_EXITS_START+2) + TUNNEL_TILE_ADDON);
 
+	// Don't want to be picky, but when you include an IFF Sample to be played as an SFX, you might want
+	// to make sure that either you remove the header, or you start playing the actual BODY. The SFX for
+	// the saw SFX was screwed up in the original game because of the 0x68 bytes header. fix it:
+	writeword(fbuffer[LOADER], SFX_TABLE_START, readword(fbuffer[LOADER], SFX_TABLE_START) + 0x68);
+	writeword(fbuffer[LOADER], SFX_TABLE_START+6, readword(fbuffer[LOADER], SFX_TABLE_START+6) - 0x68);
 
 	// I've always wanted to have the stethoscope!
 	writeword(fbuffer[OBJECTS],32,0x000E);
@@ -3651,19 +3780,15 @@ bool load_raw_rgb(int w, int h, char* filename)
 
 }
 
-void init_mod()
-{
-	Mod_Init();
-}
 
-void play_mod(char* mod_name)
+void play_sfx(int sfx_id)
 {
-	Mod_Load(mod_name);
-	Mod_Play();
-}
 
-void stop_mod()
-{
-	Mod_Stop();
-//	Mod_FreeTune();
+#if defined(WIN32)
+	play_sample(-1, sfx[sfx_id].volume, fbuffer[LOADER] + sfx[sfx_id].address, sfx[sfx_id].length, sfx[sfx_id].frequency, 8);
+#endif
+#if defined(PSP)
+	play_sample(-1, sfx[sfx_id].volume, sfx[sfx_id].upconverted_address, sfx[sfx_id].upconverted_length, PLAYBACK_FREQ, 16);
+#endif
+
 }
