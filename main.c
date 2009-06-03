@@ -68,6 +68,8 @@ bool opt_haunted_castle		= true;
 // Number of escaped prisoners
 int nb_escaped				= 0;
 int intro_screen			= 12;
+bool new_game				= false;
+
 
 
 // File stuff
@@ -108,7 +110,6 @@ s16 jdx, jd2y;
 
 // Could use a set of flags, but more explicit this way
 bool key_down[256], key_readonce[256];
-bool skip_game_display = false;
 
 #if defined (CHEATMODE_ENABLED)
 // We don't want to pollute the key_readonce table for cheat keys, yet
@@ -383,8 +384,8 @@ void restore_params(u32 param)
 }
 
 
-// process motion keys
-static void glut_idle(void)
+// This is the main game loop
+static void glut_idle_game(void)
 {	
 	u16 prop_offset;
 	u8	prop_id, direction, i, j;
@@ -400,6 +401,7 @@ static void glut_idle(void)
 		exit(0);
 	}
 
+	/*
 	if (game_state & GAME_STATE_INTRO)
 	{
 		if (intro_screen == 12)
@@ -414,6 +416,7 @@ static void glut_idle(void)
 			intro_screen = 12;
 		return;
 	}
+*/
 
 #if defined (CHEATMODE_ENABLED)
 	// Check cheat sequences
@@ -478,7 +481,7 @@ static void glut_idle(void)
 		return;
 	}
 
-	// Handle animations and timed events on regular basis
+	// Handle timed events (including animations)
 	if ((t - last_atime) > ANIMATION_INTERVAL)
 	{
 		last_atime += ANIMATION_INTERVAL;	// closer to ideal rate
@@ -543,16 +546,8 @@ static void glut_idle(void)
 
 		// Take care of message display
 		if (t > t_status_message_timeout)
-		{
-//			status_message_timeout_start = 0;
 			status_message_priority = 0;
-		}
-
-//		// Reset the status message if needed
-//		if (!keep_message_on)
-//			status_message = NULL;
 	}
-
 
 	// Prisoner selection: direct keys or left/right cycle keys
 	for (i=0; i<(NB_NATIONS+2); i++)
@@ -587,8 +582,9 @@ static void glut_idle(void)
 	dx = 0; 
 	d2y = 0;	
 
-	// I'm sorry, but using goto in C is a GREAT way to get some clarity out
+	// What follows only makes sense if the prisoner is still playable
 	if (has_escaped || is_dead)
+		// Tired of confusing brackets and indentations? So am I.
 		goto update_motion;
 
 #if !defined(PSP)
@@ -795,7 +791,7 @@ static void glut_idle(void)
 	if (jd2y)
 		d2y = jd2y;
 
-// Why are jumps considered so evil when the CPU is doing them all the time?
+// CPU branchs FTW!
 update_motion:
 
 	// This ensures that all the motions are in sync
@@ -845,6 +841,15 @@ static void glut_idle_static_pic(void)
 	// We'll need the current time value for a bunch of stuff
 	t = mtime();
 
+	// Exit intro
+	if ((game_state & GAME_STATE_INTRO) && read_key_once(KEY_FIRE))
+	{
+		// TO_DO: call init
+		picture_state = PICTURE_FADE_OUT;
+		game_state = GAME_STATE_ACTION | GAME_STATE_STATIC_PIC;
+		new_game = true;
+	}
+
 	// Start by incrementing/decrementing fade value
 	fade_value += fade_step[picture_state];
 
@@ -882,20 +887,40 @@ static void glut_idle_static_pic(void)
 	case PICTURE_FADE_OUT:
 		break;
 	case GAME_FADE_IN:
-		if (skip_game_display)
+		if (game_state & GAME_STATE_INTRO)
 		{
-			glutIdleFunc(glut_idle);
-			return;
+			intro_screen++;
+			if (intro_screen == 17)
+			{
+				intro_screen = 12;
+				// Add a 1 second black screen before the first intro screen
+//				glClear(GL_COLOR_BUFFER_BIT);
+//				glutSwapBuffers();
+//				msleep(1000);
+			}
+			static_screen(intro_screen, NULL, 0);
 		}
-		game_state &= ~GAME_STATE_STATIC_PIC;
+		else
+			game_state &= ~GAME_STATE_STATIC_PIC;
 		break;
 	case PICTURE_EXIT:
-		// restore time marker
-		last_atime += (t - paused_time);
-		last_ptime += (t - paused_time);
-		last_ctime += (t - paused_time);
-		// restore glut_idle
-		glutIdleFunc(glut_idle);
+		if (new_game)
+		{	// TO_DO: call game_init() here and move this stuff in
+			last_atime = t;
+			last_ptime = t;
+			last_ctime = t;
+			new_game = false;
+			mod_stop();
+		}
+		else
+		{
+			// Restore time markers (if we're not starting a new game)
+			last_atime += (t - paused_time);
+			last_ptime += (t - paused_time);
+			last_ctime += (t - paused_time);
+		}
+		// Set glut_idle to our main game loop
+		glutIdleFunc(glut_idle_game);
 		break;
 	default:
 		printf("glut_idle_static_pic(): should never be here!\n");
@@ -942,21 +967,19 @@ bool loaded_ok;
 	paused_time = t;
 
 	// start with the following picture state
-	if (skip_game_display)
+	if (game_state & GAME_STATE_INTRO)
 	{
 		picture_state = PICTURE_FADE_IN;
 		fade_value = 0.0f;
-		fade_direction = 1;
 	}
 	else
 	{
 		picture_state = GAME_FADE_OUT;
 		fade_value = 1.0f;
-		fade_direction = -1;
+		// Switch to a different game fucntion
+		glutIdleFunc(glut_idle_static_pic);
 	}
 
-	// First thing we do is remove the call to glut_idle()
-	glutIdleFunc(glut_idle_static_pic);
 }
 
 
@@ -1208,13 +1231,13 @@ int main (int argc, char *argv[])
 	}
 
 	// We start with the Intro state
-/*	skip_game_display = true;
 	intro_screen = 12;
 	game_state = GAME_STATE_INTRO | GAME_STATE_STATIC_PIC;
-*/	if (mod_init(mod_name[0]))
+	static_screen(intro_screen, NULL, 0);
+	if (mod_init(mod_name[0]))
 		mod_play();
 
-	game_state = GAME_STATE_ACTION;
+//	game_state = GAME_STATE_ACTION;
 		
 	// We're going to convert the cells array, from 2 pixels per byte (paletted)
 	// to on RGB(A) word per pixel
@@ -1254,7 +1277,7 @@ int main (int argc, char *argv[])
 	// This is what you get from using obsolete libraries!
 	// bloody joystick callback doesn't work on Windows,
 	// so we have to stuff the movement handling in idle!!!
-	glutIdleFunc(glut_idle);
+	glutIdleFunc(glut_idle_static_pic);
 
 //	if (mod_init(mod_name[0]))
 //		mod_play();

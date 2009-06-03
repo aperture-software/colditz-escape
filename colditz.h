@@ -142,10 +142,10 @@ do {									\
 #define IFF_PAYLOAD_H			{ 192, 192, 192, 192, 192, 192, 192, 192, 192, 192,	\
 								  192, 192, 200, 200, 200, 200, 200, 192, 192 }
 // Loader table containing the IFF indexes to use for various events
-#define IFF_INDEX_TABLE			0x7A80
+#define IFF_INDEX_TABLE			0x00007A80
 
 // If we start the loader at address 0x80, we won't have to convert the pointers
-#define LOADER_PADDING			0x80
+#define LOADER_PADDING			0x00000080
 #define NB_NATIONS				4
 #define NB_GUARDS				0x3D
 #define MENDAT_ITEM_SIZE		0x14
@@ -156,18 +156,18 @@ do {									\
 #define PANEL_OFF_Y				3
 #define ALT_LOADER				"SKR_COLD"
 #define ALT_LOADER_SIZE			28820
-#define OFFSETS_START			0x2684
-#define ROOMS_START				0x2FE4
-#define CM_TILES_START			0x5E80
+#define OFFSETS_START			0x00002684
+#define ROOMS_START				0x00002FE4
+#define CM_TILES_START			0x00005E80
 // tiles that need overlay, from LOADER
-#define SPECIAL_TILES_START		0x3F3A
+#define SPECIAL_TILES_START		0x00003F3A
 #define NB_SPECIAL_TILES		0x16
 #define FIREPLACE_TILE			0xE080
 #define TUNNEL_TILE_ADDON		0x1E0
 //Sprites
 #define NB_STANDARD_SPRITES		0xD1
 // Panel sprites 
-#define PANEL_FACES_OFFSET		0x1482
+#define PANEL_FACES_OFFSET		0x00001482
 #define NB_PANEL_FACES			7
 #define PANEL_FACES_W			16
 #define PANEL_FACES_X			PANEL_OFF_X
@@ -175,14 +175,14 @@ do {									\
 #define PANEL_FACE_SHOT			0xDA
 #define PANEL_FACE_FREE			0xDB
 #define PANEL_TOP_Y				(PSP_SCR_HEIGHT-PANEL_BASE_H+PANEL_OFF_Y)
-#define PANEL_FLAGS_OFFSET		0x1082
+#define PANEL_FLAGS_OFFSET		0x00001082
 #define NB_PANEL_FLAGS			NB_NATIONS
 #define PANEL_FLAGS_BASE_SID	0xD1
 #define PANEL_FLAGS_W			32
 #define PANEL_FLAGS_X			(PANEL_OFF_X+4*PANEL_FACES_W)
 #define NB_PANEL_ITEMS			0x13
 #define PANEL_ITEMS_W			32
-#define PANEL_CLOCK_DIGITS_OFF	0x1802
+#define PANEL_CLOCK_DIGITS_OFF	0x00001802
 #define NB_PANEL_CLOCK_DIGITS	11
 #define PANEL_CLOCK_DIGITS_W	8
 // sid of digit 0
@@ -198,24 +198,24 @@ do {									\
 // 0x2C000 = 88 pixels * 0x800
 #define MAX_FATIGUE				0x2C000
 #define HOURLY_FATIGUE_INCREASE	0x1000
-#define PANEL_ITEMS_OFFSET		0x1AC2
+#define PANEL_ITEMS_OFFSET		0x00001AC2
 #define NB_PANEL_SPRITES		(NB_PANEL_FLAGS+NB_PANEL_FACES+NB_PANEL_CLOCK_DIGITS+NB_PANEL_ITEMS+1)
 #define NB_SPRITES				(NB_STANDARD_SPRITES+NB_PANEL_SPRITES)
 // The fatigue bar base is the last sprite
 #define PANEL_FATIGUE_SPRITE	(NB_SPRITES-1)
 #define NB_PANEL_CHARS			59
-#define PANEL_CHARS_OFFSET		0xF20
+#define PANEL_CHARS_OFFSET		0x00000F20
 #define PANEL_CHARS_W			8
 #define PANEL_CHARS_H			6
 #define PANEL_CHARS_CORRECTED_H	8
 #define PANEL_MESSAGE_X			(PANEL_FACES_X+5*PANEL_FACES_W)
 #define PANEL_MESSAGE_Y			(PANEL_TOP_Y+16)
-#define PANEL_CHARS_GRAB_BASE	0x98F1
+#define PANEL_CHARS_GRAB_BASE	0x000098F1
 #define PANEL_CHARS_GRAB_INCR	0x1101
-#define MESSAGE_BASE			0x7F12
+#define MESSAGE_BASE			0x00007F12
 #define EXIT_MESSAGE_BASE		MESSAGE_BASE
 #define PROPS_MESSAGE_BASE		(MESSAGE_BASE+16)
-#define	ROOM_DESC_BASE			0xBCB4
+#define	ROOM_DESC_BASE			0x0000BCB4
 #define TUNNEL_MSG_ID			0x35
 #define	COURTYARD_MSG_ID		0x36
 // Boundaries for courtyard authorized access (ROM:00002160)
@@ -233,13 +233,13 @@ do {									\
 #define GET_LOST_Y				5000;
 // This loader section defines the list of authorized rooms (through their 
 // message ID) after certain events (appel, exercise, confined)
-#define AUTHORIZED_BASE			0x20EE
+#define AUTHORIZED_BASE			0x000020EE
 #define NB_AUTHORIZED_POINTERS	7
-#define AUTHORIZED_NATION_BASE	0x210A
+#define AUTHORIZED_NATION_BASE	0x0000210A
 #define GRAB_TRANSPARENT_COLOUR	0x0000
-#define OBS_TO_SPRITE_START		0x5D82
+#define OBS_TO_SPRITE_START		0x00005D82
 #define NB_OBS_TO_SPRITE		15
-#define LOADER_DATA_START		0x10C
+#define LOADER_DATA_START		0x0000010C
 #define FFs_TO_IGNORE			7
 #define MAX_OVERLAYS			0x80
 #define RGBA_SIZE				2
@@ -251,12 +251,12 @@ do {									\
 #define ROOM_TUNNEL				0x0203
 // Room index for picked objects
 #define ROOM_NO_PROP			0x0258
-#define REMOVABLES_MASKS_START	0x8758
+#define REMOVABLES_MASKS_START	0x00008758
 #define REMOVABLES_MASKS_LENGTH	27
 #define JOY_DEADZONE			450
 // These are use to check if our footprint is out of bounds
-#define TILE_MASKS_OFFSETS		0xA1E8
-#define	TILE_MASKS_START		0xAA58
+#define TILE_MASKS_OFFSETS		0x0000A1E8
+#define	TILE_MASKS_START		0x0000AA58
 #define MASK_EMPTY				TILE_MASKS_START
 #define MASK_FULL				(TILE_MASKS_START+0x2C0)
 #define TILE_MASKS_LENGTH		0x21B
@@ -264,27 +264,27 @@ do {									\
 #define TUNNEL_FOOTPRINT		0xFF000000
 #define FOOTPRINT_HEIGHT		4
 // Exit checks
-#define EXIT_TILES_LIST			0x39AE
-#define EXIT_MASKS_OFFSETS		0x39E4
-#define EXIT_MASKS_START		0x8A46
+#define EXIT_TILES_LIST			0x000039AE
+#define EXIT_MASKS_OFFSETS		0x000039E4
+#define EXIT_MASKS_START		0x00008A46
 #define NB_EXITS				27
 #define NB_TUNNEL_EXITS			7
 #define IN_TUNNEL_EXITS_START	5
-#define TUNNEL_EXIT_TILES_LIST	0x2AEA
-#define TUNNEL_EXIT_TOOLS_LIST	0x2AF8
-#define EXIT_CELLS_LIST			0x3E9A
+#define TUNNEL_EXIT_TILES_LIST	0x00002AEA
+#define TUNNEL_EXIT_TOOLS_LIST	0x00002AF8
+#define EXIT_CELLS_LIST			0x00003E9A
 #define NB_CELLS_EXITS			22
-#define ROOMS_EXITS_BASE		0x0100
-#define OUTSIDE_OVL_BASE		0x52DE
+#define ROOMS_EXITS_BASE		0x00000100
+#define OUTSIDE_OVL_BASE		0x000052DE
 #define OUTSIDE_OVL_NB			13
 #define TUNNEL_OVL_NB			14
-#define CMP_OVERLAYS			0x53DC
+#define CMP_OVERLAYS			0x000053DC
 // For our (magical) apparition into a new room after using an exit
-#define HAT_RABBIT_OFFSET		0x3EC6
-#define CMP_RABBIT_OFFSET		0x43D0
-#define HAT_RABBIT_POS_START	0x3EF2
-#define INITIAL_POSITION_BASE	0x773A
-#define SOLITARY_POSITION_BASE	0x292C
+#define HAT_RABBIT_OFFSET		0x00003EC6
+#define CMP_RABBIT_OFFSET		0x000043D0
+#define HAT_RABBIT_POS_START	0x00003EF2
+#define INITIAL_POSITION_BASE	0x0000773A
+#define SOLITARY_POSITION_BASE	0x0000292C
 // Time between animation frames, in ms
 // 66 or 67 is about as close as we can get to the original game
 #define ANIMATION_INTERVAL		120
@@ -304,7 +304,6 @@ do {									\
 #define CHEAT_MESSAGE_TIMEOUT	2000
 #define NO_MESSAGE_TIMEOUT		0
 
-
 #define NB_SFXS					5
 #define SFX_TABLE_START			0x0000CA3E
 #define SFX_ADDRESS_START		0x0000CA6A
@@ -321,16 +320,16 @@ do {									\
 #define RUNNING_PURSUIT_TIMEOUT	0x64
 #define SHOOTING_GUARD_TIMEOUT	0x14
 // Timed events from LOADER (roll call, palette change)
-#define TIMED_EVENTS_BASE		0x2BDE
+#define TIMED_EVENTS_BASE		0x00002BDE
 // First timed event of the game
-#define TIMED_EVENTS_INIT		0x2C1A
+#define TIMED_EVENTS_INIT		0x00002C1A
 // Palette change type
 #define TIMED_EVENT_PALETTE		0xFFFF	
 // Rollcall check
 #define TIMED_EVENT_ROLLCALL_CHECK	1
 #define DIRECTION_STOPPED		-1
 // Animation data
-#define ANIMATION_OFFSET_BASE	0x89EA
+#define ANIMATION_OFFSET_BASE	0x000089EA
 // sids for animation removal or no display
 #define REMOVE_ANIMATION_SID	-1
 #define WALK_ANI				0x00
@@ -375,7 +374,7 @@ do {									\
 #define MIN_Z					-32768
 // For data file patching
 #define FIXED_CRM_VECTOR		0x50
-//#define R116_EXITS
+
 // For animations that are NOT guybrushes (guybrushes embed their own animation struct)
 #define MAX_ANIMATIONS			0x20
 #define MAX_CURRENTLY_ANIMATED	MAX_ANIMATIONS
@@ -383,31 +382,7 @@ do {									\
 // indiactes that no guybrush is associated to an animation
 #define NO_GUYBRUSH				-1
 #define NB_GUYBRUSHES			(NB_NATIONS + NB_GUARDS)
-// The current prisoner is always our first guybrush
-//#define PRISONER				0
 
-// Our guy's states
-// bit 1 = move/stop
-// bit 2 = in_tunnel
-// bit 3 = stooge
-// bit 4 = blocked
-// bit 5 = sleep
-// bit 6 = shower
-// bit 7 = shooting
-// bit 8 = shot
-/*
-#define STATE_STOP				0
-#define STATE_MOVE				1
-#define STATE_CRAWL				2
-#define STATE_STOOGE			3
-#define STATE_SLEEP				4
-#define STATE_PICK				5
-#define STATE_SHOOT				6
-#define STATE_SHOT				7
-#define STATE_SHOWER			8
-#define STATE_BLOCKED_STOP		9
-#define STATE_BLOCKED_MOVE		10
-*/
 // Motion related states
 #define STATE_MOTION			1
 #define STATE_TUNNELING			2
