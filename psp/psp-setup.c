@@ -2,12 +2,16 @@
 #include <pspkerneltypes.h>
 #include <pspuser.h>
 #include "psp-setup.h"
+#include "psp-printf.h"
 
 // Define the module info section
-PSP_MODULE_INFO("colditz", 0, 1, 1);
+//PSP_MODULE_INFO("colditz", 0, 1, 1);
+// Kernel mode for SIO debug
+PSP_MODULE_INFO("colditz", 0x0000, 1, 1);
 
 // Define the main thread's attribute value
-PSP_MAIN_THREAD_ATTR(THREAD_ATTR_USER | THREAD_ATTR_VFPU);
+//PSP_MAIN_THREAD_ATTR(THREAD_ATTR_USER | THREAD_ATTR_VFPU);
+PSP_MAIN_THREAD_ATTR(0);
 
 // Leave 256 KB for threads
 PSP_HEAP_SIZE_KB(-256);

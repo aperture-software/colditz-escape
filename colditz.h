@@ -79,33 +79,84 @@ do {									\
 
 // # files we'll be dealing with
 #define NB_FILES				13
+// # files that will need reload on new game
+#define NB_FILES_TO_RELOAD		4
 // Some handy identifier to make code reader friendly
 #define ROOMS					0
-#define CELLS					1
-#define PALETTES				2
-#define LOADER					3
-#define COMPRESSED_MAP			4
-#define SPRITES					5
-#define OBJECTS					6
-#define SPRITES_PANEL			7
-#define TUNNEL_IO				8
-#define PANEL_BASE1				9
-#define PANEL_BASE2				10
-#define GUARDS					11
+#define COMPRESSED_MAP			1
+#define OBJECTS					2
+#define TUNNEL_IO				3
+#define SPRITES_PANEL			4
+#define PANEL_BASE1				5
+#define PANEL_BASE2				6
+#define GUARDS					7
+#define CELLS					8
+#define PALETTES				9
+#define LOADER					10
+#define SPRITES					11
 #define ROUTES					12
+
 #define RED						0
 #define GREEN					1
 #define BLUE					2
 // Never be too short on filename sizes
 #define NAME_SIZE				128			
-#define FNAMES					{ "COLDITZ_ROOM_MAPS", "COLDITZ_CELLS", "PALS.BIN", "COLDITZ-LOADER",	\
-								  "COMPRESSED_MAP", "SPRITES.SPR", "OBS.BIN", "PANEL.BIN",				\
-								  "TUNNELIODOORS.BIN", "panel_base1.raw", "panel_base2.raw",			\
-								  "MENDAT.BIN", "ROUTES.BIN" }
-#define FSIZES					{ 58828, 135944, 232, 56080,	\
-								  33508, 71056, 2056, 11720,	\
-								  120, 6144, 24576,				\
-								  1288, 13364 }
+#define FNAMES					{ "COLDITZ_ROOM_MAPS",			\
+								  "COMPRESSED_MAP",				\
+								  "OBS.BIN",					\
+								  "TUNNELIODOORS.BIN",			\
+								  "PANEL.BIN",					\
+								  "panel_base1.raw",			\
+								  "panel_base2.raw",			\
+								  "MENDAT.BIN",					\
+								  "COLDITZ_CELLS",				\
+								  "PALS.BIN",					\
+								  "COLDITZ-LOADER",				\
+								  "SPRITES.SPR",				\
+								  "ROUTES.BIN" }
+#define FSIZES					{ 58828,		\
+								  33508,		\
+								  2056,			\
+								  120,			\
+								  11720,		\
+								  6144,			\
+								  24576,		\
+								  1288,			\
+								  135944,		\
+								  232,			\
+								  56080,		\
+								  71056,		\
+								  13364 }
+/*
+#define FMD5HASHES				{ { 0x0c, 0x4f, 0xeb, 0x19, 0xfc, 0x53, 0xaf, 0xa9, 0x03, 0x83, 0x24, 0xc1, 0xad, 0xa2, 0x1c, 0xe9 }, \
+								  { 0xd8, 0x23, 0x9a, 0x3e, 0x68, 0xe4, 0x6f, 0x36, 0x5f, 0xf2, 0x4d, 0xca, 0x5d, 0x12, 0xfb, 0x52 }, \
+								  { 0x15, 0xdc, 0x6b, 0xa1, 0x39, 0x2c, 0x9a, 0x31, 0x66, 0x1a, 0xd3, 0x78, 0xee, 0x98, 0x11, 0x62 }, \
+								  { 0x24, 0x15, 0x8a, 0xe9, 0x52, 0x7d, 0x92, 0x15, 0xab, 0x4e, 0x00, 0x00, 0x32, 0x1c, 0x53, 0x75 }, \
+								  { 0x10, 0xd9, 0x97, 0xad, 0x03, 0x5a, 0x4c, 0xde, 0x46, 0x5a, 0x82, 0xd9, 0x99, 0x46, 0xbe, 0x81 }, \
+								  { 0x2e, 0x5e, 0x29, 0x72, 0xdc, 0x58, 0x3e, 0x4f, 0xe5, 0x29, 0x4f, 0x55, 0x2f, 0xb7, 0x9a, 0x5e }, \
+								  { 0x76, 0x43, 0xe8, 0xd1, 0x7e, 0xb0, 0xea, 0x0e, 0xcb, 0x14, 0xc7, 0x95, 0xad, 0x87, 0xac, 0xb7 }, \
+								  { 0x8c, 0x3f, 0x01, 0xde, 0x56, 0xf9, 0x9d, 0x1c, 0x3c, 0x09, 0x05, 0x84, 0x8e, 0x96, 0x66, 0xa8 }, \
+								  { 0x0a, 0x57, 0x16, 0x00, 0x7c, 0x53, 0x2f, 0x59, 0xf4, 0x1f, 0x1c, 0xd9, 0xf3, 0x5b, 0x79, 0xd1 }, \
+								  { 0x5c, 0xd4, 0xa6, 0x75, 0x8b, 0xe9, 0xf9, 0xc2, 0xff, 0xee, 0xa6, 0x72, 0xbc, 0xd6, 0x05, 0x61 }, \
+								  { 0x35, 0x22, 0x3d, 0x00, 0x68, 0x2f, 0x2d, 0x3a, 0x8f, 0x8a, 0x77, 0xa7, 0xa1, 0xa9, 0x71, 0x06 }, \
+								  { 0xcb, 0xe0, 0x09, 0xbe, 0x17, 0x15, 0xae, 0x03, 0xbf, 0xd6, 0x03, 0x91, 0x7f, 0x78, 0xe5, 0x67 }, \
+								  { 0xb7, 0x8d, 0xbf, 0x3c, 0xdd, 0xa7, 0xfc, 0x92, 0x9a, 0x55, 0x56, 0xd2, 0x4f, 0x8f, 0x82, 0xb3 } }
+*/
+
+// Slighltly obfuscated MD5 hashes of the files (don't want to make file tampering & cheating too easy for the first prized release)
+#define FMDXHASHES				{ { 0xf3, 0x5e, 0x11, 0xb3, 0x30 }, \
+								  { 0x6c, 0x31, 0x12, 0x00, 0xf2 }, \
+								  { 0x6b, 0x85, 0x59, 0xc1, 0xdb }, \
+								  { 0x4f, 0x7d, 0x68, 0x74, 0x3a }, \
+								  { 0x84, 0x1d, 0xc4, 0x82, 0xd8 }, \
+								  { 0x15, 0x3a, 0x64, 0xd3, 0xfa }, \
+								  { 0x54, 0xf9, 0xba, 0x3d, 0x29 }, \
+								  { 0x46, 0xc8, 0xf7, 0x61, 0x68 }, \
+								  { 0x03, 0xf0, 0xa7, 0xfc, 0xe3 }, \
+								  { 0x98, 0x24, 0xf0, 0x26, 0xc8 }, \
+								  { 0x60, 0xc1, 0xe3, 0x4a, 0xc0 }, \
+								  { 0x59, 0x26, 0xc6, 0xbe, 0x68 }, \
+								  { 0xc8, 0x87, 0x0a, 0x85, 0xd0 } }
 
 // Static IFF images (intro, events, gameover, etc)
 #define NB_IFFS					19
@@ -114,6 +165,7 @@ do {									\
 								  "PIC.A(FREE-ALL)", "PIC.B(GAME-OVER)", "PIC.A(FREE-ALL)TEXT",				\
 								  "PIC.B(GAME-OVER)TEXT", "STARTSCREEN0", "STARTSCREEN1", "STARTSCREEN2",	\
 								  "STARTSCREEN3", "STARTSCREEN4", "PIC.8(PASS)", "PIC.9(PAPERS)" }
+
 // Additional Static RGB RAW images. Those images all have a 480x272 PSP dimension
 #define NB_RAWS					1
 #define RAW_NAMES				{ "aperture-software.raw" }
@@ -133,12 +185,14 @@ do {									\
 #define GAME_OVER				9
 #define PRISONER_FREE_ALL_TEXT	10
 #define GAME_OVER_TEXT			11
+#define INTRO_SCREEN_START		12
+#define INTRO_SCREEN_END		16
 #define REQUIRE_PASS			17
 #define REQUIRE_PAPERS			18
 #define APERTURE_SOFTWARE		(0+ NB_IFFS)
 #define NO_PICTURE				0xFFFF
 #define IFF_PAYLOAD_W			{ 320, 320, 320, 320, 320, 320, 320, 320, 320, 320,	\
-								  320, 320, 320, 320, 320, 320, 320, 320, 320 }
+								  320, 295, 320, 320, 320, 320, 320, 320, 320 }
 #define IFF_PAYLOAD_H			{ 192, 192, 192, 192, 192, 192, 192, 192, 192, 192,	\
 								  192, 192, 200, 200, 200, 200, 200, 192, 192 }
 // Loader table containing the IFF indexes to use for various events
@@ -154,6 +208,7 @@ do {									\
 #define PANEL_BASE_H			32
 #define PANEL_OFF_X				79
 #define PANEL_OFF_Y				3
+#define INITIAL_PALETTE_INDEX	4
 #define ALT_LOADER				"SKR_COLD"
 #define ALT_LOADER_SIZE			28820
 #define OFFSETS_START			0x00002684
@@ -404,6 +459,8 @@ do {									\
 #define GAME_STATE_STATIC_PIC	4
 #define GAME_STATE_INTRO		8
 #define GAME_STATE_GAME_OVER	16
+#define GAME_STATE_GAME_WON		32
+#define GAME_STATE_PICTURE_LOOP	64
 
 // Nationalities
 #define BRITISH					0
@@ -534,7 +591,7 @@ do {									\
 
 
 
-// Stupid VC++ doesn't know the basic formats it can actually use!
+// Stupid VC++ doesn't know the basic GL formats it can actually use!
 #if !defined(GL_UNSIGNED_SHORT_4_4_4_4_REV)
 // NB: the _REV below is GRAB format, which is selected for 1:1 mapping on PSP
 #define GL_UNSIGNED_SHORT_4_4_4_4_REV	0x8365
@@ -546,6 +603,7 @@ do {									\
 // PSP Screen will be our base def
 #define PSP_SCR_WIDTH		480
 #define PSP_SCR_HEIGHT		272
+
 
 // Define a structure to hold the standard RGBA sprites
 typedef struct
@@ -725,7 +783,7 @@ extern u8   overlay_index;
 extern bool init_animations;
 extern bool is_fire_pressed;
 extern char nb_props_message[32];
-extern u64	t;
+extern u64	game_time, last_atime, last_ptime, last_ctime;
 extern u64  t_status_message_timeout;
 
 
@@ -747,7 +805,7 @@ static __inline void set_status_message(void* msg, int priority, u64 timeout_dur
 {
 	if (priority >= status_message_priority)
 	{
-		t_status_message_timeout = t + timeout_duration;	
+		t_status_message_timeout = game_time + timeout_duration;	
 		status_message = (char*)(msg);
 		status_message_priority = priority;
 	}

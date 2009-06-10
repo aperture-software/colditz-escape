@@ -5,17 +5,24 @@
 //
 ////////////////////////////////////////////////////////////////////////////
 
+#if defined(WIN32)
+#define _WIN32_DCOM
+#define _CRT_SECURE_NO_WARNINGS 1 
+#pragma warning(disable:4995)
+#endif
+
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
 
 #if defined(PSP)
 #include <pspkernel.h>
 #include <pspaudio.h>
 #include <pspaudiolib.h>
+#include "psp/psp-printf.h"
 #endif
 
 #if defined(WIN32)
-#define _WIN32_DCOM
-#define _CRT_SECURE_NO_WARNINGS 1 
-#pragma warning(disable:4995)
 #include <windows.h>
 // If you don't include initguid.h before xaudio2.h, you'll get
 // error LNK2001: unresolved external symbol _CLSID_XAudio2
@@ -28,16 +35,11 @@
 #include "win32/winXAudio2.h"
 #endif
 
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
 #include "data-types.h"
 #include "low-level.h"
 #include "soundplayer.h"
 #include "modplayeri.h"
 #include "modtables.h"
-
-
 
 // As a sample is being mixed into the buffer its position pointer is updated.
 // The position pointer is a 32-bit integer that is used to store a fixed-point
@@ -99,7 +101,7 @@ static int m_nNumTracks;	// Number of tracks in this mod
 static int m_TrackDat_num;
 static TrackData *m_TrackDat;	// Stores info for each track being played
 static RowData *m_CurrentRow;	// Pointer to the current row being played
-static bool m_bPlaying;		// Set to true when a mod is being played
+static bool m_bPlaying = false;	// Set to true when a mod is being played
 static u8 *data;
 int size = 0;
 
@@ -190,23 +192,28 @@ void psp_upsample(short **upconverted_address, unsigned long *upconverted_length
 //fillOutputBuffer(void* buffer, unsigned int samplesToWrite, void* userData)
 static void ModPlayCallback(void *_buf2, unsigned int length, void *pdata)
 {
-  short *_buf = (short *)_buf2;
-    if (m_bPlaying == true) {	//  Playing , so mix up a buffer
-        MixChunk(length, _buf);
-    } else {			//  Not Playing , so clear buffer
-        {
-            unsigned int count;
-            for (count = 0; count < length * 2; count++)
-                *(_buf + count) = 0;
-        }
-    }
+	short *_buf = (short *)_buf2;
+	if (m_bPlaying == true) {	//  Playing , so mix up a buffer
+		MixChunk(length, _buf);
+	} else {			//  Not Playing , so clear buffer
+		{
+			unsigned int count;
+			for (count = 0; count < length * 2; count++)
+				*(_buf + count) = 0;
+		}
+	}
 }
 
 
 // Initialize the audio engine
 bool audio_init()
 {
-audio_release();
+ if (!audio_release())
+	 printf("audio_release error\n");
+#if defined(PSP)
+	if (pspAudioInit())
+		return false;
+#endif
 #if defined(WIN32)
 	if (!winXAudio2Init())
 		return false;
@@ -218,6 +225,9 @@ audio_release();
 // Release the audio engine
 bool audio_release()
 {
+#if defined(PSP)
+	pspAudioEnd();
+#endif
 #if defined(WIN32)
 	if (!winXAudio2Release())
 		return false;
@@ -262,7 +272,10 @@ void mod_release()
     free(m_TrackDat);
 }
 
-
+bool is_mod_playing()
+{
+	return m_bPlaying;
+}
 
 //  This is the initialiser and module loader
 //  This is a general call, which loads the module from the 
@@ -279,13 +292,6 @@ bool mod_init(char *filename)
     FILE* fd;
 
     m_bPlaying = false;
-#if defined(PSP)
-    pspAudioSetChannelCallback(mod_channel, ModPlayCallback, NULL);
-#endif
-#if defined(WIN32)
-	if (!winXAudio2SetVoiceCallback(mod_channel, ModPlayCallback, NULL, PLAYBACK_FREQ, 16, true))
-		return false;
-#endif
 
 	if ((fd = fopen (filename, "rb")) != NULL) {
         //  opened file, so get size now
@@ -297,16 +303,23 @@ bool mod_init(char *filename)
         if (data != 0) {	// Read file in
 			fread(data, 1, size, fd);
         } else {
-            printf("Error allocing\n");
 			fclose(fd);
             return false;
         }
         // Close file
 		fclose(fd);
-    } else {			//if we couldn't open the file
-		printf("no file\n");
+    } else 	// we couldn't open the file
         return false;
-    }
+
+#if defined(PSP)
+    pspAudioSetChannelCallback(mod_channel, ModPlayCallback, NULL);
+#endif
+#if defined(WIN32)
+	// Release the voice first
+	winXAudio2ReleaseVoice(0);
+	if (!winXAudio2SetVoiceCallback(mod_channel, ModPlayCallback, NULL, PLAYBACK_FREQ, 16, true))
+		return false;
+#endif
 
     BPM_RATE = 130;
     //  Set default settings

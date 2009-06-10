@@ -22,6 +22,7 @@
 #include <GL/gl.h>
 #include <GL/glu.h>
 #include <GL/glut.h>
+#include <psp/psp-printf.h>
 #endif
 
 #include "data-types.h"
@@ -29,6 +30,8 @@
 #include "low-level.h"
 #include "soundplayer.h"
 #include "colditz.h"
+#include "md5.h"
+
 
 /* Whatever you do, you don't want local variables holding textures */
 GLuint* cell_texid;
@@ -42,7 +45,7 @@ u16 picture_w, picture_h;
 /* Some more globals */
 u8  obs_to_sprite[NB_OBS_TO_SPRITE];
 u8	remove_props[CMP_MAP_WIDTH][CMP_MAP_HEIGHT];
-u8  overlay_order[MAX_OVERLAYS], b[MAX_OVERLAYS/2+1];
+u8  overlay_order[MAX_OVERLAYS]; 
 int	currently_animated[MAX_ANIMATIONS];
 u32 exit_flags_offset;
 bool tunnel_toggle;
@@ -52,6 +55,7 @@ s16	gl_off_x = 0, gl_off_y  = 0;
 char panel_message[256];
 u32 next_timed_event_ptr = TIMED_EVENTS_INIT;
 u8*	iff_image;
+u8  fmdxhash[NB_FILES][5]= FMDXHASHES;
 
 // Fatigue bar base sprite colours (4_4_4_4 GRAB)
 u16 fatigue_colour[8] = {0x29F0, 0x4BF0, 0x29F0, 0x06F0, 
@@ -102,15 +106,15 @@ u8 looping_animation[NB_ANIMATED_SPRITES] =
 // bit for a quadrant, starting with the left quadrant (lsb) and going
 // clockwise
 // For the time being, we're not going to use these, but just set the prop
-// 'on' if nonzero, coz it's a bit of an overkill, compare to what the 
+// 'on' if nonzero, coz it's a bit of an overkill, compared to what the 
 // original game did. Still this is an improvement on the original game's
 // props handling, as if you dropped a prop in front of the chapel in the
-// original, it would simply disappear!
+// original for instance, it would just vanish!
 
 u16 props_tile [0x213] = {
 // Well, C doesn't have binary constants, so, for maintainability reasons, 
-// we'll use fake "decimal binary" constants, which we'll just convert to
-// proper bitmasks at init time, if we're ever gonna use the actual masks
+// we'll use fake "decimal binary", which we're gonna convert to proper 
+// bitmasks at init time. That is, if we're ever gonna use the actual masks...
 	0000,1111,1111,1111,1111,1111,1111,1111,1111,1111,	// 0000
 	1111,1111,1111,1111,1111,1111,1111,1111,1111,1111,	// 0500
 	1111,1111,1111,1111,1111,1111,1111,1111,1111,1111,	// 0A00
@@ -166,10 +170,37 @@ u16 props_tile [0x213] = {
 	1111,1111,1111,1111,1111,1111,1111,1111,1111,1111,	// tunnels, line 5
 	1111};
 
+
+// This inline performs an obfuscated MD5 check on file i
+// Conveniently used to discreetly check for file tampering anytime during the game
+static __inline bool integrity_check(u16 i)
+{
+	u8 md5hash[16];
+	u8 blah = 0x5A;
+	md5(fbuffer[i]+((i==LOADER)?LOADER_PADDING:0), fsize[i], md5hash);
+//	printf("{ ");
+	blah ^= md5hash[7];
+//	printf("0x%02x, ", blah);
+	if (blah != fmdxhash[i][0]) return false;
+	blah ^= md5hash[12];
+//	printf("0x%02x, ", blah);
+	if (blah != fmdxhash[i][1]) return false;
+	blah ^= md5hash[1];
+//	printf("0x%02x, ", blah);
+	if (blah != fmdxhash[i][2]) return false;
+	blah ^= md5hash[13];
+//	printf("0x%02x, ", blah);
+	if (blah != fmdxhash[i][3]) return false;
+	blah ^= md5hash[9];
+//	printf("0x%02x }, \\\n", blah);
+	if (blah != fmdxhash[i][4]) return false;
+	return true;
+}
+
 void load_all_files()
 {
 	size_t read;
-	u32 i;
+	u16 i;
 	int compressed_loader = 0;
 
 	// We need a little padding of the loader to keep the offsets happy
@@ -179,7 +210,7 @@ void load_all_files()
 	{
 		if ( (fbuffer[i] = (u8*) aligned_malloc(fsize[i], 16)) == NULL)
 		{
-			perr("Could not allocate buffers\n");
+			printf("Could not allocate buffers\n");
 			ERR_EXIT;
 		}
 
@@ -191,65 +222,55 @@ void load_all_files()
 
 		if ((fd = fopen (fname[i], "rb")) == NULL)
 		{
-			if (opt_verbose)
-				perror ("fopen()");
-			perr("Can't find file '%s'\n", fname[i]);
+			printf("Couldn't find file '%s'\n", fname[i]);
 
 			/* Take care of the compressed loader if present */
 			if (i == LOADER)
 			{
 				// Uncompressed loader was not found
 				// Maybe there's a compressed one?
-				perr("  Trying to use compressed loader '%s' instead\n",ALT_LOADER);
+				printf("  Trying to use compressed loader '%s' instead\n", ALT_LOADER);
 				if ((fd = fopen (ALT_LOADER, "rb")) == NULL)
 				{
-					print("  '%s' not found.\n", ALT_LOADER);
+					printf("  '%s' not found - Aborting.\n", ALT_LOADER);
 					ERR_EXIT;
 				}
 				// OK, file was found - let's allocated the compressed data buffer
 				if ((mbuffer = (u8*) aligned_malloc(ALT_LOADER_SIZE, 16)) == NULL)
 				{
-					perr("Could not allocate source buffer for uncompress\n");
+					printf("  Could not allocate source buffer for loader decompression\n");
 					ERR_EXIT;
 				}
-				if (opt_verbose)
-					print("Reading file '%s'...\n", ALT_LOADER);
+
 				read = fread (mbuffer, 1, ALT_LOADER_SIZE, fd);
 				if (read != ALT_LOADER_SIZE)
 				{
-					if (opt_verbose)
-						perror ("fread()");
-					perr("'%s': Unexpected file size or read error\n", ALT_LOADER);
+					printf("  '%s': Unexpected file size or read error\n", ALT_LOADER);
 					ERR_EXIT;
 				}
 				compressed_loader = 1;
 
-				perr("  Uncompressing...\n");
+				printf("  Uncompressing...");
 				if (uncompress(fsize[LOADER]))
 				{
-					perr("Decompression error\n");
+					printf("  Error!\n");
 					ERR_EXIT;
 				}
-				perr("  OK. Now saving file as '%s'\n",fname[LOADER]);
+				printf("  OK.\n  Now saving file as '%s'\n",fname[LOADER]);
 				if ((fd = fopen (fname[LOADER], "wb")) == NULL)
 				{
-					if (opt_verbose)
-						perror ("fopen()");
-					perr("Can't create file '%s'\n", fname[LOADER]);
+					printf("  Can't create file '%s'\n", fname[LOADER]);
 					ERR_EXIT;
 				}
 				
 				// Write file
-				if (opt_verbose)
-						print("Writing file '%s'...\n", fname[LOADER]);
 				read = fwrite (fbuffer[LOADER], 1, fsize[LOADER], fd);
 				if (read != fsize[LOADER])
 				{
-					if (opt_verbose)
-						perror ("fwrite()");
-					perr("'%s': Unexpected file size or write error\n", fname[LOADER]);
+					printf("  '%s': Unexpected file size or write error\n", fname[LOADER]);
 					ERR_EXIT;
-				}				
+				}	
+				printf("  DONE.\n\n");
 			}
 			else 
 				ERR_EXIT;
@@ -259,13 +280,11 @@ void load_all_files()
 		if (!((i == LOADER) && (compressed_loader)))
 		{
 			if (opt_verbose)
-				print("Reading file '%s'...\n", fname[i]);
+				printf("Reading file '%s'...\n", fname[i]);
 			read = fread (fbuffer[i], 1, fsize[i], fd);
 			if (read != fsize[i])
 			{
-				if (opt_verbose)
-					perror ("fread()");
-				perr("'%s': Unexpected file size or read error\n", fname[i]);
+				printf("'%s': Unexpected file size or read error\n", fname[i]);
 				ERR_EXIT;
 			}
 		}
@@ -276,6 +295,40 @@ void load_all_files()
 
 	// OK, now we can reset our LOADER's start address
 	fbuffer[LOADER] -= LOADER_PADDING;
+}
+
+
+
+
+// Reload the files we need for a game restart
+void reload_files()
+{
+	size_t read;
+	u32 i;
+
+	for (i=0; i<NB_FILES_TO_RELOAD; i++)
+	{
+		if ((fd = fopen (fname[i], "rb")) == NULL)
+		{
+			if (opt_verbose)
+				perror ("fopen()");
+			printf("Can't find file '%s'\n", fname[i]);
+		}
+		// Read file
+		if (opt_verbose)
+			printf("Reloading file '%s'...\n", fname[i]);
+		read = fread (fbuffer[i], 1, fsize[i], fd);
+		if (read != fsize[i])
+		{
+			if (opt_verbose)
+				perror ("fread()");
+			printf("'%s': Unexpected file size or read error\n", fname[i]);
+			ERR_EXIT;
+		}
+
+		fclose (fd);
+		fd = NULL;
+	}
 }
 
 
@@ -294,18 +347,17 @@ void depack_loadtune()
 	}
 
 	// No uncompressed LOADTUNE? Look for the PowerPacked one
-	if (opt_verbose)
-		perr("Uncompressed %s doesn't exist - trying PowerPacked one", mod_name[0]);
+	printf("Couldn't find file '%s'\n  Trying to use PowerPacked '%s' instead\n", mod_name[0], PP_LOADTUNE_NAME);
 
 	if ((fd = fopen (PP_LOADTUNE_NAME, "rb")) == NULL)
 	{
-		perr("Can't find file PowerPacked MOD '%s' - Aborting.\n", PP_LOADTUNE_NAME);
+		printf("  Can't find '%s' - Aborting.\n", PP_LOADTUNE_NAME);
 		return;
 	}
 
 	if ( (ppbuffer = (u8*) malloc(PP_LOADTUNE_SIZE)) == NULL)
 	{
-		perr("Could not allocate buffer for ppunpack\n");
+		printf("  Could not allocate source buffer for ppunpack\n");
 		fclose(fd);
 		return;
 	}
@@ -317,14 +369,14 @@ void depack_loadtune()
 	// Is it the file we are looking for?
 	if (read != PP_LOADTUNE_SIZE)
 	{
-		perr("'%s': Unexpected file size or read error\n", PP_LOADTUNE_NAME);
+		printf("  '%s': Unexpected file size or read error\n", PP_LOADTUNE_NAME);
 		free(ppbuffer); return;
 	}
 
 	if (ppbuffer[0] != 'P' || ppbuffer[1] != 'P' || 
 		ppbuffer[2] != '2' || ppbuffer[3] != '0')
 	{
-		perr("'%s': Not a PowerPacked file\n", PP_LOADTUNE_NAME);
+		printf("  '%s': Not a PowerPacked file\n", PP_LOADTUNE_NAME);
 		free(ppbuffer); return;
 	}
 
@@ -333,107 +385,67 @@ void depack_loadtune()
 
 	if ( (buffer = (u8*) malloc(length)) == NULL)
 	{
-		perr("Could not allocate buffer for ppunpack\n");
+		printf("  Could not allocate destination buffer for ppunpack\n");
 		free(ppbuffer); return;
 	}
 
+	printf("  Uncompressing...");
 	// Call the PowerPacker unpack subroutine
 	ppdepack(ppbuffer, buffer, PP_LOADTUNE_SIZE, length);
 	free(ppbuffer);
 	
 	// We'll play MOD directly from files, so write it
-	perr("  OK. Now saving file as '%s'\n", mod_name[0]);
+	printf("  OK.\n  Now saving file as '%s'\n", mod_name[0]);
 	if ((fd = fopen (mod_name[0], "wb")) == NULL)
 	{
-		if (opt_verbose)
-			perror ("fopen()");
-		perr("Can't create file '%s'\n", mod_name[0]);
+		printf("  Couldn't create file '%s'\n", mod_name[0]);
 		free(buffer); return;
 	}
 
-	if (opt_verbose)
-		print("Writing file '%s'...\n", mod_name[0]);
 	read = fwrite (buffer, 1, length, fd);
 	if (read != length)
-	{
-		if (opt_verbose)
-			perror ("fwrite()");
-		perr("'%s': Unexpected file size or write error\n", mod_name[0]);
-	}				
+		printf("  '%s': write error.\n", mod_name[0]);
+
+	printf("  DONE.\n\n");
+
 	fclose(fd);
 	free(buffer);
 }
 
 
-// Get some properties (max/min/...) according to file data
-void get_properties()
+// Set some properties (max/min/...) according to file data
+void set_global_properties()
 {
-	u16 room_index;
-	u32 ignore = 0;
-	u32 offset;
-	u16  i,j;
-//	float upsample_length;
+	u16	i;
+#if defined(WIN32)
+	u16	j;
+#endif
 
-	// Get the number of rooms
-	for (room_index=0; ;room_index++)
-	{	
-		// Read the offset
-		offset = readlong((u8*)fbuffer[ROOMS], OFFSETS_START+4*room_index);
-		if (offset == 0xFFFFFFFF)
-		{	// For some reason there is a break in the middle
-			ignore++;
-			if (ignore > FFs_TO_IGNORE)
-				break;
-		}
-	}
-	nb_rooms = room_index;
-//	print("nb_rooms = %X\n", nb_rooms);
-
+	// Setup the backdrop cells
 	// A backdrop cell is exactly 256 bytes (32*16*4bits)
 	nb_cells = fsize[CELLS] / 0x100;
 	cell_texid = malloc(sizeof(GLuint) * nb_cells);
 	GLCHK(glGenTextures(nb_cells, cell_texid));
-//	print("nb_cells = %X\n", nb_cells);
 
-//	nb_sprites = readword(fbuffer[SPRITES],0) + 1;
 	if (readword(fbuffer[SPRITES],0) != (NB_STANDARD_SPRITES-1))
 	{
-		perr("Unexpected number of sprites\n");
+		printf("Unexpected number of sprites\n");
 		ERR_EXIT;
 	}
 
 	sprite_texid = malloc(sizeof(GLuint) * NB_SPRITES);
 	GLCHK(glGenTextures(NB_SPRITES, sprite_texid));
-//	print("nb_sprites = %X\n", NB_SPRITES);
 
 	chars_texid = malloc(sizeof(GLuint) * NB_PANEL_CHARS);
 	GLCHK(glGenTextures(NB_PANEL_CHARS, chars_texid));
-//	print("nb_chars = %X\n", NB_PANEL_CHARS);
 
-	nb_objects = readword(fbuffer[OBJECTS],0) + 1;
-//	print("nb_objects = %X\n", nb_objects);
-	for (i=0; i<NB_OBS_TO_SPRITE; i++)
-		obs_to_sprite[i] = readbyte(fbuffer[LOADER],OBS_TO_SPRITE_START+i);
-
-	// This will be needed to hide the pickable objects on the outside map
-	// if the removable walls are set
-	for (i=0; i<CMP_MAP_WIDTH; i++)
-		for (j=0; j<CMP_MAP_HEIGHT; j++)
-			remove_props[i][j] = 0;
-
-	// We need to initialize the current route pos offset (0x0E)
-	for (i=0; i<NB_GUARDS; i++)
-		// simply copy over the route start offset (0x06)
-		writelong(fbuffer[GUARDS], i*MENDAT_ITEM_SIZE+0x0E,
-			readlong(fbuffer[GUARDS], i*MENDAT_ITEM_SIZE+0x06));
-
-	// Set our textures for panel, zoom and iff images
+	// Setup textures for panel, zoom and iff images
 	glGenTextures( 1, &panel1_texid );
 	glGenTextures( 1, &panel2_texid );
 	glGenTextures( 1, &render_texid );
 	glGenTextures( 1, &picture_texid );
 
-	// The panel textures have already been loaded, so we map them
+	// The panel textures have already been loaded, so we just map them
 	glBindTexture(GL_TEXTURE_2D, panel1_texid);
 	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, PANEL_BASE1_W, PANEL_BASE_H, 0,
@@ -444,7 +456,8 @@ void get_properties()
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, PANEL_BASE2_W, PANEL_BASE_H, 0,
 		GL_RGB, GL_UNSIGNED_BYTE, fbuffer[PANEL_BASE2]);
 
-	// SFX setup
+
+	// Initialize SFXs
 	for (i=0; i<NB_SFXS; i++)
 	{
 		sfx[i].address   = SFX_ADDRESS_START + readword(fbuffer[LOADER], SFX_TABLE_START + 8*i);
@@ -452,28 +465,107 @@ void get_properties()
 		sfx[i].frequency = (u16)(Period2Freq((float)readword(fbuffer[LOADER], SFX_TABLE_START + 8*i+4))/1.0);
 		sfx[i].length    = readword(fbuffer[LOADER], SFX_TABLE_START + 8*i+6);
 #if defined(WIN32)
-		// Why, of course Microsoft has to use UNSIGNED for 8 bit WAV data (but signed for 16), 
-		// whereas Commodore et al. did the LOGICAL thing of using signed ALWAYS.
-		// Therefore, we need to convert our Audio samples
+		// Why, of course Microsoft had to use UNSIGNED for 8 bit WAV data but SIGNED for 16! 
+		// (Whereas Commodore et al. did the LOGICAL thing of using signed ALWAYS)
+		// We need to sign convert our 8 bit mono samples on Windows
 		for (j=0; j<sfx[i].length; j++)
 			writebyte(fbuffer[LOADER], sfx[i].address+j, 
 				(u8) (readbyte(fbuffer[LOADER], sfx[i].address+j) + 0x80));
-		sfx[i].upconverted_address = NULL;
-		sfx[i].upconverted_length = 0;
 #endif
 #if defined(PSP)
-		// On the PSP, we must upconvert our 8 bit mono samples to a PCM format 
-		// that the PSP can handle. The psp_upsample() helper is there for that
+		// On the PSP on the other hand, we must upconvert our 8 bit mono samples @ whatever frequency
+		// to 16bit/44.1 kHz. The psp_upsample() routine from soundplayer is there for that.
 		psp_upsample(&(sfx[i].upconverted_address), &(sfx[i].upconverted_length),
 			(char*)(fbuffer[LOADER] + sfx[i].address), sfx[i].length, sfx[i].frequency);
 #endif
 	}
+
 }
 
 // init_variables
-void init_variables()
+void newgame_init(bool reload)
 {
-	// start time
+	u16  i,j;
+
+	if (reload)
+	{
+		reload_files();
+		fix_files(true);
+	}
+
+	// clear the events array
+	for (i=0; i< NB_EVENTS; i++)
+		events[i].function = NULL;
+
+	// Set the default nation
+	current_nation = BRITISH;
+
+	// Initialize the prisoners
+	for (i=0; i<NB_NATIONS; i++)
+	{
+		guy(i).px = readword(fbuffer[LOADER],INITIAL_POSITION_BASE+10*i+2);
+		guy(i).p2y = 2*readword(fbuffer[LOADER],INITIAL_POSITION_BASE+10*i);
+		guy(i).room = readword(fbuffer[LOADER],INITIAL_POSITION_BASE+10*i+4);
+		guy(i).state = 0;
+		guy(i).speed = 1;
+		guy(i).direction = 6;
+		guy(i).ext_bitmask = 0x8000001E;
+		guy(i).is_dressed_as_guard = false;
+		p_event[i].unauthorized = false;
+		p_event[i].require_pass = false;
+		p_event[i].require_papers = false;
+		p_event[i].to_solitary = false;
+		p_event[i].display_shot = false;
+		p_event[i].killed = false;
+		p_event[i].solitary_countdown = 0;
+		p_event[i].escaped = false;
+		p_event[i].fatigue = 0;
+		selected_prop[i] = 0;
+	}
+
+	// Debug
+//	guy(0).px = 940;
+	guy(0).p2y += 200; //630;
+	guy(0).room = 9; //ROOM_OUTSIDE;
+	guy(0).ext_bitmask = 0x8000001E;
+	guy(0).is_dressed_as_guard = true;
+//	p_event[0].escaped = true;
+//	p_event[0].fatigue = MAX_FATIGUE-0x1000;
+	guy(1).px += 100;
+	guy(1).p2y += 220; //630;
+	guy(1).room = 9; //ROOM_OUTSIDE;
+
+
+	// Initialize the guards
+	for (i=0;i<NB_GUARDS;i++)
+	{
+		guard(i).px = readword(fbuffer[GUARDS],i*MENDAT_ITEM_SIZE + 2);
+		guard(i).p2y = 2*readword(fbuffer[GUARDS],i*MENDAT_ITEM_SIZE);
+		guard(i).room = readword(fbuffer[GUARDS],i*MENDAT_ITEM_SIZE+ 4);
+		guard(i).state = 0;
+		guard(i).speed = 1;
+		guard(i).direction = 0;
+		guard(i).wait = 0;
+		guard(i).is_dressed_as_guard = true;
+		// We also need to initialize the current route pos offset for guards (0x0E)
+		// simply copy over the route start offset (0x06)
+		writelong(fbuffer[GUARDS], i*MENDAT_ITEM_SIZE+0x0E,
+			readlong(fbuffer[GUARDS], i*MENDAT_ITEM_SIZE+0x06));
+	}
+
+	// Read the number of pickable props and fill in the sprites table
+	nb_objects = readword(fbuffer[OBJECTS],0) + 1;
+	for (i=0; i<NB_OBS_TO_SPRITE; i++)
+		obs_to_sprite[i] = readbyte(fbuffer[LOADER],OBS_TO_SPRITE_START+i);
+
+	// This will be needed to hide the pickable objects on the outside map
+	// if the removable walls are set
+	for (i=0; i<CMP_MAP_WIDTH; i++)
+		for (j=0; j<CMP_MAP_HEIGHT; j++)
+			remove_props[i][j] = 0;
+
+
+	// Setup the start time
 	hours_digit_h = 0;
 	hours_digit_l = 9;
 	minutes_digit_h = 3;
@@ -482,7 +574,18 @@ void init_variables()
 //	minutes_digit_h = 5;
 //	minutes_digit_l = 4;
 
+	// Setup our initial event state 
 	next_timed_event_ptr = TIMED_EVENTS_INIT;
+	// Start event is #3 (confined to quarters)
+	authorized_ptr = readlong(fbuffer[LOADER],AUTHORIZED_BASE+4*3);
+
+	if (reload)
+	{	// Reset the palette
+		palette_index = INITIAL_PALETTE_INDEX;
+		to_16bit_palette(palette_index, 0xFF, PALETTES);
+		cells_to_wGRAB(fbuffer[CELLS],rgbCells);
+		sprites_to_wGRAB();
+	}
 
 	// First rollcall
 //	hours_digit_h = 0;
@@ -492,8 +595,16 @@ void init_variables()
 
 //	next_timed_event_ptr = 0x2BE8;
 
-	// Current event is #3 (confined to quarters)
-	authorized_ptr = readlong(fbuffer[LOADER],AUTHORIZED_BASE+4*3);
+	// Reset the room props & animations  
+	init_animations = true;
+	set_room_props();
+
+	// Reinit the time markers;
+	// NB: to have the clock go at full throttle, set ctime to 0
+	last_ctime = game_time;
+	last_atime = last_ctime;
+	last_ptime = last_ctime;
+
 }
 
 
@@ -507,7 +618,7 @@ void to_16bit_palette(u8 palette_index, u8 transparent_index, u8 io_file)
 
 	// Read the palette
 	if (opt_verbose)
-		print("Using Amiga Palette index: %d\n", palette_index);
+		printf("Using Amiga Palette index: %d\n", palette_index);
 
 
 	for (i=0; i<16; i++)		// 16 colours
@@ -515,9 +626,9 @@ void to_16bit_palette(u8 palette_index, u8 transparent_index, u8 io_file)
 		rgb = readword(fbuffer[io_file], palette_start + 2*i);
 		if (opt_verbose)
 		{
-			print(" %03X", rgb); 
+			printf(" %03X", rgb); 
 			if (i==7)
-				print("\n");
+				printf("\n");
 		}
 		// OK, we need to convert our rgb to grab
 		// 1) Leave the R&B values as they are
@@ -531,7 +642,7 @@ void to_16bit_palette(u8 palette_index, u8 transparent_index, u8 io_file)
 		aPalette[i] = grab;
 	}
 	if (opt_verbose)
-		print("\n\n");
+		printf("\n\n");
 }
 
 
@@ -755,7 +866,7 @@ void init_sprites()
 	for (sprite_index=0; sprite_index<NB_STANDARD_SPRITES; sprite_index++)
 	{
 		sprite_address = readlong(fbuffer[SPRITES],2+4*sprite_index);
-//		print("sprite[%X] address = %08X\n", sprite_index, sprite_address);
+//		printf("sprite[%X] address = %08X\n", sprite_index, sprite_address);
 		// x size is given in words
 		sprite_w = readword(fbuffer[SPRITES],sprite_address);
 		// w is fine as it's either 2^4 or 2^5
@@ -771,7 +882,7 @@ void init_sprites()
 		sprite[sprite_index].x_offset = (sprite_w & 0x8000)?16:1;
 		sprite[sprite_index].data = aligned_malloc( RGBA_SIZE * 
 			sprite[sprite_index].corrected_w * sprite[sprite_index].corrected_h, 16);
-//		print("  w,h = %0X, %0X\n", sprite[sprite_index].w , sprite[sprite_index].h);
+//		printf("  w,h = %0X, %0X\n", sprite[sprite_index].w , sprite[sprite_index].h);
 	}
 
 	// Manual correction for the dying prisoners last animations, as these animations
@@ -780,6 +891,13 @@ void init_sprites()
 	sprite[0xac].x_offset = -16;
 	sprite[0xaf].x_offset = -16;
 	sprite[0xb0].x_offset = -16;
+
+	// TO_DO: remove printf
+	if (!integrity_check(OBJECTS))
+	{
+		printf("Program failure\n");
+		exit(1);
+	}
 
 	// We add the panel (nonstandard) sprites at the end of our exitsing sprite array
 	for (sprite_index=NB_STANDARD_SPRITES; sprite_index<NB_SPRITES-1; sprite_index++)
@@ -1002,7 +1120,7 @@ void crm_set_overlays(s16 x, s16 y, u16 current_tile, u32 tile_offset, u16 room_
 
 		sx = readword(fbuffer[LOADER], SPECIAL_TILES_START+i+8);
 		if (opt_debug)
-			print("  match: %04X, direction: %04X\n", current_tile, sx);
+			printf("  match: %04X, direction: %04X\n", current_tile, sx);
 		if (i >= (12*(NB_SPECIAL_TILES-4)))
 		// The four last special tiles are exits. We need to check is they are open
 		{
@@ -1016,7 +1134,7 @@ void crm_set_overlays(s16 x, s16 y, u16 current_tile, u32 tile_offset, u16 room_
 			if (!(tile2_data & 0x000F))
 				// This is how I know that we can use the exit # as ani index
 				// and leave index 0 for the fireplace ani
-				print("set_overlays: Integrity check failure on exit tile\n");
+				printf("set_overlays: Integrity check failure on exit tile\n");
 
 			// The door might be in animation
 			if ((currently_animated[tile2_data & 0x000F] >= 0) && 
@@ -1031,7 +1149,7 @@ void crm_set_overlays(s16 x, s16 y, u16 current_tile, u32 tile_offset, u16 room_
 			if (tile2_data & 0x0010)
 			{	// door open
 				if (opt_debug)
-					print("    exit open: ignoring overlay\n");
+					printf("    exit open: ignoring overlay\n");
 				// The second check on exits is always an FA00, thus we can safely
 				break;
 			}
@@ -1045,7 +1163,7 @@ void crm_set_overlays(s16 x, s16 y, u16 current_tile, u32 tile_offset, u16 room_
 		if (readword(fbuffer[LOADER], SPECIAL_TILES_START+i+2) == tile2_data)
 		{
 			if (opt_debug)
-				print("    ignored as %04X matches\n", tile2_data);
+				printf("    ignored as %04X matches\n", tile2_data);
 			continue;
 		}
 
@@ -1057,11 +1175,11 @@ void crm_set_overlays(s16 x, s16 y, u16 current_tile, u32 tile_offset, u16 room_
 		overlay[overlay_index].sid = sid;
 
 		if (opt_debug)
-			print("    overlay as %04X != %04X => %X\n", tile2_data, 
+			printf("    overlay as %04X != %04X => %X\n", tile2_data, 
 				readword(fbuffer[LOADER], SPECIAL_TILES_START+i+2), sid);
 		sy = readword(fbuffer[LOADER], SPECIAL_TILES_START+i+6);
 		if (opt_debug)
-			print("    sx: %04X, sy: %04X\n", sx, sy);
+			printf("    sx: %04X, sy: %04X\n", sx, sy);
 
 		overlay[overlay_index].x = x + sx - sprite[sid].w + sprite[sid].x_offset;
 		overlay[overlay_index].y = y + sy - sprite[sid].h + 1;
@@ -1303,6 +1421,7 @@ void display_sprite(float x1, float y1, float w, float h, GLuint texid)
 void sort_overlays(u8 a[], u8 n)
 {
 	u8 m,i,j,k;
+	static u8 b[MAX_OVERLAYS/2+1];
 
 	if (n < 2)
 		return;
@@ -1682,7 +1801,7 @@ int move_guards()
 
 		// 0b. This one is to make sure that we execute at least one more step from 
 		// the route at the end of the blocked timeout 
-		// (prevents the blocking of guards by unattended prisoners)
+		// (to prevent the blocking of guards by unattended prisoners)
 		but_i_just_got_out = false;
 /*
 		if (guard(i).is_onscreen)
@@ -1726,8 +1845,9 @@ int move_guards()
 		// 3. Check for an event with one of the prisoners
 		for (p = 0; p<NB_NATIONS; p++)
 		{
-			// Don't bother if prisoner's dead or escaped
-			if ( (guy(p).state & STATE_SHOT) || (p_event[p].escaped) )
+			// Don't bother if prisoner's dead, escaped or has already been caught by another guard
+			if ( (guy(p).state & STATE_SHOT) || (p_event[p].escaped) || 
+				 (p_event[p].require_pass) || (p_event[p].to_solitary) )
 				continue;
 
 			// Do we have a prisoner in sight?
@@ -2373,8 +2493,8 @@ void display_panel()
 		else
 		{
 			sid = 0xd5 + i;
-			if ( (guy(i).state & STATE_IN_PRISON) || 
-				 ( (guy(i).state & STATE_IN_PURSUIT) && ((t/1000)%2) ) )
+			if ( (guy(i).state & STATE_IN_PRISON) ||
+				 ( (guy(i).state & STATE_IN_PURSUIT) && ((game_time/1000)%2) ) )
 				sid = PANEL_FACE_IN_PRISON;
 		}
 		display_sprite(PANEL_FACES_X+i*PANEL_FACES_W, PANEL_TOP_Y,
@@ -2649,7 +2769,7 @@ void enqueue_event(void (*f)(u32), u32 p, u64 delay)
 
 	if (i == NB_EVENTS)
 	{
-		perr("Couldn't enqueue event!!!\n");
+		printf("Couldn't enqueue event!!!\n");
 		return;
 	}
 
@@ -3233,7 +3353,7 @@ void switch_room(s16 exit_nr, bool tunnel_io)
 
 		if (!found)
 		{	// Better exit than go LHC and create a black hole
-			perr("Error: Exit lookup failed\n");
+			printf("Error: Exit lookup failed\n");
 			ERR_EXIT;
 		}
 
@@ -3339,7 +3459,7 @@ void check_on_prisoners()
 	u16 i;
 	bool authorized_id;
 	u8 room_desc_id;
-	int game_over;
+	int game_over, game_won;
 
 	// Check escape condition (for current prisoner only)
 	if ( (!has_escaped) && (current_room_index == ROOM_OUTSIDE) && 
@@ -3368,16 +3488,25 @@ void check_on_prisoners()
 	}
 
 	game_over = 0;
+	game_won  = 0;
 	// Game over condition
 	for(p=0; p<NB_NATIONS; p++)
 	{
-		if ( (p_event[p].killed) || (p_event[p].escaped) || 
-			 (guy(p).state & STATE_IN_PRISON) )
-			 game_over++;
+		if ( (p_event[p].killed) || (guy(p).state & STATE_IN_PRISON) )
+			game_over++;
+		if (p_event[p].escaped)
+			game_won++;
 	}
-	if (game_over == NB_NATIONS)
+	if (game_over == 1 ) //NB_NATIONS)
 	{
+		game_state = GAME_STATE_GAME_OVER;
 		static_screen(GAME_OVER_TEXT, NULL, 0);
+		return;
+	}
+	if (game_won == 1) //NB_NATIONS)
+	{
+		game_state = GAME_STATE_GAME_WON;
+		static_screen(PRISONER_FREE_ALL_TEXT, NULL, 0);
 		return;
 	}
 
@@ -3401,7 +3530,7 @@ void check_on_prisoners()
 			{
 				guy(p).state &= ~STATE_IN_PURSUIT;
 //				selected_prop[p] = ITEM_PASS;		// Doing this is bothersome if
-				consume_prop();						// we have to re-cycle in a hurry
+				props[p][ITEM_PASS]--;				// we have to re-cycle in a hurry
 //				show_prop_count();					// let's comment 2 lines out
 				// If pass handling was successful, we reset the guard's route
 				writelong(fbuffer[GUARDS], p_event[p].caught_by*MENDAT_ITEM_SIZE+0x0E, 
@@ -3478,22 +3607,51 @@ void check_on_prisoners()
 	}
 }
 
-// Looks like the original programmer found that some of the data files had issues
+// Looks like the original programmer found that some of the data files had issues,
 // but rather than fixing the files, they patched them in the loader... go figure!
-void fix_files()
+void fix_files(bool reload)
 {
 	u8 i;
 	u32 mask;
-	//00001C10                 move.b  #$30,(fixed_crm_vector).l ; '0'
-	writebyte(fbuffer[ROOMS],FIXED_CRM_VECTOR,0x30);
-	//00001C18                 move.w  #$73,(exits_base).l ; 's' ; fix room #0's exits
-	writeword(fbuffer[ROOMS],ROOMS_EXITS_BASE,0x0073);
-	//00001C20                 move.w  #1,(exits_base+2).l
-	writeword(fbuffer[ROOMS],ROOMS_EXITS_BASE+2,0x0001);
-	//00001C28                 move.w  #$114,(r116_exits+$E).l ; fix room #116's last exit (0 -> $114)
-	writeword(fbuffer[ROOMS],ROOMS_EXITS_BASE+(0x116<<4),0x0114);
-	//00001C30                 subq.w  #1,(obs_bin).l  ; number of obs.bin items (BB)
-	//00001C30                                          ; 187 items in all...
+
+	if (integrity_check(ROOMS))
+	{
+		//
+		// Original game patch
+		//
+		//////////////////////////////////////////////////////////////////
+		//00001C10                 move.b  #$30,(fixed_crm_vector).l ; '0'
+		writebyte(fbuffer[ROOMS],FIXED_CRM_VECTOR,0x30);
+		//00001C18                 move.w  #$73,(exits_base).l ; 's' ; fix room #0's exits
+		writeword(fbuffer[ROOMS],ROOMS_EXITS_BASE,0x0073);
+		//00001C20                 move.w  #1,(exits_base+2).l
+		writeword(fbuffer[ROOMS],ROOMS_EXITS_BASE+2,0x0001);
+		//00001C28                 move.w  #$114,(r116_exits+$E).l ; fix room #116's last exit (0 -> $114)
+		writeword(fbuffer[ROOMS],ROOMS_EXITS_BASE+(0x116<<4),0x0114);
+		//00001C30                 subq.w  #1,(obs_bin).l  ; number of obs.bin items (BB)
+		//00001C30                                          ; 187 items in all...
+	}
+	else
+	{
+		// TO_DO: remove message and mess up the files beyond repair
+		printf("integrity check failure\n");
+		return;
+	}
+
+	if (reload)
+	// On a reload, no need to fix the other files again
+		return;
+
+	if (!integrity_check(LOADER))
+	{	// TO_DO: something else
+		printf("LOADER integrity check\n");
+		return;
+	}
+
+
+
+	// I've always wanted to have the stethoscope!
+//	writeword(fbuffer[OBJECTS],32,0x000E);
 
 	// OK, because we're not exactly following the exact exit detection routines from the original game
 	// (we took some shortcuts to make things more optimized) upper stairs landings are a major pain in 
@@ -3506,26 +3664,24 @@ void fix_files()
 		writelong((u8*)fbuffer[LOADER], EXIT_MASKS_START + 0x280 + 4*i, mask);
 	}
 
-	// The 3rd tunnel removable masks for overlays on the compressed map were not designed 
+	// The 3rd tunnel removable masks for overlays, on the compressed map, were not designed 
 	// for widescreen, and as such the tunnel will show open if we don't patch it.
 	writebyte(fbuffer[LOADER], OUTSIDE_OVL_BASE+0x38+1, 0x05);
 
-	// For some reason, they reset the tile index for tunnels, instead of starting at 
-	// 0x1E0 (TUNNEL_TILE_ADDON) as they should have done. Because we use the more
-	// logical approach for efficiency, we need to patch a couple of words
+	// In the original, they reset the tile index for tunnels, instead of starting at 
+	// 0x1E0 (TUNNEL_TILE_ADDON) as they should have done. Because we use the latter
+	// more logical approach for efficiency, we'll patch a couple of words
 	writeword(fbuffer[LOADER], TUNNEL_EXIT_TILES_LIST+2*IN_TUNNEL_EXITS_START,
 		readword(fbuffer[LOADER], TUNNEL_EXIT_TILES_LIST+2*IN_TUNNEL_EXITS_START) + TUNNEL_TILE_ADDON);
 	writeword(fbuffer[LOADER], TUNNEL_EXIT_TILES_LIST+2*IN_TUNNEL_EXITS_START+2,
 		readword(fbuffer[LOADER], TUNNEL_EXIT_TILES_LIST+2*IN_TUNNEL_EXITS_START+2) + TUNNEL_TILE_ADDON);
 
 	// Don't want to be picky, but when you include an IFF Sample to be played as an SFX, you might want
-	// to make sure that either you remove the header, or you start playing the actual BODY. The SFX for
-	// the saw SFX was screwed up in the original game because of the 0x68 bytes header. fix it:
+	// to make sure that either you remove the IFF header, or you start playing the actual BODY. The SFX
+	// for the door SFX was screwed up in the original game because of the 0x68 bytes header. We fix it:
 	writeword(fbuffer[LOADER], SFX_TABLE_START, readword(fbuffer[LOADER], SFX_TABLE_START) + 0x68);
 	writeword(fbuffer[LOADER], SFX_TABLE_START+6, readword(fbuffer[LOADER], SFX_TABLE_START+6) - 0x68);
 
-	// I've always wanted to have the stethoscope!
-	writeword(fbuffer[OBJECTS],32,0x000E);
 }
 
 // Open and texturize an IFF image file. Modified from LBMVIEW V1.0b 
@@ -3543,7 +3699,7 @@ bool load_iff(u8 iff_id)
 	{
 		if (opt_verbose)
 			perror ("fopen()");
-		perr("Can't find file '%s'\n", iff_name[iff_id]);
+		printf("Can't find file '%s'\n", iff_name[iff_id]);
 		return false;
 	}
 
@@ -3551,7 +3707,7 @@ bool load_iff(u8 iff_id)
 	if (freadl(fd) != IFF_FORM)
 	{
 		fclose(fd);
-		perr("IFF_FORM not found\n");
+		printf("IFF_FORM not found\n");
 		return false;
 	}
 
@@ -3562,7 +3718,7 @@ bool load_iff(u8 iff_id)
 	if (freadl(fd) != IFF_ILBM)
 	{
 		fclose(fd);
-		perr("IFF_ILBM not found\n");
+		printf("IFF_ILBM not found\n");
 		return false;
 	}
 
@@ -3570,7 +3726,7 @@ bool load_iff(u8 iff_id)
 	if (freadl(fd) != IFF_BMHD)
 	{
 		fclose(fd);
-		perr("IFF_BMHD not found\n");
+		printf("IFF_BMHD not found\n");
 		return false;
 	}
 
@@ -3578,7 +3734,7 @@ bool load_iff(u8 iff_id)
 	if (freadl(fd) != 20)
 	{
 		fclose(fd);
-		perr("Bad IFF header length\n");
+		printf("Bad IFF header length\n");
 		return false;
 	}
 
@@ -3587,20 +3743,20 @@ bool load_iff(u8 iff_id)
 	if (w > 512)
 	{
 		fclose(fd);
-		perr("IFF width must be lower than 512\n");
+		printf("IFF width must be lower than 512\n");
 		return false;
 	}
 	if (w & 0x7)
 	{
 		fclose(fd);
-		perr("IFF width must be a multiple of 8\n");
+		printf("IFF width must be a multiple of 8\n");
 		return false;
 	}
 	h = freadw(fd);
 	if (h > PSP_SCR_HEIGHT)
 	{
 		fclose(fd);
-		perr("IFF height must be lower than %d\n", PSP_SCR_HEIGHT);
+		printf("IFF height must be lower than %d\n", PSP_SCR_HEIGHT);
 		return false;
 	}
 
@@ -3613,7 +3769,7 @@ bool load_iff(u8 iff_id)
 	if (color_depth > 5)
 	{
 		fclose(fd);
-		perr("IFF: Colour depth must be lower than 5\n");
+		printf("IFF: Colour depth must be lower than 5\n");
 		return false;
 	}
 
@@ -3625,7 +3781,7 @@ bool load_iff(u8 iff_id)
 	if ((cmp_type != 0) && (cmp_type != 1))
 	{
 		fclose(fd);
-		perr("Unknown IFF compression method\n");
+		printf("Unknown IFF compression method\n");
 		return false;
 	}
 
@@ -3725,11 +3881,7 @@ bool load_iff(u8 iff_id)
 	fd = NULL;
 
 	if (check_flags != 3)
-	{
-		if (check_flags & 2)
-			aligned_free(b);
 		return false;
-	}
 
 	// The iff is good => we can set our texture
 	glBindTexture(GL_TEXTURE_2D, picture_texid);
@@ -3752,7 +3904,7 @@ bool load_raw_rgb(int w, int h, char* filename)
 	{
 		if (opt_verbose)
 			perror ("fopen()");
-		perr("Can't find file '%s'\n", filename);
+		printf("Can't find file '%s'\n", filename);
 		return false;
 	}
 
@@ -3760,7 +3912,7 @@ bool load_raw_rgb(int w, int h, char* filename)
 	{
 		if (opt_verbose)
 			perror ("fread()");
-		perr("'%s': Unexpected file size or read error\n", filename);
+		printf("'%s': Unexpected file size or read error\n", filename);
 		return false;
 	}
 
@@ -3775,15 +3927,13 @@ bool load_raw_rgb(int w, int h, char* filename)
 	picture_w = w;
 	picture_h = h;
 
-
 	return true;
 
 }
 
-
+// Pay one of the 5 game SFXs
 void play_sfx(int sfx_id)
 {
-
 #if defined(WIN32)
 	play_sample(-1, sfx[sfx_id].volume, fbuffer[LOADER] + sfx[sfx_id].address, sfx[sfx_id].length, sfx[sfx_id].frequency, 8);
 #endif

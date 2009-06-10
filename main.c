@@ -27,8 +27,12 @@
 #pragma comment(lib, "glu32.lib")
 #pragma comment(lib, "glut32.lib")
 #elif defined(PSP)
+#include <pspkernel.h>
 #include <pspdebug.h>
+#include <pspdisplay.h>
+//#include <pspsdk.h>
 #include <pspctrl.h>
+#include <pspsyscon.h>
 #include <pspgu.h>
 #include <psprtc.h>
 #include <GL/gl.h>
@@ -36,6 +40,7 @@
 #include <GL/glut.h>
 #include <pspaudiolib.h>
 #include "psp/psp-setup.h"
+#include "psp/psp-printf.h"
 #endif
 
 #include "getopt.h"	
@@ -67,8 +72,19 @@ int	opt_no_guards			= 0;
 bool opt_haunted_castle		= true;
 // Number of escaped prisoners
 int nb_escaped				= 0;
-int intro_screen			= 12;
+// Current static picture to show
+u8  current_picture			= INTRO_SCREEN_START;
+// Why is this global again?
 bool new_game				= false;
+//
+bool reload_needed			= false;
+// Our second local pause variable, to help with the transition
+bool display_paused			= false;
+
+#if defined(PSP)
+int psp_printf_mode			= 0;
+#endif
+
 
 
 
@@ -146,13 +162,13 @@ s_cheat_sequence cheat_sequence[NB_CHEAT_SEQUENCES] = {
 #endif
 
 bool init_animations = true;
-// bool keep_message_on = false;
 bool is_fire_pressed = false;
 s_animation	animations[MAX_ANIMATIONS];
 u8	nb_animations = 0;
 // last time for Animations and rePosition of the guards
-u64 t, last_atime, last_ptime, last_ctime;
-u64 t_status_message_timeout;
+// NB: atime = animation time, ptime = position time, ctime = ???
+u64 game_time, program_time, last_atime, last_ptime, last_ctime;
+u64 t_last, t_status_message_timeout;
 int	 status_message_priority;
 s_guybrush guybrush[NB_GUYBRUSHES];
 s_event	events[NB_EVENTS];
@@ -165,9 +181,8 @@ u8	over_prop = 0, over_prop_id = 0;
 u8  current_nation = 0;
 u8	panel_chars[NB_PANEL_CHARS][8*8*2];
 char* status_message;
-//bool paused = false;
 u16 game_state;
-u64 paused_time;
+//u64 paused_time, suspended_time;
 u8  hours_digit_h, hours_digit_l, minutes_digit_h, minutes_digit_l;
 u8  tunexit_nr, tunexit_flags, tunnel_tool;
 u8*	iff_image;
@@ -176,7 +191,7 @@ void (*static_screen_func)(u32) = NULL;
 u32  static_screen_param;
 
 u16  nb_rooms, nb_cells, nb_objects;
-u8	 palette_index = 4;
+u8	 palette_index = INITIAL_PALETTE_INDEX;
 s_sprite*	sprite;
 s_overlay*	overlay;
 u8   overlay_index;
@@ -246,23 +261,34 @@ static void glut_init()
 }
 
 
+// Our display routine. 
 static void glut_display(void)
 {
-	// Always start with a clear to black
-	glClear(GL_COLOR_BUFFER_BIT);
-
-	// Display either the current game frame or a static picture
-	if (game_state & GAME_STATE_STATIC_PIC)
-		display_picture();
-	else
-	{	// In game => update room content and panel
-		display_room();
-		display_panel();
-	}
-#if !defined (PSP)
-	rescale_buffer();
+#if defined(PSP_ONSCREEN_STDOUT)
+	// If we printf a message on the PSP we don't allow glut to take over
+	if (psp_printf_mode == 0) 
+	{
 #endif
-	glutSwapBuffers();
+//	puts("psp_printf_mode = 0");
+		// Always start with a clear to black
+		glClear(GL_COLOR_BUFFER_BIT);
+
+		// Display either the current game frame or a static picture
+		if (game_state & GAME_STATE_STATIC_PIC)
+			display_picture();
+		else
+		{	// In game => update room content and panel
+			display_room();
+			display_panel();
+		} 
+#if !defined (PSP)
+		// Rescale the screen on Windows
+		rescale_buffer();
+#endif
+		glutSwapBuffers();
+#if defined (PSP)
+	} 
+#endif
 }
 
 // 
@@ -285,8 +311,42 @@ static void glut_reshape (int w, int h)
 }
 
 
+// Update the game and program timers
+void update_timers()
+{
+	u64 t, delta_t;
+#if defined(PSP_ONSCREEN_STDOUT)
+	SceCtrlData pad;
+#endif	
+	// Find out how much time elapsed since last call
+	t = mtime();
+	delta_t = t - t_last;
+	t_last = t;
+
+	if (delta_t > 1000)
+		printf("NOTICE: more than one second elapsed since last time update\n");
+	
+#if defined(PSP_ONSCREEN_STDOUT)
+	if (psp_printf_mode != 0) 
+	{
+		// Keep message on screen as long as X is not pressed
+		sceCtrlReadBufferPositive(&pad, 1);
+		if(pad.Buttons & PSP_CTRL_CROSS) 
+			psp_printf_mode = 0;
+	}
+	else
+	{	// Don't update the program timer while we're printing stuff
+#endif
+		program_time += delta_t;
+		if (game_state & GAME_STATE_ACTION)
+			game_time += delta_t;
+#if defined(PSP_ONSCREEN_STDOUT)
+	}
+#endif
+}
 
 
+// As it names indicates
 void process_motion(void)
 {
 	s16 new_direction;
@@ -392,7 +452,7 @@ static void glut_idle_game(void)
 	s16 exit_nr;
 
 	// We'll need the current time value for a bunch of stuff
-	t = mtime();
+	update_timers();
 
 	// Return to intro screen
 	if (key_down[KEY_ESCAPE])
@@ -400,23 +460,6 @@ static void glut_idle_game(void)
 		//game_state = GAME_STATE_INTRO | GAME_STATE_STATIC_PIC;
 		exit(0);
 	}
-
-	/*
-	if (game_state & GAME_STATE_INTRO)
-	{
-		if (intro_screen == 12)
-		{
-			glClear(GL_COLOR_BUFFER_BIT);
-			glutSwapBuffers();
-			msleep(1000);
-		}
-		static_screen(intro_screen, NULL, 0);
-		intro_screen++;
-		if (intro_screen == 17)
-			intro_screen = 12;
-		return;
-	}
-*/
 
 #if defined (CHEATMODE_ENABLED)
 	// Check cheat sequences
@@ -458,20 +501,7 @@ static void glut_idle_game(void)
 
 	// Handle the pausing of the game 
 	if (read_key_once(KEY_PAUSE))
-	{
-		mod_pause();
-		// Toggle
-		if (game_state & GAME_STATE_PAUSED)
-		{	// unpause
-			last_atime += (t - paused_time);
-			last_ptime += (t - paused_time);
-			last_ctime += (t - paused_time);
-		}
-		else	// pause
-			paused_time = t;
-		// Toggle pause flag
 		game_state ^= GAME_STATE_PAUSED;
-	}
 
 	// No need to push it further if paused
 	if (game_state & GAME_STATE_PAUSED)
@@ -482,7 +512,7 @@ static void glut_idle_game(void)
 	}
 
 	// Handle timed events (including animations)
-	if ((t - last_atime) > ANIMATION_INTERVAL)
+	if ((game_time - last_atime) > ANIMATION_INTERVAL)
 	{
 		last_atime += ANIMATION_INTERVAL;	// closer to ideal rate
 
@@ -493,7 +523,7 @@ static void glut_idle_game(void)
 			guy(i).animation.framecount++;
 
 		// Clock minute tick?
-		if ((t - last_ctime) > TIME_MARKER)
+		if ((game_time - last_ctime) > TIME_MARKER)
 		{
 			last_ctime += TIME_MARKER;
 			minutes_digit_l++;
@@ -536,7 +566,7 @@ static void glut_idle_game(void)
 		{
 			if (events[i].function == NULL)
 				continue;
-			if (t > events[i].expiration_time)
+			if (game_time > events[i].expiration_time)
 			{	// Execute the timeout function
 				events[i].function(events[i].parameter);
 				// Make the event available again
@@ -545,7 +575,7 @@ static void glut_idle_game(void)
 		}
 
 		// Take care of message display
-		if (t > t_status_message_timeout)
+		if (game_time > t_status_message_timeout)
 			status_message_priority = 0;
 	}
 
@@ -608,7 +638,7 @@ static void glut_idle_game(void)
 	if (read_key_once(KEY_DEBUG_PRINT_POS))
 	{
 		printf("(px, p2y) = (%d, %d), room = %x, rem = %08X\n", prisoner_x, prisoner_2y, current_room_index, rem_bitmask);
-		printf("authorized = %s\n", p_event[current_nation].unauthorized?"false":"true");
+		printf("game_time = %lld, program_time = %lld\n", game_time, program_time);
 	}
 
 	// Gimme some props!!!
@@ -791,13 +821,13 @@ static void glut_idle_game(void)
 	if (jd2y)
 		d2y = jd2y;
 
-// CPU branchs FTW!
+// CPU branches FTW!
 update_motion:
 
 	// This ensures that all the motions are in sync
-	if ((t - last_ptime) > REPOSITION_INTERVAL)
+	if ((game_time - last_ptime) > REPOSITION_INTERVAL)
 	{
-		last_ptime = t;
+		last_ptime = game_time;
 	
 		// Update the guards positions (if not playing with guards disabled)
 		if (!opt_no_guards && move_guards())
@@ -830,24 +860,29 @@ update_motion:
 // We'll use a different idle function for static picture
 static void glut_idle_static_pic(void)
 {
-	// in intro start at PIC_FADE_IN instead of GAME_FADE_OUT
-	// GAME_FADE_OUT
-	// PICTURE_FADE_IN
-	// PICTURE_WAIT
-	// PICTURE_FADE_OUT
-	// GAME_FADE_IN
+	// As usual, we'll need the current time value for a bunch of stuff
+	update_timers();
 
-
-	// We'll need the current time value for a bunch of stuff
-	t = mtime();
-
-	// Exit intro
 	if ((game_state & GAME_STATE_INTRO) && read_key_once(KEY_FIRE))
-	{
-		// TO_DO: call init
+	{	// Exit intro => start new game
+		mod_release();
+		// Reload the changed files if needed
+		newgame_init(reload_needed);
+		t_last = mtime();
+		if (!reload_needed)
+			// We'll need a reload from now on
+			reload_needed = true;
 		picture_state = PICTURE_FADE_OUT;
-		game_state = GAME_STATE_ACTION | GAME_STATE_STATIC_PIC;
-		new_game = true;
+		game_state = GAME_STATE_STATIC_PIC;
+		current_picture = INTRO_SCREEN_START;	// for next restart
+	}
+	else if ((game_state & GAME_STATE_GAME_OVER) && (!(picture_state == GAME_FADE_OUT)) 
+		&& read_key_once(KEY_FIRE))
+	{	// Exit game over/game won => Intro
+		mod_release();
+		picture_state = PICTURE_FADE_OUT;
+		game_state = GAME_STATE_INTRO | GAME_STATE_STATIC_PIC | GAME_STATE_PICTURE_LOOP;
+		current_picture = INTRO_SCREEN_START-1;
 	}
 
 	// Start by incrementing/decrementing fade value
@@ -869,15 +904,48 @@ static void glut_idle_static_pic(void)
 	switch(picture_state)
 	{
 	case GAME_FADE_OUT:
+		game_state &= ~GAME_STATE_ACTION;
 		break;
 	case PICTURE_FADE_IN:
 		game_state |= GAME_STATE_STATIC_PIC;
-		picture_t = t;
+		picture_t = program_time;
+		// We use the picture fade in to load a new MOD if needed
+		if (!is_mod_playing())
+		{
+			if (game_state & GAME_STATE_INTRO)
+			{
+				if (mod_init(mod_name[MOD_LOADTUNE]))
+					mod_play();
+				else
+					printf("Failed to load Intro tune\n");
+			}
+			else if (game_state & GAME_STATE_GAME_OVER)
+			{
+				if (mod_init(mod_name[MOD_GAMEOVER]))
+					mod_play();
+				else
+					printf("Failed to load Game Over tune\n");
+			}
+			else if (game_state & GAME_STATE_GAME_WON)
+			{
+				if (mod_init(mod_name[MOD_WHENWIN]))
+					mod_play();
+				else
+					printf("Failed to load winning tune\n");
+			}
+
+		}
 		break;
 	case PICTURE_WAIT:
-		if (read_key_once(KEY_FIRE) || (t-picture_t > PICTURE_TIMEOUT))
+		if (read_key_once(KEY_FIRE) || 
+			( (!(game_state & GAME_STATE_GAME_OVER)) && (program_time-picture_t > PICTURE_TIMEOUT)))
+		{
 			picture_state++;
-		// We might want to call a function to update the prisoner pos at this stage
+			// Add the picture loop flag here on game won
+			if (game_state & GAME_STATE_GAME_WON)
+				game_state |= GAME_STATE_PICTURE_LOOP;
+		}
+		// We might want to call a function to update the prisoner's status at this stage
 		if (static_screen_func != NULL)
 		{
 			static_screen_func(static_screen_param);
@@ -887,38 +955,37 @@ static void glut_idle_static_pic(void)
 	case PICTURE_FADE_OUT:
 		break;
 	case GAME_FADE_IN:
-		if (game_state & GAME_STATE_INTRO)
+		if (game_state & GAME_STATE_PICTURE_LOOP)
 		{
-			intro_screen++;
-			if (intro_screen == 17)
+			// No game fades for picture loop sequences
+//			picture_state = PICTURE_FADE_IN;
+			if (game_state & GAME_STATE_INTRO)
 			{
-				intro_screen = 12;
-				// Add a 1 second black screen before the first intro screen
-//				glClear(GL_COLOR_BUFFER_BIT);
-//				glutSwapBuffers();
-//				msleep(1000);
+				current_picture++;
+				if (current_picture == (INTRO_SCREEN_END+1))
+				{
+					current_picture = INTRO_SCREEN_START;
+					// Add a 1 second black screen before the first intro screen
+	//				glClear(GL_COLOR_BUFFER_BIT);
+	//				glutSwapBuffers();
+	//				msleep(1000);
+				}
+				static_screen(current_picture, NULL, 0);
 			}
-			static_screen(intro_screen, NULL, 0);
+			else if (game_state & GAME_STATE_GAME_WON)
+			{	// Switch to second & last GAME_WON picture
+				// We add the GAME_OVER flag so that we can reuse the GAME OVER exit code
+				game_state |= GAME_STATE_GAME_OVER;
+				static_screen(PRISONER_FREE_ALL, NULL, 0);
+			}
+			else
+				printf("Missing static_screen() call in static pic loop!\n");
 		}
-		else
+		else	
 			game_state &= ~GAME_STATE_STATIC_PIC;
 		break;
 	case PICTURE_EXIT:
-		if (new_game)
-		{	// TO_DO: call game_init() here and move this stuff in
-			last_atime = t;
-			last_ptime = t;
-			last_ctime = t;
-			new_game = false;
-			mod_stop();
-		}
-		else
-		{
-			// Restore time markers (if we're not starting a new game)
-			last_atime += (t - paused_time);
-			last_ptime += (t - paused_time);
-			last_ctime += (t - paused_time);
-		}
+		game_state |= GAME_STATE_ACTION;
 		// Set glut_idle to our main game loop
 		glutIdleFunc(glut_idle_game);
 		break;
@@ -942,6 +1009,9 @@ void static_screen(u8 picture_id, void (*func)(u32), u32 param)
 {
 bool loaded_ok;
 
+	// We need to store the current picture for idle_static_pic()
+	current_picture = picture_id;
+
 	// This function call will be initiated in idle_static_pic()
 	static_screen_func = func;
 	static_screen_param = param;
@@ -963,11 +1033,8 @@ bool loaded_ok;
 		return;
 	}
 
-	// As we pause the game, we'll need to restore the time markers
-	paused_time = t;
-
 	// start with the following picture state
-	if (game_state & GAME_STATE_INTRO)
+	if (game_state & GAME_STATE_PICTURE_LOOP)
 	{
 		picture_state = PICTURE_FADE_IN;
 		fade_value = 0.0f;
@@ -1069,9 +1136,10 @@ int main (int argc, char *argv[])
 	u32  i;
 
 
+
 #if defined(PSP)
 	setup_callbacks();
-	pspAudioInit();
+//	pspDebugInstallStdoutHandler(pspDebugScreenPrintData);
 	gl_width = PSP_SCR_WIDTH;
 	gl_height = PSP_SCR_HEIGHT;
 #else
@@ -1079,15 +1147,11 @@ int main (int argc, char *argv[])
 	gl_height = 2*PSP_SCR_HEIGHT;
 #endif
 
-	// Initialize the game state
-	game_state = GAME_STATE_ACTION;
-
-	// Initialize our timer values
-	last_ctime = mtime();
-	last_atime = last_ctime;
-	last_ptime = last_ctime;
-
+	// Well, we're supposed to call that blurb
 	glutInit(&argc, argv);
+
+	// Need to have a working GL before we proceed. This is our own init() function
+	glut_init();
 
 	// Let's clean up our buffers
 	fflush(stdin);
@@ -1135,9 +1199,8 @@ int main (int argc, char *argv[])
 		puts ("");
 		exit (1);
 	}
+//	opt_verbose = -1;
 
-	// Need to have a working GL before we proceed
-	glut_init();
 
 	// Allocate the bitmap image buffer (for displaying static IFF or RAW RGB 
 	// images). The padded size of all our static image textures is always 
@@ -1152,92 +1215,30 @@ int main (int argc, char *argv[])
 	// 
 	// If you're really unhappy about this kind of practice, just allocate 512x512x3
 	static_image_buffer = (u8*) aligned_malloc(512*PSP_SCR_HEIGHT*3,16);
+//	static_image_buffer = (u8*) aligned_malloc(512*512*3,16);	
 	if (static_image_buffer == NULL)
 	{
-		perr("Could not allocate buffer for static images display\n");
+		printf("Could not allocate buffer for static images display\n");
 		return 0;
 	}
 
 	// Load the data. If it's the first time we run the game, we might have
 	// to uncompress LOADTUNE.MUS (PowerPack) and SKR_COLD (custom compression)
-	depack_loadtune();
 	load_all_files();
+	depack_loadtune();
 
-	// Some of the files need patching
-	fix_files();
+	// Some of the files need patching (this was done too in the original game!)
+	fix_files(false);
 
 	// Set global variables
-	get_properties();
-	init_variables();
+	t_last = mtime();
+	program_time = 0;
+	game_time = 0;
+	set_global_properties();
 
 	// We might want some sound
-	audio_init();
-
-	// clear the events array
-	for (i=0; i< NB_EVENTS; i++)
-		events[i].function = NULL;
-
-	// Set the default nation
-	current_nation = BRITISH;
-
-	// Initialize the start positions
-	for (i=0; i<NB_NATIONS; i++)
-	{
-		guy(i).px = readword(fbuffer[LOADER],INITIAL_POSITION_BASE+10*i+2);
-		guy(i).p2y = 2*readword(fbuffer[LOADER],INITIAL_POSITION_BASE+10*i);
-		guy(i).room = readword(fbuffer[LOADER],INITIAL_POSITION_BASE+10*i+4);
-		guy(i).state = 0;
-		guy(i).speed = 1;
-		guy(i).direction = 6;
-		guy(i).ext_bitmask = 0x8000001E;
-		guy(i).is_dressed_as_guard = false;
-		p_event[i].unauthorized = false;
-		p_event[i].require_pass = false;
-		p_event[i].require_papers = false;
-		p_event[i].to_solitary = false;
-		p_event[i].display_shot = false;
-		p_event[i].killed = false;
-		p_event[i].solitary_countdown = 0;
-		p_event[i].escaped = false;
-		p_event[i].fatigue = 0;
-	}
-
-
-	// Debug
-//	guy(0).px = 940;
-	guy(0).p2y += 200; //630;
-	guy(0).room = 9; //ROOM_OUTSIDE;
-	guy(0).ext_bitmask = 0x8000001E;
-	guy(0).is_dressed_as_guard = true;
-//	p_event[0].escaped = true;
-//	p_event[0].fatigue = MAX_FATIGUE-0x1000;
-
-
-	guy(1).px += 100;
-	guy(1).p2y += 220; //630;
-	guy(1).room = 9; //ROOM_OUTSIDE;
-
-	// Initialize the guards
-	for (i=0;i<NB_GUARDS;i++)
-	{
-		guard(i).px = readword(fbuffer[GUARDS],i*MENDAT_ITEM_SIZE + 2);
-		guard(i).p2y = 2*readword(fbuffer[GUARDS],i*MENDAT_ITEM_SIZE);
-		guard(i).room = readword(fbuffer[GUARDS],i*MENDAT_ITEM_SIZE+ 4);
-		guard(i).state = 0;
-		guard(i).speed = 1;
-		guard(i).direction = 0;
-		guard(i).wait = 0;
-		guard(i).is_dressed_as_guard = true;
-	}
-
-	// We start with the Intro state
-	intro_screen = 12;
-	game_state = GAME_STATE_INTRO | GAME_STATE_STATIC_PIC;
-	static_screen(intro_screen, NULL, 0);
-	if (mod_init(mod_name[0]))
-		mod_play();
-
-//	game_state = GAME_STATE_ACTION;
+	if (!audio_init())
+		printf("Could not Initialize audio\n");
 		
 	// We're going to convert the cells array, from 2 pixels per byte (paletted)
 	// to on RGB(A) word per pixel
@@ -1258,12 +1259,11 @@ int main (int argc, char *argv[])
 	init_sprites();
 	sprites_to_wGRAB();
 
-	// Don't forget to set the room props
-	set_room_props();
-	for (i = 0; i<NB_NATIONS; i++)
-		selected_prop[i] = 0;
+	// We start with the Intro state
+	game_state = GAME_STATE_INTRO | GAME_STATE_STATIC_PIC | GAME_STATE_PICTURE_LOOP;
+	static_screen(INTRO_SCREEN_START, NULL, 0);
 
-	// Now we can proceed with our display
+	// Now we can proceed with setting up our display
 	glutDisplayFunc(glut_display);
 	glutReshapeFunc(glut_reshape);
 
@@ -1279,14 +1279,8 @@ int main (int argc, char *argv[])
 	// so we have to stuff the movement handling in idle!!!
 	glutIdleFunc(glut_idle_static_pic);
 
-//	if (mod_init(mod_name[0]))
-//		mod_play();
-//	else
-//		printf("mod_init error\n");
-//	printf("mod_play_kk\n");
-//	play_sfx(opt_sfx);
-
 	glutMainLoop();
+
 
 	return 0;
 }

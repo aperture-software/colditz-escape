@@ -112,11 +112,14 @@
 			/>
 			<Tool
 				Name="VCCLCompilerTool"
-				Optimization="2"
+				Optimization="3"
+				InlineFunctionExpansion="0"
 				EnableIntrinsicFunctions="true"
+				AdditionalIncludeDirectories="&quot;E:\Program Files (x86)\Microsoft DirectX SDK (March 2009)\Include&quot;"
 				PreprocessorDefinitions="WIN32;NDEBUG;_CONSOLE"
 				RuntimeLibrary="2"
 				EnableFunctionLevelLinking="true"
+				EnableEnhancedInstructionSet="0"
 				UsePrecompiledHeader="0"
 				WarningLevel="3"
 				Detect64BitPortabilityProblems="false"
@@ -133,8 +136,9 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
+				AdditionalDependencies="X3DAudio.lib"
 				LinkIncremental="1"
-				AdditionalLibraryDirectories=""
+				AdditionalLibraryDirectories="&quot;E:\Program Files (x86)\Microsoft DirectX SDK (March 2009)\Lib\x64&quot;;&quot;E:\Program Files (x86)\Microsoft DirectX SDK (March 2009)\Lib\x86&quot;"
 				GenerateDebugInformation="true"
 				SubSystem="1"
 				OptimizeReferences="2"
@@ -185,11 +189,23 @@
 				>
 			</File>
 			<File
-				RelativePath=".\psp-setup.c"
+				RelativePath=".\md5.c"
+				>
+			</File>
+			<File
+				RelativePath=".\psp\psp-setup.c"
+				>
+			</File>
+			<File
+				RelativePath=".\soundplayer.cpp"
 				>
 			</File>
 			<File
 				RelativePath=".\utilities.c"
+				>
+			</File>
+			<File
+				RelativePath=".\win32\winXAudio2.cpp"
 				>
 			</File>
 		</Filter>
@@ -203,6 +219,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\data-types.h"
+				>
+			</File>
+			<File
 				RelativePath=".\getopt.h"
 				>
 			</File>
@@ -211,11 +231,35 @@
 				>
 			</File>
 			<File
-				RelativePath=".\psp-setup.h"
+				RelativePath=".\md5.h"
+				>
+			</File>
+			<File
+				RelativePath=".\modplayeri.h"
+				>
+			</File>
+			<File
+				RelativePath=".\modtables.h"
+				>
+			</File>
+			<File
+				RelativePath=".\psp\psp-printf.h"
+				>
+			</File>
+			<File
+				RelativePath=".\psp\psp-setup.h"
+				>
+			</File>
+			<File
+				RelativePath=".\soundplayer.h"
 				>
 			</File>
 			<File
 				RelativePath=".\utilities.h"
+				>
+			</File>
+			<File
+				RelativePath=".\win32\winXAudio2.h"
 				>
 			</File>
 		</Filter>

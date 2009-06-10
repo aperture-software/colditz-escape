@@ -34,7 +34,6 @@ extern "C" {
 
 // Toggle the exit open flag
 #define toggle_open_flag(x_flags)  x_flags ^= 0x10
-//	x_flags = (x_flags & 0x10)?(x_flags & 0xEF):(x_flags | 0x10)
 
 // Checks that an overlay is visible onscreen (with generous margins)
 #define ignore_offscreen_x(ovl)		\
@@ -47,7 +46,6 @@ extern "C" {
 #define get_guybrush_sid(x)					\
 	( ( (guybrush[x].state & STATE_ANIMATED) && (!(guybrush[x].state & STATE_BLOCKED)) ) ?	\
 	get_animation_sid(x, true):get_stop_animation_sid(x, true))
-
 
 #define safe_nb_animations_increment() {	\
 	if (nb_animations <= (MAX_ANIMATIONS-1))\
@@ -101,42 +99,32 @@ static __inline u8 freadc(FILE* f)
 }
 
 
-
-
-
-
-
-//void cells_to_interleaved(u8* buffer, u32 size);
-//void sprites_to_interleaved(u8* buffer, u32 bitplane_size);
+// Public prototypes
+//
+//////////////////////////////////////////////////////////////////////
 void to_16bit_palette(u8 palette_index, u8 transparent_index, u8 io_file);
-//void to_16bit_palette(int palette_start, u8 io_file);
-//void to_24bit_Palette(u8 palette_index);
-//void to_48bit_Palette(u16 wPalette[3][16], u8 palette_index);
-//void cells_to_RGB(u8* source, u8* dest, u32 size);
 void cells_to_wGRAB(u8* source, u8* dest);
 void load_all_files();
+void reload_files();
 void display_room();
 void display_picture();
 void display_panel();
 void rescale_buffer();
-void get_properties();
+void set_global_properties();
 int move_guards();
-#if !defined(PSP)
-void glutPrintf(const char *fmt, ...);
-#endif
 void init_sprites();
 void sprites_to_wGRAB();
 void toggle_exit(u32 exit_nr);
 s16 check_footprint(s16 dx, s16 d2y);
 bool check_guard_footprint(u8 g, s16 dx, s16 d2y);
 void switch_room(s16 exit, bool tunnel_io);
-void fix_files();
+void fix_files(bool reload);
 void set_room_props();
 void timed_events(u16 hours, u16 minutes_high, u16 minutes_low);
 int  load_iff(u8 iff_id);
 bool load_raw_rgb(int w, int h, char* filename);
 void check_on_prisoners();
-void init_variables();
+void newgame_init(bool reload);
 void play_sfx(int sfx_id);
 void depack_loadtune();
 

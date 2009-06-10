@@ -19,13 +19,8 @@
 #include <conio.h>
 #include "winXAudio2.h"
 
-// Max number of voices (aka "channels") that we can handle
+// Max number of voices (aka "channels") we can handle
 #define NB_VOICES_MAX		4
-
-//#define BITS_PER_SAMPLE		16
-//#define BYTES_PER_SAMPLE	((BITS_PER_SAMPLE+7)/8)
-
-
 // We'll use double buffering to fill our data for callbacks
 #define NB_BUFFERS			2
 // Buffer size, in bytes
@@ -41,6 +36,12 @@ static bool XAudio2Init	= false;
 static bool voice_in_use[NB_VOICES_MAX];
 static bool voice_set_up[NB_VOICES_MAX];
 
+// Wanna have fun and waste one day debugging unexplainable crashes in Xaudio2 DLLs? Then just make
+// x2buffer[NB_BUFFERS] a *PUBLIC* member of the VoiceCallBack class below and see what happens...
+// Oh, and don't ask me why setting a buffer pointer as a public member of said class is no 
+// problemo, while an XAUDIO2_BUFFER (which is just a glorified buffer pointer struct anyway) isn't.
+static XAUDIO2_BUFFER x2buffer[NB_VOICES_MAX][NB_BUFFERS];
+
 // To setup buffer callbacks, we first create an override 
 // of the virtual IXAudio2VoiceCallback class
 class VoiceCallback : public IXAudio2VoiceCallback
@@ -53,7 +54,7 @@ private:
 	// buffer size, in number of samples
 	unsigned long			_audio_sample_size;
 public:
-	XAUDIO2_BUFFER			x2buffer[NB_BUFFERS];
+//	XAUDIO2_BUFFER			x2buffer[NB_BUFFERS];
 	BYTE*					buffer;
 	VoiceCallback(int voice, winXAudio2Callback_t callback, void* pdata, unsigned long audio_sample_size) 
 	{
@@ -62,11 +63,11 @@ public:
 		_pdata = pdata;
 		_audio_sample_size = audio_sample_size;
 		_even_buffer = true;
-		buffer = (BYTE*) malloc(NB_BUFFERS*BUFFER_SIZE); 
-		x2buffer[0].pAudioData = buffer;
-		x2buffer[0].AudioBytes = BUFFER_SIZE;
-		x2buffer[1].pAudioData = buffer + BUFFER_SIZE;
-		x2buffer[1].AudioBytes = BUFFER_SIZE;
+		buffer = (BYTE*) malloc(NB_BUFFERS*BUFFER_SIZE);
+		x2buffer[_voice][0].pAudioData = buffer;
+		x2buffer[_voice][0].AudioBytes = BUFFER_SIZE;
+		x2buffer[_voice][1].pAudioData = buffer + BUFFER_SIZE;
+		x2buffer[_voice][1].AudioBytes = BUFFER_SIZE;
 	}
 	~VoiceCallback() 
 	{ 
@@ -77,7 +78,7 @@ public:
 	{
 		_even_buffer = true;	// Always start with even buffer
 		_callback(buffer, _audio_sample_size, _pdata); 
-		pSourceVoice[_voice]->SubmitSourceBuffer( &(x2buffer[0]) ); 
+		pSourceVoice[_voice]->SubmitSourceBuffer( &(x2buffer[_voice][0]) ); 
 	}
 	// Called when the voice starts playing a new buffer => fill and enqueue the other one
 	STDMETHOD_(void, OnBufferStart) (THIS_ void* pBufferContext) 
@@ -88,10 +89,16 @@ public:
 		// update the next buffer we'll submit
 		int buffer_to_fill = _even_buffer?1:0;
 		// Call the user defined callback function
-		_callback( x2buffer[buffer_to_fill].pAudioData, _audio_sample_size, NULL);
+		_callback( x2buffer[_voice][buffer_to_fill].pAudioData, _audio_sample_size, NULL);
 		// Enqueue the new buffer
-		pSourceVoice[_voice]->SubmitSourceBuffer( &(x2buffer[buffer_to_fill]) ); 
+		pSourceVoice[_voice]->SubmitSourceBuffer( &(x2buffer[_voice][buffer_to_fill]) ); 
 		_even_buffer = !_even_buffer;
+	}
+
+	// The ProcessingPassStart callback is a good way of finding if our fillout calls are fast enough
+    STDMETHOD_(void, OnVoiceProcessingPassStart)(UINT32 BytesRequired) {  
+		if (BytesRequired != 0)
+			printf("winXAudio2: Voice[%d] is starving for %d bytes!\n", _voice, BytesRequired);
 	}
 
     // Unused methods are stubs
@@ -99,7 +106,6 @@ public:
 	// "error C2695: overriding virtual function differs only by calling convention"
 	STDMETHOD_(void, OnStreamEnd)() { }; 
 	STDMETHOD_(void, OnVoiceProcessingPassEnd)() { }
-    STDMETHOD_(void, OnVoiceProcessingPassStart)(UINT32 SamplesRequired) {    }
     STDMETHOD_(void, OnBufferEnd)(void * pBufferContext)    { }
     STDMETHOD_(void, OnLoopEnd)(void * pBufferContext) {    }
     STDMETHOD_(void, OnVoiceError)(void * pBufferContext, HRESULT Error) { }
@@ -124,7 +130,7 @@ int i;
 	CoInitializeEx( NULL, COINIT_MULTITHREADED );
     if( FAILED( XAudio2Create(&pXAudio2, 0) ) )
     {
-        printf( "Failed to init XAudio2 engine\n" );
+		printf("winXAudio2Init: Failed to init XAudio2 engine\n");
         CoUninitialize();
         return false;
     }
@@ -133,7 +139,7 @@ int i;
     pMasteringVoice = NULL;
     if( FAILED( pXAudio2->CreateMasteringVoice( &pMasteringVoice ) ) )
     {
-        printf( "Failed creating mastering voice\n" );
+		printf("winXAudio2Init: Failed to create mastering voice\n");
         SAFE_RELEASE( pXAudio2 );
         CoUninitialize();
         return false;

@@ -11,9 +11,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#if defined(PSP)
+#include <psp/psp-printf.h>
+#endif
 #include "data-types.h"
 #include "colditz.h"
 #include "low-level.h"
+
 
 // Some global variables
 int  underflow_flag = 0;
@@ -25,8 +29,8 @@ u32 counter = 0;
 u8 *source;
 
 
-// dammit %b should be a standard!
-// converts a 32 bit to string
+// dammit %b should be a C standard!
+// <sigh> converts a 32 bit number to binary string then...
 const char *to_binary(u32 x)
 {
 	static char b[33]; 
@@ -81,7 +85,7 @@ u32 getbit(u32 *address, u32 *data)
 		(*data) = readlong(mbuffer, *address);
 		checksum ^= (*data);
 		if (opt_debug)
-			print("(-%X).l = %08X\n",(uint)(compressed_size-*address+LOADER_DATA_START+8), (uint)*data);
+			printf("(-%X).l = %08X\n",(uint)(compressed_size-*address+LOADER_DATA_START+8), (uint)*data);
 		(*address)-=4;
 		// Lose the 1 bit marker on read ahead
 		bit = (*data) & 1; 
@@ -106,7 +110,7 @@ u32 getbitstream(u32 *address, u32 *data, u32 streamsize)
 void decrement(u32 *address)
 {
 	if (underflow_flag)
-		print("uncompress(): Buffer underflow error.\n");
+		printf("uncompress(): Buffer underflow error.\n");
 	if ((*address)!=0)
 		(*address)--;
 	else
@@ -118,7 +122,7 @@ void duplicate(u32 *address, u32 offset, u32 nb_bytes)
 {
 	u32 i;
 	if (offset == 0)
-		print("uncompress(): WARNING - zero offset value found for duplication\n");
+		printf("uncompress(): WARNING - zero offset value found for duplication\n");
 	for (i=0; i<nb_bytes; i++)
 	{
 		writebyte(fbuffer[LOADER], (*address), readbyte(fbuffer[LOADER],(*address)+offset));
@@ -126,7 +130,9 @@ void duplicate(u32 *address, u32 offset, u32 nb_bytes)
 	}
 }
 
-// Uncompress loader data
+// Colditz loader uncompression.
+// Don't ask me what kind of compression algorithm is used there, I'm just the guy that
+// reverse engineered what he saw in the disassembly...
 int uncompress(u32 expected_size)
 {
 	u32 source = LOADER_DATA_START;
@@ -140,7 +146,7 @@ int uncompress(u32 expected_size)
 	source +=4;
 	if (uncompressed_size != expected_size)
 	{
-		print("uncompress(): uncompressed data size does not match expected size\n");
+		printf("uncompress(): uncompressed data size does not match expected size\n");
 		return -1;
 	}
 	checksum = readlong(mbuffer, source);	// There's a compression checksum
@@ -148,7 +154,7 @@ int uncompress(u32 expected_size)
 
 	if (opt_verbose)
 	{
-		print("  Compressed size=%X, uncompressed size=%X\n", 
+		printf("  Compressed size=%X, uncompressed size=%X\n", 
 			(uint)compressed_size, (uint)uncompressed_size);
 	}
 
@@ -164,7 +170,7 @@ int uncompress(u32 expected_size)
 
 	checksum ^= current;
 	if (opt_debug)
-		print("(-%X).l = %08X\n", (uint)(compressed_size-source+LOADER_DATA_START+8), (uint)current);
+		printf("(-%X).l = %08X\n", (uint)(compressed_size-source+LOADER_DATA_START+8), (uint)current);
 
 	while (dest != 0)
 	{
@@ -184,7 +190,7 @@ int uncompress(u32 expected_size)
 				offset = getbitstream(&source, &current, 12);
 				duplicate(&dest, offset, nb_bytes_to_process);
 				if (opt_debug)
-					print("  o mult=011: duplicated %d bytes at (start) offset %X to address %X\n", 
+					printf("  o mult=011: duplicated %d bytes at (start) offset %X to address %X\n", 
 						(uint)nb_bytes_to_process, (int)offset, (uint)dest+1);
 				break;
 			case 3:	// mult: 111
@@ -198,7 +204,7 @@ int uncompress(u32 expected_size)
 					decrement(&dest);
 				}
 				if (opt_debug)
-					print("  o mult=111: copied %d bytes to address %X\n", (int)nb_bytes_to_process, (uint)dest+1);
+					printf("  o mult=111: copied %d bytes to address %X\n", (int)nb_bytes_to_process, (uint)dest+1);
 				break;
 			default: // mult: x01
 				// Read offset (9 or 10 bit value)
@@ -208,7 +214,7 @@ int uncompress(u32 expected_size)
 				nb_bytes_to_process = bit+3;
 				duplicate(&dest, offset, nb_bytes_to_process);
 				if (opt_debug)
-					print("  o mult=%d01: duplicated %d bytes at (start) offset %X to address %X\n", 
+					printf("  o mult=%d01: duplicated %d bytes at (start) offset %X to address %X\n", 
 						(int)bit&1, (int)nb_bytes_to_process, (uint)offset, (uint)dest+1);
 				break;
 			}
@@ -223,7 +229,7 @@ int uncompress(u32 expected_size)
 				// Duplicate 1 byte
 				duplicate(&dest, offset, 2);
 				if (opt_debug)
-					print("  o mult=10: duplicated 2 bytes at (start) offset %X to address %X\n", 
+					printf("  o mult=10: duplicated 2 bytes at (start) offset %X to address %X\n", 
 						(uint)offset, (uint)dest+1);
 			}
 			else
@@ -236,7 +242,7 @@ int uncompress(u32 expected_size)
 					decrement(&dest);
 				}
 				if (opt_debug)
-					print("  o mult=00: copied 2 bytes to address %X\n", (uint)dest+1);
+					printf("  o mult=00: copied 2 bytes to address %X\n", (uint)dest+1);
 
 			}
 		} 
@@ -244,7 +250,7 @@ int uncompress(u32 expected_size)
 
 	if (checksum != 0)
 	{
-		print("uncompress(): checksum error\n");
+		printf("uncompress(): checksum error\n");
 		return -1;
 	}
 	return 0;

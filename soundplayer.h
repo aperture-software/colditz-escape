@@ -27,6 +27,7 @@ extern "C" {
     bool mod_init(char *filename);
 	void mod_release();
 	bool mod_play();
+	bool is_mod_playing();
     void mod_pause();
     bool mod_stop();
 	bool play_sample(int channel, unsigned int volume, void *address, unsigned int length, 
