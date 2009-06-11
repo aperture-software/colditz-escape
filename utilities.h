@@ -99,6 +99,8 @@ static __inline u8 freadc(FILE* f)
 }
 
 
+
+
 // Public prototypes
 //
 //////////////////////////////////////////////////////////////////////
@@ -106,6 +108,7 @@ void to_16bit_palette(u8 palette_index, u8 transparent_index, u8 io_file);
 void cells_to_wGRAB(u8* source, u8* dest);
 void load_all_files();
 void reload_files();
+void display_sprite_linear(float x1, float y1, float w, float h, GLuint texid) ;
 void display_room();
 void display_picture();
 void display_panel();
@@ -127,6 +130,7 @@ void check_on_prisoners();
 void newgame_init(bool reload);
 void play_sfx(int sfx_id);
 void depack_loadtune();
+u8* load_raw_rgba(int w, int h, char* filename, GLuint* rgba_texid);
 
 #ifdef	__cplusplus
 }

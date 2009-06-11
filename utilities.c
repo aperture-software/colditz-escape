@@ -30,7 +30,9 @@
 #include "low-level.h"
 #include "soundplayer.h"
 #include "colditz.h"
+#if defined(ANTI_TAMPERING)
 #include "md5.h"
+#endif
 
 
 /* Whatever you do, you don't want local variables holding textures */
@@ -55,7 +57,9 @@ s16	gl_off_x = 0, gl_off_y  = 0;
 char panel_message[256];
 u32 next_timed_event_ptr = TIMED_EVENTS_INIT;
 u8*	iff_image;
+#if defined(ANTI_TAMPERING)
 u8  fmdxhash[NB_FILES][5]= FMDXHASHES;
+#endif
 
 // Fatigue bar base sprite colours (4_4_4_4 GRAB)
 u16 fatigue_colour[8] = {0x29F0, 0x4BF0, 0x29F0, 0x06F0, 
@@ -170,7 +174,7 @@ u16 props_tile [0x213] = {
 	1111,1111,1111,1111,1111,1111,1111,1111,1111,1111,	// tunnels, line 5
 	1111};
 
-
+#if defined(ANTI_TAMPERING)
 // This inline performs an obfuscated MD5 check on file i
 // Conveniently used to discreetly check for file tampering anytime during the game
 static __inline bool integrity_check(u16 i)
@@ -196,6 +200,7 @@ static __inline bool integrity_check(u16 i)
 	if (blah != fmdxhash[i][4]) return false;
 	return true;
 }
+#endif
 
 void load_all_files()
 {
@@ -892,12 +897,13 @@ void init_sprites()
 	sprite[0xaf].x_offset = -16;
 	sprite[0xb0].x_offset = -16;
 
-	// TO_DO: remove printf
+#if defined(ANTI_TAMPERING)
 	if (!integrity_check(OBJECTS))
 	{
 		printf("Program failure\n");
 		exit(1);
 	}
+#endif
 
 	// We add the panel (nonstandard) sprites at the end of our exitsing sprite array
 	for (sprite_index=NB_STANDARD_SPRITES; sprite_index<NB_SPRITES-1; sprite_index++)
@@ -1386,6 +1392,50 @@ void display_sprite(float x1, float y1, float w, float h, GLuint texid)
 	// the whole colour buffer, else the sprite seams will show
 //	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 //	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+
+	// If we don't set clamp, our tiling will show
+#if defined(PSP)
+	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
+	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
+#else
+	// For some reason GL_CLAMP_TO_EDGE on Win achieves the same as GL_CLAMP on PSP
+	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+#endif 
+
+	// pspGL does not implement QUADS
+	glBegin(GL_TRIANGLE_FAN);
+
+	glTexCoord2f(0.0f, 0.0f);
+	glVertex3f(x1, y1, 0.0f);
+
+	glTexCoord2f(0.0f, 1.0f);
+	glVertex3f(x1, y2, 0.0f);
+
+	glTexCoord2f(1.0f, 1.0f);
+	glVertex3f(x2, y2, 0.0f);
+
+	glTexCoord2f(1.0f, 0.0f);
+	glVertex3f(x2, y1, 0.0f);
+
+	glEnd();
+}
+
+
+// Yes we will define 2 different routines insteaf of using an if!
+void display_sprite_linear(float x1, float y1, float w, float h, GLuint texid) 
+{
+	float x2, y2;
+
+	x2 = x1 + w;
+	y2 = y1 + h;
+
+	glBindTexture(GL_TEXTURE_2D, texid);
+
+	// Do linear interpolation. Looks better, but if you zoom, you have to zoom
+	// the whole colour buffer, else the sprite seams will show
+	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 
 	// If we don't set clamp, our tiling will show
 #if defined(PSP)
@@ -2652,7 +2702,7 @@ void rescale_buffer()
 	    glOrtho(0, gl_width, gl_height, 0, -1, 1);
 
 		// OK, now we can display the whole texture
-		display_sprite(0,gl_height,gl_width,-gl_height,render_texid);
+		display_sprite_linear(0, gl_height, gl_width, -gl_height, render_texid);
 
 		// Finally, we restore the parameters
 		glMatrixMode(GL_PROJECTION);
@@ -2775,7 +2825,7 @@ void enqueue_event(void (*f)(u32), u32 p, u64 delay)
 
 	events[i].function = f;
 	events[i].parameter = p;
-	events[i].expiration_time = mtime() + delay;
+	events[i].expiration_time = game_time + delay;
 }
 
 
@@ -3614,8 +3664,10 @@ void fix_files(bool reload)
 	u8 i;
 	u32 mask;
 
+#if defined(ANTI_TAMPERING)
 	if (integrity_check(ROOMS))
 	{
+#endif
 		//
 		// Original game patch
 		//
@@ -3630,6 +3682,7 @@ void fix_files(bool reload)
 		writeword(fbuffer[ROOMS],ROOMS_EXITS_BASE+(0x116<<4),0x0114);
 		//00001C30                 subq.w  #1,(obs_bin).l  ; number of obs.bin items (BB)
 		//00001C30                                          ; 187 items in all...
+#if defined(ANTI_TAMPERING)
 	}
 	else
 	{
@@ -3637,17 +3690,18 @@ void fix_files(bool reload)
 		printf("integrity check failure\n");
 		return;
 	}
+#endif
 
 	if (reload)
 	// On a reload, no need to fix the other files again
 		return;
-
+#if defined(ANTI_TAMPERING)
 	if (!integrity_check(LOADER))
 	{	// TO_DO: something else
 		printf("LOADER integrity check\n");
 		return;
 	}
-
+#endif
 
 
 	// I've always wanted to have the stethoscope!
@@ -3902,16 +3956,12 @@ bool load_raw_rgb(int w, int h, char* filename)
 
 	if ((fd = fopen (filename, "rb")) == NULL)
 	{
-		if (opt_verbose)
-			perror ("fopen()");
 		printf("Can't find file '%s'\n", filename);
 		return false;
 	}
 
 	if (fread (static_image_buffer, 1, 512*h*3, fd) != (512*h*3))
 	{
-		if (opt_verbose)
-			perror ("fread()");
 		printf("'%s': Unexpected file size or read error\n", filename);
 		return false;
 	}
@@ -3928,7 +3978,43 @@ bool load_raw_rgb(int w, int h, char* filename)
 	picture_h = h;
 
 	return true;
+}
 
+
+u8* load_raw_rgba(int w, int h, char* filename, GLuint* rgba_texid)
+{
+u8* rgba_buffer;
+int i;
+
+	if ((fd = fopen (filename, "rb")) == NULL)
+	{
+		printf("Can't find file '%s'\n", filename);
+		return NULL;
+	}
+
+	rgba_buffer = aligned_malloc(w*h*4, 16);
+	if (rgba_buffer == NULL)
+	{
+		printf("Could not allocate buffer for raw RGBA\n");
+		return NULL;
+	}
+
+	if (fread (rgba_buffer, 1, w*h*4, fd) != (w*h*4))
+	{
+		aligned_free(rgba_buffer);
+		printf("'%s': Unexpected file size or read error\n", filename);
+		return NULL;
+	}
+
+	fclose (fd);
+	fd = NULL;
+
+	glGenTextures( 1, rgba_texid);
+	glBindTexture(GL_TEXTURE_2D, *rgba_texid);
+	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgba_buffer);
+
+	return rgba_buffer;
 }
 
 // Pay one of the 5 game SFXs

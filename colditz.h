@@ -143,6 +143,7 @@ do {									\
 								  { 0xb7, 0x8d, 0xbf, 0x3c, 0xdd, 0xa7, 0xfc, 0x92, 0x9a, 0x55, 0x56, 0xd2, 0x4f, 0x8f, 0x82, 0xb3 } }
 */
 
+#if defined(ANTI_TAMPERING)
 // Slighltly obfuscated MD5 hashes of the files (don't want to make file tampering & cheating too easy for the first prized release)
 #define FMDXHASHES				{ { 0xf3, 0x5e, 0x11, 0xb3, 0x30 }, \
 								  { 0x6c, 0x31, 0x12, 0x00, 0xf2 }, \
@@ -157,6 +158,7 @@ do {									\
 								  { 0x60, 0xc1, 0xe3, 0x4a, 0xc0 }, \
 								  { 0x59, 0x26, 0xc6, 0xbe, 0x68 }, \
 								  { 0xc8, 0x87, 0x0a, 0x85, 0xd0 } }
+#endif
 
 // Static IFF images (intro, events, gameover, etc)
 #define NB_IFFS					19
@@ -189,7 +191,7 @@ do {									\
 #define INTRO_SCREEN_END		16
 #define REQUIRE_PASS			17
 #define REQUIRE_PAPERS			18
-#define APERTURE_SOFTWARE		(0+ NB_IFFS)
+#define APERTURE_SOFTWARE		(0+NB_IFFS)
 #define NO_PICTURE				0xFFFF
 #define IFF_PAYLOAD_W			{ 320, 320, 320, 320, 320, 320, 320, 320, 320, 320,	\
 								  320, 295, 320, 320, 320, 320, 320, 320, 320 }
@@ -353,7 +355,7 @@ do {									\
 // NB: This is the duration of a game minute, in ms
 #define SOLITARY_DURATION		100000
 // How long should we keep a static picture on, in ms
-#define PICTURE_TIMEOUT			5000
+#define PICTURE_TIMEOUT			20000
 // Time we should keep our inventory messages, in ms
 #define	PROPS_MESSAGE_TIMEOUT	2000
 #define CHEAT_MESSAGE_TIMEOUT	2000

@@ -216,6 +216,9 @@ s16 dir_to_d2y[8] = {0, 0, -1, -1, -1, 1, 1, 1};
 u8 key_nation[NB_NATIONS+2] = {KEY_BRITISH, KEY_FRENCH, KEY_AMERICAN, KEY_POLISH, 
 							 KEY_PRISONERS_LEFT, KEY_PRISONERS_RIGHT};
 
+u8* aper_blurb = NULL;
+GLuint aper_blurb_texid;
+
 
 /**
  ** GLUT event handlers
@@ -260,6 +263,10 @@ static void glut_init()
 
 }
 
+u16 ani_w = 1024;
+u16 ani_x, ani_y;
+
+
 
 // Our display routine. 
 static void glut_display(void)
@@ -275,7 +282,16 @@ static void glut_display(void)
 
 		// Display either the current game frame or a static picture
 		if (game_state & GAME_STATE_STATIC_PIC)
+		{
 			display_picture();
+			if (ani_w > 256)
+			{
+				ani_w-=4;
+				ani_x = 209-(ani_w-256);
+				ani_y = 181-(ani_w-256)/4;
+			}
+			display_sprite_linear(ani_x, ani_y, ani_w, ani_w/4, aper_blurb_texid);
+		}
 		else
 		{	// In game => update room content and panel
 			display_room();
@@ -331,8 +347,13 @@ void update_timers()
 	{
 		// Keep message on screen as long as X is not pressed
 		sceCtrlReadBufferPositive(&pad, 1);
-		if(pad.Buttons & PSP_CTRL_CROSS) 
+		if(pad.Buttons & PSP_CTRL_START)
+		{
+			// Wait for depress
+			while (pad.Buttons & PSP_CTRL_START)
+				sceCtrlReadBufferPositive(&pad, 1);
 			psp_printf_mode = 0;
+		}
 	}
 	else
 	{	// Don't update the program timer while we're printing stuff
@@ -962,7 +983,7 @@ static void glut_idle_static_pic(void)
 			if (game_state & GAME_STATE_INTRO)
 			{
 				current_picture++;
-				if (current_picture == (INTRO_SCREEN_END+1))
+				if (current_picture > INTRO_SCREEN_END)
 				{
 					current_picture = INTRO_SCREEN_START;
 					// Add a 1 second black screen before the first intro screen
@@ -1259,9 +1280,13 @@ int main (int argc, char *argv[])
 	init_sprites();
 	sprites_to_wGRAB();
 
+	aper_blurb = load_raw_rgba(256, 64, "blurb-drop.raw", &aper_blurb_texid);
+
 	// We start with the Intro state
 	game_state = GAME_STATE_INTRO | GAME_STATE_STATIC_PIC | GAME_STATE_PICTURE_LOOP;
-	static_screen(INTRO_SCREEN_START, NULL, 0);
+	static_screen(APERTURE_SOFTWARE, NULL, 0);
+//	static_screen(INTRO_SCREEN_START, NULL, 0);
+
 
 	// Now we can proceed with setting up our display
 	glutDisplayFunc(glut_display);

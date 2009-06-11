@@ -3,7 +3,11 @@
 
 extern int psp_printf_mode;
 #define PSP_ONSCREEN_STDOUT					1
-#define EXIT_STRING "           -----     PRESS X TO EXIT THIS SCREEN     -----\n\n"
+#define EXIT_STRING "####################################################################" \
+					"#                                                                  #" \
+					"#            NOTIFICATION SCREEN: PRESS [START] TO EXIT            #" \
+					"#                                                                  #" \
+					"####################################################################\n"
 #define printf(...)	{						\
 	if (psp_printf_mode == 0) {				\
 		psp_printf_mode = -1;				\
