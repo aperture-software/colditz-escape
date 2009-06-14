@@ -26,11 +26,11 @@
 #endif
 
 #include "data-types.h"
-#include "utilities.h"
 #include "low-level.h"
 #include "soundplayer.h"
 #include "colditz.h"
-#if defined(ANTI_TAMPERING)
+#include "utilities.h"
+#if defined(ANTI_TAMPERING_ENABLED)
 #include "md5.h"
 #endif
 
@@ -39,10 +39,7 @@
 GLuint* cell_texid;
 GLuint* sprite_texid;
 GLuint* chars_texid;
-GLuint panel1_texid, panel2_texid;
-GLuint render_texid, picture_texid;
-
-u16 picture_w, picture_h;
+GLuint render_texid;
 
 /* Some more globals */
 u8  obs_to_sprite[NB_OBS_TO_SPRITE];
@@ -56,8 +53,10 @@ u32 authorized_ptr;
 s16	gl_off_x = 0, gl_off_y  = 0;
 char panel_message[256];
 u32 next_timed_event_ptr = TIMED_EVENTS_INIT;
-u8*	iff_image;
-#if defined(ANTI_TAMPERING)
+u8* background_buffer;
+// Do we need to reload the files on newgame?
+bool game_restart			= false;
+#if defined(ANTI_TAMPERING_ENABLED)
 u8  fmdxhash[NB_FILES][5]= FMDXHASHES;
 #endif
 
@@ -174,7 +173,7 @@ u16 props_tile [0x213] = {
 	1111,1111,1111,1111,1111,1111,1111,1111,1111,1111,	// tunnels, line 5
 	1111};
 
-#if defined(ANTI_TAMPERING)
+#if defined(ANTI_TAMPERING_ENABLED)
 // This inline performs an obfuscated MD5 check on file i
 // Conveniently used to discreetly check for file tampering anytime during the game
 static __inline bool integrity_check(u16 i)
@@ -207,6 +206,32 @@ void load_all_files()
 	size_t read;
 	u16 i;
 	int compressed_loader = 0;
+
+	// We also use this function to allocate the main background buffer, which is not
+	// tied to any file but shared to display static images, etc...
+	// The maximum size for our static image textures is 512x256x2 (IFF) or 512x512x3
+	// (RAW RGB) bytes
+	// NOTE that because we don't want to waste the 512x(512-272)x3 (=360 KB) extra
+	// space on the PSP (the PSP can only deal with texture dimensions that are in 
+	// power of twos), we are doing something really dodgy here, which is that we
+	// pretend the extra 360K have been allocated, and let the system blatantly 
+	// overflow our image buffer if it wants to (since it should never display that 
+	// data anyway). As a matter of fact, this is why we allocate this buffer here.
+	// 
+	// 
+	// If you're really unhappy about this kind of practice, just allocate 512x512x3
+	background_buffer = (u8*) aligned_malloc(512*PSP_SCR_HEIGHT*3,16);
+//	static_image_buffer = (u8*) aligned_malloc(512*512*3,16);	
+	if (background_buffer == NULL)
+		printf("Could not allocate buffer for static images display\n");
+
+	// Now that we have that buffer alloc'd, we can set the textures that will make 
+	// use of it. This includes all the IFFs
+	for (i=0; i<NB_IFFS; i++)
+		texture[i].buffer = background_buffer;
+	// as well as the aperture intro background
+	texture[INTRO_BACKGROUND].buffer = background_buffer;
+
 
 	// We need a little padding of the loader to keep the offsets happy
 	fsize[LOADER] += LOADER_PADDING;
@@ -430,7 +455,7 @@ void set_global_properties()
 	// A backdrop cell is exactly 256 bytes (32*16*4bits)
 	nb_cells = fsize[CELLS] / 0x100;
 	cell_texid = malloc(sizeof(GLuint) * nb_cells);
-	GLCHK(glGenTextures(nb_cells, cell_texid));
+	glGenTextures(nb_cells, cell_texid);
 
 	if (readword(fbuffer[SPRITES],0) != (NB_STANDARD_SPRITES-1))
 	{
@@ -439,28 +464,17 @@ void set_global_properties()
 	}
 
 	sprite_texid = malloc(sizeof(GLuint) * NB_SPRITES);
-	GLCHK(glGenTextures(NB_SPRITES, sprite_texid));
+	glGenTextures(NB_SPRITES, sprite_texid);
 
 	chars_texid = malloc(sizeof(GLuint) * NB_PANEL_CHARS);
-	GLCHK(glGenTextures(NB_PANEL_CHARS, chars_texid));
+	glGenTextures(NB_PANEL_CHARS, chars_texid);
 
-	// Setup textures for panel, zoom and iff images
-	glGenTextures( 1, &panel1_texid );
-	glGenTextures( 1, &panel2_texid );
+	// Setup a texture for the zoom function 
 	glGenTextures( 1, &render_texid );
-	glGenTextures( 1, &picture_texid );
 
-	// The panel textures have already been loaded, so we just map them
-	glBindTexture(GL_TEXTURE_2D, panel1_texid);
-	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, PANEL_BASE1_W, PANEL_BASE_H, 0,
-		GL_RGB, GL_UNSIGNED_BYTE, fbuffer[PANEL_BASE1]);
-
-	glBindTexture(GL_TEXTURE_2D, panel2_texid);
-	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, PANEL_BASE2_W, PANEL_BASE_H, 0,
-		GL_RGB, GL_UNSIGNED_BYTE, fbuffer[PANEL_BASE2]);
-
+	// Load the panel textures
+	load_texture(&texture[PANEL_BASE1]);
+	load_texture(&texture[PANEL_BASE2]);
 
 	// Initialize SFXs
 	for (i=0; i<NB_SFXS; i++)
@@ -485,14 +499,17 @@ void set_global_properties()
 #endif
 	}
 
+	// The footstep's SFX volume is a bit too high for my taste
+	sfx[SFX_FOOTSTEPS].volume /= 3;
+
 }
 
 // init_variables
-void newgame_init(bool reload)
+void newgame_init()
 {
 	u16  i,j;
 
-	if (reload)
+	if (game_restart)
 	{
 		reload_files();
 		fix_files(true);
@@ -584,7 +601,7 @@ void newgame_init(bool reload)
 	// Start event is #3 (confined to quarters)
 	authorized_ptr = readlong(fbuffer[LOADER],AUTHORIZED_BASE+4*3);
 
-	if (reload)
+	if (game_restart)
 	{	// Reset the palette
 		palette_index = INITIAL_PALETTE_INDEX;
 		to_16bit_palette(palette_index, 0xFF, PALETTES);
@@ -605,11 +622,15 @@ void newgame_init(bool reload)
 	set_room_props();
 
 	// Reinit the time markers;
-	// NB: to have the clock go at full throttle, set ctime to 0
-	last_ctime = game_time;
-	last_atime = last_ctime;
-	last_ptime = last_ctime;
+	// NB: to have the clock go at full throttle, set ctime to 0 and game_time to a high value
+	t_last = mtime();
+	game_time = 0;
+	last_ctime = 0;
+	last_atime = 0;
+	last_ptime = 0;
 
+	// Notify that we'll need a reload next time around
+	game_restart = true;
 }
 
 
@@ -752,9 +773,9 @@ void cells_to_wGRAB(u8* source, u8* dest)
 	for (i=0; i<nb_cells; i++)
 	{
 		line_interleaved_to_wGRAB(source + (256*i), dest+(2*RGBA_SIZE*256*i), 32, 16, 4);
-		GLCHK(glBindTexture(GL_TEXTURE_2D, cell_texid[i]));
-		GLCHK(glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 32, 16, 0, GL_RGBA, GL_UNSIGNED_SHORT_4_4_4_4_REV, 
-			((u8*)rgbCells) + i*2*RGBA_SIZE*0x100));
+		glBindTexture(GL_TEXTURE_2D, cell_texid[i]);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 32, 16, 0, GL_RGBA, GL_UNSIGNED_SHORT_4_4_4_4_REV, 
+			((u8*)rgbCells) + i*2*RGBA_SIZE*0x100);
 	}
 
 }
@@ -790,9 +811,9 @@ void init_panel_chars()
 			writeword((u8*)panel_chars[c],y*16 + 2*x,GRAB_TRANSPARENT_COLOUR);
 
 		// Convert to textures
-		GLCHK(glBindTexture(GL_TEXTURE_2D, chars_texid[c]));
-		GLCHK(glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, PANEL_CHARS_W, 8, 0, GL_RGBA, 
-			GL_UNSIGNED_SHORT_4_4_4_4_REV, (u8*)panel_chars[c]));
+		glBindTexture(GL_TEXTURE_2D, chars_texid[c]);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, PANEL_CHARS_W, 8, 0, GL_RGBA, 
+			GL_UNSIGNED_SHORT_4_4_4_4_REV, (u8*)panel_chars[c]);
 	}
 
 }
@@ -897,7 +918,7 @@ void init_sprites()
 	sprite[0xaf].x_offset = -16;
 	sprite[0xb0].x_offset = -16;
 
-#if defined(ANTI_TAMPERING)
+#if defined(ANTI_TAMPERING_ENABLED)
 	if (!integrity_check(OBJECTS))
 	{
 		printf("Program failure\n");
@@ -989,10 +1010,10 @@ void sprites_to_wGRAB()
 				sprite[sprite_index].corrected_w, sprite[sprite_index].h);
 
 		// Now that we have data in a GL readable format, let's texturize it!
-		GLCHK(glBindTexture(GL_TEXTURE_2D, sprite_texid[sprite_index]));
-		GLCHK(glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, sprite[sprite_index].corrected_w, 
+		glBindTexture(GL_TEXTURE_2D, sprite_texid[sprite_index]);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, sprite[sprite_index].corrected_w, 
 			sprite[sprite_index].corrected_h, 0, GL_RGBA, GL_UNSIGNED_SHORT_4_4_4_4_REV,
-			sprite[sprite_index].data));
+			sprite[sprite_index].data);
 	}
 
 	// The last sprite (fatigue) is initialized manually
@@ -1000,10 +1021,10 @@ void sprites_to_wGRAB()
 		for (x=0; x<8; x++)
 			writeword(sprite[sprite_index].data, 16*y+2*x, fatigue_colour[y]);
 
-	GLCHK(glBindTexture(GL_TEXTURE_2D, sprite_texid[sprite_index]));
-	GLCHK(glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, sprite[sprite_index].w, 
+	glBindTexture(GL_TEXTURE_2D, sprite_texid[sprite_index]);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, sprite[sprite_index].w, 
 		sprite[sprite_index].h, 0, GL_RGBA, GL_UNSIGNED_SHORT_4_4_4_4_REV,
-		sprite[sprite_index].data));
+		sprite[sprite_index].data);
 
 }
 
@@ -1376,7 +1397,8 @@ void set_props_overlays()
 }
 
 // Display a sprite or cell, using the top left corner as the origin
-void display_sprite(float x1, float y1, float w, float h, GLuint texid) 
+// TO_DO: declare this static inline for perf
+static __inline void display_sprite(float x1, float y1, float w, float h, GLuint texid) 
 {
 	float x2, y2;
 
@@ -1422,7 +1444,8 @@ void display_sprite(float x1, float y1, float w, float h, GLuint texid)
 }
 
 
-// Yes we will define 2 different routines insteaf of using an if!
+// That's right: we will define 2 different routines for display_sprite just
+// to spare the processing time of an if condition!
 void display_sprite_linear(float x1, float y1, float w, float h, GLuint texid) 
 {
 	float x2, y2;
@@ -2202,7 +2225,7 @@ void display_room()
 	if (is_inside)
 	{	// Standard room (inside)
 		// Read the offset
-		offset = readlong((u8*)fbuffer[ROOMS], OFFSETS_START+4*current_room_index);
+		offset = readlong((u8*)fbuffer[ROOMS], CRM_OFFSETS_START+4*current_room_index);
 		if (offset == 0xFFFFFFFF)
 		// For some reason there is a gap in the middle of the rooms data
 		// This shouldn't matter, unless you set the room manually
@@ -2212,9 +2235,9 @@ void display_room()
 
 		// The 2 first words are the room Y and X dimension (in tiles),
 		// in that order
-		room_y = readword((u8*)fbuffer[ROOMS], ROOMS_START+offset);
+		room_y = readword((u8*)fbuffer[ROOMS], CRM_ROOMS_START+offset);
 		offset +=2;
-		room_x = readword((u8*)fbuffer[ROOMS], ROOMS_START+offset);
+		room_x = readword((u8*)fbuffer[ROOMS], CRM_ROOMS_START+offset);
 		offset +=2;
 
 		// Read the tiles data
@@ -2234,13 +2257,13 @@ void display_room()
 				 * o: door open flag
 				 * x: exit lookup number (in exit map [1-8])
 				*/
-				tile_data = readword((u8*)fbuffer[ROOMS], ROOMS_START+offset);
+				tile_data = readword((u8*)fbuffer[ROOMS], CRM_ROOMS_START+offset);
 
 				display_sprite(pixel_x,pixel_y,32,16, 
 					cell_texid[(tile_data>>7) + ((current_room_index>0x202)?0x1E0:0)]);
 
 				// Display sprite overlay
-				crm_set_overlays(pixel_x, pixel_y, tile_data & 0xFF80, ROOMS_START+offset, room_x);
+				crm_set_overlays(pixel_x, pixel_y, tile_data & 0xFF80, CRM_ROOMS_START+offset, room_x);
 
 				offset +=2;		// Read next tile
 				pixel_x += 32;
@@ -2315,12 +2338,12 @@ void display_room()
 				{
 					// The first word read is the number of overlapping tiles
 					// overlapping tiles occur when there might be a wall hiding a walkable section
-					nb_tiles = readword((u8*)fbuffer[COMPRESSED_MAP], CM_TILES_START+rem_offset);
+					nb_tiles = readword((u8*)fbuffer[COMPRESSED_MAP], CMP_TILES_START+rem_offset);
 					// The rest of the data is a tile index (FF80), a bit index (1F), and 2 bits unused.
 					// the later being used to check bits of an overlay bitmap longword
 					for (u=nb_tiles; u!=0; u--)
 					{
-						tile_tmp = readword((u8*)fbuffer[COMPRESSED_MAP], CM_TILES_START+rem_offset + 2*u);
+						tile_tmp = readword((u8*)fbuffer[COMPRESSED_MAP], CMP_TILES_START+rem_offset + 2*u);
 						bit_index = tile_tmp & 0x1F;
 						if ( (1<<bit_index) & rem_bitmask )
 						{
@@ -2404,7 +2427,7 @@ void display_picture()
 	glColor3f(fade_value, fade_value, fade_value);	
 
 	// Display the current IFF image
-	glBindTexture(GL_TEXTURE_2D, picture_texid);
+	glBindTexture(GL_TEXTURE_2D, texture[current_picture].texid);
 
 //	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 //	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
@@ -2416,16 +2439,18 @@ void display_picture()
 	glBegin(GL_TRIANGLE_FAN);
 
 	glTexCoord2f(0.0f, 0.0f);
-	glVertex2f((PSP_SCR_WIDTH-picture_w)/2, (PSP_SCR_HEIGHT-picture_h)/2);
+	glVertex2f((PSP_SCR_WIDTH-texture[current_picture].w)/2, (PSP_SCR_HEIGHT-texture[current_picture].h)/2);
 
 	glTexCoord2f(1.0f, 0.0f);
-	glVertex2f(512 + (PSP_SCR_WIDTH-picture_w)/2, (PSP_SCR_HEIGHT-picture_h)/2);
+	glVertex2f(512 + (PSP_SCR_WIDTH-texture[current_picture].w)/2, (PSP_SCR_HEIGHT-texture[current_picture].h)/2);
 
 	glTexCoord2f(1.0, 1.0);
-	glVertex2f(512 + (PSP_SCR_WIDTH-picture_w)/2, 512 + (PSP_SCR_HEIGHT-picture_h)/2);
+	glVertex2f(512 + (PSP_SCR_WIDTH-texture[current_picture].w)/2, 
+		powerize(texture[current_picture].h) + (PSP_SCR_HEIGHT-texture[current_picture].h)/2);
 
 	glTexCoord2f(0.0, 1.0);
-	glVertex2f((PSP_SCR_WIDTH-picture_w)/2, 512 + (PSP_SCR_HEIGHT-picture_h)/2);
+	glVertex2f((PSP_SCR_WIDTH-texture[current_picture].w)/2, 
+		powerize(texture[current_picture].h) + (PSP_SCR_HEIGHT-texture[current_picture].h)/2);
 
 	glEnd();
 }
@@ -2480,7 +2505,7 @@ void display_panel()
 	glColor3f(fade_value, fade_value, fade_value);
 
 	// Draw the 2 parts of our panel
- 	glBindTexture(GL_TEXTURE_2D, panel1_texid);
+ 	glBindTexture(GL_TEXTURE_2D, texture[PANEL_BASE1].texid);
 
 	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
@@ -2506,7 +2531,7 @@ void display_panel()
 	glEnd();
 
 
- 	glBindTexture(GL_TEXTURE_2D, panel2_texid);
+	glBindTexture(GL_TEXTURE_2D, texture[PANEL_BASE2].texid);
 
 	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
@@ -2682,7 +2707,7 @@ void rescale_buffer()
 // to figure out a bloody solution to zoom the lousy colour buffer, because 
 // if you think, with all the GPU acceleration, there should be an easy way to
 // achieve that crap, you couldn't be more wrong!
-//	float old_x, old_y;
+
 
 	if ((gl_width != PSP_SCR_WIDTH) && (gl_height != PSP_SCR_HEIGHT))
 	{	
@@ -2714,6 +2739,7 @@ void rescale_buffer()
 
 	}
 }
+
 
 // Open a closed door, or close an open door
 // Also uses exit_flags_offset and tunnel_toggle, which are a global variable for utilities
@@ -2777,10 +2803,10 @@ void toggle_exit(u32 exit_nr)
 	else
 	{	// inside destination (colditz_room_map)
 		// Get the room dimensions
-		offset = readlong((u8*)fbuffer[ROOMS], OFFSETS_START+4*target_room_index);
-		room_y = readword((u8*)fbuffer[ROOMS], ROOMS_START+offset);
+		offset = readlong((u8*)fbuffer[ROOMS], CRM_OFFSETS_START+4*target_room_index);
+		room_y = readword((u8*)fbuffer[ROOMS], CRM_ROOMS_START+offset);
 		offset +=2;
-		room_x = readword((u8*)fbuffer[ROOMS], ROOMS_START+offset);
+		room_x = readword((u8*)fbuffer[ROOMS], CRM_ROOMS_START+offset);
 		offset +=2;
 
 		// Read the tiles data
@@ -2789,14 +2815,14 @@ void toggle_exit(u32 exit_nr)
 		{
 			for(tile_x=0; (tile_x<room_x)&&(!found); tile_x++)
 			{
-				tile_data = readword((u8*)fbuffer[ROOMS], ROOMS_START+offset);
+				tile_data = readword((u8*)fbuffer[ROOMS], CRM_ROOMS_START+offset);
 				if ((tile_data & 0xF) == exit_index)
 				{
 					found = true;
 					// open exit
 					exit_flags = tile_data & 0xFF;
 					toggle_open_flag(exit_flags);
-					writebyte(fbuffer[ROOMS], ROOMS_START+offset+1, exit_flags);
+					writebyte(fbuffer[ROOMS], CRM_ROOMS_START+offset+1, exit_flags);
 					break;
 				}
 				offset +=2;		// Read next tile
@@ -2875,12 +2901,12 @@ s16 check_footprint(s16 dx, s16 d2y)
 	}
 	else
 	{	// in a room (inside)
-		offset = readlong((u8*)fbuffer[ROOMS], OFFSETS_START+4*current_room_index);
+		offset = readlong((u8*)fbuffer[ROOMS], CRM_OFFSETS_START+4*current_room_index);
 		if (offset == 0xFFFFFFFF)
 			return -1;
-		room_y = readword((u8*)fbuffer[ROOMS], ROOMS_START+offset);
+		room_y = readword((u8*)fbuffer[ROOMS], CRM_ROOMS_START+offset);
 		offset +=2;
-		room_x = readword((u8*)fbuffer[ROOMS], ROOMS_START+offset);
+		room_x = readword((u8*)fbuffer[ROOMS], CRM_ROOMS_START+offset);
 		offset +=2;		// remember offset is used in readtile/readexit and needs
 						// to be constant from there on
 	}
@@ -3218,12 +3244,12 @@ bool check_guard_footprint(u8 g, s16 dx, s16 d2y)
 	}
 	else
 	{	// in a room (inside)
-		offset = readlong((u8*)fbuffer[ROOMS], OFFSETS_START+4*guard(g).room);
+		offset = readlong((u8*)fbuffer[ROOMS], CRM_OFFSETS_START+4*guard(g).room);
 		if (offset == 0xFFFFFFFF)
 			return -1;
-		room_y = readword((u8*)fbuffer[ROOMS], ROOMS_START+offset);
+		room_y = readword((u8*)fbuffer[ROOMS], CRM_ROOMS_START+offset);
 		offset +=2;
-		room_x = readword((u8*)fbuffer[ROOMS], ROOMS_START+offset);
+		room_x = readword((u8*)fbuffer[ROOMS], CRM_ROOMS_START+offset);
 		offset +=2;		// remember offset is used in readtile/readexit and needs
 						// to be constant from there on
 	}
@@ -3377,10 +3403,10 @@ void switch_room(s16 exit_nr, bool tunnel_io)
 	else
 	{	// going inside, or still inside
 		// Get the room dimensions
-		offset = readlong((u8*)fbuffer[ROOMS], OFFSETS_START+4*current_room_index);
-		room_y = readword((u8*)fbuffer[ROOMS], ROOMS_START+offset);
+		offset = readlong((u8*)fbuffer[ROOMS], CRM_OFFSETS_START+4*current_room_index);
+		room_y = readword((u8*)fbuffer[ROOMS], CRM_ROOMS_START+offset);
 		offset +=2;
-		room_x = readword((u8*)fbuffer[ROOMS], ROOMS_START+offset);
+		room_x = readword((u8*)fbuffer[ROOMS], CRM_ROOMS_START+offset);
 		offset +=2;
 
 		// Read the tiles data
@@ -3389,7 +3415,7 @@ void switch_room(s16 exit_nr, bool tunnel_io)
 		{
 			for(tile_x=0; (tile_x<room_x)&&(!found); tile_x++)
 			{
-				tile_data = readword((u8*)fbuffer[ROOMS], ROOMS_START+offset);
+				tile_data = readword((u8*)fbuffer[ROOMS], CRM_ROOMS_START+offset);
 				if ((tile_data & 0xF) == exit_index)
 				{
 					found = true;
@@ -3664,7 +3690,7 @@ void fix_files(bool reload)
 	u8 i;
 	u32 mask;
 
-#if defined(ANTI_TAMPERING)
+#if defined(ANTI_TAMPERING_ENABLED)
 	if (integrity_check(ROOMS))
 	{
 #endif
@@ -3682,7 +3708,7 @@ void fix_files(bool reload)
 		writeword(fbuffer[ROOMS],ROOMS_EXITS_BASE+(0x116<<4),0x0114);
 		//00001C30                 subq.w  #1,(obs_bin).l  ; number of obs.bin items (BB)
 		//00001C30                                          ; 187 items in all...
-#if defined(ANTI_TAMPERING)
+#if defined(ANTI_TAMPERING_ENABLED)
 	}
 	else
 	{
@@ -3695,7 +3721,7 @@ void fix_files(bool reload)
 	if (reload)
 	// On a reload, no need to fix the other files again
 		return;
-#if defined(ANTI_TAMPERING)
+#if defined(ANTI_TAMPERING_ENABLED)
 	if (!integrity_check(LOADER))
 	{	// TO_DO: something else
 		printf("LOADER integrity check\n");
@@ -3740,20 +3766,25 @@ void fix_files(bool reload)
 
 // Open and texturize an IFF image file. Modified from LBMVIEW V1.0b 
 // http://www.programmersheaven.com/download/6394/download.aspx
-bool load_iff(u8 iff_id)
+bool load_iff(s_tex* tex)
 {
 	int i, y, bpl, bit_plane;
 	char ch, cmp_type, color_depth;
 	u8 uc, check_flags;
-	u16	w, h;
+	u16	w, h, powerized_w;
 	u32 id, len, l;
-	u8  line_buf[8][512/8];	// bytes line buffers (8 bitplanes max, 512 pixels wide)
+	u8  line_buf[8][512/8];	// bytes line buffers (8 bitplanes max, 512 pixels wide max)
 
-	if ((fd = fopen (iff_name[iff_id], "rb")) == NULL)
+	powerized_w = powerize(tex->w);	// Should be 512 always, but let's be generic here
+	if (powerized_w > 512)
+	{	// Because of line_buf above
+		printf("Texture width must be lower than 512\n");
+		return false;
+	}
+
+	if ((fd = fopen (tex->filename, "rb")) == NULL)
 	{
-		if (opt_verbose)
-			perror ("fopen()");
-		printf("Can't find file '%s'\n", iff_name[iff_id]);
+		printf("Can't find file '%s'\n", tex->filename);
 		return false;
 	}
 
@@ -3899,7 +3930,7 @@ bool load_iff(u8 iff_id)
 								// 128 (0x80) means NOP - no operation  
 						}
 						// Set our image extra bytes to colour index 0
-						memset(&line_buf[bit_plane][i], 0, (512/8)-i);
+						memset(&line_buf[bit_plane][i], 0, (powerized_w/8)-i);
 					}
 					else
 						// Uncompressed
@@ -3909,14 +3940,14 @@ bool load_iff(u8 iff_id)
 				// OK, now we have our <color_depth> line buffers
 				// Let's recombine those bits, and convert to GRAB from our palette
 				line_interleaved_to_wGRAB((u8*)line_buf, 
-					static_image_buffer+512*y*2, 512, 1, color_depth);
+					tex->buffer+powerized_w*y*2, powerized_w, 1, color_depth);
 
 			}
 
 			// We need to blank the extra padding we have, at least for
 			// the PSP Screen height
 			if (h < PSP_SCR_HEIGHT)
-				memset(static_image_buffer+512*h*2, 0, (PSP_SCR_HEIGHT-h)*512*2);
+				memset(tex->buffer+powerized_w*h*2, 0, (PSP_SCR_HEIGHT-h)*powerized_w*2);
 
 			check_flags |= 2;       // flag "bitmap read" 
 			break;
@@ -3938,86 +3969,141 @@ bool load_iff(u8 iff_id)
 		return false;
 
 	// The iff is good => we can set our texture
-	glBindTexture(GL_TEXTURE_2D, picture_texid);
-		glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 512, 512, 0, 
-		GL_RGBA, GL_UNSIGNED_SHORT_4_4_4_4_REV, static_image_buffer);
-
-	// Also don't forget to update the global picture dimension variables
-	picture_w = iff_payload_w[iff_id];
-	picture_h = iff_payload_h[iff_id];
-
-	return true;
-}
-
-// Open and texturize an RGB RAW image 
-bool load_raw_rgb(int w, int h, char* filename)
-{
-
-	if ((fd = fopen (filename, "rb")) == NULL)
-	{
-		printf("Can't find file '%s'\n", filename);
-		return false;
-	}
-
-	if (fread (static_image_buffer, 1, 512*h*3, fd) != (512*h*3))
-	{
-		printf("'%s': Unexpected file size or read error\n", filename);
-		return false;
-	}
-
-	fclose (fd);
-	fd = NULL;
-
-	glBindTexture(GL_TEXTURE_2D, picture_texid);
+	glBindTexture(GL_TEXTURE_2D, tex->texid);
 	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, 512, 512, 0,
-		GL_RGB, GL_UNSIGNED_BYTE, static_image_buffer);
-
-	picture_w = w;
-	picture_h = h;
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, powerized_w, powerize(tex->h),
+		0, GL_RGBA, GL_UNSIGNED_SHORT_4_4_4_4_REV, tex->buffer);
 
 	return true;
 }
 
 
-u8* load_raw_rgba(int w, int h, char* filename, GLuint* rgba_texid)
+// Open and texturize a 24 or 32 bpp RGB(A) RAW image 
+bool load_raw_rgb(s_tex* tex, bool with_alpha)
 {
-u8* rgba_buffer;
-int i;
+	u32 line_size, powerized_line_size;
+	int i;
+	u8* line_start;
 
-	if ((fd = fopen (filename, "rb")) == NULL)
+	line_size = (tex->w)*(with_alpha?4:3);
+	powerized_line_size = powerize(tex->w)*(with_alpha?4:3);
+
+	if ((fd = fopen (tex->filename, "rb")) == NULL)
 	{
-		printf("Can't find file '%s'\n", filename);
-		return NULL;
+		printf("Can't find file '%s'\n", tex->filename);
+		return false;
 	}
 
-	rgba_buffer = aligned_malloc(w*h*4, 16);
-	if (rgba_buffer == NULL)
+	line_start = tex->buffer;
+	for (i=0; i<(tex->h); i++)
 	{
-		printf("Could not allocate buffer for raw RGBA\n");
-		return NULL;
+		if (fread (line_start, 1, line_size, fd) != line_size)
+		{
+			printf("'%s': Read error while reading line %d\n", tex->filename, i);
+			return false;
+		}
+		if (line_size < powerized_line_size)
+			memset(line_start+line_size, 0, powerized_line_size-line_size);
+		line_start += powerized_line_size;
 	}
 
-	if (fread (rgba_buffer, 1, w*h*4, fd) != (w*h*4))
-	{
-		aligned_free(rgba_buffer);
-		printf("'%s': Unexpected file size or read error\n", filename);
-		return NULL;
-	}
+	fclose(fd);
 
-	fclose (fd);
-	fd = NULL;
-
-	glGenTextures( 1, rgba_texid);
-	glBindTexture(GL_TEXTURE_2D, *rgba_texid);
+	glBindTexture(GL_TEXTURE_2D, tex->texid);
 	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgba_buffer);
+	if (with_alpha)
+	{
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, powerize(tex->w), powerize(tex->h),
+			0, GL_RGBA, GL_UNSIGNED_BYTE, tex->buffer);
+	}
+	else
+	{
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, powerize(tex->w), powerize(tex->h),
+			0, GL_RGB, GL_UNSIGNED_BYTE, tex->buffer);
+	}
 
-	return rgba_buffer;
+	return true;
 }
 
-// Pay one of the 5 game SFXs
+
+// Load a texture from a file (RAW or IFF)
+bool load_texture(s_tex* tex)
+{
+bool iff_file = false;
+bool with_alpha = false;
+u32  file_size = 0;
+u16  powerized_w;
+
+	// closest greater power of 2
+	powerized_w = powerize(tex->w);
+	
+	// Make sure we have a valid texture
+	if (tex->texid == 0)
+		glGenTextures(1, &(tex->texid));
+
+	// Does the file exist
+	if ((fd = fopen (tex->filename, "rb")) == NULL)
+	{
+		printf("Can't find file '%s'\n", tex->filename);
+		return false;
+	}
+
+	// Check if the file's an IFF
+	if (freadl(fd) == IFF_FORM)
+	{	// IFF file
+		iff_file = true;
+	}
+	else	 
+	{	// RAW file
+
+		// Find out if there is an alpha channel to read by computing the size
+	    fseek(fd, 0, SEEK_END);
+		file_size = ftell(fd);
+
+		if (file_size == (3*(tex->w)*(tex->h)))
+			with_alpha = false;
+		else if (file_size == (4*(tex->w)*(tex->h)))
+			with_alpha = true;
+		else
+		{	
+			printf("Improper RAW file size for %s\n", tex->filename);
+			return false;
+		}
+	}
+
+	// We'll reopen the file in the load_iff/load_raw_rgb functions
+	fclose(fd);
+
+	// Let's fill our buffer and texturize then
+	if (iff_file)
+	{
+		if (tex->buffer == NULL)
+		{
+			printf("Texture buffer for IFF file %s has not been intialized\n", tex->filename);
+			return false;
+		}
+		if (!load_iff(tex))
+			return false;
+	}
+	else
+	{
+		if (tex->buffer == NULL)
+		{
+			tex->buffer = aligned_malloc((with_alpha?4:3)*powerized_w*powerize(tex->h), 16);
+			if (tex->buffer == NULL)
+			{
+				printf("Could not allocate buffer for texture %s\n", tex->filename);
+				return false;
+			}
+		}
+		if (!load_raw_rgb(tex, with_alpha))
+			return false;
+	}
+	return true;
+}
+
+
+// Play one of the 5 game SFXs
 void play_sfx(int sfx_id)
 {
 #if defined(WIN32)

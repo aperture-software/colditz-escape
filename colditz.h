@@ -10,76 +10,36 @@ extern "C" {
 #pragma warning(disable:4996)
 #endif
 
-
-
-// Define our msleep function
-#if defined(WIN32)
-//#include <Windows.h>
-#define msleep(msecs) Sleep(msecs)
-#include <Windows.h>
-static __inline u64 mtime(void)
-{	// Because MS uses a 32 bit value, this counter will reset every 49 days or so
-	// Hope you won't be playing the game while it resets...
-	return timeGetTime(); 
-}
-#elif defined(PSP)
-#include <pspthreadman.h>
-#include <psprtc.h>
-#define msleep(msecs) sceKernelDelayThread(1000*msecs)
-static __inline u64 mtime(void)
-{
-	u64 blahtime; 
-	sceRtcGetCurrentTick(&blahtime);
-	return blahtime/1000;
-}
-#else
-#include <unistd.h>
-#define	msleep(msecs) usleep(1000*msecs)
-#endif
-
-
-// Some fixes for windows
-#if defined(WIN32) || defined(__MSDOS__)
-#define NULL_FD fopen("NUL", "w")
-#else
-#define NULL_FD fopen("/dev/null", "w")
-#endif
-
-// Handy macro for exiting. xbuffer or fd = NULL is no problemo 
-// (except for lousy Visual C++, that will CRASH on fd = NULL!!!!)
-#define FREE_BUFFERS	{int _buf; for (_buf=0;_buf<NB_FILES;_buf++) aligned_free(fbuffer[_buf]); aligned_free(mbuffer);}
-#define ERR_EXIT		{FREE_BUFFERS; if (fd != NULL) fclose(fd); fflush(stdin); exit(0);}
-/*#if defined(PSP)
-#define print(...)		pspDebugScreenPrintf(__VA_ARGS__)
-#define perr(...)		pspDebugScreenPrintf(__VA_ARGS__)
-#else
-*/
-#define perr(...)		fprintf(stderr, __VA_ARGS__)
-#define print(...)		printf(__VA_ARGS__)
-//#endif
-#define printv(...)		if(opt_verbose) print(__VA_ARGS__)
-#define perrv(...)		if(opt_verbose) perr(__VA_ARGS__)
-#define printb(...)		if(opt_debug) print(__VA_ARGS__)
-#define perrb(...)		if(opt_debug) perr(__VA_ARGS__)
-
-
-#define GLCHK(x)						\
-do {									\
-	GLint errcode;						\
-		x;								\
-		errcode = glGetError();			\
-		if (errcode != GL_NO_ERROR) {					\
-			print("%s (%d): GL error 0x%04x\n",			\
-				__FUNCTION__, __LINE__, (uint) errcode);\
-		}								\
-	} while (0)
-
-
+// General compilation options for the program
 #define CHEATMODE_ENABLED
+#define ANTI_TAMPERING_ENABLED
+#define DEBUG_KEYS_ENABLED
 
-// # files we'll be dealing with
-#define NB_FILES				13
-// # files that will need reload on new game
+// Stupid VC++ doesn't know the basic GL formats it can actually use!
+#if !defined(GL_UNSIGNED_SHORT_4_4_4_4_REV)
+// NB: the _REV below is GRAB format, which is selected for 1:1 mapping on PSP
+#define GL_UNSIGNED_SHORT_4_4_4_4_REV	0x8365
+#endif
+#if !defined(GL_CLAMP_TO_EDGE)
+#define GL_CLAMP_TO_EDGE				0x812F
+#endif
+
+// LIST OF ABREVIATIONS:
+// CRM = Colditz Room Maps => data used for inside rooms
+// CMP = CoMPressed map => data used for outisde
+
+
+//
+// Global defines
+/////////////////////////////////////////////////////////////////
+
+// The PSP Screen dimensions will be our base def
+#define PSP_SCR_WIDTH		480
+#define PSP_SCR_HEIGHT		272
+
+// # data files from the original game
+#define NB_FILES				11
+// # files need reload on a new game
 #define NB_FILES_TO_RELOAD		4
 // Some handy identifier to make code reader friendly
 #define ROOMS					0
@@ -87,18 +47,21 @@ do {									\
 #define OBJECTS					2
 #define TUNNEL_IO				3
 #define SPRITES_PANEL			4
-#define PANEL_BASE1				5
-#define PANEL_BASE2				6
-#define GUARDS					7
-#define CELLS					8
-#define PALETTES				9
-#define LOADER					10
-#define SPRITES					11
-#define ROUTES					12
+//#define PANEL_BASE1				5
+//#define PANEL_BASE2				6
+#define GUARDS					5
+#define CELLS					6
+#define PALETTES				7
+#define LOADER					8
+#define SPRITES					9
+#define ROUTES					10
 
 #define RED						0
 #define GREEN					1
 #define BLUE					2
+#define ALPHA					3
+// Size of our internal RGBA format, in bytes
+#define RGBA_SIZE				2
 // Never be too short on filename sizes
 #define NAME_SIZE				128			
 #define FNAMES					{ "COLDITZ_ROOM_MAPS",			\
@@ -106,8 +69,6 @@ do {									\
 								  "OBS.BIN",					\
 								  "TUNNELIODOORS.BIN",			\
 								  "PANEL.BIN",					\
-								  "panel_base1.raw",			\
-								  "panel_base2.raw",			\
 								  "MENDAT.BIN",					\
 								  "COLDITZ_CELLS",				\
 								  "PALS.BIN",					\
@@ -119,22 +80,23 @@ do {									\
 								  2056,			\
 								  120,			\
 								  11720,		\
-								  6144,			\
-								  24576,		\
 								  1288,			\
 								  135944,		\
 								  232,			\
 								  56080,		\
 								  71056,		\
 								  13364 }
+// Most versions of Colditz archived on the net use the Skid Row loader
+#define ALT_LOADER				"SKR_COLD"
+#define ALT_LOADER_SIZE			28820
 /*
 #define FMD5HASHES				{ { 0x0c, 0x4f, 0xeb, 0x19, 0xfc, 0x53, 0xaf, 0xa9, 0x03, 0x83, 0x24, 0xc1, 0xad, 0xa2, 0x1c, 0xe9 }, \
 								  { 0xd8, 0x23, 0x9a, 0x3e, 0x68, 0xe4, 0x6f, 0x36, 0x5f, 0xf2, 0x4d, 0xca, 0x5d, 0x12, 0xfb, 0x52 }, \
 								  { 0x15, 0xdc, 0x6b, 0xa1, 0x39, 0x2c, 0x9a, 0x31, 0x66, 0x1a, 0xd3, 0x78, 0xee, 0x98, 0x11, 0x62 }, \
 								  { 0x24, 0x15, 0x8a, 0xe9, 0x52, 0x7d, 0x92, 0x15, 0xab, 0x4e, 0x00, 0x00, 0x32, 0x1c, 0x53, 0x75 }, \
 								  { 0x10, 0xd9, 0x97, 0xad, 0x03, 0x5a, 0x4c, 0xde, 0x46, 0x5a, 0x82, 0xd9, 0x99, 0x46, 0xbe, 0x81 }, \
-								  { 0x2e, 0x5e, 0x29, 0x72, 0xdc, 0x58, 0x3e, 0x4f, 0xe5, 0x29, 0x4f, 0x55, 0x2f, 0xb7, 0x9a, 0x5e }, \
-								  { 0x76, 0x43, 0xe8, 0xd1, 0x7e, 0xb0, 0xea, 0x0e, 0xcb, 0x14, 0xc7, 0x95, 0xad, 0x87, 0xac, 0xb7 }, \
+//								  { 0x2e, 0x5e, 0x29, 0x72, 0xdc, 0x58, 0x3e, 0x4f, 0xe5, 0x29, 0x4f, 0x55, 0x2f, 0xb7, 0x9a, 0x5e }, 
+//								  { 0x76, 0x43, 0xe8, 0xd1, 0x7e, 0xb0, 0xea, 0x0e, 0xcb, 0x14, 0xc7, 0x95, 0xad, 0x87, 0xac, 0xb7 }, 
 								  { 0x8c, 0x3f, 0x01, 0xde, 0x56, 0xf9, 0x9d, 0x1c, 0x3c, 0x09, 0x05, 0x84, 0x8e, 0x96, 0x66, 0xa8 }, \
 								  { 0x0a, 0x57, 0x16, 0x00, 0x7c, 0x53, 0x2f, 0x59, 0xf4, 0x1f, 0x1c, 0xd9, 0xf3, 0x5b, 0x79, 0xd1 }, \
 								  { 0x5c, 0xd4, 0xa6, 0x75, 0x8b, 0xe9, 0xf9, 0xc2, 0xff, 0xee, 0xa6, 0x72, 0xbc, 0xd6, 0x05, 0x61 }, \
@@ -143,15 +105,13 @@ do {									\
 								  { 0xb7, 0x8d, 0xbf, 0x3c, 0xdd, 0xa7, 0xfc, 0x92, 0x9a, 0x55, 0x56, 0xd2, 0x4f, 0x8f, 0x82, 0xb3 } }
 */
 
-#if defined(ANTI_TAMPERING)
+#if defined(ANTI_TAMPERING_ENABLED)
 // Slighltly obfuscated MD5 hashes of the files (don't want to make file tampering & cheating too easy for the first prized release)
 #define FMDXHASHES				{ { 0xf3, 0x5e, 0x11, 0xb3, 0x30 }, \
 								  { 0x6c, 0x31, 0x12, 0x00, 0xf2 }, \
 								  { 0x6b, 0x85, 0x59, 0xc1, 0xdb }, \
 								  { 0x4f, 0x7d, 0x68, 0x74, 0x3a }, \
 								  { 0x84, 0x1d, 0xc4, 0x82, 0xd8 }, \
-								  { 0x15, 0x3a, 0x64, 0xd3, 0xfa }, \
-								  { 0x54, 0xf9, 0xba, 0x3d, 0x29 }, \
 								  { 0x46, 0xc8, 0xf7, 0x61, 0x68 }, \
 								  { 0x03, 0xf0, 0xa7, 0xfc, 0xe3 }, \
 								  { 0x98, 0x24, 0xf0, 0x26, 0xc8 }, \
@@ -160,25 +120,37 @@ do {									\
 								  { 0xc8, 0x87, 0x0a, 0x85, 0xd0 } }
 #endif
 
-// Static IFF images (intro, events, gameover, etc)
+// Textures that will be used for various images
+#define NB_TEXTURES				25
 #define NB_IFFS					19
-#define IFF_NAMES				{ "PIC.1(SOLITARY)", "PIC.1(SOLITARY)FREE", "PIC.2(APPELL)", "PIC.3(SHOT)",	\
-								  "PIC.4(FREE-1)", "PIC.5(CURFEW)", "PIC.6(EXERCISE)", "PIC.7(CONFINED)",	\
-								  "PIC.A(FREE-ALL)", "PIC.B(GAME-OVER)", "PIC.A(FREE-ALL)TEXT",				\
-								  "PIC.B(GAME-OVER)TEXT", "STARTSCREEN0", "STARTSCREEN1", "STARTSCREEN2",	\
-								  "STARTSCREEN3", "STARTSCREEN4", "PIC.8(PASS)", "PIC.9(PAPERS)" }
+#define TEXTURES				{	{ "PIC.1(SOLITARY)", 320, 192, 0, NULL },					\
+									{ "PIC.1(SOLITARY)FREE", 320, 192, 0, NULL },				\
+									{ "PIC.2(APPELL)", 320, 192, 0, NULL },						\
+									{ "PIC.3(SHOT)", 320, 192, 0, NULL },						\
+									{ "PIC.4(FREE-1)", 320, 192, 0, NULL },						\
+									{ "PIC.5(CURFEW)", 320, 192, 0, NULL },						\
+									{ "PIC.6(EXERCISE)", 320, 192, 0, NULL },					\
+									{ "PIC.7(CONFINED)", 320, 192, 0, NULL },					\
+									{ "PIC.A(FREE-ALL)", 320, 192, 0, NULL },					\
+									{ "PIC.B(GAME-OVER)", 320, 192, 0, NULL },					\
+									{ "PIC.A(FREE-ALL)TEXT", 320, 192, 0, NULL },				\
+									{ "PIC.B(GAME-OVER)TEXT", 295, 192, 0, NULL },				\
+									{ "STARTSCREEN0", 320, 200, 0, NULL },						\
+									{ "STARTSCREEN1", 320, 200, 0, NULL },						\
+									{ "STARTSCREEN2", 320, 200, 0, NULL },						\
+									{ "STARTSCREEN3", 320, 200, 0, NULL },						\
+									{ "STARTSCREEN4", 320, 200, 0, NULL },						\
+									{ "PIC.8(PASS)", 320, 192, 0, NULL },						\
+									{ "PIC.9(PAPERS)", 320, 192, 0, NULL },						\
+									{ "panel_base1.raw", 64, 32, 0, NULL},						\
+									{ "panel_base2.raw", 256, 32, 0, NULL},						\
+									{ "intro-background.raw", 480, 272, 0, NULL},				\
+									{ "intro-aperture.raw", 388, 98, 0, NULL},					\
+									{ "intro-motto.raw", 0, 0, 0, NULL},						\
+									{ "intro-presents.raw", 0, 0, 0, NULL}						}
+															
 
-// Additional Static RGB RAW images. Those images all have a 480x272 PSP dimension
-#define NB_RAWS					1
-#define RAW_NAMES				{ "aperture-software.raw" }
-// Music mods
-#define NB_MODS					3
-#define MOD_NAMES				{ "LOADTUNE.MOD", "GAMEOVER.MUS", "WHENWIN.MUS" }
-#define MOD_LOADTUNE			0
-#define MOD_GAMEOVER			1
-#define MOD_WHENWIN				2
-#define PP_LOADTUNE_NAME		"LOADTUNE.MUS"
-#define PP_LOADTUNE_SIZE		66956
+// handy identifier for images
 #define TO_SOLITARY				0
 #define FROM_SOLITARY			1
 #define PRISONER_SHOT			3
@@ -191,31 +163,54 @@ do {									\
 #define INTRO_SCREEN_END		16
 #define REQUIRE_PASS			17
 #define REQUIRE_PAPERS			18
-#define APERTURE_SOFTWARE		(0+NB_IFFS)
-#define NO_PICTURE				0xFFFF
-#define IFF_PAYLOAD_W			{ 320, 320, 320, 320, 320, 320, 320, 320, 320, 320,	\
+#define PANEL_BASE1				19
+#define PANEL_BASE2				20
+#define INTRO_BACKGROUND		21
+#define INTRO_APERTURE			22
+#define INTRO_MOTTO				23
+#define INTRO_PRESENTS			24
+#define NO_PICTURE				-1
+
+/*
+// Static IFF images (intro, events, gameover, etc)
+//#define NB_IFFS					19
+//#define IFF_NAMES				{ "PIC.1(SOLITARY)", "PIC.1(SOLITARY)FREE", "PIC.2(APPELL)", "PIC.3(SHOT)",	\
+								  "PIC.4(FREE-1)", "PIC.5(CURFEW)", "PIC.6(EXERCISE)", "PIC.7(CONFINED)",	\
+								  "PIC.A(FREE-ALL)", "PIC.B(GAME-OVER)", "PIC.A(FREE-ALL)TEXT",				\
+								  "PIC.B(GAME-OVER)TEXT", "STARTSCREEN0", "STARTSCREEN1", "STARTSCREEN2",	\
+								  "STARTSCREEN3", "STARTSCREEN4", "PIC.8(PASS)", "PIC.9(PAPERS)" }
+// Additional Static RGB RAW images. Those images must have a 480x272 PSP dimension
+//#define NB_RAWS					2
+//#define RAW_NAMES				{ "aperture-software.raw", "presents.raw" }
+
+//#define IFF_PAYLOAD_W			{ 320, 320, 320, 320, 320, 320, 320, 320, 320, 320,	\
 								  320, 295, 320, 320, 320, 320, 320, 320, 320 }
-#define IFF_PAYLOAD_H			{ 192, 192, 192, 192, 192, 192, 192, 192, 192, 192,	\
+//#define IFF_PAYLOAD_H			{ 192, 192, 192, 192, 192, 192, 192, 192, 192, 192,	\
 								  192, 192, 200, 200, 200, 200, 200, 192, 192 }
+
+*/
 // Loader table containing the IFF indexes to use for various events
 #define IFF_INDEX_TABLE			0x00007A80
 
-// If we start the loader at address 0x80, we won't have to convert the pointers
+// Music mods
+#define NB_MODS					4
+#define MOD_NAMES				{ "LOADTUNE.MOD", "GAMEOVER.MUS", "WHENWIN.MUS", "aperture-software.mod" }
+#define MOD_LOADTUNE			0
+#define MOD_GAMEOVER			1
+#define MOD_WHENWIN				2
+#define MOD_APERTURE			3
+#define PP_LOADTUNE_NAME		"LOADTUNE.MUS"
+#define PP_LOADTUNE_SIZE		66956
+
+// If we place our loader at address 0x80, we won't have to convert the pointers from the disassembly
 #define LOADER_PADDING			0x00000080
 #define NB_NATIONS				4
 #define NB_GUARDS				0x3D
 #define MENDAT_ITEM_SIZE		0x14
-#define PANEL_BASE1_W			64
-#define PANEL_BASE2_W			256
-#define PANEL_BASE_H			32
-#define PANEL_OFF_X				79
-#define PANEL_OFF_Y				3
-#define INITIAL_PALETTE_INDEX	4
-#define ALT_LOADER				"SKR_COLD"
-#define ALT_LOADER_SIZE			28820
-#define OFFSETS_START			0x00002684
-#define ROOMS_START				0x00002FE4
-#define CM_TILES_START			0x00005E80
+
+#define CRM_OFFSETS_START		0x00002684
+#define CRM_ROOMS_START			0x00002FE4
+#define CMP_TILES_START			0x00005E80
 // tiles that need overlay, from LOADER
 #define SPECIAL_TILES_START		0x00003F3A
 #define NB_SPECIAL_TILES		0x16
@@ -223,6 +218,14 @@ do {									\
 #define TUNNEL_TILE_ADDON		0x1E0
 //Sprites
 #define NB_STANDARD_SPRITES		0xD1
+
+// Positions for the PANEL
+#define PANEL_BASE1_W			64
+#define PANEL_BASE2_W			256
+#define PANEL_BASE_H			32
+#define PANEL_OFF_X				79
+#define PANEL_OFF_Y				3
+#define INITIAL_PALETTE_INDEX	4
 // Panel sprites 
 #define PANEL_FACES_OFFSET		0x00001482
 #define NB_PANEL_FACES			7
@@ -297,9 +300,8 @@ do {									\
 #define OBS_TO_SPRITE_START		0x00005D82
 #define NB_OBS_TO_SPRITE		15
 #define LOADER_DATA_START		0x0000010C
-#define FFs_TO_IGNORE			7
+//#define FFs_TO_IGNORE			7
 #define MAX_OVERLAYS			0x80
-#define RGBA_SIZE				2
 #define CMP_MAP_WIDTH			0x54
 #define CMP_MAP_HEIGHT			0x48
 // On compressed map (outside)
@@ -347,15 +349,17 @@ do {									\
 #define ANIMATION_INTERVAL		120
 // 20 ms provides the same speed (for patrols) as on the Amiga
 #define	REPOSITION_INTERVAL		15
+// defines how long a transition takes on animated picture effects
+#define TRANSITION_DURATION		1000
 // How long should we sleep when paused or between each fade step (ms)
 #define PAUSE_DELAY				40
-// Muhahahahahaha!!! Fear not, mere mortals, for I will...
+// Muhahahahahaha!!! Fear not, mere mortals, for I'll...
 //#define TIME_MARKER				20000
 #define TIME_MARKER				10000
 // NB: This is the duration of a game minute, in ms
 #define SOLITARY_DURATION		100000
 // How long should we keep a static picture on, in ms
-#define PICTURE_TIMEOUT			20000
+#define PICTURE_TIMEOUT			8000
 // Time we should keep our inventory messages, in ms
 #define	PROPS_MESSAGE_TIMEOUT	2000
 #define CHEAT_MESSAGE_TIMEOUT	2000
@@ -370,7 +374,7 @@ do {									\
 #define SFX_FOOTSTEPS			3
 #define SFX_SHOOT				4
 
-// How long should the guard remain blocked (innb of route steps)
+// How long should the guard remain blocked (in nb of route steps)
 // default of the game is 0x64
 #define BLOCKED_GUARD_TIMEOUT	0xC0
 #define WALKING_PURSUIT_TIMEOUT	0x64
@@ -385,6 +389,7 @@ do {									\
 // Rollcall check
 #define TIMED_EVENT_ROLLCALL_CHECK	1
 #define DIRECTION_STOPPED		-1
+
 // Animation data
 #define ANIMATION_OFFSET_BASE	0x000089EA
 // sids for animation removal or no display
@@ -413,6 +418,7 @@ do {									\
 #define KNEEL3_ANI				0x15
 #define GUARD_KNEEL_ANI			0x16
 
+// these sprites are information messages for the panel
 #define STATE_WALK_SID			0xF6
 #define STATE_RUN_SID			0xF7
 #define STATE_CRAWL_SID			0xF8
@@ -423,7 +429,8 @@ do {									\
 
 // How much we need to shift our screen so the seams don't show
 #define NORTHWARD_HO			28
-// for our z index, for overlays
+
+// Our minimal z index, for overlays
 // Oh, and don't try to be smart and use 0x8000, because unless you do an
 // explicit cast, you will get strange things line short variables that you
 // explicitely set to MIN_Z never equating MIN_Z in comparisons
@@ -436,8 +443,6 @@ do {									\
 #define MAX_ANIMATIONS			0x20
 #define MAX_CURRENTLY_ANIMATED	MAX_ANIMATIONS
 #define NB_ANIMATED_SPRITES		23
-// indiactes that no guybrush is associated to an animation
-#define NO_GUYBRUSH				-1
 #define NB_GUYBRUSHES			(NB_NATIONS + NB_GUARDS)
 
 // Motion related states
@@ -495,19 +500,20 @@ do {									\
 // In the orginal, the item's identified as "ROUND TOWER"
 #define ITEM_INFLATABLE_DUMMY	0x0F
 
-// Because the colours are 4 or 5 bits, starting a fade at 0 is 
-// not advisable
-//#define FADE_START_VALUE		0.1f
-
 // States for the displaying of static pictures
-#define GAME_FADE_OUT		0
-#define PICTURE_FADE_IN		1
-#define PICTURE_WAIT		2
-#define PICTURE_FADE_OUT	3
-#define GAME_FADE_IN		4
-#define PICTURE_EXIT		5
-#define NB_PICTURE_STATES	6
-#define FADE_INCREMENT		0.05f
+#define GAME_FADE_OUT_START		0
+#define GAME_FADE_OUT			1
+#define PICTURE_FADE_IN_START	2
+#define PICTURE_FADE_IN			3
+#define PICTURE_WAIT_START		4
+#define PICTURE_WAIT			5
+#define PICTURE_FADE_OUT_START	6
+#define PICTURE_FADE_OUT		7
+#define GAME_FADE_IN_START		8
+#define GAME_FADE_IN			9
+#define PICTURE_EXIT			10
+//#define NB_PICTURE_STATES		11
+//#define FADE_INCREMENT			0.05f
 
 // Redefinition of GLUT's special keys so that they fit in our key table
 #define SPECIAL_KEY_OFFSET		0x80
@@ -585,26 +591,11 @@ do {									\
 #define KEY_DIRECTION_DOWN		'2'
 #endif
 
+#if defined(DEBUG_KEYS_ENABLED)
 #define KEY_DEBUG_PRINT_POS		'p'
 #define KEY_DEBUG_BONANZA		'#'
 #define KEY_DEBUG_CATCH_HIM		'c'
-
-
-
-
-
-// Stupid VC++ doesn't know the basic GL formats it can actually use!
-#if !defined(GL_UNSIGNED_SHORT_4_4_4_4_REV)
-// NB: the _REV below is GRAB format, which is selected for 1:1 mapping on PSP
-#define GL_UNSIGNED_SHORT_4_4_4_4_REV	0x8365
 #endif
-#if !defined(GL_CLAMP_TO_EDGE)
-#define GL_CLAMP_TO_EDGE				0x812F
-#endif
-
-// PSP Screen will be our base def
-#define PSP_SCR_WIDTH		480
-#define PSP_SCR_HEIGHT		272
 
 
 // Define a structure to hold the standard RGBA sprites
@@ -642,7 +633,6 @@ typedef struct
 {
 	u32	index;	// index for the ani in the LOADER table
 	s32	framecount;
-//	s16	guybrush_index;
 	u32 end_of_ani_parameter;
 	void (*end_of_ani_function)(u32);
 } s_animation;
@@ -654,8 +644,6 @@ typedef struct
 	u32 parameter;
 	void (*function)(u32);
 } s_event;
-
-
 
 // Sound FX
 typedef struct
@@ -741,6 +729,7 @@ extern u8  hours_digit_h, hours_digit_l, minutes_digit_h, minutes_digit_l;
 extern u8  palette_index;
 extern u16	game_state;
 extern float fade_value;
+extern int current_picture;
 
 
 // Data specific global variables
@@ -748,11 +737,11 @@ extern u16  nb_rooms, nb_cells, nb_objects;
 
 extern char* fname[NB_FILES];
 extern u32   fsize[NB_FILES];
-extern char* iff_name[NB_IFFS];
+//extern char* iff_name[NB_IFFS];
 extern char* mod_name[NB_MODS];
-extern u16   iff_payload_w[NB_IFFS];
-extern u16   iff_payload_h[NB_IFFS];
-extern char* raw_name[NB_RAWS];
+//extern u16   iff_payload_w[NB_IFFS];
+//extern u16   iff_payload_h[NB_IFFS];
+//extern char* raw_name[NB_RAWS];
 extern int	gl_width, gl_height;
 extern u8 current_nation;
 extern s_sfx sfx[NB_SFXS];
@@ -785,7 +774,7 @@ extern u8   overlay_index;
 extern bool init_animations;
 extern bool is_fire_pressed;
 extern char nb_props_message[32];
-extern u64	game_time, last_atime, last_ptime, last_ctime;
+extern u64	game_time, last_atime, last_ptime, last_ctime, t_last;
 extern u64  t_status_message_timeout;
 
 

@@ -5,6 +5,51 @@
 extern "C" {
 #endif
 
+// Define our msleep function
+#if defined(WIN32)
+//#include <Windows.h>
+#define msleep(msecs) Sleep(msecs)
+#include <Windows.h>
+static __inline u64 mtime(void)
+{	// Because MS uses a 32 bit value, this counter will reset every 49 days or so
+	// Hope you won't be playing the game while it resets...
+	return timeGetTime(); 
+}
+#elif defined(PSP)
+#include <pspthreadman.h>
+#include <psprtc.h>
+#define msleep(msecs) sceKernelDelayThread(1000*msecs)
+static __inline u64 mtime(void)
+{
+	u64 blahtime; 
+	sceRtcGetCurrentTick(&blahtime);
+	return blahtime/1000;
+}
+#else
+#include <unistd.h>
+#define	msleep(msecs) usleep(1000*msecs)
+#endif
+
+
+// Some fixes for windows
+#if defined(WIN32) || defined(__MSDOS__)
+#define NULL_FD fopen("NUL", "w")
+#else
+#define NULL_FD fopen("/dev/null", "w")
+#endif
+
+// Handy macro for exiting. xbuffer or fd = NULL is no problemo 
+// (except for lousy Visual C++, that will CRASH on fd = NULL!!!!)
+#define FREE_BUFFERS	{int _buf; for (_buf=0;_buf<NB_FILES;_buf++) aligned_free(fbuffer[_buf]); aligned_free(mbuffer);}
+#define ERR_EXIT		{FREE_BUFFERS; if (fd != NULL) fclose(fd); fflush(stdin); exit(0);}
+#define perr(...)		fprintf(stderr, __VA_ARGS__)
+#define print(...)		printf(__VA_ARGS__)
+#define printv(...)		if(opt_verbose) print(__VA_ARGS__)
+#define perrv(...)		if(opt_verbose) perr(__VA_ARGS__)
+#define printb(...)		if(opt_debug) print(__VA_ARGS__)
+#define perrb(...)		if(opt_debug) perr(__VA_ARGS__)
+
+
 // concatenate 2 words into a long 
 #define to_long(msw,lsw)			\
 	((((u32)(msw))<<16) | ((u16)(lsw)))

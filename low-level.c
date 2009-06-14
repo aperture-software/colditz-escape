@@ -15,6 +15,7 @@
 #include <psp/psp-printf.h>
 #endif
 #include "data-types.h"
+
 #include "colditz.h"
 #include "low-level.h"
 

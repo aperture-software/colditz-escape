@@ -12,7 +12,7 @@ extern "C" {
 #define comp_readtile(x,y)			\
 	((u32)(readlong((u8*)fbuffer[COMPRESSED_MAP], ((y)*room_x+(x))*4) & 0x1FF00) >> 8)
 #define room_readtile(x,y)			\
-	((u32)(readword((u8*)(fbuffer[ROOMS]+ROOMS_START+offset),((y)*room_x+(x))*2) & 0xFF80) >> 7)
+	((u32)(readword((u8*)(fbuffer[ROOMS]+CRM_ROOMS_START+offset),((y)*room_x+(x))*2) & 0xFF80) >> 7)
 #define readtile(x,y)				\
 	(is_outside?comp_readtile(x,y):room_readtile(x,y))
 
@@ -20,13 +20,13 @@ extern "C" {
 #define comp_readexit(x,y)			\
 	((u32)(readlong((u8*)fbuffer[COMPRESSED_MAP], ((y)*room_x+(x))*4) & 0x1F))
 #define room_readexit(x,y)			\
-	((u32)(readword((u8*)(fbuffer[ROOMS]+ROOMS_START+offset),((y)*room_x+(x))*2) & 0x1F))
+	((u32)(readword((u8*)(fbuffer[ROOMS]+CRM_ROOMS_START+offset),((y)*room_x+(x))*2) & 0x1F))
 #define readexit(x,y)				\
 	(is_outside?comp_readexit(x,y):room_readexit(x,y))
 
 // Returns the offset of the byte that describes the exit status (open/closed, key level...) 
 #define room_get_exit_offset(x,y)	\
-	((u32)ROOMS_START + offset + ((y)*room_x+(x))*2 + 1)
+	((u32)CRM_ROOMS_START + offset + ((y)*room_x+(x))*2 + 1)
 #define comp_get_exit_offset(x,y)	\
 	(comp_readexit(x,y) << 3)
 #define get_exit_offset(x,y)		\
@@ -58,6 +58,16 @@ extern "C" {
 		overlay_index++;					\
 	else									\
 	printf("Too many overlays!\n");			}	
+
+// textures for static images, panel base, etc.
+typedef struct
+{
+	char* filename;
+	u16 w;
+	u16 h;
+	GLuint texid;
+	u8* buffer;
+} s_tex;
 
 
 // For load_iff()
@@ -98,7 +108,7 @@ static __inline u8 freadc(FILE* f)
 	return b;
 }
 
-
+extern s_tex texture[NB_TEXTURES];
 
 
 // Public prototypes
@@ -124,13 +134,14 @@ void switch_room(s16 exit, bool tunnel_io);
 void fix_files(bool reload);
 void set_room_props();
 void timed_events(u16 hours, u16 minutes_high, u16 minutes_low);
-int  load_iff(u8 iff_id);
-bool load_raw_rgb(int w, int h, char* filename);
+//int  load_iff(u8 iff_id);
+//bool load_raw_rgb(int w, int h, char* filename);
 void check_on_prisoners();
-void newgame_init(bool reload);
+void newgame_init();
 void play_sfx(int sfx_id);
 void depack_loadtune();
-u8* load_raw_rgba(int w, int h, char* filename, GLuint* rgba_texid);
+bool load_texture(s_tex *tex);
+//u8* load_raw_rgba(int w, int h, char* filename, GLuint* rgba_texid);
 
 #ifdef	__cplusplus
 }
