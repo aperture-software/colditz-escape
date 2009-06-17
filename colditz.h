@@ -33,9 +33,11 @@ extern "C" {
 // Global defines
 /////////////////////////////////////////////////////////////////
 
+#define APPNAME					"colditz"
+
 // The PSP Screen dimensions will be our base def
-#define PSP_SCR_WIDTH		480
-#define PSP_SCR_HEIGHT		272
+#define PSP_SCR_WIDTH			480
+#define PSP_SCR_HEIGHT			272
 
 // # data files from the original game
 #define NB_FILES				11
@@ -47,8 +49,6 @@ extern "C" {
 #define OBJECTS					2
 #define TUNNEL_IO				3
 #define SPRITES_PANEL			4
-//#define PANEL_BASE1				5
-//#define PANEL_BASE2				6
 #define GUARDS					5
 #define CELLS					6
 #define PALETTES				7
@@ -89,14 +89,21 @@ extern "C" {
 // Most versions of Colditz archived on the net use the Skid Row loader
 #define ALT_LOADER				"SKR_COLD"
 #define ALT_LOADER_SIZE			28820
+
+// Our little intro
+#if defined(PSP)
+#define APERTURE_VIDEO			"aperture.pmp"
+#else
+#define APERTURE_VIDEO			"aperture.avi"
+#endif
+
+
 /*
 #define FMD5HASHES				{ { 0x0c, 0x4f, 0xeb, 0x19, 0xfc, 0x53, 0xaf, 0xa9, 0x03, 0x83, 0x24, 0xc1, 0xad, 0xa2, 0x1c, 0xe9 }, \
 								  { 0xd8, 0x23, 0x9a, 0x3e, 0x68, 0xe4, 0x6f, 0x36, 0x5f, 0xf2, 0x4d, 0xca, 0x5d, 0x12, 0xfb, 0x52 }, \
 								  { 0x15, 0xdc, 0x6b, 0xa1, 0x39, 0x2c, 0x9a, 0x31, 0x66, 0x1a, 0xd3, 0x78, 0xee, 0x98, 0x11, 0x62 }, \
 								  { 0x24, 0x15, 0x8a, 0xe9, 0x52, 0x7d, 0x92, 0x15, 0xab, 0x4e, 0x00, 0x00, 0x32, 0x1c, 0x53, 0x75 }, \
 								  { 0x10, 0xd9, 0x97, 0xad, 0x03, 0x5a, 0x4c, 0xde, 0x46, 0x5a, 0x82, 0xd9, 0x99, 0x46, 0xbe, 0x81 }, \
-//								  { 0x2e, 0x5e, 0x29, 0x72, 0xdc, 0x58, 0x3e, 0x4f, 0xe5, 0x29, 0x4f, 0x55, 0x2f, 0xb7, 0x9a, 0x5e }, 
-//								  { 0x76, 0x43, 0xe8, 0xd1, 0x7e, 0xb0, 0xea, 0x0e, 0xcb, 0x14, 0xc7, 0x95, 0xad, 0x87, 0xac, 0xb7 }, 
 								  { 0x8c, 0x3f, 0x01, 0xde, 0x56, 0xf9, 0x9d, 0x1c, 0x3c, 0x09, 0x05, 0x84, 0x8e, 0x96, 0x66, 0xa8 }, \
 								  { 0x0a, 0x57, 0x16, 0x00, 0x7c, 0x53, 0x2f, 0x59, 0xf4, 0x1f, 0x1c, 0xd9, 0xf3, 0x5b, 0x79, 0xd1 }, \
 								  { 0x5c, 0xd4, 0xa6, 0x75, 0x8b, 0xe9, 0xf9, 0xc2, 0xff, 0xee, 0xa6, 0x72, 0xbc, 0xd6, 0x05, 0x61 }, \
@@ -121,7 +128,7 @@ extern "C" {
 #endif
 
 // Textures that will be used for various images
-#define NB_TEXTURES				25
+#define NB_TEXTURES				21
 #define NB_IFFS					19
 #define TEXTURES				{	{ "PIC.1(SOLITARY)", 320, 192, 0, NULL },					\
 									{ "PIC.1(SOLITARY)FREE", 320, 192, 0, NULL },				\
@@ -143,11 +150,7 @@ extern "C" {
 									{ "PIC.8(PASS)", 320, 192, 0, NULL },						\
 									{ "PIC.9(PAPERS)", 320, 192, 0, NULL },						\
 									{ "panel_base1.raw", 64, 32, 0, NULL},						\
-									{ "panel_base2.raw", 256, 32, 0, NULL},						\
-									{ "intro-background.raw", 480, 272, 0, NULL},				\
-									{ "intro-aperture.raw", 388, 98, 0, NULL},					\
-									{ "intro-motto.raw", 0, 0, 0, NULL},						\
-									{ "intro-presents.raw", 0, 0, 0, NULL}						}
+									{ "panel_base2.raw", 256, 32, 0, NULL}						}
 															
 
 // handy identifier for images
@@ -165,30 +168,9 @@ extern "C" {
 #define REQUIRE_PAPERS			18
 #define PANEL_BASE1				19
 #define PANEL_BASE2				20
-#define INTRO_BACKGROUND		21
-#define INTRO_APERTURE			22
-#define INTRO_MOTTO				23
-#define INTRO_PRESENTS			24
 #define NO_PICTURE				-1
 
-/*
-// Static IFF images (intro, events, gameover, etc)
-//#define NB_IFFS					19
-//#define IFF_NAMES				{ "PIC.1(SOLITARY)", "PIC.1(SOLITARY)FREE", "PIC.2(APPELL)", "PIC.3(SHOT)",	\
-								  "PIC.4(FREE-1)", "PIC.5(CURFEW)", "PIC.6(EXERCISE)", "PIC.7(CONFINED)",	\
-								  "PIC.A(FREE-ALL)", "PIC.B(GAME-OVER)", "PIC.A(FREE-ALL)TEXT",				\
-								  "PIC.B(GAME-OVER)TEXT", "STARTSCREEN0", "STARTSCREEN1", "STARTSCREEN2",	\
-								  "STARTSCREEN3", "STARTSCREEN4", "PIC.8(PASS)", "PIC.9(PAPERS)" }
-// Additional Static RGB RAW images. Those images must have a 480x272 PSP dimension
-//#define NB_RAWS					2
-//#define RAW_NAMES				{ "aperture-software.raw", "presents.raw" }
 
-//#define IFF_PAYLOAD_W			{ 320, 320, 320, 320, 320, 320, 320, 320, 320, 320,	\
-								  320, 295, 320, 320, 320, 320, 320, 320, 320 }
-//#define IFF_PAYLOAD_H			{ 192, 192, 192, 192, 192, 192, 192, 192, 192, 192,	\
-								  192, 192, 200, 200, 200, 200, 200, 192, 192 }
-
-*/
 // Loader table containing the IFF indexes to use for various events
 #define IFF_INDEX_TABLE			0x00007A80
 
@@ -359,7 +341,7 @@ extern "C" {
 // NB: This is the duration of a game minute, in ms
 #define SOLITARY_DURATION		100000
 // How long should we keep a static picture on, in ms
-#define PICTURE_TIMEOUT			8000
+#define PICTURE_TIMEOUT			12000
 // Time we should keep our inventory messages, in ms
 #define	PROPS_MESSAGE_TIMEOUT	2000
 #define CHEAT_MESSAGE_TIMEOUT	2000
@@ -468,6 +450,7 @@ extern "C" {
 #define GAME_STATE_GAME_OVER	16
 #define GAME_STATE_GAME_WON		32
 #define GAME_STATE_PICTURE_LOOP	64
+#define GAME_STATE_CUTSCENE		128
 
 // Nationalities
 #define BRITISH					0
@@ -599,7 +582,7 @@ extern "C" {
 
 
 // Define a structure to hold the standard RGBA sprites
-typedef struct
+typedef struct 
 {
     u16 w;
 	u16 h;
@@ -612,7 +595,7 @@ typedef struct
 } s_sprite;
 
 // for nonstandtard sprites (panel, etc)
-typedef struct
+typedef struct 
 {
 	u16 w;
 	u16 base;
@@ -620,7 +603,7 @@ typedef struct
 } s_nonstandard;
 
 // For room overlays (props, bed, stairs, etc)
-typedef struct
+typedef struct 
 {
 	s16 x;
 	s16 y;
@@ -629,7 +612,7 @@ typedef struct
 } s_overlay;
 
 // Animated sprites data
-typedef struct
+typedef struct 
 {
 	u32	index;	// index for the ani in the LOADER table
 	s32	framecount;
@@ -638,7 +621,7 @@ typedef struct
 } s_animation;
 
 // Timed events
-typedef struct
+typedef struct 
 {
 	u64	expiration_time;
 	u32 parameter;
@@ -646,7 +629,7 @@ typedef struct
 } s_event;
 
 // Sound FX
-typedef struct
+typedef struct 
 {
 	u32				address;
 	u16				length;
@@ -658,7 +641,7 @@ typedef struct
 } s_sfx;
 
 // prisoners or guards
-typedef struct
+typedef struct 
 {
 	u16				room;
 	s16				px;
@@ -681,7 +664,7 @@ typedef struct
 } s_guybrush;
 
 // Event related states (apply to prisoners only)
-typedef struct
+typedef struct 
 {
 	bool require_pass;
 	bool require_papers;

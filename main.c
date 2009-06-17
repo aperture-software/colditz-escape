@@ -41,6 +41,7 @@
 #include <pspaudiolib.h>
 #include "psp/psp-setup.h"
 #include "psp/psp-printf.h"
+#include "psp/pmp.h"
 #endif
 
 #include "getopt.h"	
@@ -49,8 +50,7 @@
 #include "colditz.h"
 #include "utilities.h"
 #include "soundplayer.h"
-
-
+#include "videoplayer.h"
 
 // Global variables
 
@@ -79,13 +79,11 @@ int current_picture			= INTRO_SCREEN_START;
 bool new_game				= false;
 // Our second local pause variable, to help with the transition
 bool display_paused			= false;
+// we might need to suspend the game for videos, debug, etc
+int game_suspended			= 0;
 
-#if defined(PSP)
-int psp_printf_mode			= 0;
-#endif
-
-
-
+// We'll need this to retrieve our glutIdle function after a suspended state
+#define glutIdleFunc_save(f) {glutIdleFunc(f); restore_idle = f;}
 
 // File stuff
 FILE* fd					= NULL;
@@ -100,7 +98,7 @@ char* mod_name[NB_MODS]		= MOD_NAMES;
 s_sfx sfx[NB_SFXS];
 
 // Used for fade in/fade out of static images
-float fade_value = 1.0f;
+float fade_value = 0.0f;
 // false for fade in, true for fade out
 bool fade_out = false;
 
@@ -145,15 +143,17 @@ typedef struct
 	u8  cur_pos;
 	u8* keys;
 } s_cheat_sequence;
-#define NB_CHEAT_SEQUENCES 3
+#define NB_CHEAT_SEQUENCES	4
 #define CHEAT_PROP_BONANZA	0
 #define CHEAT_KEYMASTER		1
 #define CHEAT_NOGUARDS		2
+#define NO_CAKE_FOR_YOU		3
 static u8 sequence0[4]  = {KEY_INVENTORY_LEFT, KEY_INVENTORY_LEFT, KEY_INVENTORY_RIGHT, KEY_INVENTORY_RIGHT};
 static u8 sequence1[9]  = {'k', 'e', 'y', 'm', 'a', 's', 't', 'e', 'r'};
 static u8 sequence2[11] = {'d', 'i', 'e', ' ', 'd', 'i', 'e', ' ', 'd', 'i', 'e'};
+static u8 sequence3[17] = {'t', 'h', 'e', ' ', 'c', 'a', 'k', 'e', ' ', 'i', 's', ' ', 'a', ' ', 'l', 'i', 'e'};
 s_cheat_sequence cheat_sequence[NB_CHEAT_SEQUENCES] = {
-	{4, 0, sequence0}, {9, 0, sequence1}, {11, 0, sequence2}
+	{4, 0, sequence0}, {9, 0, sequence1}, {11, 0, sequence2}, {17, 0, sequence3}
 };
 #endif
 
@@ -183,6 +183,14 @@ u8  tunexit_nr, tunexit_flags, tunnel_tool;
 u8*	iff_image;
 bool found;
 void (*static_screen_func)(u32) = NULL;
+void (*restore_idle)(void) = NULL;
+#if defined(PSP_ONSCREEN_STDOUT)
+// What the bleep is so hard about flattening ALL known global names from ALL objects
+// & libs into a big happy pool before linking and figuring out where to pick it up?!?
+void glut_idle_suspended(void);		// Needs a proto for init below
+void (*work_around_stupid_linkers_glut_idle_suspended)(void) = glut_idle_suspended;
+void (*work_around_stupid_linkers_glutIdleFunc)(void (*func)(void)) = glutIdleFunc;
+#endif
 u32  static_screen_param;
 
 u16  nb_rooms, nb_cells, nb_objects;
@@ -211,9 +219,7 @@ u8 key_nation[NB_NATIONS+2] = {KEY_BRITISH, KEY_FRENCH, KEY_AMERICAN, KEY_POLISH
 void update_timers()
 {
 	u64 t, delta_t;
-#if defined(PSP_ONSCREEN_STDOUT)
-	SceCtrlData pad;
-#endif	
+
 	// Find out how much time elapsed since last call
 	t = mtime();
 	delta_t = t - t_last;
@@ -226,29 +232,10 @@ void update_timers()
 		delta_t = 0;
 		printf("update_timers: more than one second elapsed since last time update\n");
 	}
-	
-#if defined(PSP_ONSCREEN_STDOUT)
-	if (psp_printf_mode != 0) 
-	{
-		// Keep message on screen as long as X is not pressed
-		sceCtrlReadBufferPositive(&pad, 1);
-		if(pad.Buttons & PSP_CTRL_START)
-		{
-			// Wait for depress
-			while (pad.Buttons & PSP_CTRL_START)
-				sceCtrlReadBufferPositive(&pad, 1);
-			psp_printf_mode = 0;
-		}
-	}
-	else
-	{	// Don't update the program timer while we're printing stuff
-#endif
-		program_time += delta_t;
-		if (game_state & GAME_STATE_ACTION)
-			game_time += delta_t;
-#if defined(PSP_ONSCREEN_STDOUT)
-	}
-#endif
+
+	program_time += delta_t;
+	if (game_state & GAME_STATE_ACTION)
+		game_time += delta_t;
 }
 
 
@@ -263,7 +250,7 @@ static void glut_init()
 	glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE | GLUT_ALPHA);
 	glutInitWindowSize(gl_width, gl_height);
 	glutInitWindowPosition(0, 0); 
-	glutCreateWindow( __FILE__ );
+	glutCreateWindow(APPNAME);
 
 	glShadeModel(GL_SMOOTH);		// set by default
 
@@ -297,48 +284,33 @@ static void glut_init()
 
 }
 
-u16 ani_w = 1024;
-u16 ani_x, ani_y;
-
-
 
 // Our display routine. 
 static void glut_display(void)
 {
-#if defined(PSP_ONSCREEN_STDOUT)
-	// If we printf a message on the PSP we don't allow glut to take over
-	if (psp_printf_mode == 0) 
-	{
-#endif
-//	puts("psp_printf_mode = 0");
-		// Always start with a clear to black
-		glClear(GL_COLOR_BUFFER_BIT);
+	// Don't mess with our video buffer if we're suspended and diplay()
+	// is called, as we may have debug printf (PSP) or video onscreen
+	if (game_suspended)
+		return;
 
-		// Display either the current game frame or a static picture
-		if (game_state & GAME_STATE_STATIC_PIC)
-		{
-			display_picture();
-			if (ani_w > 256)
-			{
-				ani_w-=4;
-				ani_x = 209-(ani_w-256);
-				ani_y = 181-(ani_w-256)/4;
-			}
-			display_sprite_linear(ani_x, ani_y, ani_w, ani_w/4, texture[INTRO_APERTURE].texid);
-		}
-		else
-		{	// In game => update room content and panel
-			display_room();
-			display_panel();
-		} 
-#if !defined (PSP)
-		// Rescale the screen on Windows
-		rescale_buffer();
-#endif
-		glutSwapBuffers();
-#if defined (PSP)
+	// Always start with a clear to black
+	glClear(GL_COLOR_BUFFER_BIT);
+
+	// Display either the current game frame or a static picture
+	if (game_state & GAME_STATE_STATIC_PIC)
+	{
+		display_picture();
+	}
+	else
+	{	// In game => update room content and panel
+		display_room();
+		display_panel();
 	} 
+#if !defined (PSP)
+	// Rescale the screen on Windows
+	rescale_buffer();
 #endif
+	glutSwapBuffers();
 }
 
 // 
@@ -493,6 +465,9 @@ void user_input()
 				{
 					switch(i)
 					{
+					case NO_CAKE_FOR_YOU:
+						set_status_message("  NO: >YOU< ARE THE LIE!!!  ", 3, CHEAT_MESSAGE_TIMEOUT);
+						break;
 					case CHEAT_PROP_BONANZA:
 						for (j=1; j<NB_PROPS-1; j++)
 							props[current_nation][j] += 10;
@@ -888,6 +863,8 @@ static void glut_idle_game(void)
 // We'll use a different idle function for static picture
 static void glut_idle_static_pic(void)
 {
+u64 t1;
+
 	// As usual, we'll need the current time value for a bunch of stuff
 	update_timers();
 
@@ -1031,7 +1008,7 @@ static void glut_idle_static_pic(void)
 	case PICTURE_EXIT:
 		game_state |= GAME_STATE_ACTION;
 		// Set glut_idle to our main game loop
-		glutIdleFunc(glut_idle_game);
+		glutIdleFunc_save(glut_idle_game);
 		break;
 	default:
 		printf("glut_idle_static_pic(): should never be here!\n");
@@ -1039,12 +1016,65 @@ static void glut_idle_static_pic(void)
 	}
 
 	// Don't forget to display the image
+//	t1 = mtime();
 	glut_display();
+//	t1 = mtime() - t1;
+//	printf("spent %lld in display\n", t1);
+
 
 	// We should be able to sleep for a while
-	msleep(PAUSE_DELAY);
+	// Except if we're in a picture transition on the PSP
+#if defined(PSP)
+	if ((fade_value == 0.0) || (fade_value = 1.0))
+#endif
+		msleep(PAUSE_DELAY);
 }
 
+
+// And another one when the game is in suspended state (video, debug output)
+// that one can't be static as it needs to be defined externally
+void glut_idle_suspended(void)
+{
+static bool video_initialized = false;
+
+	if (game_state & GAME_STATE_CUTSCENE)
+	{
+		if (!video_initialized)
+		{	// Start playing a video
+			if ((!video_init()) || (!video_play(APERTURE_VIDEO)))
+			{
+				game_suspended = false;
+				printf("Could not play %s video\n", APERTURE_VIDEO);
+			}
+			else
+				video_initialized = true;
+		}
+
+		// check for the end of the playback
+		if (!video_isplaying())
+		{
+			printf("end of playback\n");
+			game_suspended = 0;
+		}
+
+	}
+
+	// If we didn't get out, wait for any key
+	if ((!game_suspended) || read_key_once(last_key_used))
+	{
+		t_last = mtime();
+		glutIdleFunc(restore_idle);
+		game_suspended = false;
+		if (game_state & GAME_STATE_CUTSCENE)
+		{
+			video_stop();
+			video_initialized = false;
+			game_state &= ~GAME_STATE_CUTSCENE;
+		}
+	}
+
+	msleep(PAUSE_DELAY);
+}
 
 // This function handles the displaying of static screens
 // The last 2 parameters are for a function callback while we are in
@@ -1074,13 +1104,13 @@ void static_screen(u8 picture_id, void (*func)(u32), u32 param)
 	else
 	{
 		picture_state = GAME_FADE_OUT_START;
-		// Switch to a different idle fucntion
-		glutIdleFunc(glut_idle_static_pic);
+		// Switch to a different idle function
+		glutIdleFunc_save(glut_idle_static_pic);
 	}
 
 }
 
-
+// Input handling
 static void glut_joystick(uint buttonMask, int x, int y, int z)
 {
 	// compute x and y displacements
@@ -1097,15 +1127,11 @@ static void glut_joystick(uint buttonMask, int x, int y, int z)
 	else jd2y = 0;
 }
 
-// Keyboard handling
 static void glut_keyboard(u8 key, int x, int y)
 {
 //	printf("key = %X (%c)\n", key, key);
 	key_down[key] = true;
-#if defined (CHEATMODE_ENABLED)
 	last_key_used = key;
-#endif
-
 }
 
 static void glut_keyboard_up(u8 key, int x, int y)
@@ -1120,10 +1146,7 @@ static void glut_keyboard_up(u8 key, int x, int y)
 static void glut_special_keys(int key, int x, int y)
 {
 	key_down[key + SPECIAL_KEY_OFFSET] = true;
-#if defined (CHEATMODE_ENABLED)
 	last_key_used = key + SPECIAL_KEY_OFFSET;
-#endif
-
 }
 
 static void glut_special_keys_up(int key, int x, int y)
@@ -1140,9 +1163,7 @@ static void glut_mouse_buttons(int button, int state, int x, int y)
 	if (state == GLUT_DOWN)
 	{
 		key_down[SPECIAL_MOUSE_BUTTON_BASE + button] = true;
-#if defined (CHEATMODE_ENABLED)
 		last_key_used = SPECIAL_MOUSE_BUTTON_BASE + button;
-#endif
 	}
 	else
 	{
@@ -1165,7 +1186,7 @@ int main (int argc, char *argv[])
 
 	// General purpose
 	u32  i;
-
+	char* result;
 
 
 #if defined(PSP)
@@ -1252,6 +1273,8 @@ int main (int argc, char *argv[])
 	// We might want some sound
 	if (!audio_init())
 		printf("Could not Initialize audio\n");
+
+
 		
 	// We're going to convert the cells array, from 2 pixels per byte (paletted)
 	// to on RGB(A) word per pixel
@@ -1272,14 +1295,16 @@ int main (int argc, char *argv[])
 	init_sprites();
 	sprites_to_wGRAB();
 
-	// DEBUG
-	load_texture(&texture[INTRO_APERTURE]);
-
-	// We start with the Intro state
+	// We'll start with the Intro state
 	game_state = GAME_STATE_INTRO | GAME_STATE_STATIC_PIC | GAME_STATE_PICTURE_LOOP;
-	static_screen(INTRO_BACKGROUND, NULL, 0);
-//	static_screen(INTRO_SCREEN_START, NULL, 0);
+	static_screen(INTRO_SCREEN_START, NULL, 0);
 
+	// But before that, we'll want to play our intro video
+	game_state |= GAME_STATE_CUTSCENE;
+	game_suspended = true;
+	last_key_used = 0;
+	restore_idle = glut_idle_static_pic;
+	glutIdleFunc(glut_idle_suspended);
 
 	// Now we can proceed with setting up our display
 	glutDisplayFunc(glut_display);
@@ -1295,7 +1320,9 @@ int main (int argc, char *argv[])
 	// This is what you get from using obsolete libraries!
 	// bloody joystick callback doesn't work on Windows,
 	// so we have to stuff the movement handling in idle!!!
-	glutIdleFunc(glut_idle_static_pic);
+//	glutIdleFunc_save(glut_idle_static_pic);
+
+
 
 	glutMainLoop();
 

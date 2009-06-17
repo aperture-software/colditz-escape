@@ -12,6 +12,7 @@
 #include <stdlib.h>
 #include <string.h>
 #if defined(PSP)
+#include <psptypes.h>
 #include <psp/psp-printf.h>
 #endif
 #include "data-types.h"

@@ -220,7 +220,7 @@ void load_all_files()
 	// 
 	// 
 	// If you're really unhappy about this kind of practice, just allocate 512x512x3
-	background_buffer = (u8*) aligned_malloc(512*PSP_SCR_HEIGHT*3,16);
+	background_buffer = (u8*) aligned_malloc(512*PSP_SCR_HEIGHT*4,16);
 //	static_image_buffer = (u8*) aligned_malloc(512*512*3,16);	
 	if (background_buffer == NULL)
 		printf("Could not allocate buffer for static images display\n");
@@ -229,9 +229,6 @@ void load_all_files()
 	// use of it. This includes all the IFFs
 	for (i=0; i<NB_IFFS; i++)
 		texture[i].buffer = background_buffer;
-	// as well as the aperture intro background
-	texture[INTRO_BACKGROUND].buffer = background_buffer;
-
 
 	// We need a little padding of the loader to keep the offsets happy
 	fsize[LOADER] += LOADER_PADDING;
@@ -542,7 +539,8 @@ void newgame_init()
 		p_event[i].solitary_countdown = 0;
 		p_event[i].escaped = false;
 		p_event[i].fatigue = 0;
-		selected_prop[i] = 0;
+		for (j=0; j<NB_PROPS; j++)
+			props[i][j] = 0;
 	}
 
 	// Debug
@@ -3978,15 +3976,15 @@ bool load_iff(s_tex* tex)
 }
 
 
-// Open and texturize a 24 or 32 bpp RGB(A) RAW image 
-bool load_raw_rgb(s_tex* tex, bool with_alpha)
+// Open and texturize a 16, 24 or 32 bpp RGB(A) RAW image 
+bool load_raw_rgb(s_tex* tex, u8 pixel_size)
 {
 	u32 line_size, powerized_line_size;
 	int i;
 	u8* line_start;
 
-	line_size = (tex->w)*(with_alpha?4:3);
-	powerized_line_size = powerize(tex->w)*(with_alpha?4:3);
+	line_size = pixel_size*(tex->w);
+	powerized_line_size = pixel_size*powerize(tex->w);
 
 	if ((fd = fopen (tex->filename, "rb")) == NULL)
 	{
@@ -4011,17 +4009,26 @@ bool load_raw_rgb(s_tex* tex, bool with_alpha)
 
 	glBindTexture(GL_TEXTURE_2D, tex->texid);
 	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	if (with_alpha)
+	switch (pixel_size)
 	{
+	case 4:	// 8 bpp RGBA
 		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, powerize(tex->w), powerize(tex->h),
 			0, GL_RGBA, GL_UNSIGNED_BYTE, tex->buffer);
-	}
-	else
-	{
+		break;
+	case 3:	// 8 bpp RGB
 		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, powerize(tex->w), powerize(tex->h),
 			0, GL_RGB, GL_UNSIGNED_BYTE, tex->buffer);
+		break;
+	case 2: // 4 bpp GRAB
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, powerize(tex->w), powerize(tex->h),
+			0, GL_RGBA, GL_UNSIGNED_SHORT_4_4_4_4_REV, tex->buffer);
+		break;
+	default:
+		printf("load_raw_rgb: unexpected pixel size\n");
+		return false;
+		break;
 	}
-
+	
 	return true;
 }
 
@@ -4031,7 +4038,9 @@ bool load_texture(s_tex* tex)
 {
 bool iff_file = false;
 bool with_alpha = false;
+bool is_rgb4 = false;
 u32  file_size = 0;
+u8   pixel_size = 0;	// in bytes
 u16  powerized_w;
 
 	// closest greater power of 2
@@ -4060,12 +4069,29 @@ u16  powerized_w;
 	    fseek(fd, 0, SEEK_END);
 		file_size = ftell(fd);
 
-		if (file_size == (3*(tex->w)*(tex->h)))
-			with_alpha = false;
-		else if (file_size == (4*(tex->w)*(tex->h)))
+		pixel_size = file_size/((tex->w)*(tex->h));
+		switch(pixel_size)
+		{
+		case 2:	// 4 bpp GRAB
+			is_rgb4 = true;
 			with_alpha = true;
-		else
-		{	
+			break;
+		case 3:	// 8 bpp RGB
+			is_rgb4 = false;
+			with_alpha = false;
+			break;
+		case 4: // 8 bpp RGBA
+			is_rgb4 = false;
+			with_alpha = true;
+			break;
+		default:
+			printf("Improper RAW file size for %s\n", tex->filename);
+			return false;
+			break;
+		}
+
+		if (pixel_size*(tex->w)*(tex->h) != file_size)
+		{
 			printf("Improper RAW file size for %s\n", tex->filename);
 			return false;
 		}
@@ -4079,7 +4105,7 @@ u16  powerized_w;
 	{
 		if (tex->buffer == NULL)
 		{
-			printf("Texture buffer for IFF file %s has not been intialized\n", tex->filename);
+			printf("Texture buffer for IFF file %s has not been initialized\n", tex->filename);
 			return false;
 		}
 		if (!load_iff(tex))
@@ -4089,14 +4115,14 @@ u16  powerized_w;
 	{
 		if (tex->buffer == NULL)
 		{
-			tex->buffer = aligned_malloc((with_alpha?4:3)*powerized_w*powerize(tex->h), 16);
+			tex->buffer = aligned_malloc(pixel_size*powerized_w*powerize(tex->h), 16);
 			if (tex->buffer == NULL)
 			{
 				printf("Could not allocate buffer for texture %s\n", tex->filename);
 				return false;
 			}
 		}
-		if (!load_raw_rgb(tex, with_alpha))
+		if (!load_raw_rgb(tex, pixel_size))
 			return false;
 	}
 	return true;
