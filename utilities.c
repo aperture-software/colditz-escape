@@ -469,9 +469,11 @@ void set_global_properties()
 	// Setup a texture for the zoom function 
 	glGenTextures( 1, &render_texid );
 
-	// Load the panel textures
+	// Load the panel & corner textures
 	load_texture(&texture[PANEL_BASE1]);
 	load_texture(&texture[PANEL_BASE2]);
+	load_texture(&texture[PICTURE_CORNER]);
+
 
 	// Initialize SFXs
 	for (i=0; i<NB_SFXS; i++)
@@ -2409,11 +2411,6 @@ void display_message(char string[])
 }
 
 
-
-
-
-
-
 // Display a static picture (512x256x16 GRAB texture) that was previously
 // loaded from an IFF file. 
 void display_picture()
@@ -2457,37 +2454,46 @@ void display_picture()
 // Display Panel
 void display_panel()
 {
-	u8 w,h;
+	float w, h;
 	u16 i, sid;
+
+
+//	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+//	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+
+
 
 	glColor3f(0.0f, 0.0f, 0.0f);	// Set the colour to black
 
 	glDisable(GL_BLEND);	// Needed for black objects to show
 
-	// Because the original game wasn't designed for widescreen
-	// we have to diagonally crop the area to keep some elements hidden
-	// TO_DO: add some texture, to make it look like an old photograph or something
-	h = (28-NORTHWARD_HO)+36;
-	w = 2*h;
-	glBegin(GL_TRIANGLES);
+	if (!opt_picture_corners)
+	{
+		// Because the original game wasn't designed for widescreen
+		// we have to diagonally crop the area to keep some elements hidden
+		h = (float) (28-NORTHWARD_HO)+36;	// 36
+		w = (float) 2*h;					// 72
 
-	glVertex2f(0, 0);
-	glVertex2f(w, 0);
-	glVertex2f(0, h);
+		glBegin(GL_TRIANGLES);
 
-	glVertex2f(PSP_SCR_WIDTH, 0);
-	glVertex2f(PSP_SCR_WIDTH-w, 0);
-	glVertex2f(PSP_SCR_WIDTH, h);
+		glVertex2f(0, 0);
+		glVertex2f(w, 0);
+		glVertex2f(0, h);
 
-	glVertex2f(PSP_SCR_WIDTH, PSP_SCR_HEIGHT-32);
-	glVertex2f(PSP_SCR_WIDTH-w, PSP_SCR_HEIGHT-32);
-	glVertex2f(PSP_SCR_WIDTH, PSP_SCR_HEIGHT-32-h);
+		glVertex2f(PSP_SCR_WIDTH, 0);
+		glVertex2f(PSP_SCR_WIDTH-w, 0);
+		glVertex2f(PSP_SCR_WIDTH, h);
 
-	glVertex2f(0, PSP_SCR_HEIGHT-32);
-	glVertex2f(w, PSP_SCR_HEIGHT-32);
-	glVertex2f(0, PSP_SCR_HEIGHT-32-h);
+		glVertex2f(PSP_SCR_WIDTH, PSP_SCR_HEIGHT-32);
+		glVertex2f(PSP_SCR_WIDTH-w, PSP_SCR_HEIGHT-32);
+		glVertex2f(PSP_SCR_WIDTH, PSP_SCR_HEIGHT-32-h);
 
-	glEnd();
+		glVertex2f(0, PSP_SCR_HEIGHT-32);
+		glVertex2f(w, PSP_SCR_HEIGHT-32);
+		glVertex2f(0, PSP_SCR_HEIGHT-32-h);
+
+		glEnd();
+	}
 
 	// Black rectangle (panel base) at the bottom
 	glBegin(GL_TRIANGLE_FAN);
@@ -2501,6 +2507,8 @@ void display_panel()
 
 	// Restore colour
 	glColor3f(fade_value, fade_value, fade_value);
+
+
 
 	// Draw the 2 parts of our panel
  	glBindTexture(GL_TEXTURE_2D, texture[PANEL_BASE1].texid);
@@ -2555,6 +2563,61 @@ void display_panel()
 	glEnd();
 
 	glEnable(GL_BLEND);	// We'll need blending for the sprites, etc.
+
+	if (opt_picture_corners)
+	{
+		// Picture corners
+		w = (float) powerize(texture[PICTURE_CORNER].w);
+		h = (float) powerize(texture[PICTURE_CORNER].h);
+
+		glBindTexture(GL_TEXTURE_2D, texture[PICTURE_CORNER].texid);
+		glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+		glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+
+		glBegin(GL_TRIANGLE_FAN);
+		glTexCoord2f(0.0f, 0.0f);
+		glVertex2f(0.0f, 0.0f);
+		glTexCoord2f(1.0f, 0.0f);
+		glVertex2f(w, 0.0f);
+		glTexCoord2f(1.0f, 1.0f);
+		glVertex2f(w, h);
+		glTexCoord2f(0.0f, 1.0f);
+		glVertex2f(0.0f, h);
+		glEnd();
+
+		glBegin(GL_TRIANGLE_FAN);
+		glTexCoord2f(0, 0);
+		glVertex2f(PSP_SCR_WIDTH-0, 0);
+		glTexCoord2f(1, 0);
+		glVertex2f(PSP_SCR_WIDTH-w, 0);
+		glTexCoord2f(1, 1);
+		glVertex2f(PSP_SCR_WIDTH-w, h);
+		glTexCoord2f(0, 1);
+		glVertex2f(PSP_SCR_WIDTH-0, h);
+		glEnd();
+
+		glBegin(GL_TRIANGLE_FAN);
+		glTexCoord2f(0, 0);
+		glVertex2f(PSP_SCR_WIDTH-0, PSP_SCR_HEIGHT-0);
+		glTexCoord2f(1, 0);
+		glVertex2f(PSP_SCR_WIDTH-w, PSP_SCR_HEIGHT-0);
+		glTexCoord2f(1, 1);
+		glVertex2f(PSP_SCR_WIDTH-w, PSP_SCR_HEIGHT-h);
+		glTexCoord2f(0, 1);
+		glVertex2f(PSP_SCR_WIDTH-0, PSP_SCR_HEIGHT-h);
+		glEnd();
+
+		glBegin(GL_TRIANGLE_FAN);
+		glTexCoord2f(0, 0);
+		glVertex2f(0, PSP_SCR_HEIGHT-0);
+		glTexCoord2f(1, 0);
+		glVertex2f(w, PSP_SCR_HEIGHT-0);
+		glTexCoord2f(1, 1);
+		glVertex2f(w, PSP_SCR_HEIGHT-h);
+		glTexCoord2f(0, 1);
+		glVertex2f(0, PSP_SCR_HEIGHT-h);
+		glEnd();
+	}
 
 	// Display our guy's faces
 	for (i=0; i<4; i++)
@@ -3546,7 +3609,7 @@ void check_on_prisoners()
 			if (nb_escaped >= NB_NATIONS)
 			{
 				static_screen(PRISONER_FREE_ALL_TEXT, NULL, 0);
-				static_screen(PRISONER_FREE_ALL, NULL, 0);
+//				static_screen(PRISONER_FREE_ALL, NULL, 0);
 			}
 			else
 			{
@@ -3558,6 +3621,7 @@ void check_on_prisoners()
 		{
 			static_screen(REQUIRE_PAPERS, NULL, 0);
 			p_event[current_nation].to_solitary = true;
+			return;
 		}
 	}
 

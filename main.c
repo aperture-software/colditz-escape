@@ -1,5 +1,5 @@
 /**
- **  Colditz Maps Explorer
+ **  ESCAPE FROM COLDITZ 2009 / for PSP & Windows
  **
  **  
  **
@@ -56,19 +56,19 @@
 
 // Flags
 int debug_flag				= 0;
-int	opt_verbose				= 0;
-int	opt_debug				= 0;
-int opt_ghost				= 0;
-int opt_play_as_the_safe	= 0;
+bool opt_verbose			= false;
+bool opt_debug				= false;
+bool opt_ghost				= false;
+bool opt_play_as_the_safe	= false;
 // Who needs keys?
-int opt_keymaster			= 0;
+bool opt_keymaster			= false;
 // "'coz this is triller..."
-int opt_thrillerdance		= 0;
+int opt_thrillerdance		= false;
 // Force a specific sprite ID for our guy
 // NB: must be init to -1
 int opt_sid					= -1;
 // Kill the guards
-int	opt_no_guards			= 0;
+bool opt_no_guards			= true;
 // Is the castle haunted by the ghost of shot prisoners
 bool opt_haunted_castle		= true;
 // Number of escaped prisoners
@@ -80,7 +80,9 @@ bool new_game				= false;
 // Our second local pause variable, to help with the transition
 bool display_paused			= false;
 // we might need to suspend the game for videos, debug, etc
-int game_suspended			= 0;
+bool game_suspended			= false;
+// Some people don't like picture corners
+bool opt_picture_corners	= true;
 
 // We'll need this to retrieve our glutIdle function after a suspended state
 #define glutIdleFunc_save(f) {glutIdleFunc(f); restore_idle = f;}
@@ -275,6 +277,7 @@ static void glut_init()
 	glClear(GL_COLOR_BUFFER_BIT);
 	glutSwapBuffers();
 	glClear(GL_COLOR_BUFFER_BIT);
+	glutSwapBuffers();
 
 	// Define the scissor area, outside of which we don't want to draw
 //	GLCHK(glScissor(0,32,PSP_SCR_WIDTH,PSP_SCR_HEIGHT-32));
@@ -868,21 +871,23 @@ u64 t1;
 	// As usual, we'll need the current time value for a bunch of stuff
 	update_timers();
 
-	if ((game_state & GAME_STATE_INTRO) && read_key_once(KEY_FIRE))
+	if ((game_state & GAME_STATE_INTRO) && read_key_once(last_key_used))
 	{	// Exit intro => start new game
 		mod_release();
 		newgame_init();
 		picture_state = PICTURE_FADE_OUT_START;
 		game_state = GAME_STATE_STATIC_PIC;
+		last_key_used = 0;
 	}
 
 	else if ((game_state & GAME_STATE_GAME_OVER) && (!(picture_state == GAME_FADE_OUT)) 
-		&& read_key_once(KEY_FIRE))
+		&& read_key_once(last_key_used))
 	{	// Exit game over/game won => Intro
 		mod_release();
 		picture_state = PICTURE_FADE_OUT_START;
 		game_state = GAME_STATE_INTRO | GAME_STATE_STATIC_PIC | GAME_STATE_PICTURE_LOOP;
 		current_picture = INTRO_SCREEN_START-1;
+		last_key_used = 0;
 	}
 
 	if ( (picture_state%2) && (picture_state != PICTURE_WAIT) )
@@ -892,7 +897,6 @@ u64 t1;
 		fade_value = (float)(program_time-transition_start)/TRANSITION_DURATION;
 		if (fade_out)
 			fade_value = 1.0f - fade_value;
-//		printf("fade_value = %g\n", fade_value);
 		if ((fade_value > 1.0f) || (fade_value < 0.0f))
 		{
 			fade_value = (fade_value < 0.0f)?0.0f:1.0f;	
@@ -960,9 +964,13 @@ u64 t1;
 		picture_state++;
 		break;
 	case PICTURE_WAIT:
-		if (read_key_once(KEY_FIRE) || 
+		// Press any key
+		if (read_key_once(last_key_used) || 
 			( (!(game_state & GAME_STATE_GAME_OVER)) && (program_time-picture_t > PICTURE_TIMEOUT)))
+		{
 			picture_state++;
+			last_key_used = 0;
+		}
 		break;
 	case PICTURE_FADE_OUT_START:
 		transition_start = program_time;
@@ -981,13 +989,7 @@ u64 t1;
 			{
 				current_picture++;
 				if (current_picture > INTRO_SCREEN_END)
-				{
 					current_picture = INTRO_SCREEN_START;
-					// Add a 1 second black screen before the first intro screen
-	//				glClear(GL_COLOR_BUFFER_BIT);
-	//				glutSwapBuffers();
-	//				msleep(1000);
-				}
 				// NB: static screen will reset picture_state to the right one
 				static_screen(current_picture, NULL, 0);
 			}
@@ -999,6 +1001,11 @@ u64 t1;
 			}
 			else
 				printf("Missing static_screen() call in static pic loop!\n");
+		}
+		else if (current_picture == REQUIRE_PAPERS)
+		{	// We should probably have used a picture loop, but this function's a mess anyway ;)
+			static_screen(TO_SOLITARY, go_to_jail, current_nation);
+			picture_state = PICTURE_FADE_IN_START;
 		}
 		else	
 			game_state &= ~GAME_STATE_STATIC_PIC;
@@ -1041,6 +1048,11 @@ static bool video_initialized = false;
 	{
 		if (!video_initialized)
 		{	// Start playing a video
+
+			// Clear our window background first (prevents transaparency)
+			glClear(GL_COLOR_BUFFER_BIT);
+			glutSwapBuffers();
+
 			if ((!video_init()) || (!video_play(APERTURE_VIDEO)))
 			{
 				game_suspended = false;
@@ -1052,16 +1064,16 @@ static bool video_initialized = false;
 
 		// check for the end of the playback
 		if (!video_isplaying())
-		{
-			printf("end of playback\n");
 			game_suspended = 0;
-		}
-
 	}
 
 	// If we didn't get out, wait for any key
 	if ((!game_suspended) || read_key_once(last_key_used))
 	{
+		// Prevents unwanted transitions to transparent!
+		glClear(GL_COLOR_BUFFER_BIT);
+		glutSwapBuffers();
+
 		t_last = mtime();
 		glutIdleFunc(restore_idle);
 		game_suspended = false;
@@ -1107,6 +1119,9 @@ void static_screen(u8 picture_id, void (*func)(u32), u32 param)
 		// Switch to a different idle function
 		glutIdleFunc_save(glut_idle_static_pic);
 	}
+
+	// Reset the "any" key
+	last_key_used = 0;
 
 }
 
@@ -1191,7 +1206,6 @@ int main (int argc, char *argv[])
 
 #if defined(PSP)
 	setup_callbacks();
-//	pspDebugInstallStdoutHandler(pspDebugScreenPrintData);
 	gl_width = PSP_SCR_WIDTH;
 	gl_height = PSP_SCR_HEIGHT;
 #else
@@ -1201,9 +1215,6 @@ int main (int argc, char *argv[])
 
 	// Well, we're supposed to call that blurb
 	glutInit(&argc, argv);
-
-	// Need to have a working GL before we proceed. This is our own init() function
-	glut_init();
 
 	// Let's clean up our buffers
 	fflush(stdin);
@@ -1236,27 +1247,21 @@ int main (int argc, char *argv[])
 			break;
 	}
 
-	puts ("");
-	puts ("Colditz v1.0 : Escape from Colditz port");
-	puts ("by Aperture Software,  May 2009");
-	puts ("");
+	printf("\nEscape From Colditz 2009 %s\n", VERSION);
+	printf("by Aperture Software\n\n");
 
 	if ( ((argc-optind) > 3) || opt_error)
 	{
-		puts ("usage: Colditz [-f] [-s] [-v] [device] [kernel] [general]");
-		puts ("Most features are autodetected, but if you want to specify options:");
-		puts ("                -f : force");
-		puts ("                -s : skip TIFF image creation");
-		puts ("                -v : verbose");
-		puts ("");
+		printf("usage: %s [TO_DO]\n\n", argv[0]);
 		exit (1);
 	}
 //	opt_verbose = -1;
 
 
+	// Need to have a working GL before we proceed. This is our own init() function
+	glut_init();
 
-
-	// Load the data. If it's the first time we run the game, we might have
+	// Load the data. If it's the first time the game is ran, we might have
 	// to uncompress LOADTUNE.MUS (PowerPack) and SKR_COLD (custom compression)
 	load_all_files();
 	depack_loadtune();
@@ -1321,8 +1326,6 @@ int main (int argc, char *argv[])
 	// bloody joystick callback doesn't work on Windows,
 	// so we have to stuff the movement handling in idle!!!
 //	glutIdleFunc_save(glut_idle_static_pic);
-
-
 
 	glutMainLoop();
 

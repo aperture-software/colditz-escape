@@ -34,6 +34,7 @@ extern "C" {
 /////////////////////////////////////////////////////////////////
 
 #define APPNAME					"colditz"
+#define VERSION					"v0.9.2"
 
 // The PSP Screen dimensions will be our base def
 #define PSP_SCR_WIDTH			480
@@ -128,7 +129,7 @@ extern "C" {
 #endif
 
 // Textures that will be used for various images
-#define NB_TEXTURES				21
+#define NB_TEXTURES				22
 #define NB_IFFS					19
 #define TEXTURES				{	{ "PIC.1(SOLITARY)", 320, 192, 0, NULL },					\
 									{ "PIC.1(SOLITARY)FREE", 320, 192, 0, NULL },				\
@@ -150,7 +151,9 @@ extern "C" {
 									{ "PIC.8(PASS)", 320, 192, 0, NULL },						\
 									{ "PIC.9(PAPERS)", 320, 192, 0, NULL },						\
 									{ "panel_base1.raw", 64, 32, 0, NULL},						\
-									{ "panel_base2.raw", 256, 32, 0, NULL}						}
+									{ "panel_base2.raw", 256, 32, 0, NULL},						\
+									{ "corner.raw", 74, 37, 0, NULL},							\
+								}
 															
 
 // handy identifier for images
@@ -168,6 +171,7 @@ extern "C" {
 #define REQUIRE_PAPERS			18
 #define PANEL_BASE1				19
 #define PANEL_BASE2				20
+#define PICTURE_CORNER			21
 #define NO_PICTURE				-1
 
 
@@ -680,14 +684,15 @@ typedef struct
 
 
 // Global variables
-extern int	opt_verbose;
-extern int	opt_debug;
+extern bool	opt_verbose;
+extern bool	opt_debug;
 extern int	opt_sid;
-extern int	opt_play_as_the_safe;
-extern int	opt_keymaster;
-extern int	opt_thrillerdance;
-extern int	opt_no_guards;
+extern bool	opt_play_as_the_safe;
+extern bool	opt_keymaster;
+extern bool	opt_thrillerdance;
+extern bool	opt_no_guards;
 extern bool	opt_haunted_castle;
+extern bool opt_picture_corners;
 extern int	nb_escaped;
 extern int	stat;
 extern int  debug_flag;

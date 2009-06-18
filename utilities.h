@@ -141,6 +141,7 @@ void newgame_init();
 void play_sfx(int sfx_id);
 void depack_loadtune();
 bool load_texture(s_tex *tex);
+void go_to_jail(u32 p);
 //u8* load_raw_rgba(int w, int h, char* filename, GLuint* rgba_texid);
 
 #ifdef	__cplusplus
