@@ -40,6 +40,7 @@ GLuint* cell_texid;
 GLuint* sprite_texid;
 GLuint* chars_texid;
 GLuint render_texid;
+GLuint paused_texid[4];
 
 /* Some more globals */
 u8  obs_to_sprite[NB_OBS_TO_SPRITE];
@@ -47,15 +48,28 @@ u8	remove_props[CMP_MAP_WIDTH][CMP_MAP_HEIGHT];
 u8  overlay_order[MAX_OVERLAYS]; 
 int	currently_animated[MAX_ANIMATIONS];
 u32 exit_flags_offset;
-bool tunnel_toggle;
+//bool use_tunnel_io;
 // Pointer to the message ID list of the currently allowed rooms
 u32 authorized_ptr;
 s16	gl_off_x = 0, gl_off_y  = 0;
 char panel_message[256];
 u32 next_timed_event_ptr = TIMED_EVENTS_INIT;
 u8* background_buffer;
+// We end up using these variables all the time
+// making them global allows for more elegant code
+u16 room_x, room_y;
+s16 tile_x, tile_y;
+u32 offset;
+// And these one are used to break the footprint check into more
+// readable functions
+// 4 values for upper-left, upper-right, lower-left, lower_right tiles
+u32 mask_offset[4];		// tile boundary
+u32 exit_offset[4];		// exit boundary
+u8  tunexit_tool[4];	// tunnel tool
+s16 exit_dx[2];
 // Do we need to reload the files on newgame?
 bool game_restart			= false;
+u8 pause_rgb[3];
 #if defined(ANTI_TAMPERING_ENABLED)
 u8  fmdxhash[NB_FILES][5]= FMDXHASHES;
 #endif
@@ -171,7 +185,7 @@ u16 props_tile [0x213] = {
 	1111,1111,1111,1111,1111,1111,1111,1111,1111,1111,	// tunnels, line 3
 	1111,1111,1111,1111,1111,1111,1111,1111,1111,1111,	// tunnels, line 4
 	1111,1111,1111,1111,1111,1111,1111,1111,1111,1111,	// tunnels, line 5
-	1111};
+	1111 };
 
 #if defined(ANTI_TAMPERING_ENABLED)
 // This inline performs an obfuscated MD5 check on file i
@@ -466,8 +480,10 @@ void set_global_properties()
 	chars_texid = malloc(sizeof(GLuint) * NB_PANEL_CHARS);
 	glGenTextures(NB_PANEL_CHARS, chars_texid);
 
-	// Setup a texture for the zoom function 
-	glGenTextures( 1, &render_texid );
+	// Setup a texture for the zoom and paused function 
+	glGenTextures(1, &render_texid);
+	for (i=0; i<4; i++)
+		glGenTextures(1, &paused_texid[i]);
 
 	// Load the panel & corner textures
 	load_texture(&texture[PANEL_BASE1]);
@@ -989,8 +1005,14 @@ void sprites_to_wGRAB()
 		else 
 		{
 			if (sprite_index == NB_STANDARD_SPRITES)
-			// we're getting into panel overlays => switch to the panel palette
+			{	// we're getting into panel overlays => switch to the panel palette
+				// but before we do that, save the RGB index for the pause screen borders
+				// Index 10 is the current border color
+				pause_rgb[RED] = ((aPalette[10]>>8)&0xF)*0x11;
+				pause_rgb[GREEN] = ((aPalette[10]>>12)&0xF)*0x11;
+				pause_rgb[BLUE] = (aPalette[10]&0xF)*0x11;
 				to_16bit_palette(0, 1, SPRITES_PANEL);
+			}
 			sbuffer = fbuffer[SPRITES_PANEL] + nonstandard(sprite_index).offset + 
 				8*sprite[sprite_index].w*(sprite_index-nonstandard(sprite_index).base);
 			no_mask = 1;
@@ -1112,8 +1134,29 @@ int get_animation_sid(u8 index, bool is_guybrush)
 }
 
 
+// This function sets the room_x, room_y as well as offset global variables
+static __inline void set_room_xy(u16 room)
+{
+	if (room == ROOM_OUTSIDE)
+	{	// on the compressed map
+		room_x = CMP_MAP_WIDTH;
+		room_y = CMP_MAP_HEIGHT;
+		offset = 0;
+	}
+	else
+	{	// in a room (inside)
+		offset = CRM_ROOMS_START + readlong((u8*)fbuffer[ROOMS], CRM_OFFSETS_START+4*room);
+		// Note that offset might be 0xFFFFFFFF for some room indexes as there
+		// is a gap in the middle of the CRM file. We do not check this here
+		room_y = readword((u8*)fbuffer[ROOMS], offset);
+		offset +=2;
+		room_x = readword((u8*)fbuffer[ROOMS], offset);
+		offset +=2;		// remember offset is used in readtile/readexit and needs
+						// to be constant from there on
+	}
+}
 // Populates the tile overlays, if we are on Colditz Rooms Map
-void crm_set_overlays(s16 x, s16 y, u16 current_tile, u32 tile_offset, u16 room_x)
+void crm_set_overlays(s16 x, s16 y, u16 current_tile) //, u32 tile_offset, u16 room_x)
 {
 	u16 tile2_data;
 	u16 i;
@@ -1152,7 +1195,7 @@ void crm_set_overlays(s16 x, s16 y, u16 current_tile, u32 tile_offset, u16 room_
 		// The four last special tiles are exits. We need to check is they are open
 		{
 			// Get the exit data (same tile if tunnel, 2 rows down if door)
-			tile2_data = readword(fbuffer[ROOMS], tile_offset + 
+			tile2_data = readword(fbuffer[ROOMS], offset + 
 			// careful that ? take precedence over +, so if you don't put the
 			// whole ?: increment in parenthesis, you have a problem
 				((i==(12*(NB_SPECIAL_TILES-1)))?0:(4*room_x)));
@@ -1183,9 +1226,9 @@ void crm_set_overlays(s16 x, s16 y, u16 current_tile, u32 tile_offset, u16 room_
 		}
 			 
 		if (sx < 0)
-			tile2_data = readword(fbuffer[ROOMS], tile_offset-2) & 0xFF80;
+			tile2_data = readword(fbuffer[ROOMS], offset-2) & 0xFF80;
 		else
-			tile2_data = readword(fbuffer[ROOMS], tile_offset+2) & 0xFF80;
+			tile2_data = readword(fbuffer[ROOMS], offset+2) & 0xFF80;
 		// ignore if special tile that follows is matched
 		if (readword(fbuffer[LOADER], SPECIAL_TILES_START+i+2) == tile2_data)
 		{
@@ -1239,13 +1282,16 @@ void crm_set_overlays(s16 x, s16 y, u16 current_tile, u32 tile_offset, u16 room_
 void cmp_set_overlays()
 {
 	u16 i;
-	u32 bitset, offset;
+	u32 bitset; //, offset;
 	short sx, sy;
-	u16 tile_x, tile_y;
+//	u16 tile_x, tile_y;
 	u8	exit_nr;
 	int sid;	// sprite index
-	u16 room_x = CMP_MAP_WIDTH;
+//	u16 room_x = CMP_MAP_WIDTH;
 	u8 io_file = ROOMS;	// We'll need to switch to TUNNEL_IO midway through
+
+	// We're on the compressed map
+	room_x = CMP_MAP_WIDTH;
 
 	for (i=0; i<(4*OUTSIDE_OVL_NB+4*TUNNEL_OVL_NB); i+=4)
 	{
@@ -1264,13 +1310,12 @@ void cmp_set_overlays()
 		// OK, now we know that our removable section is meant to show an exit
 
 		// First, let's grab the base sid
-		offset = readbyte(fbuffer[LOADER], OUTSIDE_OVL_BASE+i+3) << 3;
-		sid = readword(fbuffer[LOADER],CMP_OVERLAYS+offset+4);
-//		overlay[overlay_index].sid = sid;
+		offset = CMP_OVERLAYS + (readbyte(fbuffer[LOADER], OUTSIDE_OVL_BASE+i+3) << 3);
+		sid = readword(fbuffer[LOADER], offset+4);
 
 		// Next read the pixel shifts on the tile
-		sx = readword(fbuffer[LOADER],CMP_OVERLAYS+offset+2);
-		sy = readword(fbuffer[LOADER],CMP_OVERLAYS+offset);
+		sx = readword(fbuffer[LOADER], offset+2);
+		sy = readword(fbuffer[LOADER], offset);
 
 		// Then add the tile position, as identified in the 8 bytes data at the beginning of 
 		// the Colditz Rooms Map or Tunnel_IO files,
@@ -1279,8 +1324,8 @@ void cmp_set_overlays()
 		if (readword(fbuffer[io_file],offset) & 0x1000)
 			continue;
 
-		tile_x = readword(fbuffer[io_file],offset+6);
-		tile_y = readword(fbuffer[io_file],offset+4);
+		tile_x = readword(fbuffer[io_file], offset+6);
+		tile_y = readword(fbuffer[io_file], offset+4);
 
 		sx += tile_x * 32;
 		sy += tile_y * 16;
@@ -1445,7 +1490,7 @@ static __inline void display_sprite(float x1, float y1, float w, float h, GLuint
 
 
 // That's right: we will define 2 different routines for display_sprite just
-// to spare the processing time of an if condition!
+// to spare the processing time of an if condition for linear/nearest!
 void display_sprite_linear(float x1, float y1, float w, float h, GLuint texid) 
 {
 	float x2, y2;
@@ -1553,7 +1598,7 @@ void display_overlays()
 void removable_walls()
 {	// Get the current removable walls mask to apply
 
-	int tile_x, tile_y;
+//	int tile_x, tile_y;
 	u16 tile_data;
 	u32 cmp_data;
 	u32 tmp_bitmask;
@@ -1686,6 +1731,8 @@ u8 i, sid;
 		}
 		else if (prisoner_state & STATE_SHOT)
 			prisoner_ani.index = prisoner_as_guard?GUARD_SHOT_ANI:SHOT_ANI;
+		else if (prisoner_state & STATE_SLEEPING)
+			prisoner_ani.index = SLEEP_ANI;
 		else if (prisoner_speed == 1)
 			prisoner_ani.index = prisoner_as_guard?GUARD_WALK_ANI:WALK_ANI; 
 		else
@@ -2163,14 +2210,15 @@ void display_room()
 // Yup, no scrolling or anything: just plain unoptimized brute force...
 // But hey, the PSP can handle it, and so should a decent PC, so why bother?
 
-	u32 offset;	
-	u16 room_x, room_y, tile_data;
+//	u32 offset;	
+//	u16 room_x, room_y, 
+	u16 tile_data;
 	u32 raw_data;
 	u16 rem_offset;
 	s16 min_x, max_x, min_y, max_y;
 	u16 tile_tmp, nb_tiles;
 	u8  bit_index;
-	s16 tile_x, tile_y;
+//	s16 tile_x, tile_y;
 	s16 pixel_x, pixel_y;
 	int u;
 
@@ -2221,24 +2269,24 @@ void display_room()
 	// our overlay table (so that room overlays go on top of 'em)
 	set_props_overlays();
 
+	// This sets the room_x, room_y and offset values
+	set_room_xy(current_room_index);
+
 	// No readtile() macros used here, for speed
 	if (is_inside)
 	{	// Standard room (inside)
-		// Read the offset
-		offset = readlong((u8*)fbuffer[ROOMS], CRM_OFFSETS_START+4*current_room_index);
-		if (offset == 0xFFFFFFFF)
-		// For some reason there is a gap in the middle of the rooms data
-		// This shouldn't matter, unless you set the room manually
-			return;
-
+/*		// Read the offset
+		offset = CRM_ROOMS_START + readlong((u8*)fbuffer[ROOMS], CRM_OFFSETS_START+4*current_room_index);
 		// Now that we have the offset, let's look at the room
 
 		// The 2 first words are the room Y and X dimension (in tiles),
 		// in that order
-		room_y = readword((u8*)fbuffer[ROOMS], CRM_ROOMS_START+offset);
+		room_y = readword((u8*)fbuffer[ROOMS], offset);
 		offset +=2;
-		room_x = readword((u8*)fbuffer[ROOMS], CRM_ROOMS_START+offset);
+		room_x = readword((u8*)fbuffer[ROOMS], offset);
 		offset +=2;
+*/
+
 
 		// Read the tiles data
 		pixel_y = gl_off_y;	// A little optimization can't hurt
@@ -2257,13 +2305,13 @@ void display_room()
 				 * o: door open flag
 				 * x: exit lookup number (in exit map [1-8])
 				*/
-				tile_data = readword((u8*)fbuffer[ROOMS], CRM_ROOMS_START+offset);
+				tile_data = readword((u8*)fbuffer[ROOMS], offset);
 
 				display_sprite(pixel_x,pixel_y,32,16, 
 					cell_texid[(tile_data>>7) + ((current_room_index>0x202)?0x1E0:0)]);
 
 				// Display sprite overlay
-				crm_set_overlays(pixel_x, pixel_y, tile_data & 0xFF80, CRM_ROOMS_START+offset, room_x);
+				crm_set_overlays(pixel_x, pixel_y, tile_data & 0xFF80); //, CRM_ROOMS_START+offset, room_x);
 
 				offset +=2;		// Read next tile
 				pixel_x += 32;
@@ -2275,8 +2323,8 @@ void display_room()
 	}
 	else
 	{	// on compressed map (outside)
-		room_x = CMP_MAP_WIDTH;
-		room_y = CMP_MAP_HEIGHT;
+//		room_x = CMP_MAP_WIDTH;
+//		room_y = CMP_MAP_HEIGHT;
 
 		// Since we're outside, take care of removable sections
 		removable_walls();
@@ -2359,9 +2407,6 @@ void display_room()
 				// At last, we have a tile we can display
 				display_sprite(pixel_x,pixel_y,32,16, 
 					cell_texid[(tile_data>>7)]);
-
-				// Display sprite overlay
-//				set_overlays(pixel_x, pixel_y, tile_data, offset, room_x);
 
 				offset += 4;
 				pixel_x += 32;
@@ -2775,7 +2820,7 @@ void rescale_buffer()
 		glDisable(GL_BLEND);	// Better than having to use glClear()
 
 		// First, we copy the whole buffer into a texture
-		glBindTexture(GL_TEXTURE_2D,render_texid);
+		glBindTexture(GL_TEXTURE_2D, render_texid);
 
 		glCopyTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 0, 0, PSP_SCR_WIDTH, PSP_SCR_HEIGHT, 0);
 
@@ -2788,7 +2833,7 @@ void rescale_buffer()
 	    glOrtho(0, gl_width, gl_height, 0, -1, 1);
 
 		// OK, now we can display the whole texture
-		display_sprite_linear(0, gl_height, gl_width, -gl_height, render_texid);
+		display_sprite(0, gl_height, gl_width, -gl_height, render_texid);
 
 		// Finally, we restore the parameters
 		glMatrixMode(GL_PROJECTION);
@@ -2801,15 +2846,64 @@ void rescale_buffer()
 	}
 }
 
+void create_pause_screen()
+{
+#define SPACER	8
+	int i, restore_nation;
+	restore_nation = current_nation;
+	for (i=0; i<NB_NATIONS; i++)
+	{
+		current_nation = i;
+		prisoner_state &= ~(STATE_MOTION|STATE_ANIMATED|STATE_KNEEL);
+		prisoner_reset_ani = true;
+		t_status_message_timeout = 0;
+		status_message_priority = 0;
+		set_room_props();
+		glClear(GL_COLOR_BUFFER_BIT);
+		display_room();
+		// Copy the section of interest into one of our four paused textures
+		glBindTexture(GL_TEXTURE_2D, paused_texid[i]);
+		glCopyTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, PSP_SCR_WIDTH/4 + SPACER, PSP_SCR_HEIGHT/4 + NORTHWARD_HO + 16 + SPACER,
+			PSP_SCR_WIDTH/2 - 2*SPACER, PSP_SCR_HEIGHT/2 - 2*SPACER, 0);
+	}
+	current_nation = restore_nation;
+}
+
+void display_pause_screen()
+{
+	int i;
+	static float x_shift[2] = {7.0f, -7.0f};
+	static float y_shift[2] = {7.0f, -7.0f};
+	float x,y,w,h;
+	w = PSP_SCR_WIDTH/2 - 2*SPACER;
+	h = PSP_SCR_HEIGHT/2 - 2*SPACER;
+
+	for (i=0; i<NB_NATIONS; i++)
+	{
+		x = (i%2)*(PSP_SCR_WIDTH/2) + SPACER + x_shift[i%2];
+		y = (i/2)*(PSP_SCR_HEIGHT/2) + (PSP_SCR_HEIGHT/2) - SPACER + y_shift[i/2];
+		display_sprite(x, y, w, -h, paused_texid[i]);
+		// Draw the border
+		glDisable(GL_TEXTURE_2D);	// F...ing openGL a...oles!!! Why is it that as soon as you have textures
+									// Enabled, you cannot draw plain COLOURED primitives any longer
+		glColor3ub(pause_rgb[RED], pause_rgb[GREEN], pause_rgb[BLUE]);
+		glBegin(GL_LINE_LOOP);
+		glVertex2f(x, y);
+		glVertex2f(x+w, y);
+		glVertex2f(x+w+1, y-h);		// one pixel is nudged 
+		glVertex2f(x, y-h);
+		glEnd();
+		glColor3f(fade_value, fade_value, fade_value);
+		glEnable(GL_TEXTURE_2D);
+	}
+}
+
 
 // Open a closed door, or close an open door
 // Also uses exit_flags_offset and tunnel_toggle, which are a global variable for utilities
 void toggle_exit(u32 exit_nr)
 {
-// On the compressed map, we use either the ROOMS or TUNNEL_IO file 
-// depending on the exit type. We use the previously set tunnel_toggle 
-// to find out if we're dealing with a tunnel (see check_footprint())
-#define ROOMS_TUNIO (tunnel_toggle?TUNNEL_IO:ROOMS)
+	u8	ROOMS_TUNIO;
 	u32 offset;
 	u16 exit_index;	// exit index in destination room
 	u16 room_x, room_y, tile_data;
@@ -2817,6 +2911,11 @@ void toggle_exit(u32 exit_nr)
 	bool found;
 	u8	exit_flags;
 	u16 target_room_index;
+
+	// On the compressed map, we use either the ROOMS or TUNNEL_IO file 
+	// depending on the exit type. 
+	// Exit indexes for tunnel IO are offset by 0x100, thus
+	ROOMS_TUNIO = (exit_nr>=0x100)?TUNNEL_IO:ROOMS;
 
 	if (is_outside)
 	{	
@@ -2828,7 +2927,7 @@ void toggle_exit(u32 exit_nr)
 		// Get target:
 		// If we are on the compressed map, we need to read 2 words (out of 4)
 		// from beginning of the ROOMS_MAP file or from TUNNEL_IO if tunnelling
-		offset = exit_nr << 3;	// skip 8 bytes
+		offset = (exit_nr&0xFF) << 3;	// skip 8 bytes
 		target_room_index = readword((u8*)fbuffer[ROOMS_TUNIO], offset) & 0x7FF;
 		exit_index = readword((u8*)fbuffer[ROOMS_TUNIO], offset+2);
 	}
@@ -2916,120 +3015,98 @@ void enqueue_event(void (*f)(u32), u32 p, u64 delay)
 }
 
 
+static __inline void get_tile_props(s16 tile_x, s16 tile_y, int index)
+{
+	u8 u;
+	u32 tile;
+
+	// Set the left mask offset index, converted to a long offset
+	// Be mindful that the tile_x/y used here are not the global variables
+	// as me might be doing a lookup right/down
+	tile = readtile(tile_x, tile_y) + (in_tunnel?TUNNEL_TILE_ADDON:0);
+//	printf("got tile %04X\n", tile<<7);
+	// Dunno why they reset the tile index for tunnels in the original game
+
+	// Get the exit mask, if we stand on an exit
+	// If we are not on an exit tile we'll use the empty mask from TILE_MASKS 
+	// NB: This is why we add the ####_MASKS_STARTs here, as we might mix EXIT and TILE
+	exit_offset[index] = MASK_EMPTY;
+
+	for (u=0; u<NB_EXITS; u++)
+	{	// Check if the tile is a regular exit
+		if (readword((u8*)fbuffer[LOADER], EXIT_TILES_LIST + 2*u) == tile)
+		{	
+			exit_offset[index] = EXIT_MASKS_START + readword((u8*)fbuffer[LOADER], EXIT_MASKS_OFFSETS+2*u);
+			exit_dx[index/2] = index%2;
+			break;
+		}
+	}
+
+	// Check for tunnel exits, and set the appropriate tool
+	// NB: we need to do that even when not specifically checking for tunnel exits
+	//     to make sure tunnel I/O tiles are walkable (MASK_FULL) as their default
+	//     mask is not
+	tunexit_tool[index] =  ITEM_NONE;
+	for (u=0; u<NB_TUNNEL_EXITS; u++)
+	{	// Check if the tile is a tunnel exit
+		if (readword((u8*)fbuffer[LOADER], TUNNEL_EXIT_TILES_LIST + 2*u) == tile)
+		{	
+			tunexit_tool[index] = readbyte((u8*)fbuffer[LOADER], TUNNEL_EXIT_TOOLS_LIST + 2*u + 1);
+//			printf("tunnexit_tool[%d] set\n", index);
+			break;
+		}
+	}
+
+	if (u<IN_TUNNEL_EXITS_START)	// means we had a match (above ground) above
+	// a tunnel exit is always walkable (even open), as per the original game
+	// NB: This is not necessary for inside tunnel exits, where the default mask works fine
+		mask_offset[index] = MASK_FULL;
+	else
+		// Regular
+		mask_offset[index] = TILE_MASKS_START + readlong((u8*)fbuffer[LOADER], TILE_MASKS_OFFSETS+(tile<<2));
+}
+
+
+
 // Checks if the prisoner can go to (px,p2y) and initiates door/tunnel I/O
-// Returns:
-// non zero if allowed (-1 if not an exit, or the exit number)
-// 0 if not allowed
-// TO_DO: remove gotit debug code
+// Returns non zero if allowed (-1 if not an exit, or the exit number), 0 if not allowed
 // Be mindful that the dx, d2y used here are not the same as the global values from main!
-// Note that if (dx,d2y) = (0,0) we'll return a tunnel exit nr rather than a regular exit
 s16 check_footprint(s16 dx, s16 d2y)
 {
-	u32 tile, tile_mask, exit_mask, offset=0;
+	u32 tile_mask, exit_mask;
 	u32 ani_offset;
-	u32 footprint = SPRITE_FOOTPRINT;
-	u16 room_x, room_y;
+	u32 footprint;
 	u16 mask_y;
-	// maks offsets for upper-left, upper-right, lower-left, lower_right tiles
-	u32 mask_offset[4];	// tile boundary
-	u32 exit_offset[4];	// exit boundary
-	s16 tile_x, tile_y, exit_dx[2];
-	u8 i,u,sid;
-	s16 gotit = -1;
+	u8 i, u, sid;
 	s16 px, p2y;
 	u8	exit_flags;
 	u8	exit_nr;
-	u8  tunexit_tool[4] = {ITEM_NONE, ITEM_NONE, ITEM_NONE, ITEM_NONE};
-	bool check_for_tunnel_exits;
 
-
-	/*
-	 * To check the footprint, we need to set 4 quadrants of masks
-	 * in case our rectangular footprint spans more than a single tile
-	 */
-
-	// This function handles tunnel I/O so initiate a few things
-	check_for_tunnel_exits = ((dx == 0) && (d2y == 0));
-	tunnel_toggle=false;
-
+	// Initialize a few values
 	if (in_tunnel)
 		footprint = TUNNEL_FOOTPRINT;
-
-	if (is_outside)
-	{	// on compressed map
-		room_x = CMP_MAP_WIDTH;
-		room_y = CMP_MAP_HEIGHT;
-	}
 	else
-	{	// in a room (inside)
-		offset = readlong((u8*)fbuffer[ROOMS], CRM_OFFSETS_START+4*current_room_index);
-		if (offset == 0xFFFFFFFF)
-			return -1;
-		room_y = readword((u8*)fbuffer[ROOMS], CRM_ROOMS_START+offset);
-		offset +=2;
-		room_x = readword((u8*)fbuffer[ROOMS], CRM_ROOMS_START+offset);
-		offset +=2;		// remember offset is used in readtile/readexit and needs
-						// to be constant from there on
-	}
+		footprint = SPRITE_FOOTPRINT;
+	offset = 0;
+	set_room_xy(current_room_index);
 
 	// Compute the tile on which we try to stand
 	px = prisoner_x + dx - (in_tunnel?16:0);
 	p2y = prisoner_2y + 2*d2y - 1;
 	tile_y = p2y / 32;
 	tile_x = px / 32;
-//	printf("org (x,y) = (%X,%X)\n", tile_x, tile_y);
-
 	// check if we are trying to overflow our room left or up
 	if ((px<0) || (p2y<0))
 		return 0;
 
-	// y and y+1
+	//
+	// Now, to check the footprint, we need to set 4 quadrants 
+	// in case our rectangular footprint spans more than a single tile
+	//
 	for (i=0; i<2; i++)
-	{
-		// Set the left mask offset (tile_x, tile_y(+1)) index, converted to a long offset
-		tile = readtile(tile_x, tile_y) + (in_tunnel?TUNNEL_TILE_ADDON:0);
-		// Dunno why they reset the tile index for tunnels in the original game
-
-		// Get the exit mask, if we stand on an exit
-		// If we are not on an exit tile we'll use the empty mask from TILE_MASKS 
-		// NB: This is why we add the ####_MASKS_STARTs here, as we might mix EXIT and TILE
-		exit_offset[2*i] = MASK_EMPTY;
-
-		for (u=0; u<NB_EXITS; u++)
-		{
-			if (readword((u8*)fbuffer[LOADER], EXIT_TILES_LIST + 2*u) == tile)
-			{	
-///				printf("1. got_exit %04X - offset = %04X (%d, %d) px = %d\n", tile << 7, readword((u8*)fbuffer[LOADER], EXIT_MASKS_OFFSETS+2*u),tile_x, tile_y, px);
-				exit_offset[2*i] = EXIT_MASKS_START + 
-					readword((u8*)fbuffer[LOADER], EXIT_MASKS_OFFSETS+2*u);
-//				printf("1. exit_offset[%d] = EXIT_MASKS_START + %X\n", 2*i, readword((u8*)fbuffer[LOADER], EXIT_MASKS_OFFSETS+2*u));
-
-				exit_dx[i] = 0;
-				break;
-			}
-		}
-
-		// Check for tunnel exits, and set the appropriate tool
-		// NB: we need to do that even when not specifically checking for tunnel exits
-		//     to make sure tunnel I/O tiles are walkable (MASK_FULL) as their default
-		//     mask is not
-		// TO_DO: fix the mask offsets for tunnel exits and speed up things by using check_for_tunnel_exits
-		for (u=0; u<NB_TUNNEL_EXITS; u++)
-		{
-			if (readword((u8*)fbuffer[LOADER], TUNNEL_EXIT_TILES_LIST + 2*u) == tile)
-			{	
-				tunexit_tool[2*i] = readbyte((u8*)fbuffer[LOADER], TUNNEL_EXIT_TOOLS_LIST + 2*u + 1);
-				break;
-			}
-		}
-
-		if (u<IN_TUNNEL_EXITS_START)
-		// a tunnel exit is always walkable (even open), as per the original game
-		// NB: This is not necessary for within tunnel exits, where the default mask works fine
-			mask_offset[2*i] = MASK_FULL;
-		else
-			// Regular
-			mask_offset[2*i] = TILE_MASKS_START + readlong((u8*)fbuffer[LOADER], TILE_MASKS_OFFSETS+(tile<<2));
+	{	// y and y+1
+		// Populate the various props arrays
+		get_tile_props(tile_x, tile_y, 2*i);
 
 		// Set the upper right mask offset
 		if ((px&0x1F) < 16)
@@ -3044,44 +3121,8 @@ s16 check_footprint(s16 dx, s16 d2y)
 			exit_offset[2*i] += 2;
 
 			if ((tile_x+1) < room_x)
-			{	// only read adjacent if it exists (i.e. < room_x)
-				tile = readtile(tile_x+1, tile_y) + (in_tunnel?0x1E0:0);
-
-				// Get the exit mask, if we stand on an exit
-				exit_offset[2*i+1] = MASK_EMPTY;
-
-				for (u=0; u<NB_EXITS; u++)
-				{
-					if (readword((u8*)fbuffer[LOADER], EXIT_TILES_LIST + 2*u) == tile)
-					{	
-///						printf("2. got_exit %04X - offset = %04X (%d, %d) px = %d\n", tile << 7, readword((u8*)fbuffer[LOADER], EXIT_MASKS_OFFSETS+2*u),tile_x, tile_y, px);
-//						printf("got_exit %04X - offset = %04X\n", tile << 7, readword((u8*)fbuffer[LOADER], EXIT_MASKS_OFFSETS+2*u));
-						exit_offset[2*i+1] = EXIT_MASKS_START + 
-							readword((u8*)fbuffer[LOADER], EXIT_MASKS_OFFSETS+2*u);
-//				printf("exit_offset[%d] = EXIT_MASKS_START + %X\n", 2*i+1, readword((u8*)fbuffer[LOADER], EXIT_MASKS_OFFSETS+2*u));
-
-						exit_dx[i] = 1;
-						break;
-					}
-				}
-
-				// Check for tunnel exits, and set the appropriate tool
-				for (u=0; u<NB_TUNNEL_EXITS; u++)
-				{
-					if (readword((u8*)fbuffer[LOADER], TUNNEL_EXIT_TILES_LIST + 2*u) == tile)
-					{	
-						tunexit_tool[2*i+1] = readbyte((u8*)fbuffer[LOADER], TUNNEL_EXIT_TOOLS_LIST + 2*u + 1);
-						break;
-					}
-				}
-
-				if (u<IN_TUNNEL_EXITS_START)
-				// a tunnel exit is always walkable (even open), as per the original game
-				// NB: This is not necessary for within tunnel exits, where the default mask works fine
-					mask_offset[2*i+1] = MASK_FULL;
-				else
-					mask_offset[2*i+1] = TILE_MASKS_START + readlong((u8*)fbuffer[LOADER], TILE_MASKS_OFFSETS+(tile<<2));
-			}
+			// only read adjacent if it exists (i.e. < room_x)
+				get_tile_props(tile_x+1, tile_y, 2*i+1);
 			else	
 			{
 				exit_offset[2*i+1] = MASK_EMPTY;
@@ -3091,8 +3132,10 @@ s16 check_footprint(s16 dx, s16 d2y)
 		tile_y++;	// process lower tiles
 	}
 
-//	for (i=0; i<4; i++)
-//		printf("exit_offset[%d] = %08X\n", i, exit_offset[i]);
+	if ((dx == 0) && (d2y == 0))
+	// no motion means we were only checking for tunnel exits
+	// => no need to push it further
+		return 0;
 
 	// OK, now we have our 4 mask offsets
 	mask_y = (p2y & 0x1E)<<1;	// one mask line is 4 bytes (and p2y is already 2*py)
@@ -3107,74 +3150,7 @@ s16 check_footprint(s16 dx, s16 d2y)
 ///	printf("%s %s [%d]\n", to_binary(footprint), to_binary(footprint), (px&0x1f));
 
 
-	// Check if we are standing on a tunnel exit and set the global variables accordingly
-	// If a tunnel exit tool is set, we have a winner
-	if (check_for_tunnel_exits)
-	{
-		tunnel_toggle = true;
-		for (u=0; u<3; u++)
-		{
-			if (check_for_tunnel_exits && (tunexit_tool[u] != ITEM_NONE))
-			{
-				// The line below defines the boundaries we'll use for tunnel exits
-				// I'd say we do a much better job than in the original game, as exiting 
-				// tunnels was a complete pain there
-				if (
-					 ( ( (!in_tunnel) && (((u == 0) && (px%32 <24 )) || ((u == 1) && (px%32 >=24))) ) ||
-					   ( ( in_tunnel) && ((u == 0) || (u == 2)) ) ) && (is_fire_pressed)
-					)
-				{
-					// We need to spare the exit offset value
-					// NB1: tile_y was incremented twice in the main for loop
-					// NB2: exit_flags_offset is a global that will be used in toggle_exit()
-					exit_flags_offset = get_exit_offset(tile_x+(u%2),tile_y-2+(u/2));
-					exit_flags = readbyte(fbuffer[is_inside?ROOMS:TUNNEL_IO], exit_flags_offset);
-					// as for regular exits, because we use tunexit_nr as a boolean, we start at +1
-					exit_nr = readexit(tile_x+(u%2),tile_y-2+(u/2)) + 1;
-	//				printf("setting tunexit_nr = %x, tunexit_flags = %x, tunnel_tool = %d\n", tunexit_nr, tunexit_flags, tunnel_tool);
-
-					if (!(exit_flags & 0x10))
-					{	// Exit is closed => check for the right prop
-						if ( (opt_keymaster) || (selected_prop[current_nation] == tunexit_tool[u]) )
-						{	// Toggle the exit open and consume the relevant item
-							// Play the relevant SFX if needed
-							if (selected_prop[current_nation] == ITEM_SAW)
-								play_sfx(SFX_SAW);
-							else if (!in_tunnel)
-								play_sfx(SFX_WTF);
-
-							consume_prop();		// doesn't consume if opt_keymaster
-							show_prop_count();
-
-							toggle_exit(exit_nr-1);
-							if (in_tunnel) 
-								// If we're in a tunnel and used the shovel, we exit directly
-								return exit_nr;
-							else
-								// return 0 as we don't want to switch room just yet
-								return 0;
-						}
-					}
-					else if ( (opt_keymaster) || (in_tunnel) ||
-							  (selected_prop[current_nation] == ITEM_CANDLE) )
-					{	// Exit is open and we're all set to get through it
-						if (!in_tunnel)
-						{
-							// Only consume the candle (because of the if !opt_keymaster in fn)
-							consume_prop();
-							show_prop_count();
-						}
-						return exit_nr;
-					}
-				}
-				break;
-			}
-		}
-		// No need to push it further if we are only checking for tunnels
-		return 0;
-	}
-
-	// Not tunnel I/O => we check collisions and regular exits for multiple py's
+	// Not tunnel I/O => we check collisions and room IO for multiple py's
 	for (i=0; i<FOOTPRINT_HEIGHT; i++)
 	{
 		tile_mask = to_long(readword((u8*)fbuffer[LOADER], mask_offset[0]),	
@@ -3183,11 +3159,8 @@ s16 check_footprint(s16 dx, s16 d2y)
 		exit_mask = to_long(readword((u8*)fbuffer[LOADER], exit_offset[0]),
 			readword((u8*)fbuffer[LOADER], exit_offset[1]));
 
-
 ///	printf("%s ",to_binary(exit_mask));
 ///	printf("%s\n", to_binary(tile_mask));
-//		printf("%08X\n",exit_mask);
-
 
 		// see low_level.h for the collisions macros
 		if inverted_collision(footprint,tile_mask)
@@ -3255,10 +3228,10 @@ s16 check_footprint(s16 dx, s16 d2y)
 				// +1 as exits start at 0
 				return(readexit(tile_x+exit_dx[0],tile_y-2)+1);
 			}
-//			gotit = 0;
 			return 0;
 		}
 		mask_y+=4;
+
 		// Do we need to change tile in y?
 		for (u=0;u<2;u++)
 		{
@@ -3277,50 +3250,113 @@ s16 check_footprint(s16 dx, s16 d2y)
 			}
 		}
 	}
-//	return gotit;
 	return -1;
 }
 
+// This function MUST immediately follow a call to check_footprint(0,0)
+// Checks if the prisoner can do tunnel I/O
+// Returns >0 if went through a tunnel, <0 if opened a tunnel or 0 if no tunnel action occured
+s16 check_tunnel_io()
+{
+	u8 u;
+	s16 px, p2y;
+	u8	exit_flags;
+	u8	exit_nr;
+
+	// Compute the tile on which we try to stand
+	// tile_x and tile_y from previous check_footprint() call are still relevant
+	px = prisoner_x - (in_tunnel?16:0);
+	p2y = prisoner_2y - 1;
+
+	// Check if we are standing on a tunnel exit and set the global variables accordingly
+	// If a tunnel exit tool is set, we have a winner
+
+	for (u=0; u<3; u++)
+	{
+		if (tunexit_tool[u] != ITEM_NONE)
+		{
+			// The line below defines the boundaries we'll use for tunnel exits
+			// It may not look like it, but I'd say we do a much better job than 
+			// the original game, as exiting tunnels was a complete pain there
+
+			if ( ( (!in_tunnel) && (((u == 0) && (px%32 <24 )) || ((u == 1) && (px%32 >=24))) ) ||
+				   ( ( in_tunnel) && ((u == 0) || (u == 2)) ) )
+			{
+				// We need to spare the exit offset value
+				// NB1: tile_y was incremented twice in the previous check_footprint() call
+				// NB2: exit_flags_offset is a global that will be used in toggle_exit()
+				exit_flags_offset = get_exit_offset(tile_x+(u%2),tile_y-2+(u/2));
+				exit_flags = readbyte(fbuffer[is_inside?ROOMS:TUNNEL_IO], exit_flags_offset);
+				// as for regular exits, because we use tunexit_nr as a boolean, we start at +1
+				exit_nr = readexit(tile_x+(u%2),tile_y-2+(u/2)) + 1;
+				if (exit_nr == 1)
+				{	// tunexit_tool[] and tile(u%2,u/2) should always match...
+					printf("check_tunnel_io(): Exit tile mismatch.\n");
+					continue;
+				}
+
+				if (!(exit_flags & 0x10))
+				{	// Exit is closed => check for the right prop
+					if ( (opt_keymaster) || (selected_prop[current_nation] == tunexit_tool[u]) )
+					{	// Toggle the exit open and consume the relevant item
+						// Play the relevant SFX if needed
+						if (selected_prop[current_nation] == ITEM_SAW)
+							play_sfx(SFX_SAW);
+						else if (!in_tunnel)
+							play_sfx(SFX_WTF);
+
+						consume_prop();		// doesn't consume if opt_keymaster
+						show_prop_count();
+						// We offset exits by 0x100 for toggle_exit to know it's a tunnel
+						toggle_exit(exit_nr-1 + 0x100);
+
+						if (in_tunnel) 
+							// If we're in a tunnel and used the shovel, we exit directly
+							return exit_nr;
+						else
+							// return -1 to flag the fact that we used a prop (but don't switch room just yet)
+							return -1;
+					}
+				}
+				else if ( (opt_keymaster) || (in_tunnel) ||
+						  (selected_prop[current_nation] == ITEM_CANDLE) )
+				{	// Exit is open and we're all set to get through it
+					if (!in_tunnel)
+					{
+						// Only consume the candle (because of the if !opt_keymaster in fn)
+						consume_prop();
+						show_prop_count();
+					}
+					return exit_nr;
+				}
+			}
+			break;
+		}
+	}
+
+	return 0;
+}
+
+
+// Simplified (faster) check_footprint for guards => only checks wall collisions
 bool check_guard_footprint(u8 g, s16 dx, s16 d2y)
 {
-	u32 tile, tile_mask, offset=0;
-	u32 footprint = SPRITE_FOOTPRINT;
-	u16 room_x, room_y;
+	u32 tile, tile_mask; 
+	u32 footprint;
 	u16 mask_y;
-	// maks offsets for upper-left, upper-right, lower-left, lower_right tiles
-	u32 mask_offset[4];	// tile boundary
-	s16 tile_x, tile_y;
 	u8 i,u;
 	s16 gx, g2y;
 
-	/*
-	 * To check the footprint, we need to set 4 quadrants of masks
-	 * in case our rectangular footprint spans more than a single tile
-	 */
 
-	if (guard(g).room == ROOM_OUTSIDE)
-	{	// on compressed map
-		room_x = CMP_MAP_WIDTH;
-		room_y = CMP_MAP_HEIGHT;
-	}
-	else
-	{	// in a room (inside)
-		offset = readlong((u8*)fbuffer[ROOMS], CRM_OFFSETS_START+4*guard(g).room);
-		if (offset == 0xFFFFFFFF)
-			return -1;
-		room_y = readword((u8*)fbuffer[ROOMS], CRM_ROOMS_START+offset);
-		offset +=2;
-		room_x = readword((u8*)fbuffer[ROOMS], CRM_ROOMS_START+offset);
-		offset +=2;		// remember offset is used in readtile/readexit and needs
-						// to be constant from there on
-	}
+	footprint = SPRITE_FOOTPRINT;
+	offset = 0;
+	set_room_xy(guard(g).room);
 
 	// Compute the tile on which we try to stand
 	gx = guard(g).px + dx - 16;
-	g2y = guard(g).p2y + 2*d2y - 1 -4;
+	g2y = guard(g).p2y + 2*d2y - 5;
 	tile_y = g2y / 32;
 	tile_x = gx / 32;
-//	printf("org (x,y) = (%X,%X)\n", tile_x, tile_y);
 
 	// check if we are trying to overflow our room left or up
 	if ((gx<0) || (g2y<0))
@@ -3361,15 +3397,12 @@ bool check_guard_footprint(u8 g, s16 dx, s16 d2y)
 	mask_offset[1] += mask_y;
 
 	footprint >>= (gx & 0x0F);	// rotate our footprint according to our x pos
-///	printf("%s %s [%d]\n", to_binary(footprint), to_binary(footprint), (px&0x1f));
 
 	// Not tunnel I/O => we check collisions and regular exits for multiple py's
 	for (i=0; i<FOOTPRINT_HEIGHT; i++)
 	{
 		tile_mask = to_long(readword((u8*)fbuffer[LOADER], mask_offset[0]),	
 			readword((u8*)fbuffer[LOADER], mask_offset[1]));
-
-///	printf("%s\n", to_binary(tile_mask));
 
 		// see low_level.h for the collisions macros
 		if inverted_collision(footprint,tile_mask)
@@ -3395,10 +3428,8 @@ bool check_guard_footprint(u8 g, s16 dx, s16 d2y)
 
 void switch_room(s16 exit_nr, bool tunnel_io)
 {
-	u32 offset;
 	u16 exit_index;	// exit index in destination room
-	u16 room_x, room_y, tile_data;
-	s16 tile_x, tile_y;
+	u16 tile_data;
 	u32 u;
 	bool found;
 	s16 pixel_x, pixel_y;
@@ -3414,7 +3445,7 @@ void switch_room(s16 exit_nr, bool tunnel_io)
 	}
 	else
 	{	// indoors => read from the ROOMS_EXIT_BASE data
-		exit_index = (exit_nr&0xF)-1;
+		exit_index = (exit_nr&0xF) - 1;
 		offset = current_room_index << 4;
 		// Now the real clever trick here is that the exit index of the room you 
 		// just left and the exit index of the one you go always match.
@@ -3424,11 +3455,6 @@ void switch_room(s16 exit_nr, bool tunnel_io)
 	}
 
 	// Since we're changing room, reset all animations
-//	for (u=0; u<MAX_CURRENTLY_ANIMATED; u++)
-//		currently_animated[u] = 0;
-	// We should always keep at least the animation for our guy
-//	nb_animations = 1;
-//	nb_animations = 0;
 	init_animations = true;
 	
 	exit_index++;	// zero based to one based
@@ -3464,10 +3490,10 @@ void switch_room(s16 exit_nr, bool tunnel_io)
 	else
 	{	// going inside, or still inside
 		// Get the room dimensions
-		offset = readlong((u8*)fbuffer[ROOMS], CRM_OFFSETS_START+4*current_room_index);
-		room_y = readword((u8*)fbuffer[ROOMS], CRM_ROOMS_START+offset);
+		offset = CRM_ROOMS_START + readlong((u8*)fbuffer[ROOMS], CRM_OFFSETS_START+4*current_room_index);
+		room_y = readword((u8*)fbuffer[ROOMS], offset);
 		offset +=2;
-		room_x = readword((u8*)fbuffer[ROOMS], CRM_ROOMS_START+offset);
+		room_x = readword((u8*)fbuffer[ROOMS], offset);
 		offset +=2;
 
 		// Read the tiles data
@@ -3476,7 +3502,7 @@ void switch_room(s16 exit_nr, bool tunnel_io)
 		{
 			for(tile_x=0; (tile_x<room_x)&&(!found); tile_x++)
 			{
-				tile_data = readword((u8*)fbuffer[ROOMS], CRM_ROOMS_START+offset);
+				tile_data = readword((u8*)fbuffer[ROOMS], offset);
 				if ((tile_data & 0xF) == exit_index)
 				{
 					found = true;
@@ -3490,7 +3516,7 @@ void switch_room(s16 exit_nr, bool tunnel_io)
 
 		if (!found)
 		{	// Better exit than go LHC and create a black hole
-			printf("Error: Exit lookup failed\n");
+			printf("switch_room(): Exit lookup failed\n");
 			ERR_EXIT;
 		}
 
@@ -3515,21 +3541,21 @@ void switch_room(s16 exit_nr, bool tunnel_io)
 	if (!tunnel_io)
 	{
 		pixel_x = (s16)(readword((u8*)fbuffer[LOADER], HAT_RABBIT_POS_START + offset+2));
-		pixel_y = (s16)(readword((u8*)fbuffer[LOADER], HAT_RABBIT_POS_START + offset));
+		pixel_y = (s16)(readword((u8*)fbuffer[LOADER], HAT_RABBIT_POS_START + offset)) + 32;
 	}
 	else if (prisoner_state&STATE_TUNNELING)
 	{	// Entering a tunnel
 		pixel_x = 20;
-		pixel_y = -32;
+		pixel_y = 0; 
 	}
 	else
 	{	// Exiting a tunnel
 		pixel_x = 16;
-		pixel_y = -32; //2;
+		pixel_y = 0;  
 	}
 
 	prisoner_x = tile_x*32 + pixel_x; 
-	prisoner_2y = tile_y*32 + 2*pixel_y + 2*0x20 - 2; 
+	prisoner_2y = tile_y*32 + 2*pixel_y - 2; 
 
 	// Don't forget to (re)set the room props
 	set_room_props();

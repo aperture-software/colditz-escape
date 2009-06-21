@@ -12,7 +12,7 @@ extern "C" {
 #define comp_readtile(x,y)			\
 	((u32)(readlong((u8*)fbuffer[COMPRESSED_MAP], ((y)*room_x+(x))*4) & 0x1FF00) >> 8)
 #define room_readtile(x,y)			\
-	((u32)(readword((u8*)(fbuffer[ROOMS]+CRM_ROOMS_START+offset),((y)*room_x+(x))*2) & 0xFF80) >> 7)
+	((u32)(readword((u8*)(fbuffer[ROOMS]+offset),((y)*room_x+(x))*2) & 0xFF80) >> 7)
 #define readtile(x,y)				\
 	(is_outside?comp_readtile(x,y):room_readtile(x,y))
 
@@ -20,13 +20,13 @@ extern "C" {
 #define comp_readexit(x,y)			\
 	((u32)(readlong((u8*)fbuffer[COMPRESSED_MAP], ((y)*room_x+(x))*4) & 0x1F))
 #define room_readexit(x,y)			\
-	((u32)(readword((u8*)(fbuffer[ROOMS]+CRM_ROOMS_START+offset),((y)*room_x+(x))*2) & 0x1F))
+	((u32)(readword((u8*)(fbuffer[ROOMS]+offset),((y)*room_x+(x))*2) & 0x1F))
 #define readexit(x,y)				\
 	(is_outside?comp_readexit(x,y):room_readexit(x,y))
 
 // Returns the offset of the byte that describes the exit status (open/closed, key level...) 
 #define room_get_exit_offset(x,y)	\
-	((u32)CRM_ROOMS_START + offset + ((y)*room_x+(x))*2 + 1)
+	(offset + ((y)*room_x+(x))*2 + 1)
 #define comp_get_exit_offset(x,y)	\
 	(comp_readexit(x,y) << 3)
 #define get_exit_offset(x,y)		\
@@ -123,26 +123,26 @@ void display_room();
 void display_picture();
 void display_panel();
 void rescale_buffer();
+void create_pause_screen();
+void display_pause_screen();
 void set_global_properties();
 int move_guards();
 void init_sprites();
 void sprites_to_wGRAB();
 void toggle_exit(u32 exit_nr);
 s16 check_footprint(s16 dx, s16 d2y);
+s16 check_tunnel_io();
 bool check_guard_footprint(u8 g, s16 dx, s16 d2y);
 void switch_room(s16 exit, bool tunnel_io);
 void fix_files(bool reload);
 void set_room_props();
 void timed_events(u16 hours, u16 minutes_high, u16 minutes_low);
-//int  load_iff(u8 iff_id);
-//bool load_raw_rgb(int w, int h, char* filename);
 void check_on_prisoners();
 void newgame_init();
 void play_sfx(int sfx_id);
 void depack_loadtune();
 bool load_texture(s_tex *tex);
 void go_to_jail(u32 p);
-//u8* load_raw_rgba(int w, int h, char* filename, GLuint* rgba_texid);
 
 #ifdef	__cplusplus
 }

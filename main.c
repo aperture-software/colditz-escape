@@ -68,7 +68,7 @@ int opt_thrillerdance		= false;
 // NB: must be init to -1
 int opt_sid					= -1;
 // Kill the guards
-bool opt_no_guards			= true;
+bool opt_no_guards			= false;
 // Is the castle haunted by the ghost of shot prisoners
 bool opt_haunted_castle		= true;
 // Number of escaped prisoners
@@ -83,6 +83,8 @@ bool display_paused			= false;
 bool game_suspended			= false;
 // Some people don't like picture corners
 bool opt_picture_corners	= true;
+// Skip intro stuff
+bool opt_skip_intro			= false;
 
 // We'll need this to retrieve our glutIdle function after a suspended state
 #define glutIdleFunc_save(f) {glutIdleFunc(f); restore_idle = f;}
@@ -200,7 +202,7 @@ u8	 palette_index = INITIAL_PALETTE_INDEX;
 s_sprite*	sprite;
 s_overlay*	overlay;
 u8   overlay_index;
-u8   bPalette[3][16];
+//u8   bPalette[3][16];
 // remapped Amiga Palette
 u16  aPalette[32];	
 char nb_props_message[32] = "\499 * ";
@@ -277,7 +279,7 @@ static void glut_init()
 	glClear(GL_COLOR_BUFFER_BIT);
 	glutSwapBuffers();
 	glClear(GL_COLOR_BUFFER_BIT);
-	glutSwapBuffers();
+//	glutSwapBuffers();
 
 	// Define the scissor area, outside of which we don't want to draw
 //	GLCHK(glScissor(0,32,PSP_SCR_WIDTH,PSP_SCR_HEIGHT-32));
@@ -303,6 +305,10 @@ static void glut_display(void)
 	if (game_state & GAME_STATE_STATIC_PIC)
 	{
 		display_picture();
+	}
+	else if (game_state & GAME_STATE_PAUSED)
+	{
+		display_pause_screen();
 	}
 	else
 	{	// In game => update room content and panel
@@ -433,6 +439,8 @@ void restore_params(u32 param)
 	guybrush[brush].animation.end_of_ani_function = NULL;
 	// we always end up in stopped state after a one shot animation
 	guybrush[brush].state &= ~(STATE_MOTION|STATE_KNEEL);
+	// This is necessary for the tunnel opening animations
+	prisoner_reset_ani = true;
 }
 
 
@@ -452,7 +460,11 @@ void user_input()
 
 	// Handle the pausing of the game 
 	if (read_key_once(KEY_PAUSE))
+	{
 		game_state ^= GAME_STATE_PAUSED;
+		if (game_state & GAME_STATE_PAUSED)
+			create_pause_screen();
+	}
 
 #if defined (CHEATMODE_ENABLED)
 	// Check cheat sequences
@@ -500,7 +512,7 @@ void user_input()
 		if (read_key_once(key_nation[i]) && (current_nation != i))
 		{
 			// stop any motion or animation)
-			// TO_DO: move this ion utilities
+			// TO_DO: move this in utilities
 			// if there was any end of ani function, execute it
 			if (prisoner_ani.end_of_ani_function != NULL)
 			{	// execute the end of animation function (toggle exit)
@@ -514,7 +526,7 @@ void user_input()
 			else
 				// we want to have +/-1, without going negative, and we
 				// know that we are either at NB_NATIONS or NB_NATIONS+1
-				// so the formula writes itself
+				// so the formula writes itself as:
 				current_nation = (current_nation+(2*i)-1) % NB_NATIONS;
 			prisoner_state &= ~(STATE_MOTION|STATE_ANIMATED|STATE_KNEEL);
 			prisoner_reset_ani = true;
@@ -577,34 +589,63 @@ void user_input()
 		// in various subroutines below
 		is_fire_pressed = true;
 
-		// Handle tunnel I/O through a check_footprint() call
-		exit_nr = check_footprint(0,0);		// 0,0 indicates tunnel I/O
-		if (exit_nr)
+		// Handle tunnel I/O through a check_footprint() call immediately followed
+		// by a check_tunnel_io
+		check_footprint(0,0);		// 0,0 indicates tunnel I/O
+		exit_nr = check_tunnel_io();
+		if (exit_nr > 0)
 		{	// We just went through a tunnel exit
 			// => Toggle tunneling state
 			prisoner_state ^= STATE_TUNNELING;
 			switch_room(exit_nr-1, true);
+		}
+		else if (exit_nr < 0)
+		{	// We used a prop to open a tunnel => cue in animation
+			prisoner_state |= STATE_KNEEL;
+			// enqueue our 2 u8 parameters
+			prisoner_ani.end_of_ani_parameter = (current_nation & 0xFF) | 
+				((prisoner_ani.index << 8) & 0xFF00);
+			prisoner_ani.index = prisoner_as_guard?GUARD_KNEEL_ANI:KNEEL_ANI;
+			// Make sure we go through frame 0
+			prisoner_ani.framecount = 0;
+			prisoner_ani.end_of_ani_function = restore_params;
 		}
 		else
 		{	// Are we trying to use some non tunnel I/O related prop?
 			switch(selected_prop[current_nation])
 			{
 			case ITEM_GUARDS_UNIFORM:
-				if (!prisoner_as_guard)
+				if ((!prisoner_as_guard) && (!in_tunnel))
 				{	// Only makes sense if we're not already dressed as guard
 					prisoner_as_guard = true;
-					prisoner_reset_ani = true;
 					consume_prop();
 					show_prop_count();
+					// Set the animation for changing into guard's clothes
+					prisoner_state |= STATE_KNEEL;
+					prisoner_ani.end_of_ani_parameter = (current_nation & 0xFF) | 
+						((prisoner_ani.index << 8) & 0xFF00);
+					prisoner_ani.index = INTO_GUARDS_UNI_ANI;
+					prisoner_ani.framecount = 0;
+					prisoner_ani.end_of_ani_function = restore_params;
+					// The original game leaves us turned away at the end of the animation
+					prisoner_dir = 2;
 				}
 				break;
 			case ITEM_PRISONERS_UNIFORM:
-				if (prisoner_as_guard)
+				if ((prisoner_as_guard) && (!in_tunnel))
 				{	// Only makes sense if we're dressed as guard
 					prisoner_as_guard = false;
-					prisoner_reset_ani = true;
 					consume_prop();
 					show_prop_count();
+					// Set the animation for changing into prisoner's clothes
+					prisoner_state |= STATE_KNEEL;
+					prisoner_ani.end_of_ani_parameter = (current_nation & 0xFF) | 
+						((prisoner_ani.index << 8) & 0xFF00);
+					prisoner_ani.index = INTO_PRISONERS_UNI_ANI;
+					prisoner_ani.framecount = 0;
+					prisoner_ani.end_of_ani_function = restore_params;
+					// The original game leaves us turned away at the end of the animation
+					prisoner_dir = 2;
 				}
 				break;
 			case ITEM_STONE:
@@ -615,9 +656,15 @@ void user_input()
 		}
 	}
 
-	// The following keys are only handled if we are in a premissible state
-	if (!(prisoner_state & MOTION_DISALLOWED))
-	{
+	if ( (prisoner_state & STATE_SLEEPING) && read_key_once(KEY_SLEEP) )
+	{	// Out of bed
+		prisoner_state &= ~STATE_SLEEPING;
+		prisoner_x = readword(fbuffer[LOADER],INITIAL_POSITION_BASE+10*current_nation+2);
+		prisoner_2y = 2*readword(fbuffer[LOADER],INITIAL_POSITION_BASE+10*current_nation);
+		prisoner_reset_ani = true;
+	}
+	else if (!(prisoner_state & MOTION_DISALLOWED))
+	{		// The following keys are only handled if we are in a premissible state
 
 		// Inventory cycle
 		if ( (read_key_once(KEY_INVENTORY_LEFT)) ||
@@ -709,6 +756,19 @@ void user_input()
 			}
 		}
 
+		// Sleep
+		if ( (read_key_once(KEY_SLEEP)) &&
+			 (current_room_index == readword(fbuffer[LOADER],INITIAL_POSITION_BASE+10*current_nation+4)) &&
+			 (!(prisoner_state & STATE_SLEEPING)) )
+		{	// Go to bed
+			prisoner_x = readword(fbuffer[LOADER],INITIAL_POSITION_BASE+10*current_nation+8) - 9;
+			prisoner_2y = 2*readword(fbuffer[LOADER],INITIAL_POSITION_BASE+10*current_nation+6) - 28;
+			prisoner_state |= STATE_SLEEPING;
+			prisoner_ani.index = SLEEP_ANI;
+			prisoner_ani.framecount = 0;
+			prisoner_ani.end_of_ani_function = NULL;
+		}
+
 		if (read_key_once(KEY_STOOGE))
 			play_sfx(0);
 	}
@@ -758,6 +818,7 @@ static void glut_idle_game(void)
 	// No need to push it further if paused
 	if (game_state & GAME_STATE_PAUSED)
 	{
+		glut_display();
 		// We should be able to sleep for a while
 		msleep(PAUSE_DELAY);
 		return;
@@ -1201,7 +1262,7 @@ int main (int argc, char *argv[])
 
 	// General purpose
 	u32  i;
-	char* result;
+//	char* result;
 
 
 #if defined(PSP)
@@ -1300,16 +1361,26 @@ int main (int argc, char *argv[])
 	init_sprites();
 	sprites_to_wGRAB();
 
-	// We'll start with the Intro state
-	game_state = GAME_STATE_INTRO | GAME_STATE_STATIC_PIC | GAME_STATE_PICTURE_LOOP;
-	static_screen(INTRO_SCREEN_START, NULL, 0);
+	if (opt_skip_intro)
+	{
+		fade_value = 1.0f;
+		newgame_init();
+		game_state = GAME_STATE_ACTION;
+		glutIdleFunc_save(glut_idle_game);
+	}
+	else
+	{
+		// We'll start with the Intro state
+		game_state = GAME_STATE_INTRO | GAME_STATE_STATIC_PIC | GAME_STATE_PICTURE_LOOP;
+		static_screen(INTRO_SCREEN_START, NULL, 0);
 
-	// But before that, we'll want to play our intro video
-	game_state |= GAME_STATE_CUTSCENE;
-	game_suspended = true;
-	last_key_used = 0;
-	restore_idle = glut_idle_static_pic;
-	glutIdleFunc(glut_idle_suspended);
+		// But before that, we'll want to play our intro video
+		game_state |= GAME_STATE_CUTSCENE;
+		game_suspended = true;
+		last_key_used = 0;
+		restore_idle = glut_idle_static_pic;
+		glutIdleFunc(glut_idle_suspended);
+	}
 
 	// Now we can proceed with setting up our display
 	glutDisplayFunc(glut_display);

@@ -129,7 +129,7 @@ extern "C" {
 #endif
 
 // Textures that will be used for various images
-#define NB_TEXTURES				22
+#define NB_TEXTURES				23
 #define NB_IFFS					19
 #define TEXTURES				{	{ "PIC.1(SOLITARY)", 320, 192, 0, NULL },					\
 									{ "PIC.1(SOLITARY)FREE", 320, 192, 0, NULL },				\
@@ -400,8 +400,8 @@ extern "C" {
 #define SHOT_ANI				0x11
 #define GUARD_SHOT_ANI			0x12
 #define GUARD_SHOOTS_ANI		0x13
-#define KNEEL2_ANI				0x14
-#define KNEEL3_ANI				0x15
+#define INTO_GUARDS_UNI_ANI		0x14
+#define INTO_PRISONERS_UNI_ANI	0x15
 #define GUARD_KNEEL_ANI			0x16
 
 // these sprites are information messages for the panel
