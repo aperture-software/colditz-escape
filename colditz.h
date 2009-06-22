@@ -337,8 +337,10 @@ extern "C" {
 #define	REPOSITION_INTERVAL		15
 // defines how long a transition takes on animated picture effects
 #define TRANSITION_DURATION		1000
-// How long should we sleep when paused or between each fade step (ms)
+// How long should we sleep when paused
 #define PAUSE_DELAY				40
+// Minimum amount of sleep we are entitling ourselves to, in ms
+#define QUANTUM_OF_SOLACE		2
 // Muhahahahahaha!!! Fear not, mere mortals, for I'll...
 //#define TIME_MARKER				20000
 #define TIME_MARKER				10000
@@ -604,7 +606,7 @@ typedef struct
 	u16 w;
 	u16 base;
 	u32 offset;
-} s_nonstandard;
+} s_panel_sprite;
 
 // For room overlays (props, bed, stairs, etc)
 typedef struct 

@@ -53,5 +53,4 @@ extern "C" {
 }
 #endif
 
-
-#endif /* _DATA_TYPES_H */
+#endif 

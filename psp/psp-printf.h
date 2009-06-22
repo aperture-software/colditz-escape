@@ -1,7 +1,7 @@
 #ifndef _PSP_PRINTF_H
 #define _PSP_PRINTF 1
 
-#define PSP_ONSCREEN_STDOUT					1
+//#define PSP_ONSCREEN_STDOUT					1
 
 #if defined(PSP_ONSCREEN_STDOUT)
 extern int game_suspended;

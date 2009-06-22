@@ -1,12 +1,11 @@
-#ifndef _COLDITZ_UTILITIES_H
-#define _COLDITZ_UTILITIES_H
+#ifndef _GAME_H
+#define _GAME_H
 
 #ifdef	__cplusplus
 extern "C" {
 #endif
 
-
-/* These macro will come handy later on */
+// These macro will come handy later on 
 
 // Reads the tile index at (x,y) from compressed map and rotate
 #define comp_readtile(x,y)			\
@@ -59,93 +58,40 @@ extern "C" {
 	else									\
 	printf("Too many overlays!\n");			}	
 
-// textures for static images, panel base, etc.
-typedef struct
-{
-	char* filename;
-	u16 w;
-	u16 h;
-	GLuint texid;
-	u8* buffer;
-} s_tex;
-
-
-// For load_iff()
-#define IFF_FORM        0x464F524D    // 'FORM' - IFF FORM structure  
-#define IFF_ILBM        0x494C424D    // 'ILBM' - interleaved bitmap
-#define IFF_BMHD        0x424D4844    // 'BMHD' - bitmap header
-#define IFF_CMAP        0x434D4150    // 'CMAP' - color map (palette)
-#define IFF_BODY        0x424F4459    // 'BODY' - bitmap data
-
-static __inline u32 freadl(FILE* f)
-{
-	u8	b,i;
-	u32 r = 0;
-	for (i=0; i<4; i++)
-	{
-		fread(&b,1,1,f);
-		r <<= 8;
-		r |= b;
-	}
-	return r;
-}
-static __inline u16 freadw(FILE* f)
-{
-	u8	b,i;
-	u16 r = 0;
-	for (i=0; i<2; i++)
-	{
-		fread(&b,1,1,f);
-		r <<= 8;
-		r |= b;
-	}
-	return r;
-}
-static __inline u8 freadc(FILE* f)
-{
-	u8	b = 0;
-	fread(&b,1,1,f);
-	return b;
-}
-
-extern s_tex texture[NB_TEXTURES];
-
 
 // Public prototypes
 //
 //////////////////////////////////////////////////////////////////////
-void to_16bit_palette(u8 palette_index, u8 transparent_index, u8 io_file);
-void cells_to_wGRAB(u8* source, u8* dest);
+#if defined(ANTI_TAMPERING_ENABLED)
+bool integrity_check(u16 i);
+#endif
 void load_all_files();
 void reload_files();
-void display_sprite_linear(float x1, float y1, float w, float h, GLuint texid) ;
-void display_room();
-void display_picture();
-void display_panel();
-void rescale_buffer();
-void create_pause_screen();
-void display_pause_screen();
-void set_global_properties();
+void newgame_init();
+void depack_loadtune();
+void set_room_props();
+void set_sfxs();
 int move_guards();
-void init_sprites();
-void sprites_to_wGRAB();
 void toggle_exit(u32 exit_nr);
 s16 check_footprint(s16 dx, s16 d2y);
 s16 check_tunnel_io();
 bool check_guard_footprint(u8 g, s16 dx, s16 d2y);
 void switch_room(s16 exit, bool tunnel_io);
 void fix_files(bool reload);
-void set_room_props();
 void timed_events(u16 hours, u16 minutes_high, u16 minutes_low);
 void check_on_prisoners();
-void newgame_init();
 void play_sfx(int sfx_id);
-void depack_loadtune();
-bool load_texture(s_tex *tex);
 void go_to_jail(u32 p);
-
+void set_room_xy(u16 room);
+void set_props_overlays();
+void crm_set_overlays(s16 x, s16 y, u16 current_tile);
+void cmp_set_overlays();
+void removable_walls();
+void add_guybrushes();
+void sort_overlays(u8 a[], u8 n);
+	
 #ifdef	__cplusplus
 }
 #endif
 
-#endif /* _COLDITZ_UTILITIES_H */
+#endif

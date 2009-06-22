@@ -48,7 +48,8 @@
 #include "data-types.h"
 #include "low-level.h"
 #include "colditz.h"
-#include "utilities.h"
+#include "graphics.h"
+#include "game.h"
 #include "soundplayer.h"
 #include "videoplayer.h"
 
@@ -84,7 +85,10 @@ bool game_suspended			= false;
 // Some people don't like picture corners
 bool opt_picture_corners	= true;
 // Skip intro stuff
-bool opt_skip_intro			= false;
+bool opt_skip_intro			= true;
+
+/// DEBUG
+u64 t1;
 
 // We'll need this to retrieve our glutIdle function after a suspended state
 #define glutIdleFunc_save(f) {glutIdleFunc(f); restore_idle = f;}
@@ -102,7 +106,7 @@ char* mod_name[NB_MODS]		= MOD_NAMES;
 s_sfx sfx[NB_SFXS];
 
 // Used for fade in/fade out of static images
-float fade_value = 0.0f;
+float fade_value = 1.0f;
 // false for fade in, true for fade out
 bool fade_out = false;
 
@@ -222,8 +226,7 @@ u8 key_nation[NB_NATIONS+2] = {KEY_BRITISH, KEY_FRENCH, KEY_AMERICAN, KEY_POLISH
 // Update the game and program timers
 void update_timers()
 {
-	u64 t, delta_t;
-
+	u64 register t, delta_t;
 	// Find out how much time elapsed since last call
 	t = mtime();
 	delta_t = t - t_last;
@@ -241,8 +244,6 @@ void update_timers()
 	if (game_state & GAME_STATE_ACTION)
 		game_time += delta_t;
 }
-
-
 
 
 /**
@@ -297,6 +298,8 @@ static void glut_display(void)
 	// is called, as we may have debug printf (PSP) or video onscreen
 	if (game_suspended)
 		return;
+
+//printf("display called\n");
 
 	// Always start with a clear to black
 	glClear(GL_COLOR_BUFFER_BIT);
@@ -461,7 +464,7 @@ void user_input()
 	// Handle the pausing of the game 
 	if (read_key_once(KEY_PAUSE))
 	{
-		game_state ^= GAME_STATE_PAUSED;
+		game_state ^= GAME_STATE_PAUSED|GAME_STATE_ACTION;
 		if (game_state & GAME_STATE_PAUSED)
 			create_pause_screen();
 	}
@@ -511,6 +514,10 @@ void user_input()
 	for (i=0; i<(NB_NATIONS+2); i++)
 		if (read_key_once(key_nation[i]) && (current_nation != i))
 		{
+			// Unpause the game if required
+			if (game_state & GAME_STATE_PAUSED)
+				game_state ^= GAME_STATE_PAUSED|GAME_STATE_ACTION;
+
 			// stop any motion or animation)
 			// TO_DO: move this in utilities
 			// if there was any end of ani function, execute it
@@ -861,7 +868,7 @@ static void glut_idle_game(void)
 					// As per the original game, we also add HOURLY_FATIGUE_INCREASE
 					// for each hour spent awake
 					for (i=0; i<NB_NATIONS; i++)
-						if (!(guy(i).state & STATE_SLEEPING))
+						if (!(guy(i).state & STATE_SLEEPING) && (!p_event[i].killed))
 							p_event[i].fatigue += HOURLY_FATIGUE_INCREASE;
 				}
 			}
@@ -915,19 +922,20 @@ static void glut_idle_game(void)
 		// Redisplay, as there might be a guard moving
 		glut_display();
 	}
+	else if (game_time - last_ptime - REPOSITION_INTERVAL > QUANTUM_OF_SOLACE)
+		msleep(QUANTUM_OF_SOLACE);
 
 	// Can't hurt to sleep a while if we're motionless, so that
 	// we don't hammer down the CPU in a loop
 //	if ((dx == 0) && (d2y == 0))
 //		msleep(3);
-		msleep(REPOSITION_INTERVAL/5);
+//		msleep(REPOSITION_INTERVAL/5);
 }
 
 
 // We'll use a different idle function for static picture
 static void glut_idle_static_pic(void)
 {
-u64 t1;
 
 	// As usual, we'll need the current time value for a bunch of stuff
 	update_timers();
@@ -1330,11 +1338,13 @@ int main (int argc, char *argv[])
 	// Some of the files need patching (this was done too in the original game!)
 	fix_files(false);
 
+	set_textures();
+	set_sfxs();
+
 	// Set global variables
 	t_last = mtime();
 	program_time = 0;
 	game_time = 0;
-	set_global_properties();
 
 	// We might want some sound
 	if (!audio_init())
@@ -1367,6 +1377,7 @@ int main (int argc, char *argv[])
 		newgame_init();
 		game_state = GAME_STATE_ACTION;
 		glutIdleFunc_save(glut_idle_game);
+		glColor3f(fade_value, fade_value, fade_value);
 	}
 	else
 	{
