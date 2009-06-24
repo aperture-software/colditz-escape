@@ -35,15 +35,13 @@ extern "C" {
 #define toggle_open_flag(x_flags)  x_flags ^= 0x10
 
 // Checks that an overlay is visible onscreen (with generous margins)
-#define ignore_offscreen_x(ovl)		\
-	if ((overlay[ovl].x < -64) || (overlay[ovl].x > (PSP_SCR_WIDTH+64)))	\
-			continue
-#define ignore_offscreen_y(ovl)		\
-	if ((overlay[ovl].y < -64) || (overlay[ovl].y > (PSP_SCR_HEIGHT+64)))	\
-			continue
+#define is_offscreen_x(x) ((x < -64) || (x > (PSP_SCR_WIDTH+64)))
+#define is_offscreen_y(y) ((y < -64) || (y > (PSP_SCR_HEIGHT+64)))	
+#define ignore_offscreen_x(ovl)	{if is_offscreen_x(overlay[ovl].x) continue;}
+#define ignore_offscreen_y(ovl)	{if is_offscreen_y(overlay[ovl].y) continue;}
 
 #define get_guybrush_sid(x)					\
-	( ( (guybrush[x].state & STATE_ANIMATED) && (!(guybrush[x].state & STATE_BLOCKED)) ) ?	\
+	((((guybrush[x].state & STATE_MOTION) || (guybrush[x].state & STATE_ANIMATED)) && (!(guybrush[x].state & STATE_BLOCKED)))?	\
 	get_animation_sid(x, true):get_stop_animation_sid(x, true))
 
 #define safe_nb_animations_increment() {	\
@@ -76,6 +74,7 @@ void toggle_exit(u32 exit_nr);
 s16 check_footprint(s16 dx, s16 d2y);
 s16 check_tunnel_io();
 bool check_guard_footprint(u8 g, s16 dx, s16 d2y);
+void switch_nation(u8 new_nation);
 void switch_room(s16 exit, bool tunnel_io);
 void fix_files(bool reload);
 void timed_events(u16 hours, u16 minutes_high, u16 minutes_low);

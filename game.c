@@ -161,8 +161,88 @@ bool integrity_check(u16 i)
 }
 #endif
 
+// Uncompress the PowerPacked LOADTUNE.MUS if needed
+void depack_loadtune()
+{
+	size_t read;
+	u32 length;
+	u8 *ppbuffer, *buffer;
 
-// Intial file loader
+	// Don't bother if we already have an uncompressed LOADTUNE
+	if ((fd = fopen (mod_name[MOD_LOADTUNE], "rb")) != NULL)
+	{
+		fclose(fd);
+		return;
+	}
+
+	// No uncompressed LOADTUNE? Look for the PowerPacked one
+	printf("Couldn't find file '%s'\n  Trying to use PowerPacked '%s' instead\n", mod_name[0], PP_LOADTUNE_NAME);
+
+	if ((fd = fopen (PP_LOADTUNE_NAME, "rb")) == NULL)
+	{
+		printf("  Can't find '%s' - Aborting.\n", PP_LOADTUNE_NAME);
+		return;
+	}
+
+	if ( (ppbuffer = (u8*) malloc(PP_LOADTUNE_SIZE)) == NULL)
+	{
+		printf("  Could not allocate source buffer for ppunpack\n");
+		fclose(fd);
+		return;
+	}
+
+	// So far so good
+	read = fread (ppbuffer, 1, PP_LOADTUNE_SIZE, fd);
+	fclose(fd);
+
+	// Is it the file we are looking for?
+	if (read != PP_LOADTUNE_SIZE)
+	{
+		printf("  '%s': Unexpected file size or read error\n", PP_LOADTUNE_NAME);
+		free(ppbuffer); return;
+	}
+
+	if (ppbuffer[0] != 'P' || ppbuffer[1] != 'P' || 
+		ppbuffer[2] != '2' || ppbuffer[3] != '0')
+	{
+		printf("  '%s': Not a PowerPacked file\n", PP_LOADTUNE_NAME);
+		free(ppbuffer); return;
+	}
+
+	// The uncompressed length is given at the end of the file
+	length = read24(ppbuffer, PP_LOADTUNE_SIZE-4);
+
+	if ( (buffer = (u8*) malloc(length)) == NULL)
+	{
+		printf("  Could not allocate destination buffer for ppunpack\n");
+		free(ppbuffer); return;
+	}
+
+	printf("  Uncompressing...");
+	// Call the PowerPacker unpack subroutine
+	ppdepack(ppbuffer, buffer, PP_LOADTUNE_SIZE, length);
+	free(ppbuffer);
+	
+	// We'll play MOD directly from files, so write it
+	printf("  OK.\n  Now saving file as '%s'\n", mod_name[0]);
+	if ((fd = fopen (mod_name[0], "wb")) == NULL)
+	{
+		printf("  Couldn't create file '%s'\n", mod_name[0]);
+		free(buffer); return;
+	}
+
+	read = fwrite (buffer, 1, length, fd);
+	if (read != length)
+		printf("  '%s': write error.\n", mod_name[0]);
+
+	printf("  DONE.\n\n");
+
+	fclose(fd);
+	free(buffer);
+}
+
+
+// Initial file loader
 void load_all_files()
 {
 	size_t read;
@@ -264,7 +344,7 @@ void load_all_files()
 }
 
 
-// Reload the files we need for a game restart
+// Reload the files for a game restart
 void reload_files()
 {
 	size_t read;
@@ -295,7 +375,7 @@ void reload_files()
 	}
 }
 
-// Intialize the variables relevant to a new game
+// Reset the variables relevant to a new game
 void newgame_init()
 {
 	u16  i,j;
@@ -332,6 +412,8 @@ void newgame_init()
 		p_event[i].killed = false;
 		p_event[i].solitary_countdown = 0;
 		p_event[i].escaped = false;
+		p_event[i].thrown_stone = false;
+//		p_event[i].stooge = false;
 		p_event[i].fatigue = 0;
 		for (j=0; j<NB_PROPS; j++)
 			props[i][j] = 0;
@@ -363,7 +445,12 @@ void newgame_init()
 		guard(i).speed = 1;
 		guard(i).direction = 0;
 		guard(i).wait = 0;
+		guard(i).go_on = 0;
 		guard(i).is_dressed_as_guard = true;
+		guard(i).reinstantiate = false;
+		guard(i).reset_animation = true;
+		guard(i).is_onscreen = false;
+		guard(i).target = NO_TARGET;
 		// We also need to initialize the current route pos offset for guards (0x0E)
 		// simply copy over the route start offset (0x06)
 		writelong(fbuffer[GUARDS], i*MENDAT_ITEM_SIZE+0x0E,
@@ -428,85 +515,6 @@ void newgame_init()
 	game_restart = true;
 }
 
-// Uncompress the PowerPacked LOADTUNE.MUS if needed
-void depack_loadtune()
-{
-	size_t read;
-	u32 length;
-	u8 *ppbuffer, *buffer;
-
-	// Don't bother if we already have an uncompressed LOADTUNE
-	if ((fd = fopen (mod_name[MOD_LOADTUNE], "rb")) != NULL)
-	{
-		fclose(fd);
-		return;
-	}
-
-	// No uncompressed LOADTUNE? Look for the PowerPacked one
-	printf("Couldn't find file '%s'\n  Trying to use PowerPacked '%s' instead\n", mod_name[0], PP_LOADTUNE_NAME);
-
-	if ((fd = fopen (PP_LOADTUNE_NAME, "rb")) == NULL)
-	{
-		printf("  Can't find '%s' - Aborting.\n", PP_LOADTUNE_NAME);
-		return;
-	}
-
-	if ( (ppbuffer = (u8*) malloc(PP_LOADTUNE_SIZE)) == NULL)
-	{
-		printf("  Could not allocate source buffer for ppunpack\n");
-		fclose(fd);
-		return;
-	}
-
-	// So far so good
-	read = fread (ppbuffer, 1, PP_LOADTUNE_SIZE, fd);
-	fclose(fd);
-
-	// Is it the file we are looking for?
-	if (read != PP_LOADTUNE_SIZE)
-	{
-		printf("  '%s': Unexpected file size or read error\n", PP_LOADTUNE_NAME);
-		free(ppbuffer); return;
-	}
-
-	if (ppbuffer[0] != 'P' || ppbuffer[1] != 'P' || 
-		ppbuffer[2] != '2' || ppbuffer[3] != '0')
-	{
-		printf("  '%s': Not a PowerPacked file\n", PP_LOADTUNE_NAME);
-		free(ppbuffer); return;
-	}
-
-	// The uncompressed length is given at the end of the file
-	length = read24(ppbuffer, PP_LOADTUNE_SIZE-4);
-
-	if ( (buffer = (u8*) malloc(length)) == NULL)
-	{
-		printf("  Could not allocate destination buffer for ppunpack\n");
-		free(ppbuffer); return;
-	}
-
-	printf("  Uncompressing...");
-	// Call the PowerPacker unpack subroutine
-	ppdepack(ppbuffer, buffer, PP_LOADTUNE_SIZE, length);
-	free(ppbuffer);
-	
-	// We'll play MOD directly from files, so write it
-	printf("  OK.\n  Now saving file as '%s'\n", mod_name[0]);
-	if ((fd = fopen (mod_name[0], "wb")) == NULL)
-	{
-		printf("  Couldn't create file '%s'\n", mod_name[0]);
-		free(buffer); return;
-	}
-
-	read = fwrite (buffer, 1, length, fd);
-	if (read != length)
-		printf("  '%s': write error.\n", mod_name[0]);
-
-	printf("  DONE.\n\n");
-
-	fclose(fd);
-	free(buffer);
-}
 
 
 // Returns the last frame of an animation (usually the centered position)
@@ -934,7 +942,7 @@ void sort_overlays(u8 a[], u8 n)
 }
 
 // The compressed map (outside) uses a series of overlaid tiles to bring some walls
-// up or down according to a bitmask
+// up or down, according to a bitmask
 void removable_walls()
 {	// Get the current removable walls mask to apply
 
@@ -1149,8 +1157,10 @@ u8 i, sid;
 			if ((i<NB_NATIONS) && (guy(i).state & STATE_SHOT))
 				// Might have a stiff guy to display
 				guy(i).animation.index = ((guy(i).is_dressed_as_guard)?GUARD_SHOT_ANI:SHOT_ANI);
-			else if (guy(i).state&STATE_TUNNELING)
+			else if (guy(i).state & STATE_TUNNELING)
 				guy(i).animation.index = ((guy(i).is_dressed_as_guard)?GUARD_CRAWL_ANI:CRAWL_ANI);
+			else if (guy(i).state & STATE_AIMING)
+				guy(i).animation.index = GUARD_SHOOTS_ANI;
 			else if (guy(i).speed == 1)
 				guy(i).animation.index = ((guy(i).is_dressed_as_guard)?GUARD_WALK_ANI:WALK_ANI); 
 			else
@@ -1206,12 +1216,9 @@ void prisoner_killed(u32 p)
 	p_event[p].display_shot = true;
 	// Prevent the sprite from being animated
 	guy(p).state = STATE_SHOT;
-	// This will reinstantiate the guard when we switch screens
-	guard(p_event[p].caught_by).state = STATE_IN_PURSUIT;
 }
 
-
-// These 2 helper functions are used by move_guards()
+// These helper functions are used by guard_in_pursuit() & move_guards()
 static __inline bool guard_close_by(i, pos_x, pos_2y)
 {
 s16 dx, dy;
@@ -1235,24 +1242,274 @@ s16 dx, dy;
 	return false;
 }
 
-// Handles the repositioning of guards
-int move_guards()
+#define REINSTANTIATE_GUARD(g) {														\
+	guard(g).state &= ~(STATE_IN_PURSUIT|STATE_MOTION|STATE_ANIMATED|STATE_AIMING);		\
+	guard(g).reinstantiate = true; guard(g).wait = 0;									\
+	guard(g).go_on = 0; guard(g).target = NO_TARGET;	}
+
+
+// Reposition a guard according to its route data (or continue in the same direction)
+void route_guard(int i)
 {
-	int i, p, dir_x, dir_y;
+	int dir_x, dir_y;
 	u32 route_pos;
 	u16 route_data;
+	u16 g_px, g_py, g_room;
+
+	// Go_on > 0 indicates that we don't need to read the route data
+	if (guard(i).go_on > 0)
+	{	// continue in the same direction
+		guard(i).go_on--;
+		guard(i).spent_in_room++;
+
+		// We want to move
+		if (guard(i).state & STATE_MOTION)
+		{	// Is there an obstacle in the way?
+			dir_x = guard(i).speed * dir_to_dx[guard(i).direction];
+			dir_y = guard(i).speed * dir_to_d2y[guard(i).direction];
+			if ((guard(i).state & STATE_IN_PURSUIT) && (!check_guard_footprint(i, dir_x, dir_y)))
+			{	// Only check footprint when in pursuit
+				// check_guard_footprint() returns false if we can't go there
+				printf("guard %d blocked\n", i);
+				guard(i).state &= ~STATE_MOTION;
+				guard(i).reset_animation = true;
+			}
+			else
+			{	// Just move
+				guard(i).px += dir_x;
+				guard(i).p2y += dir_y;
+			}
+		}
+		return;
+	}
+	else if(!guard(i).reinstantiate)
+	{
+		// Change in route => get our current route position
+		route_pos = readlong(fbuffer[GUARDS], i*MENDAT_ITEM_SIZE + 0x0E);
+
+		// Read the first word
+		route_data = readword(fbuffer[ROUTES], route_pos);
+	}
+	else
+	{	// reinstantiate
+		// If we have a countdown running (for reinstantiation), decrement it
+		if (guard(i).wait > 0)
+		{
+			guard(i).wait--;
+			if (guard(i).wait == 0)
+				printf("reinst counter reached zero for %d\n", i);
+			return;
+		}
+
+		// wait counter reached zero
+		if (!guard(i).is_onscreen)
+		// Attempt to reinstantiate guard by flagging end of route data
+			route_data = 0xFFFF;
+		else
+			return;
+	}
+
+	if (route_data == 0xFFFF)
+	{	// repeat => back to start of route
+		g_px = readword(fbuffer[GUARDS],i*MENDAT_ITEM_SIZE + 2);
+		g_py = readword(fbuffer[GUARDS],i*MENDAT_ITEM_SIZE);
+		g_room = readword(fbuffer[GUARDS],i*MENDAT_ITEM_SIZE + 4);
+
+		// Only reinstantiate if destination is offscreen
+		if ( (guard(i).reinstantiate) && (g_room == current_room_index) &&
+			 ((!is_offscreen_x(gl_off_x + g_px)) || (!is_offscreen_y(gl_off_y + g_py))) )
+			 return;
+
+		guard(i).px = g_px;
+		guard(i).p2y = 2*g_py;
+		guard(i).room = g_room;
+		guard(i).state = 0;
+		guard(i).speed = 1;
+		guard(i).reset_animation = true;	// reset the animation
+		guard(i).reinstantiate = false;		// and clear reinstantiate flag
+		guard(i).state = 0; 
+		guard(i).target = NO_TARGET;
+
+		route_pos = readlong(fbuffer[GUARDS], i*MENDAT_ITEM_SIZE + 0x06);
+		route_data = readword(fbuffer[ROUTES], route_pos);
+
+	}
+
+	if (route_data & 0x8000)
+	{	// absolute positioning (eg. when switching rooms)
+		g_room = readword(fbuffer[ROUTES], route_pos + 2);
+		// The spent in room counter is used only for pre-pursuit anti blocking
+		if (g_room != guard(i).room)
+			guard(i).spent_in_room = 0;
+		else
+			guard(i).spent_in_room++;
+		guard(i).room = g_room; 
+		guard(i).px = readword(fbuffer[ROUTES], route_pos + 6);
+		guard(i).p2y = 2*readword(fbuffer[ROUTES], route_pos + 4);
+		route_pos +=10;
+	}
+	else
+	{	// standard route action
+		guard(i).go_on = route_data; // How long do we need to keep at it
+		route_data =  readword(fbuffer[ROUTES], route_pos + 2);
+		guard(i).spent_in_room++;
+		if (route_data == 0xFFFF)
+			// stopped state (pause)
+			guard(i).state &= ~STATE_MOTION;
+		else
+		{	// motion state
+			guard(i).direction = route_data;
+			guard(i).state |= STATE_MOTION;
+			// Change our position
+			guard(i).px += guard(i).speed * dir_to_dx[guard(i).direction];
+			guard(i).p2y += guard(i).speed * dir_to_d2y[guard(i).direction];
+		}
+		route_pos += 4;
+	}
+
+	// save the new current position
+	writelong(fbuffer[GUARDS], i*MENDAT_ITEM_SIZE+0x0E, route_pos);
+}
+
+
+void guard_in_pursuit(int i, int p)
+{
+	int j, dir_x, dir_y;
+
+	// The spent_in_room counter is used only for the pre-pursuit feature, that is
+	// to make sure that a guard that just went in the same room as a prisoner in chase
+	// is given some time to fully enter the room. This prevents instant blocking of guards
+	if (guard(i).spent_in_room < PRE_PURSUIT_TIMEOUT)
+		return;
+
+	if ((!(guard(i).state & STATE_IN_PURSUIT)) || p_event[p].thrown_stone)
+	{	// Start walking towards prisoner
+		// Indicate that we deviate from the normal flight path
+		printf("guard %d walk starts\n", i);
+		guard(i).state |= STATE_IN_PURSUIT|STATE_MOTION;
+		// This might be a guard that was waiting to reinstantiate
+		guard(i).reinstantiate = false;
+		// Set our target
+		guard(i).target = p;
+		// Set guard to walk
+		guard(i).speed = 1;
+		guard(i).wait = p_event[p].thrown_stone?STONE_THROWN_TIMEOUT:WALKING_PURSUIT_TIMEOUT;
+		guard(i).reset_animation = true;
+	}
+	else if ((guard(i).state & STATE_MOTION) && (guard(i).speed == 1) && (guard(i).wait == 0))
+	{	// Start running towards prisoner
+		printf("guard %d run starts\n", i);
+		guard(i).speed = 2;
+		guard(i).wait = RUNNING_PURSUIT_TIMEOUT;
+		guard(i).reset_animation = true;
+	}
+	else if ((guard(i).state & STATE_MOTION) && (guard(i).speed == 2) && (guard(i).wait == 0))
+	{	// We were running, now we're pissed off => License to kill
+		// ALL guards in pursuit (that were not already about to shoot) take aim,
+		// but we'll give the prisoner one last small chance before we shoot
+		for (j=0; j<NB_GUARDS; j++)
+		{
+			if ((guard(j).target == p) && (!(guard(j).state & STATE_AIMING)))
+			{
+				printf("guard %d aiming\n", j);
+				guard(j).state &= ~STATE_MOTION;
+				guard(j).state |= STATE_AIMING|STATE_ANIMATED;
+				guard(j).wait = SHOOTING_GUARD_TIMEOUT;
+				guard(j).animation.index = GUARD_SHOOTS_ANI;
+				guard(j).animation.framecount = 0;
+			}
+		}
+	}
+	else if ((guard(i).state & STATE_AIMING) && (guard(i).wait == 0))
+	{	// End of the pause for aiming => Unless you stopped, you're dead man
+		if (guy(p).state & STATE_MOTION)
+		{	// Moving prisoners make good targets
+			printf("guard %d shoots at %lld\n", i, mtime());
+			// Stop the prisoner and set shot animation
+			guy(p).state = STATE_SHOT|STATE_ANIMATED; 
+			guy(p).animation.end_of_ani_parameter = p;
+			guy(p).animation.end_of_ani_function = prisoner_killed;
+			guy(p).animation.index = guy(p).is_dressed_as_guard?GUARD_SHOT_ANI:SHOT_ANI;
+			guy(p).animation.framecount = 0;
+			// Set the event flags
+			p_event[p].unauthorized = false;
+			// Play the relevant SFX
+			play_sfx(SFX_SHOOT);
+			// Immediately reinstantiate all guards that were in pursuit 
+			for (j=0; j<NB_GUARDS; j++)
+			{
+				if (guard(j).target == p)
+				{
+					if (!(guard(j).state & STATE_AIMING))
+						guard(j).reset_animation = true;
+					REINSTANTIATE_GUARD(j);
+					printf("set reinstantiate for guard %d\n", j);
+				}
+			}
+		}
+		else
+		{	// The prisoner has stopped => give him another chance
+			// Restart the run counter
+			printf("new chance from %d\n", i);
+			guard(i).wait = RUNNING_PURSUIT_TIMEOUT;
+		}
+	}
+	else if (guard(i).wait != 0)
+		guard(i).wait--;
+
+	// Have we caught up with our guy?
+	if (guard_collision(i, guy(p).px, guy(p).p2y))
+	{
+		if (guy(p).is_dressed_as_guard)
+		// Ask for a pass
+			p_event[p].require_pass = true;
+		else
+			p_event[p].to_solitary = true;
+
+		// Remember who caught us, so that we can nicely 
+		// tell him to go to hell later on
+		guy(p).target = i;
+
+		// Set the guards in pursuit for immediate reinstantiation
+		for (j=0; j<NB_GUARDS; j++)
+			if (guard(j).target == p)
+				REINSTANTIATE_GUARD(j);
+
+	}
+
+	// Update the guard's direction (also applies when shooting)
+	dir_x = (guard(i).px - guy(p).px - 16)/2;
+	// If we don't divide by 2 here, we'll have jerky motion on pursuit
+	dir_y = (guard(i).p2y - guy(p).p2y - 8)/2;
+
+	if (dir_x != 0)
+		dir_x = (dir_x>0)?-1:1;
+	dir_x++;
+
+	if (dir_y !=0)
+		dir_y = (dir_y>0)?-1:1;
+	dir_y++;
+
+	guard(i).direction = directions[dir_y][dir_x];
+	guard(i).go_on = 1;
+}
+
+
+// Handle the repositioning of guards
+int move_guards()
+{
+	int  i, p;
 	bool continue_parent;
 	bool but_i_just_got_out;
-	bool still_have_a_prisoner_to_chase;
-	int	kill_motion = 0;
+	int	 kill_motion = 0;
 
 	for (i=0; i<NB_GUARDS; i++)
 	{
-		// 0a. We'll use this variable to break this loop from a child loop if needed
+		// We'll use this variable to break this loop from a child loop if needed
 		continue_parent = false;
 
-		// 0b. This one is to make sure that we execute at least one more step from 
-		// the route at the end of the blocked timeout 
+		// This one is to make sure that we execute at least one more step from 
+		// the route at the end a the blocked timeout 
 		// (to prevent the blocking of guards by unattended prisoners)
 		but_i_just_got_out = false;
 
@@ -1290,131 +1547,46 @@ int move_guards()
 			}
 		}
 
-		still_have_a_prisoner_to_chase = false;
 		// 3. Check for an event with one of the prisoners
 		for (p = 0; p<NB_NATIONS; p++)
 		{
-			// Don't bother if prisoner's dead, escaped or has already been caught by another guard
+			// Don't bother with prisoners that are dead, escaped or 
+			// have already been caught by another guard
 			if ( (guy(p).state & STATE_SHOT) || (p_event[p].escaped) || 
 				 (p_event[p].require_pass) || (p_event[p].to_solitary) )
 				continue;
 
-			// Do we have a prisoner in sight?
+			// Alrighty, do we have a prisoner in sight then?
 			if ( (guard(i).room == guy(p).room) && guard_close_by(i, guy(p).px, guy(p).p2y) )
 			{
-				// Don't do jack if we're already in the middle of something
-				if (p_event[p].require_pass || p_event[p].to_solitary)
+				if (guy(p).state & STATE_STOOGING)
+				{	// Stooge tripwire => set our stooge as the actove guy
+					guy(p).state ^= STATE_STOOGING;
+					if (p != current_nation) 
+						switch_nation(p);
+					return 0;
+				}
+		
+				// Ignore if we're already pursuing someone else
+				if ((guard(i).state & STATE_IN_PURSUIT) && (guard(i).target != p))
 					continue;
 
-				// Is that prisoner supposed to be here?
+				// If that prisoner is not suspicious yet, should he be?
 				if ( (!(guy(p).state & STATE_IN_PURSUIT)) && (p_event[p].unauthorized) )
-				{	// spotted!
 					guy(p).state |= STATE_IN_PURSUIT;
-					// Might be a prisoner on the lose 
-					if (guy(p).state & STATE_IN_PRISON)
-					{	// prison break: the prisoner left his cell!
-						guy(p).state &= ~STATE_IN_PRISON;
-						p_event[p].solitary_countdown = 0;
-					}
-				}
 
-				// Should we be in pursuit of this prisoner?
+				// We might have a jailbird on the lose. Clearing the IN_PRISON flag
+				// ensures that we'll get the blinking pursuit display
+				if (guy(p).state & STATE_IN_PRISON)
+					guy(p).state &= ~STATE_IN_PRISON;
+
+				// Act on pursuit 
 				if (guy(p).state & STATE_IN_PURSUIT)
-				{
-					still_have_a_prisoner_to_chase = true;
-
-					if (!(guard(i).state & STATE_IN_PURSUIT))
-					{	// Start walking towards prisoner
-						// Indicate that we deviate from the normal flight path
-						guard(i).state |= STATE_IN_PURSUIT;
-						// Set guard to walk
-						guard(i).speed = 1;
-						guard(i).wait = WALKING_PURSUIT_TIMEOUT;
-						guard(i).reset_animation = true;
-					}
-					else if ((guard(i).speed == 1) && (guard(i).wait == 0))
-					{	// Start running towards prisoner
-						guard(i).speed = 2;
-						guard(i).wait = RUNNING_PURSUIT_TIMEOUT;
-						guard(i).reset_animation = true;
-					}
-					else if ((guard(i).speed == 2) && (guard(i).wait == 0))
-					{	// We were running, now we're pissed off => License to kill
-						if (guy(p).state & STATE_MOTION)
-						{	// Moving prisoners make good targets
-							// Stop the guard and set shooting animation
-							guard(i).state &= ~STATE_MOTION;
-							guard(i).state |= STATE_SHOT|STATE_ANIMATED;
-							guard(i).animation.index = GUARD_SHOOTS_ANI;
-							guard(i).animation.framecount = 0;
-							// Stop the prisoner and set shot animation
-							guy(p).state = STATE_SHOT|STATE_ANIMATED;
-							guy(p).animation.end_of_ani_parameter = p;
-							guy(p).animation.end_of_ani_function = prisoner_killed;
-							guy(p).animation.index = guy(p).is_dressed_as_guard?GUARD_SHOT_ANI:SHOT_ANI;
-							guy(p).animation.framecount = 0;
-							// Set the event flags
-							p_event[p].unauthorized = false;
-							p_event[p].caught_by = i;
-							// Play the relevant SFX
-							play_sfx(SFX_SHOOT);
-						}
-						else
-						{	// The prisoner has stopped => give him another chance
-							// Restart the run counter
-							guard(i).wait = RUNNING_PURSUIT_TIMEOUT;
-						}
-					}
-					else if (guard(i).state & STATE_SHOT)
-						// The prisoner is supposed to be dead now
-						still_have_a_prisoner_to_chase = false;
-					else if (guard(i).wait != 0)
-						guard(i).wait--;
-
-					// Have we caught up with our guy?
-					if (guard_collision(i, guy(p).px, guy(p).p2y))
-					{
-						if (guy(p).is_dressed_as_guard)
-						{	// Ask for a pass
-							p_event[p].require_pass = true;
-							// We'll need this for check_on_prisoners()
-							p_event[p].caught_by = i;
-						}
-						else
-							p_event[p].to_solitary = true;
-						// The following ensures that we reset the guard when offscreen
-						guard(i).state &= ~STATE_MOTION;
-						still_have_a_prisoner_to_chase = false;
-						break;
-					}
-
-					// Update the guard's direction (also applies when shooting)
-					dir_x = (guard(i).px - guy(p).px - 16)/2;
-					// If we don't divide by 2 here, we'll have jerky motion on pursuit
-					dir_y = (guard(i).p2y - guy(p).p2y - 8)/2;
-
-					if (dir_x != 0)
-						dir_x = (dir_x>0)?-1:1;
-					dir_x++;
-
-					if (dir_y !=0)
-						dir_y = (dir_y>0)?-1:1;
-					dir_y++;
-
-					guard(i).direction = directions[dir_y][dir_x];
-
-					if (!(guard(i).state & STATE_SHOT))
-					{
-						// "After him!"
-						guard(i).go_on = 1;
-						guard(i).state |= STATE_MOTION;
-					}
-				}
+					guard_in_pursuit(i, p);
 				else
-				{	// Prisoner is not flagged as suspicious... yet
-					// is a prisoner in the same room & within a range of our guard
+				{	// Prisoner is not suspicious. Just check if he's in our way
 					if (guard_collision(i, guy(p).px, guy(p).p2y) 
-						  // Also, have NOT just exited a blocked timeout loop
+					// Allow us to do one step if we just exited a blocked timeout loop
 						  && (!but_i_just_got_out))
 					{
 						// Setup the blocked counter
@@ -1428,108 +1600,37 @@ int move_guards()
 					}
 				}
 			}
+			else
+			{	// Did we just lose track of our prisoner?
+				if ((guard(i).state & STATE_IN_PURSUIT) && (guard(i).target == p))
+				{
+					REINSTANTIATE_GUARD(i);
+					guard(i).wait = REINSTANTIATE_TIMEOUT;
+					guard(i).reset_animation = true;
+					continue_parent = true;
+					// TO_DO: something better for blocking guards
+					kill_motion = 0;
+					printf("LOS on %d: reinstantiating\n", i);
+					break;
+				}
+			}
 		}
 
 		// Messy, but works
 		if (continue_parent)
 			continue;
 
-		// Do we need to reinstantiate the guard?
-		if ((guard(i).state & STATE_IN_PURSUIT) && (!still_have_a_prisoner_to_chase))
-		{	// We were in pursuit but lost our target
-			if (guard(i).is_onscreen)
-			{	// Don't reinstanciate if onscreen. Just freeze
-				if (guard(i).state & STATE_MOTION)
-				{	// Set animation to stopped
-					guard(i).state &= ~(STATE_MOTION|STATE_ANIMATED);
-					guard(i).reset_animation = true;
-				}
-				continue;
-			}
-			else
-				// Reinstantiate guard
-				route_data = 0xFFFF;
-		}
-		else
-		{
-			// Go_on > 0 indicates that we don't need to read the route data
-			if (guard(i).go_on > 0)
-			{	// continue in the same direction
-				guard(i).go_on--;
-
-				// We want to move
-				if (guard(i).state & STATE_MOTION)
-				{	// Is there an obstacle in the way?
-					dir_x = guard(i).speed * dir_to_dx[guard(i).direction];
-					dir_y = guard(i).speed * dir_to_d2y[guard(i).direction];
-					if ((guard(i).state & STATE_IN_PURSUIT) && (!check_guard_footprint(i, dir_x, dir_y)))
-					{	// Only check footprint when in pursuit
-						// check_guard_footprint() returns false if we can't go there
-						guard(i).state &= ~(STATE_MOTION|STATE_ANIMATED);
-						guard(i).reset_animation = true;
-					}
-					else
-					{	// Just move
-						guard(i).px += dir_x;
-						guard(i).p2y += dir_y;
-					}
-				}
-				continue;
-			}
-
-			// Change in route => get our current route position
-			route_pos = readlong(fbuffer[GUARDS], i*MENDAT_ITEM_SIZE + 0x0E);
-
-			// Read the first word
-			route_data = readword(fbuffer[ROUTES], route_pos);
-		}
-
-		if (route_data == 0xFFFF)
-		{	// repeat => back to start of route
-			route_pos = readlong(fbuffer[GUARDS], i*MENDAT_ITEM_SIZE + 0x06);
-			route_data = readword(fbuffer[ROUTES], route_pos);
-			guard(i).px = readword(fbuffer[GUARDS],i*MENDAT_ITEM_SIZE + 2);
-			guard(i).p2y = 2*readword(fbuffer[GUARDS],i*MENDAT_ITEM_SIZE);
-			guard(i).room = readword(fbuffer[GUARDS],i*MENDAT_ITEM_SIZE + 4);
-			guard(i).state = 0;
-			guard(i).speed = 1;
-			guard(i).reset_animation = true;	// reset the animation
-		}
-
-		if (route_data & 0x8000)
-		{	// absolute positioning (eg. when switching rooms)
-			guard(i).room = readword(fbuffer[ROUTES], route_pos + 2);
-			guard(i).px = readword(fbuffer[ROUTES], route_pos + 6);
-			guard(i).p2y = 2*readword(fbuffer[ROUTES], route_pos + 4);
-			route_pos +=10;
-		}
-		else
-		{	// standard route action
-			guard(i).go_on = route_data; // How long do we need to keep at it
-			route_data =  readword(fbuffer[ROUTES], route_pos + 2);
-			if (route_data == 0xFFFF)
-				// stopped state (pause)
-				guard(i).state &= ~(STATE_MOTION|STATE_ANIMATED);
-			else
-			{	// motion state
-				guard(i).direction = route_data;
-				guard(i).state |= STATE_MOTION|STATE_ANIMATED;
-				// Change our position
-				guard(i).px += guard(i).speed * dir_to_dx[guard(i).direction];
-				guard(i).p2y += guard(i).speed * dir_to_d2y[guard(i).direction];
-			}
-			route_pos += 4;
-		}
-
-		// save the new current position
-		writelong(fbuffer[GUARDS], i*MENDAT_ITEM_SIZE+0x0E, route_pos);
+		// Update motion according to route data if needed
+		route_guard(i);
 
 	}
 	return kill_motion;
 }
 
 
-// Handle timed events (palette change, rollcalls, ...)
+
+
+// Handle timed game events (palette change, rollcalls, ...)
 void timed_events(u16 hours, u16 minutes_high, u16 minutes_low)
 {
 	u16 event_data;
@@ -1599,11 +1700,8 @@ void timed_events(u16 hours, u16 minutes_high, u16 minutes_low)
 void toggle_exit(u32 exit_nr)
 {
 	u8	ROOMS_TUNIO;
-//	u32 offset;
 	u16 exit_index;	// exit index in destination room
 	u16 tile_data;
-//	u16 room_x, room_y, tile_data;
-//	int tile_x, tile_y;
 	bool found;
 	u8	exit_flags;
 	u16 target_room_index;
@@ -1713,7 +1811,7 @@ void enqueue_event(void (*f)(u32), u32 p, u64 delay)
 
 
 // Helper function for check_footprint() below:
-// populates the relevant properties for one of the 4 quadrant's tile
+// populates relevant properties for one of the 4 quadrant's tile
 static __inline void get_tile_props(s16 tile_x, s16 tile_y, int index)
 {
 	u8 register u;
@@ -1951,6 +2049,7 @@ s16 check_footprint(s16 dx, s16 d2y)
 	return -1;
 }
 
+
 // This function MUST immediately follow a call to check_footprint(0,0)
 // Checks if the prisoner can do tunnel I/O
 // Returns >0 if went through a tunnel, <0 if opened a tunnel or 0 if no tunnel action occured
@@ -2055,10 +2154,6 @@ bool check_guard_footprint(u8 g, s16 dx, s16 d2y)
 	tile_y = g2y / 32;
 	tile_x = gx / 32;
 
-	// check if we are trying to overflow our room left or up
-	if ((gx<0) || (g2y<0))
-		return 0;
-
 	// y and y+1
 	for (i=0; i<2; i++)
 	{
@@ -2085,7 +2180,6 @@ bool check_guard_footprint(u8 g, s16 dx, s16 d2y)
 		}
 		tile_y++;	// process lower tiles
 	}
-
 
 	// OK, now we have our 4 mask offsets
 	mask_y = (g2y & 0x1E)<<1;	// one mask line is 4 bytes (and g2y is already 2*gy)
@@ -2121,6 +2215,26 @@ bool check_guard_footprint(u8 g, s16 dx, s16 d2y)
 	return true;
 }
 
+
+// Called when switching prisoner
+void switch_nation(u8 new_nation)
+{
+	// if there was any end of ani function, execute it
+	if (prisoner_ani.end_of_ani_function != NULL)
+	{	// execute the end of animation function (toggle exit)
+		prisoner_ani.end_of_ani_function(prisoner_ani.end_of_ani_parameter);
+		prisoner_ani.end_of_ani_function = NULL;
+	}
+	// Clear flags for old nation
+	prisoner_state &= ~(STATE_MOTION|STATE_ANIMATED);
+	current_nation = new_nation;
+	// Clear the stooge flag for the new nation
+	prisoner_state &= ~(STATE_MOTION|STATE_ANIMATED|STATE_STOOGING);
+	prisoner_reset_ani = true;
+	t_status_message_timeout = 0;
+	status_message_priority = 0;
+	set_room_props();
+}
 
 // Called when changing rooms
 void switch_room(s16 exit_nr, bool tunnel_io)
@@ -2268,6 +2382,8 @@ void go_to_jail(u32 p)
 
 	guy(p).state &= ~STATE_IN_PURSUIT;
 	guy(p).state |= STATE_IN_PRISON;
+	printf("cleared pursuit\n");
+	p_event[p].unauthorized = true;
 
 	// Make sure the jail doors are closed when we leave the prisoner in!
 	writebyte(fbuffer[ROOMS], solitary_cells_door_offset[p][0], 
@@ -2286,11 +2402,8 @@ void go_to_jail(u32 p)
 		// display the empty box
 		selected_prop[p] = 0;
 		// Strip of guard uniform if any
-		if (guy(p).is_dressed_as_guard)
-		{	// Only makes sense if we're dressed as guard
-			guy(p).is_dressed_as_guard = false;
-			guy(p).reset_animation = true;
-		}
+		guy(p).is_dressed_as_guard = false;
+		guy(p).reset_animation = true;
 	}
 
 	// Don't forget to (re)set the room props
@@ -2309,9 +2422,34 @@ void out_of_jail(u32 p)
 	set_room_props();
 }
 
+// This next one is necessary so that we don't send the guard away after a pass request
+// until after we faded the game screen
+void require_pass(u32 p)
+{
+	int i;
+
+	p_event[p].require_pass = false;
+
+	// reset the route for all the guards that were in pursuit
+	for (i=0; i<NB_GUARDS; i++)
+		if (guard(i).target == p)
+			REINSTANTIATE_GUARD(i);
+
+	if (props[p][ITEM_PASS] != 0)
+	{
+		guy(p).state &= ~STATE_IN_PURSUIT;
+//		selected_prop[p] = ITEM_PASS;		// Doing this is bothersome if
+		props[p][ITEM_PASS]--;				// we have to re-cycle in a hurry
+//		show_prop_count();					// => let's comment these lines out
+		// So that we don't get bothered again, send whoever caught us away
+		guard(guy(p).target).px = GET_LOST_X;
+		guard(guy(p).target).p2y = GET_LOST_Y;
+	}
+	else
+		p_event[p].to_solitary = true;
+}
+
 // Have a look at what our prisoner are doing
-// After pic is a boolean indicating that a static picture event has just
-// been acknowledged
 void check_on_prisoners()
 {
 	int p;
@@ -2331,7 +2469,6 @@ void check_on_prisoners()
 			if (nb_escaped >= NB_NATIONS)
 			{
 				static_screen(PRISONER_FREE_ALL_TEXT, NULL, 0);
-//				static_screen(PRISONER_FREE_ALL, NULL, 0);
 			}
 			else
 			{
@@ -2370,9 +2507,12 @@ void check_on_prisoners()
 		return;
 	}
 
-
+	// Other conditions
 	for(p=0; p<NB_NATIONS; p++)
 	{
+		// At this stage, we've processed user input & guards actions so we 
+		// reset the thrown_stone flag if set
+		p_event[p].thrown_stone = false;
 		if ((p_event[p].escaped) || (p_event[p].killed))
 			continue;
 		else if (p_event[p].to_solitary)
@@ -2383,29 +2523,11 @@ void check_on_prisoners()
 			p_event[p].solitary_countdown = SOLITARY_DURATION;
 		}
 		else if (p_event[p].require_pass)
-		{
-			static_screen(REQUIRE_PASS, NULL, 0);
-			p_event[p].require_pass = false;
-			if (props[p][ITEM_PASS] != 0)
-			{
-				guy(p).state &= ~STATE_IN_PURSUIT;
-//				selected_prop[p] = ITEM_PASS;		// Doing this is bothersome if
-				props[p][ITEM_PASS]--;				// we have to re-cycle in a hurry
-//				show_prop_count();					// let's comment 2 lines out
-				// If pass handling was successful, we reset the guard's route
-				writelong(fbuffer[GUARDS], p_event[p].caught_by*MENDAT_ITEM_SIZE+0x0E, 
-					readlong(fbuffer[GUARDS], p_event[p].caught_by*MENDAT_ITEM_SIZE+0x06));
-				// You got our pass, now get lost (prevents multiple pass requests)
-				guard(p_event[p].caught_by).px = GET_LOST_X;
-				guard(p_event[p].caught_by).p2y = GET_LOST_Y;
-				// This ensures that we'll reinstantiate the guard
-				guard(p_event[p].caught_by).go_on = 0;
-			}
-			else
-				p_event[p].to_solitary = true;
+		{	// Pass request
+			static_screen(REQUIRE_PASS, require_pass, p);
 		}
 		else if (p_event[p].display_shot)
-		{
+		{	// End of the shot animation
 			static_screen(PRISONER_SHOT, NULL, 0);
 			p_event[p].display_shot = false;
 			p_event[p].killed = true;
@@ -2431,9 +2553,7 @@ void check_on_prisoners()
 			}
 		}
 		else
-		{	// Common motion checks
-
-			// Check if we are authorised in our current pos		
+		{	// Check if we are authorised in our current pos		
 			if (guy(p).room == ROOM_OUTSIDE)
 				room_desc_id = COURTYARD_MSG_ID;
 			else if (guy(p).room < ROOM_TUNNEL)
@@ -2463,7 +2583,6 @@ void check_on_prisoners()
 				}
 			}
 		}
-
 	}
 }
 

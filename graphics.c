@@ -1164,7 +1164,7 @@ void display_panel()
 	{
 		if (prisoner_state & STATE_TUNNELING)
 			sid = STATE_CRAWL_SID;
-		else if (prisoner_state & STATE_STOOGE)
+		else if (prisoner_state & STATE_STOOGING)
 			sid = STATE_STOOGE_SID;
 		else
 			sid = (prisoner_speed == 1)?STATE_WALK_SID:STATE_RUN_SID;
@@ -1234,7 +1234,7 @@ void create_pause_screen()
 	for (i=0; i<NB_NATIONS; i++)
 	{
 		current_nation = i;
-		prisoner_state &= ~(STATE_MOTION|STATE_ANIMATED|STATE_KNEEL);
+		prisoner_state &= ~(STATE_MOTION|STATE_ANIMATED);
 		prisoner_reset_ani = true;
 		t_status_message_timeout = 0;
 		status_message_priority = 0;

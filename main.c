@@ -12,6 +12,8 @@
  **
  ** The libs and header can be had from http://www.opengl.org/resources/libraries/glut/glutdlls37beta.zip
  **/
+
+// NB: http://nds.cmamod.com/psp/Expat.2.01.win32_msys_bin.zip
 #include <stdio.h>
 #include <stdlib.h>	
 #include <string.h>
@@ -27,12 +29,10 @@
 #pragma comment(lib, "glu32.lib")
 #pragma comment(lib, "glut32.lib")
 #elif defined(PSP)
-#include <pspkernel.h>
 #include <pspdebug.h>
 #include <pspdisplay.h>
-//#include <pspsdk.h>
 #include <pspctrl.h>
-#include <pspsyscon.h>
+#include <psppower.h>
 #include <pspgu.h>
 #include <psprtc.h>
 #include <GL/gl.h>
@@ -112,19 +112,9 @@ bool fade_out = false;
 
 // OpenGL window size
 int	gl_width, gl_height;
-//u8	prisoner_h = 0x23, prisoner_w = 0x10;
-//int prisoner_x = 20, prisoner_2y = 20;
-//int prisoner_x = 900, prisoner_2y = 600;
-//int prisoner_x = 1339, prisoner_2y = 895;
-//int prisoner_x = 0, prisoner_2y = 0;
 s16 last_p_x = 0, last_p_y = 0;
 s16 dx = 0, d2y = 0;
 s16 jdx, jd2y;
-//u8	p_sid_base	 = 0x00;
-// prisoner_run = 0x1F
-// german_walk  = 0x37 (with rifle)
-// german_run   = 0x57 (with rifle)
-//u8  prisoner_sid = 0x07; // 0x07;
 
 // Could use a set of flags, but more explicit this way
 bool key_down[256], key_readonce[256];
@@ -206,8 +196,6 @@ u8	 palette_index = INITIAL_PALETTE_INDEX;
 s_sprite*	sprite;
 s_overlay*	overlay;
 u8   overlay_index;
-//u8   bPalette[3][16];
-// remapped Amiga Palette
 u16  aPalette[32];	
 char nb_props_message[32] = "\499 * ";
 
@@ -241,14 +229,14 @@ void update_timers()
 	}
 
 	program_time += delta_t;
-	if (game_state & GAME_STATE_ACTION)
+	if ((game_state & GAME_STATE_ACTION) || (fade_value < 1.0f))
 		game_time += delta_t;
 }
 
 
-/**
- ** GLUT event handlers
- **/
+//
+// GLUT event handlers
+//////////////////////
 static void glut_init()
 {
 	// Use Glut to create a window
@@ -347,7 +335,7 @@ static void glut_reshape (int w, int h)
 
 
 
-// As it names indicates
+// As its names indicates
 void process_motion(void)
 {
 	s16 new_direction;
@@ -441,7 +429,7 @@ void restore_params(u32 param)
 	guybrush[brush].animation.framecount = 0;
 	guybrush[brush].animation.end_of_ani_function = NULL;
 	// we always end up in stopped state after a one shot animation
-	guybrush[brush].state &= ~(STATE_MOTION|STATE_KNEEL);
+	guybrush[brush].state &= ~(STATE_MOTION|STATE_ANIMATED);
 	// This is necessary for the tunnel opening animations
 	prisoner_reset_ani = true;
 }
@@ -518,37 +506,22 @@ void user_input()
 			if (game_state & GAME_STATE_PAUSED)
 				game_state ^= GAME_STATE_PAUSED|GAME_STATE_ACTION;
 
-			// stop any motion or animation)
-			// TO_DO: move this in utilities
-			// if there was any end of ani function, execute it
-			if (prisoner_ani.end_of_ani_function != NULL)
-			{	// execute the end of animation function (toggle exit)
-				prisoner_ani.end_of_ani_function(prisoner_ani.end_of_ani_parameter);
-				prisoner_ani.end_of_ani_function = NULL;
-			}
-			prisoner_state &= ~(STATE_MOTION|STATE_ANIMATED|STATE_KNEEL);
-
 			if (i<NB_NATIONS)
-				current_nation = i;
+				switch_nation(i);
 			else
 				// we want to have +/-1, without going negative, and we
 				// know that we are either at NB_NATIONS or NB_NATIONS+1
 				// so the formula writes itself as:
-				current_nation = (current_nation+(2*i)-1) % NB_NATIONS;
-			prisoner_state &= ~(STATE_MOTION|STATE_ANIMATED|STATE_KNEEL);
-			prisoner_reset_ani = true;
-			t_status_message_timeout = 0;
-			status_message_priority = 0;
-			set_room_props();
+				switch_nation((current_nation+(2*i)-1) % NB_NATIONS);
 			break;
 		}
-
 		
 #if defined(DEBUG_KEYS_ENABLED)
 	// Display our current position
 	if (read_key_once(KEY_DEBUG_PRINT_POS))
 	{
 		printf("(px, p2y) = (%d, %d), room = %x, rem = %08X\n", prisoner_x, prisoner_2y, current_room_index, rem_bitmask);
+		printf("state = %X\n", prisoner_state);
 		printf("game_time = %lld, program_time = %lld\n", game_time, program_time);
 	}
 
@@ -563,13 +536,12 @@ void user_input()
 		prisoner_state ^= STATE_IN_PURSUIT;
 #endif
 
-
 	// Above are all the keys allowed if the prisoner has not already escaped or died, thus...
 	if (has_escaped || is_dead)
 		return;
 
 	// Walk/Run toggle
-	if ( read_key_once(KEY_TOGGLE_WALK_RUN) && (!in_tunnel) && 
+	if (read_key_once(KEY_TOGGLE_WALK_RUN) && (!in_tunnel) && 
 		// Not checking for the following leads to issues
 	     ( (prisoner_ani.index == RUN_ANI) || 
 		   (prisoner_ani.index == WALK_ANI) ||
@@ -589,17 +561,22 @@ void user_input()
 		}
 	}
 
-	// Even if we're idle, but we might be trying to open a tunnel exit, or use a prop
+	// Toggle stooge
+	if (read_key_once(KEY_STOOGE))
+		prisoner_state ^= STATE_STOOGING;
+
+	// Even if we're idle, we might be trying to open a tunnel exit, or use a prop
 	if (read_key_once(KEY_FIRE))
 	{
 		// We need to set this variable as we might check if fire is pressed 
 		// in various subroutines below
 		is_fire_pressed = true;
 
-		// Handle tunnel I/O through a check_footprint() call immediately followed
+		// Handle tunnel I/O through a check_footprint(0,0) call immediately followed
 		// by a check_tunnel_io
-		check_footprint(0,0);		// 0,0 indicates tunnel I/O
+		check_footprint(0,0);
 		exit_nr = check_tunnel_io();
+
 		if (exit_nr > 0)
 		{	// We just went through a tunnel exit
 			// => Toggle tunneling state
@@ -608,7 +585,7 @@ void user_input()
 		}
 		else if (exit_nr < 0)
 		{	// We used a prop to open a tunnel => cue in animation
-			prisoner_state |= STATE_KNEEL;
+			prisoner_state |= STATE_ANIMATED;
 			// enqueue our 2 u8 parameters
 			prisoner_ani.end_of_ani_parameter = (current_nation & 0xFF) | 
 				((prisoner_ani.index << 8) & 0xFF00);
@@ -628,7 +605,7 @@ void user_input()
 					consume_prop();
 					show_prop_count();
 					// Set the animation for changing into guard's clothes
-					prisoner_state |= STATE_KNEEL;
+					prisoner_state |= STATE_ANIMATED;
 					prisoner_ani.end_of_ani_parameter = (current_nation & 0xFF) | 
 						((prisoner_ani.index << 8) & 0xFF00);
 					prisoner_ani.index = INTO_GUARDS_UNI_ANI;
@@ -645,7 +622,7 @@ void user_input()
 					consume_prop();
 					show_prop_count();
 					// Set the animation for changing into prisoner's clothes
-					prisoner_state |= STATE_KNEEL;
+					prisoner_state |= STATE_ANIMATED;
 					prisoner_ani.end_of_ani_parameter = (current_nation & 0xFF) | 
 						((prisoner_ani.index << 8) & 0xFF00);
 					prisoner_ani.index = INTO_PRISONERS_UNI_ANI;
@@ -656,6 +633,9 @@ void user_input()
 				}
 				break;
 			case ITEM_STONE:
+				consume_prop();
+				show_prop_count();
+				p_event[current_nation].thrown_stone = true;
 				break;
 			default:
 				break;
@@ -671,7 +651,7 @@ void user_input()
 		prisoner_reset_ani = true;
 	}
 	else if (!(prisoner_state & MOTION_DISALLOWED))
-	{		// The following keys are only handled if we are in a premissible state
+	{	// The following keys are only handled if we are in a premissible state
 
 		// Inventory cycle
 		if ( (read_key_once(KEY_INVENTORY_LEFT)) ||
@@ -699,7 +679,7 @@ void user_input()
 			   (read_key_once(KEY_INVENTORY_DROP)) ) &&
 			   (!(prisoner_state & STATE_TUNNELING)) )
 		{
-			prisoner_state |= STATE_KNEEL;
+			prisoner_state |= STATE_ANIMATED;
 			// enqueue our 2 u8 parameters
 			prisoner_ani.end_of_ani_parameter = (current_nation & 0xFF) | 
 				((prisoner_ani.index << 8) & 0xFF00);
@@ -834,8 +814,9 @@ static void glut_idle_game(void)
 	// Handle timed events (including animations)
 	if ((game_time - last_atime) > ANIMATION_INTERVAL)
 	{
-		last_atime += ANIMATION_INTERVAL;	// closer to ideal rate
+//		last_atime += ANIMATION_INTERVAL;	// closer to ideal rate
 		// but leads to catchup effect when moving window
+		last_atime = game_time;
 
 		for (i = 0; i < nb_animations; i++)
 			animations[i].framecount++;
@@ -845,7 +826,8 @@ static void glut_idle_game(void)
 		// Panel clock minute tick?
 		if ((game_time - last_ctime) > TIME_MARKER)
 		{
-			last_ctime += TIME_MARKER;
+//			last_ctime += TIME_MARKER;
+			last_ctime = game_time;
 			minutes_digit_l++;
 			if (minutes_digit_l == 10)
 			{
@@ -1209,6 +1191,12 @@ static void glut_joystick(uint buttonMask, int x, int y, int z)
 	else if (y<-JOY_DEADZONE)
 		jd2y = -1;
 	else jd2y = 0;
+
+#if defined(PSP)
+	// The PSP has the bad habit of powering the LCD down EVEN if the analog stick is in use
+	if ((jdx != 0) || (jd2y != 0))
+		scePowerTick(0);
+#endif
 }
 
 static void glut_keyboard(u8 key, int x, int y)
@@ -1267,11 +1255,8 @@ int main (int argc, char *argv[])
 	// Flags
 	int opt_error 			= 0;	// getopt
 	int opt_sfx				= 0;
-
 	// General purpose
 	u32  i;
-//	char* result;
-
 
 #if defined(PSP)
 	setup_callbacks();
@@ -1404,13 +1389,8 @@ int main (int argc, char *argv[])
 	glutMouseFunc(glut_mouse_buttons);
 
 	glutJoystickFunc(glut_joystick,30);	
-	// This is what you get from using obsolete libraries!
-	// bloody joystick callback doesn't work on Windows,
-	// so we have to stuff the movement handling in idle!!!
-//	glutIdleFunc_save(glut_idle_static_pic);
 
 	glutMainLoop();
-
 
 	return 0;
 }

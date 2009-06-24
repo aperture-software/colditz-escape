@@ -365,9 +365,12 @@ extern "C" {
 // How long should the guard remain blocked (in nb of route steps)
 // default of the game is 0x64
 #define BLOCKED_GUARD_TIMEOUT	0xC0
-#define WALKING_PURSUIT_TIMEOUT	0x64
-#define RUNNING_PURSUIT_TIMEOUT	0x64
-#define SHOOTING_GUARD_TIMEOUT	0x14
+#define WALKING_PURSUIT_TIMEOUT	100
+#define RUNNING_PURSUIT_TIMEOUT	100
+#define SHOOTING_GUARD_TIMEOUT	20
+#define STONE_THROWN_TIMEOUT	150
+#define REINSTANTIATE_TIMEOUT	500
+#define PRE_PURSUIT_TIMEOUT		20
 // Timed events from LOADER (roll call, palette change)
 #define TIMED_EVENTS_BASE		0x00002BDE
 // First timed event of the game
@@ -377,6 +380,8 @@ extern "C" {
 // Rollcall check
 #define TIMED_EVENT_ROLLCALL_CHECK	1
 #define DIRECTION_STOPPED		-1
+// For pursuit states
+#define NO_TARGET				-1;
 
 // Animation data
 #define ANIMATION_OFFSET_BASE	0x000089EA
@@ -434,19 +439,19 @@ extern "C" {
 #define NB_GUYBRUSHES			(NB_NATIONS + NB_GUARDS)
 
 // Motion related states
-#define STATE_MOTION			1
-#define STATE_TUNNELING			2
-#define STATE_STOOGE			4
-#define STATE_BLOCKED			8
-#define STATE_KNEEL				16
-#define STATE_SHOT				32
-#define STATE_IN_PURSUIT		64
-#define STATE_SLEEPING			128
-#define STATE_IN_PRISON			256
+#define STATE_MOTION			0x0001
+#define STATE_ANIMATED			0x0002
+#define STATE_SLEEPING			0x0004
+#define STATE_STOOGING			0x0008
+#define STATE_TUNNELING			0x0010
+#define STATE_IN_PRISON			0x0020
+#define STATE_IN_PURSUIT		0x0040
+#define STATE_BLOCKED			0x0080
+#define STATE_AIMING			0x0100
+#define STATE_SHOT				0x0200
 // Useful masks
-#define MOTION_DISALLOWED		(~(STATE_MOTION|STATE_TUNNELING|STATE_STOOGE|STATE_IN_PURSUIT|STATE_SHOT|STATE_IN_PRISON))
-#define KNEEL_DISALLOWED		(~(STATE_MOTION|STATE_STOOGE|STATE_IN_PURSUIT|STATE_IN_PRISON))
-#define STATE_ANIMATED			(STATE_MOTION|STATE_KNEEL)
+#define MOTION_DISALLOWED		(~(STATE_MOTION|STATE_TUNNELING|STATE_IN_PURSUIT|STATE_SHOT|STATE_STOOGING|STATE_IN_PRISON))
+#define KNEEL_DISALLOWED		(~(STATE_MOTION|STATE_IN_PURSUIT|STATE_IN_PRISON))
 
 // Game states
 #define GAME_STATE_ACTION		1
@@ -563,7 +568,7 @@ extern "C" {
 #else
 #define KEY_FIRE				'5'
 #define KEY_TOGGLE_WALK_RUN		' '
-#define KEY_STOOGE				'x'
+#define KEY_STOOGE				SPECIAL_KEY_F10
 #define KEY_ESCAPE				27
 #define KEY_PAUSE				SPECIAL_KEY_F5
 #define KEY_SLEEP				SPECIAL_KEY_F9
@@ -658,15 +663,17 @@ typedef struct
 	 *    4 -1  0 
 	 *    3  2  1   */
 	s16				direction;
-	u32				ext_bitmask;
 	u16				state;
+	u32				ext_bitmask;
 	s_animation		animation;
-//	u8	  ani_index;
 	bool			reset_animation;
 	bool			is_dressed_as_guard;
 	bool			is_onscreen;
+	bool			reinstantiate;
 	u32				go_on;
+	u32				spent_in_room;
 	u16				wait;
+	int				target;
 } s_guybrush;
 
 // Event related states (apply to prisoners only)
@@ -679,9 +686,10 @@ typedef struct
 	bool display_shot;
 	bool killed;
 	bool escaped;
+	bool thrown_stone;
+//	bool stooging;
 	u32  fatigue;
 	u32  solitary_countdown;
-	u8   caught_by;
 } s_prisoner_event;
 
 
@@ -727,11 +735,7 @@ extern u16  nb_rooms, nb_cells, nb_objects;
 
 extern char* fname[NB_FILES];
 extern u32   fsize[NB_FILES];
-//extern char* iff_name[NB_IFFS];
 extern char* mod_name[NB_MODS];
-//extern u16   iff_payload_w[NB_IFFS];
-//extern u16   iff_payload_h[NB_IFFS];
-//extern char* raw_name[NB_RAWS];
 extern int	gl_width, gl_height;
 extern u8 current_nation;
 extern s_sfx sfx[NB_SFXS];
