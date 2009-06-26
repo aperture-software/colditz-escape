@@ -56,36 +56,38 @@
 // Global variables
 
 // Flags
-int debug_flag				= 0;
-bool opt_verbose			= false;
-bool opt_debug				= false;
-bool opt_ghost				= false;
-bool opt_play_as_the_safe	= false;
+int debug_flag					= 0;
+bool opt_verbose				= false;
+bool opt_debug					= false;
+bool opt_ghost					= false;
+bool opt_play_as_the_safe		= false;
 // Who needs keys?
-bool opt_keymaster			= false;
+bool opt_keymaster				= false;
 // "'coz this is triller..."
-int opt_thrillerdance		= false;
+int opt_thrillerdance			= false;
 // Force a specific sprite ID for our guy
 // NB: must be init to -1
-int opt_sid					= -1;
+int opt_sid						= -1;
 // Kill the guards
-bool opt_no_guards			= false;
+bool opt_no_guards				= false;
 // Is the castle haunted by the ghost of shot prisoners
-bool opt_haunted_castle		= true;
+bool opt_haunted_castle			= true;
 // Number of escaped prisoners
-int nb_escaped				= 0;
+int nb_escaped					= 0;
 // Current static picture to show
-int current_picture			= INTRO_SCREEN_START;
+int current_picture				= INTRO_SCREEN_START;
 // Why is this global again?
-bool new_game				= false;
+bool new_game					= false;
 // Our second local pause variable, to help with the transition
-bool display_paused			= false;
+bool display_paused				= false;
 // we might need to suspend the game for videos, debug, etc
-bool game_suspended			= false;
+bool game_suspended				= false;
 // Some people don't like picture corners
-bool opt_picture_corners	= true;
+bool opt_picture_corners		= true;
 // Skip intro stuff
-bool opt_skip_intro			= true;
+bool opt_skip_intro				= true;
+// Use the new guard repositioning engine
+bool opt_enhanced_guard_reset	= true;
 
 /// DEBUG
 u64 t1;
@@ -229,7 +231,8 @@ void update_timers()
 	}
 
 	program_time += delta_t;
-	if ((game_state & GAME_STATE_ACTION) || (fade_value < 1.0f))
+	// Only update game_time when we're actually playing
+	if ((game_state & GAME_STATE_ACTION) && (fade_value == 1.0f))
 		game_time += delta_t;
 }
 
@@ -455,6 +458,8 @@ void user_input()
 		game_state ^= GAME_STATE_PAUSED|GAME_STATE_ACTION;
 		if (game_state & GAME_STATE_PAUSED)
 			create_pause_screen();
+		else
+			switch_nation(current_nation);
 	}
 
 #if defined (CHEATMODE_ENABLED)
@@ -500,7 +505,7 @@ void user_input()
 
 	// Prisoner selection: direct keys or left/right cycle keys
 	for (i=0; i<(NB_NATIONS+2); i++)
-		if (read_key_once(key_nation[i]) && (current_nation != i))
+		if (read_key_once(key_nation[i]))
 		{
 			// Unpause the game if required
 			if (game_state & GAME_STATE_PAUSED)
@@ -922,6 +927,9 @@ static void glut_idle_static_pic(void)
 	// As usual, we'll need the current time value for a bunch of stuff
 	update_timers();
 
+	if (key_down[KEY_ESCAPE])
+		exit(0);
+
 	if ((game_state & GAME_STATE_INTRO) && read_key_once(last_key_used))
 	{	// Exit intro => start new game
 		mod_release();
@@ -1270,6 +1278,9 @@ int main (int argc, char *argv[])
 	// Well, we're supposed to call that blurb
 	glutInit(&argc, argv);
 
+	// Need to have a working GL before we proceed. This is our own init() function
+	glut_init();
+
 	// Let's clean up our buffers
 	fflush(stdin);
 	mbuffer    = NULL;
@@ -1301,8 +1312,8 @@ int main (int argc, char *argv[])
 			break;
 	}
 
-	printf("\nEscape From Colditz 2009 %s\n", VERSION);
-	printf("by Aperture Software\n\n");
+//	printf("\nEscape From Colditz 2009 %s\n", VERSION);
+//	printf("by Aperture Software\n\n");
 
 	if ( ((argc-optind) > 3) || opt_error)
 	{
@@ -1311,9 +1322,6 @@ int main (int argc, char *argv[])
 	}
 //	opt_verbose = -1;
 
-
-	// Need to have a working GL before we proceed. This is our own init() function
-	glut_init();
 
 	// Load the data. If it's the first time the game is ran, we might have
 	// to uncompress LOADTUNE.MUS (PowerPack) and SKR_COLD (custom compression)
@@ -1328,6 +1336,7 @@ int main (int argc, char *argv[])
 
 	// Set global variables
 	t_last = mtime();
+	srand(t_last);
 	program_time = 0;
 	game_time = 0;
 
@@ -1354,7 +1363,7 @@ int main (int argc, char *argv[])
 
 	// Do the same for overlay sprites
 	init_sprites();
-	sprites_to_wGRAB();
+	sprites_to_wGRAB();	// Must be called after init sprite
 
 	if (opt_skip_intro)
 	{

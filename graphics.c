@@ -133,6 +133,19 @@ u16 props_tile [0x213] = {
 	1111,1111,1111,1111,1111,1111,1111,1111,1111,1111,	// tunnels, line 5
 	1111 };
 
+// We'll use this 4x8 GRAB sprite as an indicator for guards fooled by a pass
+// Can't use it directly as it needs to be 16 bit aligned on PSP
+// Also padded to 8x8 because goddam PSP can't use anything less
+u16 fooled_by_sprite[8][8] = {
+	{0xbdf7,0xbdf7,0xbdf7,0xbdf7,0xff0f,0xff0f,0xff0f,0xff0f},
+	{0xbdf7,0xbdf7,0x09f0,0xbdf7,0xff0f,0xff0f,0xff0f,0xff0f},
+	{0xbdf7,0xbdf7,0xbdf7,0xbdf7,0xff0f,0xff0f,0xff0f,0xff0f},
+	{0xbdf7,0x9bf5,0xbdf7,0xbdf7,0xff0f,0xff0f,0xff0f,0xff0f},
+	{0xbdf7,0x9bf5,0xbdf7,0xbdf7,0xff0f,0xff0f,0xff0f,0xff0f},
+	{0xbdf7,0x9bf5,0xbdf7,0xbdf7,0xff0f,0xff0f,0xff0f,0xff0f},
+	{0xbdf7,0xbdf7,0xbdf7,0xbdf7,0xff0f,0xff0f,0xff0f,0xff0f},
+	{0xff0f,0xff0f,0xff0f,0xff0f,0xff0f,0xff0f,0xff0f,0xff0f}
+};	
 
 // Set the gloabl textures properties
 void set_textures()
@@ -485,7 +498,7 @@ void init_sprites()
 #endif
 
 	// We add the panel (nonstandard) sprites at the end of our exitsing sprite array
-	for (sprite_index=NB_STANDARD_SPRITES; sprite_index<NB_SPRITES-1; sprite_index++)
+	for (sprite_index=NB_STANDARD_SPRITES; sprite_index<NB_SPRITES-NB_EXTRA_SPRITES; sprite_index++)
 	{
 		sprite[sprite_index].w = get_panel_sprite(sprite_index).w;
 		sprite[sprite_index].corrected_w = sprite[sprite_index].w;
@@ -497,15 +510,23 @@ void init_sprites()
 	}
 
 	// We define the last nonstandard as sprite base for the fatigue bar
-	// Dammit!!! - the PSP can't handle 1 pixel wide textures properly, so we need
-	// to make it 8 pixels large
-	sprite[sprite_index].w = 8;
-	sprite[sprite_index].corrected_w = 8;
-	sprite[sprite_index].h = 8;
-	sprite[sprite_index].corrected_h = 8;
-	sprite[sprite_index].x_offset = 1;
-	sprite[sprite_index].data = aligned_malloc( RGBA_SIZE * 
-			sprite[sprite_index].w * sprite[sprite_index].h, 16);
+	sprite[PANEL_FATIGUE_SPRITE].w = 8;
+	sprite[PANEL_FATIGUE_SPRITE].corrected_w = 8;
+	sprite[PANEL_FATIGUE_SPRITE].h = 8;
+	sprite[PANEL_FATIGUE_SPRITE].corrected_h = 8;
+	sprite[PANEL_FATIGUE_SPRITE].x_offset = 1;
+	sprite[PANEL_FATIGUE_SPRITE].data = aligned_malloc( RGBA_SIZE * 
+			sprite[PANEL_FATIGUE_SPRITE].w * sprite[PANEL_FATIGUE_SPRITE].h, 16);
+
+	// And one more for the fooled by one
+	sprite[FOOLED_BY_SPRITE].w = 8;
+	sprite[FOOLED_BY_SPRITE].corrected_w = 8;
+	sprite[FOOLED_BY_SPRITE].h = 8;
+	sprite[FOOLED_BY_SPRITE].corrected_h = 8;
+	sprite[FOOLED_BY_SPRITE].x_offset = 0;
+	sprite[FOOLED_BY_SPRITE].data = aligned_malloc( RGBA_SIZE * 
+			sprite[FOOLED_BY_SPRITE].w * sprite[FOOLED_BY_SPRITE].h, 16);
+
 
 	// We use a different sprite array for status message chars
 	init_panel_chars();
@@ -521,7 +542,7 @@ void sprites_to_wGRAB()
 	int no_mask = 0;
 	int x,y;
 
-	for (sprite_index=0; sprite_index<NB_SPRITES-1; sprite_index++)
+	for (sprite_index=0; sprite_index<NB_SPRITES-NB_EXTRA_SPRITES; sprite_index++)
 	{
 		// Standard sprites (from SPRITES.SPR)
 		if (sprite_index < NB_STANDARD_SPRITES)
@@ -578,16 +599,24 @@ void sprites_to_wGRAB()
 			sprite[sprite_index].data);
 	}
 
-	// The last sprite (fatigue) is initialized manually
+	// The fatigue and fooled_by sprites are initialized manually
 	for (y=0; y<8; y++)
 		for (x=0; x<8; x++)
-			writeword(sprite[sprite_index].data, 16*y+2*x, fatigue_colour[y]);
+			writeword(sprite[PANEL_FATIGUE_SPRITE].data, 16*y+2*x, fatigue_colour[y]);
 
-	glBindTexture(GL_TEXTURE_2D, sprite_texid[sprite_index]);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, sprite[sprite_index].w, 
-		sprite[sprite_index].h, 0, GL_RGBA, GL_UNSIGNED_SHORT_4_4_4_4_REV,
-		sprite[sprite_index].data);
+	glBindTexture(GL_TEXTURE_2D, sprite_texid[PANEL_FATIGUE_SPRITE]);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, sprite[PANEL_FATIGUE_SPRITE].corrected_w,
+		sprite[PANEL_FATIGUE_SPRITE].corrected_h, 0, GL_RGBA, GL_UNSIGNED_SHORT_4_4_4_4_REV,
+		sprite[PANEL_FATIGUE_SPRITE].data);
 
+	for (y=0; y<8; y++)
+		for (x=0; x<8; x++)
+			writeword(sprite[FOOLED_BY_SPRITE].data, 16*y+2*x, fooled_by_sprite[y][x]);
+
+	glBindTexture(GL_TEXTURE_2D, sprite_texid[FOOLED_BY_SPRITE]);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, sprite[FOOLED_BY_SPRITE].corrected_w, 
+		sprite[FOOLED_BY_SPRITE].corrected_h, 0, GL_RGBA, GL_UNSIGNED_SHORT_4_4_4_4_REV,
+		sprite[FOOLED_BY_SPRITE].data);
 }
 
 

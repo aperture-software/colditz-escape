@@ -14,6 +14,7 @@ extern "C" {
 #define CHEATMODE_ENABLED
 #define ANTI_TAMPERING_ENABLED
 #define DEBUG_KEYS_ENABLED
+//#define ENHANCED_GUARD_POSITIONING
 
 // Stupid VC++ doesn't know the basic GL formats it can actually use!
 #if !defined(GL_UNSIGNED_SHORT_4_4_4_4_REV)
@@ -245,10 +246,13 @@ extern "C" {
 #define MAX_FATIGUE				0x2C000
 #define HOURLY_FATIGUE_INCREASE	0x1000
 #define PANEL_ITEMS_OFFSET		0x00001AC2
-#define NB_PANEL_SPRITES		(NB_PANEL_FLAGS+NB_PANEL_FACES+NB_PANEL_CLOCK_DIGITS+NB_PANEL_ITEMS+1)
+#define NB_PANEL_SPRITES		(NB_PANEL_FLAGS+NB_PANEL_FACES+NB_PANEL_CLOCK_DIGITS+NB_PANEL_ITEMS+2)
+#define NB_EXTRA_SPRITES		2
 #define NB_SPRITES				(NB_STANDARD_SPRITES+NB_PANEL_SPRITES)
 // The fatigue bar base is the last sprite
 #define PANEL_FATIGUE_SPRITE	(NB_SPRITES-1)
+#define FOOLED_BY_SPRITE		(NB_SPRITES-2)
+#define PASS_SPRITE				0x9F
 #define NB_PANEL_CHARS			59
 #define PANEL_CHARS_OFFSET		0x00000F20
 #define PANEL_CHARS_W			8
@@ -275,8 +279,8 @@ extern "C" {
 #define ESCAPE_MIN_Y			0x08
 #define ESCAPE_MAX_Y			0x470
 // Where to send someone we don't want to see around us again
-#define GET_LOST_X				5000;
-#define GET_LOST_Y				5000;
+#define GET_LOST_X				5000
+#define GET_LOST_Y				5000
 // This loader section defines the list of authorized rooms (through their 
 // message ID) after certain events (appel, exercise, confined)
 #define AUTHORIZED_BASE			0x000020EE
@@ -352,6 +356,8 @@ extern "C" {
 #define	PROPS_MESSAGE_TIMEOUT	2000
 #define CHEAT_MESSAGE_TIMEOUT	2000
 #define NO_MESSAGE_TIMEOUT		0
+// How long does a pass provide immunity
+#define PASS_GRACE_PERIOD		3000
 
 #define NB_SFXS					5
 #define SFX_TABLE_START			0x0000CA3E
@@ -369,7 +375,8 @@ extern "C" {
 #define RUNNING_PURSUIT_TIMEOUT	100
 #define SHOOTING_GUARD_TIMEOUT	20
 #define STONE_THROWN_TIMEOUT	150
-#define REINSTANTIATE_TIMEOUT	500
+#define RESET_GUARD_MAX_TIMEOUT	500
+#define RESET_GUARD_MIN_TIMEOUT	100
 #define PRE_PURSUIT_TIMEOUT		20
 // Timed events from LOADER (roll call, palette change)
 #define TIMED_EVENTS_BASE		0x00002BDE
@@ -381,7 +388,7 @@ extern "C" {
 #define TIMED_EVENT_ROLLCALL_CHECK	1
 #define DIRECTION_STOPPED		-1
 // For pursuit states
-#define NO_TARGET				-1;
+#define NO_TARGET				-1
 
 // Animation data
 #define ANIMATION_OFFSET_BASE	0x000089EA
@@ -449,9 +456,14 @@ extern "C" {
 #define STATE_BLOCKED			0x0080
 #define STATE_AIMING			0x0100
 #define STATE_SHOT				0x0200
+#define STATE_RESUME_ROUTE_WAIT	0x0400
+#define STATE_RESUME_ROUTE		0x0800
+//#define STATE_RESUME_BLOCKED	0x1000
+
 // Useful masks
 #define MOTION_DISALLOWED		(~(STATE_MOTION|STATE_TUNNELING|STATE_IN_PURSUIT|STATE_SHOT|STATE_STOOGING|STATE_IN_PRISON))
 #define KNEEL_DISALLOWED		(~(STATE_MOTION|STATE_IN_PURSUIT|STATE_IN_PRISON))
+#define DEVIATED_FROM_ROUTE		(STATE_IN_PURSUIT|STATE_RESUME_ROUTE|STATE_RESUME_ROUTE_WAIT)
 
 // Game states
 #define GAME_STATE_ACTION		1
@@ -659,9 +671,9 @@ typedef struct
 	s16				p2y;
 	s16				speed;
 	/* For animated overlays, direction is one of:
-	 *    5  6  7
-	 *    4 -1  0 
-	 *    3  2  1   */
+	 *    3  2  4
+	 *    0 -1  1 
+	 *    6  5  7   */
 	s16				direction;
 	u16				state;
 	u32				ext_bitmask;
@@ -670,10 +682,16 @@ typedef struct
 	bool			is_dressed_as_guard;
 	bool			is_onscreen;
 	bool			reinstantiate;
+	bool			resume_motion;
+	bool			blocked_by_prisoner;
 	u32				go_on;
 	u32				spent_in_room;
 	u16				wait;
-	int				target;
+	s16				target;
+	s16				resume_px;
+	s16				resume_p2y;
+	s16				resume_direction;
+	bool			fooled_by[NB_NATIONS];
 } s_guybrush;
 
 // Event related states (apply to prisoners only)
@@ -687,7 +705,7 @@ typedef struct
 	bool killed;
 	bool escaped;
 	bool thrown_stone;
-//	bool stooging;
+	u64	 pass_grace_period_expires;
 	u32  fatigue;
 	u32  solitary_countdown;
 } s_prisoner_event;
@@ -703,6 +721,7 @@ extern bool	opt_thrillerdance;
 extern bool	opt_no_guards;
 extern bool	opt_haunted_castle;
 extern bool opt_picture_corners;
+extern bool opt_enhanced_guard_reset;
 extern int	nb_escaped;
 extern int	stat;
 extern int  debug_flag;

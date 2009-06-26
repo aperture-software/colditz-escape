@@ -75,6 +75,7 @@ void init_sprites();
 void sprites_to_wGRAB();
 bool load_texture(s_tex *tex);
 
+
 #ifdef	__cplusplus
 }
 #endif
