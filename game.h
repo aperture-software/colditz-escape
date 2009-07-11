@@ -1,5 +1,4 @@
-#ifndef _GAME_H
-#define _GAME_H
+#pragma once
 
 #ifdef	__cplusplus
 extern "C" {
@@ -93,4 +92,3 @@ void sort_overlays(u8 a[], u8 n);
 }
 #endif
 
-#endif

@@ -1,7 +1,7 @@
 /**
  **  Escape from Colditz
  **
- **  Low level helper functions (byte/bit manipulation, etc.)
+ **  Low level helper functions (byte/bit/char manipulation, compression, etc.)
  **
  **  Aligned malloc code from Satya Kiran Popuri (http://www.cs.uic.edu/~spopuri/amalloc.html)
  **  PowerPacker unpack code from ppdepack by Marc Espie 
@@ -26,12 +26,12 @@ int  underflow_flag = 0;
 u32	compressed_size, checksum;
 
 // For ppdepack
-u32 shift_in;
-u32 counter = 0;
-u8 *source;
+u32 pp_shift_in;
+u32 pp_counter = 0;
+u8 *pp_source;
 
 
-// dammit %b should be a C standard!
+// dammit %b should have been made a C standard by now!
 // <sigh> converts a 32 bit number to binary string then...
 const char *to_binary(u32 x)
 {
@@ -74,6 +74,12 @@ u16 powerize(u16 n)
 
 	return retval;
 }
+
+
+
+//
+// Custom SKR_COLD compression functions
+/////////////////////////////////////////////////////////////
 
 
 // Get one bit and read ahead if needed
@@ -133,8 +139,8 @@ void duplicate(u32 *address, u32 offset, u32 nb_bytes)
 }
 
 // Colditz loader uncompression.
-// Don't ask me what kind of compression algorithm is used there, I'm just the guy that
-// reverse engineered what he saw in the disassembly...
+// Don't ask me what kind of compression algorithm is used there, I'm just the guy 
+// who reverse engineered what he saw in the disassembly...
 int uncompress(u32 expected_size)
 {
 	u32 source = LOADER_DATA_START;
@@ -341,14 +347,14 @@ u32 get_bits(u32 n)
 
 	for (i = 0; i < n; i++)
 	{
-		if (counter == 0)
+		if (pp_counter == 0)
 		{
-			counter = 8;
-			shift_in = *--source;
+			pp_counter = 8;
+			pp_shift_in = *--pp_source;
 		}
-		result = (result<<1) | (shift_in & 1);
-		shift_in >>= 1;
-		counter--;
+		result = (result<<1) | (pp_shift_in & 1);
+		pp_shift_in >>= 1;
+		pp_counter--;
 	}
 	return result;
 }
@@ -371,12 +377,12 @@ void ppdepack(u8 *packed, u8 *depacked, u32 plen, u32 unplen)
 	offset_sizes[3] = packed[7];	
 
 	/* initialize source of bits */
-	source = packed + plen - 4;
+	pp_source = packed + plen - 4;
 
 	dest = depacked + unplen;
 
 	/* skip bits */
-	get_bits(source[3]);
+	get_bits(pp_source[3]);
 
 	/* do it forever, i.e., while the whole file isn't unpacked */
 	while (1)

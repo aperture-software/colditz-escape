@@ -1,7 +1,6 @@
-#ifndef _PSP_PRINTF_H
-#define _PSP_PRINTF 1
+#pragma once
 
-#define PSP_ONSCREEN_STDOUT					1
+//#define PSP_ONSCREEN_STDOUT					1
 
 #if defined(PSP_ONSCREEN_STDOUT)
 extern int game_suspended;
@@ -22,4 +21,3 @@ extern void (*work_around_stupid_linkers_glutIdleFunc)(void (*func)(void));
 	pspDebugScreenPrintf(__VA_ARGS__);					}
 #endif
 
-#endif

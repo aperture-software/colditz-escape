@@ -2,8 +2,7 @@
 //
 //////////////////////////////////////////////////////////////////////
 
-#ifndef _WINXAUDIO2_H
-#define _WINXAUDIO2_H
+#pragma once
 
 #ifdef __cplusplus
 extern "C" {
@@ -43,4 +42,4 @@ bool winXAudio2ReleaseVoice(int voice);
 #ifdef __cplusplus
 }
 #endif
-#endif
+

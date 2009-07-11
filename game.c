@@ -526,6 +526,28 @@ void newgame_init()
 
 
 
+
+// Simple event handler
+void enqueue_event(void (*f)(u32), u32 p, u64 delay)
+{
+	u8 i;
+
+	// find an empty event to use
+	for (i=0; i< NB_EVENTS; i++)
+		if (events[i].function == NULL)
+			break;
+
+	if (i == NB_EVENTS)
+	{
+		printf("Couldn't enqueue event!!!\n");
+		return;
+	}
+
+	events[i].function = f;
+	events[i].parameter = p;
+	events[i].expiration_time = game_time + delay;
+}
+
 // Returns the last frame of an animation (usually the centered position)
 int get_stop_animation_sid(u8 index, bool is_guybrush)
 {
@@ -1253,7 +1275,7 @@ void reinstantiate_guards_in_pursuit(u32 p)
 		if (guard(g).target == p)
 		{
 			init_guard(g);
-			printf("reset_immediate_all %d\n", g);	
+			printf("reinstantiate_guards_in_pursuit %d\n", g);	
 		}
 }
 
@@ -1263,7 +1285,7 @@ void reinstantiate_guard_delayed(u32 g)
 	guard(g).reinstantiate = true;
 	guard(g).wait = RESET_GUARD_MAX_TIMEOUT;
 	guard(g).target = NO_TARGET;
-	printf("reset_single_delayed %d\n", g);	
+	printf("reinstantiate_single_delayed %d\n", g);	
 }
 
 
@@ -1272,8 +1294,9 @@ void reset_guard_delayed(u32 g)
 	guard(g).state = STATE_RESUME_ROUTE_WAIT;	
 	guard(g).speed = 1; 
 	guard(g).wait = RESET_GUARD_MIN_TIMEOUT + rand()%RESET_GUARD_MAX_TIMEOUT;
+//		guard(g).wait*REPOSITION_INTERVAL);
+//	guy(guard(g).target).state &= ~STATE_IN_PURSUIT;
 	guard(g).target = NO_TARGET;
-	printf("reset_guard_delayed %d\n", g);	
 }
 
 void reset_guards_in_pursuit(u32 p)
@@ -1284,6 +1307,26 @@ void reset_guards_in_pursuit(u32 p)
 		if (guard(g).target == p)
 			reset_guard_delayed(g);
 }
+
+// This one will clear the in pursuit state for the prisonner if he kept quiet for a while
+void clear_pursuit(u32 p)
+{
+	int j;
+	printf("in clear_pursuit for prisoner %d\n", p);
+
+	if (!(guy(p).state & STATE_IN_PURSUIT))
+		return;
+	for (j=0; j<NB_GUARDS; j++)
+		if ((guard(j).target == p))
+		{
+			printf("clear_pursuit: guard %d still in chase\n", j);
+			return;
+		}
+	guy(p).state &= ~STATE_IN_PURSUIT;
+	printf("clear_pursuit: cleared!\n");
+}
+
+
 
 
 
@@ -1322,74 +1365,16 @@ void route_guard(int i)
 
 bool blop = false;
 
-	// Go_on > 0 indicates that we don't need to read the route data
-	// Same goes if the guard's in pursuit or returning to its original route
-	if ((guard(i).go_on > 0) || (guard(i).state & DEVIATED_FROM_ROUTE))
-	{	// continue in the same direction
 
-		if (!(guard(i).state & DEVIATED_FROM_ROUTE))
-		// Don't decrement go_on if we deviated from route
-			guard(i).go_on--;
-//		else
-//			printf("%d: in route for %d\n", guard(i).spent_in_room, i);
-
-		guard(i).spent_in_room++;
-
-		// We want to move
-		if (guard(i).state & STATE_MOTION)
-		{	// Is there an obstacle in the way?
-			dir_x = guard(i).speed * dir_to_dx[guard(i).direction];
-			dir_y = guard(i).speed * dir_to_d2y[guard(i).direction];
-			if ((guard(i).state & DEVIATED_FROM_ROUTE) && (!check_guard_footprint(i, dir_x, dir_y)))
-			{	// Only check footprint when in pursuit
-				// check_guard_footprint() returns false if we can't go there
-				printf("guard %d blocked\n", i);
-				guard(i).state |= STATE_BLOCKED;
-				// Indicate that we're blocked by a non-prisoner obstacle
-				guard(i).blocked_by_prisoner = false;
-				// Well, we're not gonna use an A star algorithm to route oursevles around obstacles if
-				// our resume route is blocked. Just reinstantiate when offscreen and be done with it
-				if (guard(i).state & STATE_RESUME_ROUTE)
-				{
-					reinstantiate_guard_delayed(i);
-					// Switch direction to the opposite of where we were headed, so that we don't 
-					// look too out of place until reinstantiation
-					dir_x = 1 - dir_to_dx[guard(i).direction];
-					dir_y = 1 - dir_to_d2y[guard(i).direction];
-					guard(i).direction = directions[dir_y][dir_x];
-				}
-			}
-			else
-			{	// Just move
-				guard(i).state &= ~STATE_BLOCKED;
-				guard(i).px += dir_x;
-				guard(i).p2y += dir_y;
-			}
-		}
-//		else if (guard(i).state & STATE_IN_PURSUIT)
-//			printf("in pursuit guard %d motionless\n", i);
-
-//		if (i==14)
-//			printf("go_on (%d, %d)\n", guard(i).px, guard(i).p2y);
-		return;
-	}
-	else if(!guard(i).reinstantiate)
-	{
-		// Change in route => get our current route position
-		route_pos = readlong(fbuffer[GUARDS], i*MENDAT_ITEM_SIZE + 0x0E);
-
-		// Read the first word
-		route_data = readword(fbuffer[ROUTES], route_pos);
-	}
-	else
-	{	// reinstantiate
+	if (guard(i).reinstantiate)
+	{	// Attempt to reset to first pos of route
 
 		// As long as we're onscreen, we'll reset the wait to reinstantiate counter
 		// This prevents the player to see guards disappear who were there just a second ago
 		if (guard(i).is_onscreen)
 		{
 			guard(i).wait = RESET_GUARD_MAX_TIMEOUT;
-			return;
+			return;	// Can't do anything for now
 		}
 
 		// If we have a countdown running (for reinstantiation), decrement it
@@ -1397,13 +1382,42 @@ bool blop = false;
 			guard(i).wait--;
 
 		if (guard(i).wait == 0)
-		{
-			// Reset route
+		{	// Reset route
 			route_data = 0xFFFF;
 			blop = true;
 		}
 		else
-			return;
+			return;	// Don't do anything for now
+	}
+	// No reinstantiation request
+	// Go_on > 0 indicates that we don't need to read any new route data
+	else if (guard(i).go_on > 0)
+	{
+		guard(i).go_on--;
+		// This counter is used to make sure a guard follows at least a portion 
+		// of its planned route after entering a room, before engaging in pursuits
+		guard(i).spent_in_room++;
+
+		// If it's not a pause in route
+		if (guard(i).state & STATE_MOTION)
+		{	
+			dir_x = guard(i).speed * dir_to_dx[guard(i).direction];
+			dir_y = guard(i).speed * dir_to_d2y[guard(i).direction];
+//			guard(i).state &= ~STATE_BLOCKED;
+			guard(i).px += dir_x;
+			guard(i).p2y += dir_y;
+
+		}
+
+		return;
+	}
+	else 
+	{
+		// Change in route => get our current route position
+		route_pos = readlong(fbuffer[GUARDS], i*MENDAT_ITEM_SIZE + 0x0E);
+
+		// Read the first word
+		route_data = readword(fbuffer[ROUTES], route_pos);
 	}
 
 	if (route_data == 0xFFFF)
@@ -1441,8 +1455,6 @@ bool blop = false;
 		// The spent in room counter is used only for pre-pursuit anti blocking
 		if (g_room != guard(i).room)
 			guard(i).spent_in_room = 0;
-		else
-			guard(i).spent_in_room++;
 		guard(i).room = g_room; 
 		guard(i).px = readword(fbuffer[ROUTES], route_pos + 6);
 		guard(i).p2y = 2*readword(fbuffer[ROUTES], route_pos + 4);
@@ -1455,12 +1467,11 @@ bool blop = false;
 	{	// standard route action
 		guard(i).go_on = route_data; // How long do we need to keep at it
 		route_data =  readword(fbuffer[ROUTES], route_pos + 2);
-		guard(i).spent_in_room++;
 		if (route_data == 0xFFFF)
 		{	// stopped state (pause)
 			guard(i).state &= ~STATE_MOTION;
 //			if (i==14)
-//				printf("paused (%d, %d)\n", guard(i).px, guard(i).p2y);
+//				printf("paused (%d, %d), go_on = %d\n", guard(i).px, guard(i).p2y, guard(i).go_on);
 		}
 		else
 		{	// motion state
@@ -1470,13 +1481,11 @@ bool blop = false;
 			guard(i).px += guard(i).speed * dir_to_dx[guard(i).direction];
 			guard(i).p2y += guard(i).speed * dir_to_d2y[guard(i).direction];
 //			if (i==14)
-//				printf("motion (%d, %d)\n", guard(i).px, guard(i).p2y);
+//				printf("motion (%d, %d), go_on = %d\n", guard(i).px, guard(i).p2y, guard(i).go_on);
 		}
 		route_pos += 4;
 	}
 
-	if (guard(i).state & STATE_IN_PURSUIT)
-		printf("got there for %d\n", i);
 	// save the new current position
 	writelong(fbuffer[GUARDS], i*MENDAT_ITEM_SIZE+0x0E, route_pos);
 }
@@ -1624,6 +1633,7 @@ bool move_guards()
 	int  i, p;
 	bool continue_parent;
 	bool but_i_just_got_out;
+	bool do_i_know_you;
 	int	 kill_motion; 
 	int	 dir_x, dir_y;
 
@@ -1643,8 +1653,9 @@ bool move_guards()
 			guard(i).wait--;
 
 		// 1. Check if we have a collision between our current prisoner and the guard
-		//    and kill our motion as a result, unless we're trying to get out
+		//    and kill our motion as a result... 
 		if ((guard(i).room == current_room_index) && guard_collision(i, prisoner_x, prisoner_2y) &&
+			// ...unless we're trying to get out
 			guard_collision(i, prisoner_x+2*dx, prisoner_2y+2*d2y) )
 				kill_motion = true;
 
@@ -1698,22 +1709,31 @@ bool move_guards()
 					return 0;
 				}
 
-				// In the enhanced version, guards remember when they've seen a pass
-				if (opt_enhanced_guard_reset && guy(p).is_dressed_as_guard && guard(i).fooled_by[p])
-					continue;
+				// For clarity purposes
+				do_i_know_you = opt_enhanced_guard_reset && guy(p).is_dressed_as_guard && 
+					guard(i).fooled_by[p];	
 
-				// If that prisoner is not suspicious yet, should he be?
+				// 3d. If that prisoner is not suspicious yet, should he be?
 				if ( (!(guy(p).state & STATE_IN_PURSUIT)) && p_event[p].unauthorized &&
-					   // there's a grace period for passes
-					   (game_time > p_event[p].pass_grace_period_expires) )
+					 // there's a grace period after handling a pass
+					 (game_time > p_event[p].pass_grace_period_expires) && 
+					 // And, in the enhanced version, guards remember when they've seen a pass
+					 (!do_i_know_you)
+				   )
+				{
+					printf("in pursuit set for prisoner %d by %d\n", p, i);
+					printf("by the way, %d's state is %X\n", i, guy(i).state);
 					guy(p).state |= STATE_IN_PURSUIT;
+				}
 
-				// We might have a jailbird on the lose. Clearing the IN_PRISON flag
-				// ensures that we get the blinking pursuit display
+/*				// We might have a jailbird on the lose. 
 				if (guy(p).state & STATE_IN_PRISON)
+				{
 					guy(p).state &= ~STATE_IN_PRISON;
-
-				if (guy(p).state & STATE_IN_PURSUIT)
+					guy(p).state |= STATE_IN_PURSUIT;
+				}
+*/
+				if ((guy(p).state & STATE_IN_PURSUIT) && (!do_i_know_you))
 					// Act on pursuit 
 					guard_in_pursuit(i, p);
 				else
@@ -1738,12 +1758,17 @@ bool move_guards()
 			{	// Did we just lose track of our prisoner?
 				if ((guard(i).state & STATE_IN_PURSUIT) && (guard(i).target == p))
 				{
+					printf("LOS on %d\n", i);
 					if (opt_enhanced_guard_reset)
+					{
+						printf("delayed pursuit reset from %d for %d\n", i, p);
+						// Clear the in pursuit flag if our prisoner behaved in the next minute
+						enqueue_event(clear_pursuit, p, 60000);
 						reset_guard_delayed(i);
+					}
 					else
 						reinstantiate_guard_delayed(i);
 					continue_parent = true;
-					printf("LOS on %d: reinstantiating\n", i);
 					break;
 				}
 			}
@@ -1761,6 +1786,7 @@ bool move_guards()
 				{
 					guard(i).state = STATE_RESUME_ROUTE|STATE_MOTION;
 					guard(i).reset_animation = true;
+					printf("resume route wait end for %d\n", i);
 				}
 				continue;
 			}
@@ -1797,8 +1823,41 @@ bool move_guards()
 			}
 		}
 
-		// Update motion according to route data if needed
-		route_guard(i);
+		if ((guard(i).state & DEVIATED_FROM_ROUTE) && (!guard(i).reinstantiate))
+		{	// Not using the standard route
+			if (guard(i).state & STATE_MOTION)
+			{	// Find out if there's an obstacle in the way
+				dir_x = guard(i).speed * dir_to_dx[guard(i).direction];
+				dir_y = guard(i).speed * dir_to_d2y[guard(i).direction];
+				if (check_guard_footprint(i, dir_x, dir_y))
+				{	// true means there's no obstacle in the way
+					guard(i).state &= ~STATE_BLOCKED;	
+					guard(i).px += dir_x;
+					guard(i).p2y += dir_y;
+				}
+				else
+				{	// roadblock
+					printf("guard %d blocked\n", i);
+					guard(i).state |= STATE_BLOCKED;
+					// Indicate that we're blocked by a non-prisoner obstacle
+					guard(i).blocked_by_prisoner = false;
+					// Alright, we're not gonna use an A star algorithm to route oursevles around obstacles
+					// if our resume route is blocked. Just reinstantiate when offscreen and be done with it
+					if (guard(i).state & STATE_RESUME_ROUTE)
+					{
+						reinstantiate_guard_delayed(i);
+						// We take this ooportunity to switch the direction we're facing to the opposite of 
+						// where we were headed, so that we don't look too out of place until reinstantiation
+						dir_x = 1 - dir_to_dx[guard(i).direction];	
+						dir_y = 1 - dir_to_d2y[guard(i).direction];
+						guard(i).direction = directions[dir_y][dir_x];
+					}
+				}
+			}
+		}
+		else	
+		// Use standard guard routing
+			route_guard(i);
 
 	}
 	return kill_motion;
@@ -1962,28 +2021,6 @@ void toggle_exit(u32 exit_nr)
 				break;
 		}
 	}
-}
-
-
-// Simple event handler
-void enqueue_event(void (*f)(u32), u32 p, u64 delay)
-{
-	u8 i;
-
-	// find an empty event to use
-	for (i=0; i< NB_EVENTS; i++)
-		if (events[i].function == NULL)
-			break;
-
-	if (i == NB_EVENTS)
-	{
-		printf("Couldn't enqueue event!!!\n");
-		return;
-	}
-
-	events[i].function = f;
-	events[i].parameter = p;
-	events[i].expiration_time = game_time + delay;
 }
 
 
@@ -2323,6 +2360,11 @@ bool check_guard_footprint(u8 g, s16 dx, s16 d2y)
 
 	footprint = SPRITE_FOOTPRINT;
 	offset = 0;
+
+	// Won't work unless we're in the active room
+	if (guard(g).room != current_room_index)
+		return true;
+
 	set_room_xy(guard(g).room);
 
 	// Compute the tile on which we try to stand
@@ -2560,8 +2602,8 @@ void go_to_jail(u32 p)
 	guy(p).state &= ~STATE_IN_PURSUIT;
 	guy(p).state |= STATE_IN_PRISON;
 	printf("go_to_jail\n");
-	// This to make sure that if we break loose, we'll be caught
-	p_event[p].unauthorized = true;
+///	// This to make sure that if we break loose, we'll be caught
+	p_event[p].unauthorized = false;
 
 	// Make sure the jail doors are closed when we leave the prisoner in!
 	writebyte(fbuffer[ROOMS], solitary_cells_door_offset[p][0], 
@@ -2658,7 +2700,7 @@ void check_on_prisoners()
 	u16 i;
 	bool authorized_id;
 	u8 room_desc_id;
-	int game_over, game_won;
+	int game_over_count, game_won_count;
 
 	// Check escape condition (for current prisoner only)
 	if ( (!has_escaped) && (current_room_index == ROOM_OUTSIDE) && 
@@ -2686,23 +2728,23 @@ void check_on_prisoners()
 		}
 	}
 
-	game_over = 0;
-	game_won  = 0;
+	game_over_count = 0;
+	game_won_count  = 0;
 	// Game over condition
 	for(p=0; p<NB_NATIONS; p++)
 	{
 		if ( (p_event[p].killed) || (guy(p).state & STATE_IN_PRISON) )
-			game_over++;
+			game_over_count++;
 		if (p_event[p].escaped)
-			game_won++;
+			game_won_count++;
 	}
-	if (game_over == NB_NATIONS)
+	if (game_over_count == NB_NATIONS)
 	{
 		game_state = GAME_STATE_GAME_OVER;
 		static_screen(GAME_OVER_TEXT, NULL, 0);
 		return;
 	}
-	if (game_won == NB_NATIONS)
+	if (game_won_count == NB_NATIONS)
 	{
 		game_state = GAME_STATE_GAME_WON;
 		static_screen(PRISONER_FREE_ALL_TEXT, NULL, 0);
@@ -2757,7 +2799,7 @@ void check_on_prisoners()
 				// come to release (in which case pursuit mode is activated)
 				if (p_event[p].solitary_countdown == 0)
 					guy(p).state &= ~STATE_IN_PRISON;
-				else
+				else if (!guy(p).is_dressed_as_guard)
 					guy(p).state |= STATE_IN_PURSUIT;
 			}
 		}

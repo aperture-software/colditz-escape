@@ -1,5 +1,4 @@
-#ifndef _GRAPHICS_H
-#define _GRAPHICS_H
+#pragma once
 
 #ifdef	__cplusplus
 extern "C" {
@@ -80,4 +79,4 @@ bool load_texture(s_tex *tex);
 }
 #endif
 
-#endif 
+

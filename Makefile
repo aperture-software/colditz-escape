@@ -1,5 +1,6 @@
 TARGET = colditz
-OBJS = psp/psp-setup.o low-level.o soundplayer.o videoplayer.o md5.o game.o graphics.o getopt.o main.o
+OBJS = psp/psp-setup.o low-level.o soundplayer.o videoplayer.o md5.o game.o graphics.o conf.o main.o
+#getopt.o  // No longer needed
 #OBJS = copytex.o firefox.o
 
 INCDIR = 
@@ -13,7 +14,7 @@ ASFLAGS = $(CFLAGS)
 
 LIBDIR = .
 FLAGS =
-LIBS += -lglut -lGLU -lGL -lpmp -lpspgum -lpspgu -lpsprtc -lm -lc -lpspaudiolib -lpspaudio -lpspaudiocodec -lpspmpeg -lpsppower
+LIBS += -lglut -lGLU -lGL -lpmp -lexpat -lpspgum -lpspgu -lpsprtc -lm -lc -lpspaudiolib -lpspaudio -lpspaudiocodec -lpspmpeg -lpsppower
 # -lz   -lpspctrl  -lpspaudio 
 
 BUILD_PRX = 1

@@ -1141,11 +1141,11 @@ void display_panel()
 			sid = PANEL_FACE_SHOT;
 		else if (p_event[i].escaped)
 			sid = PANEL_FACE_FREE;
-		else
+		else 
 		{
 			sid = 0xd5 + i;
-			if ( (guy(i).state & STATE_IN_PRISON) ||
-				 ( (guy(i).state & STATE_IN_PURSUIT) && ((game_time/1000)%2) ) )
+			if ((guy(i).state & STATE_IN_PRISON) ||
+				((guy(i).state & STATE_IN_PURSUIT) && ((game_time/1000)%2)))
 				sid = PANEL_FACE_IN_PRISON;
 		}
 		display_sprite(PANEL_FACES_X+i*PANEL_FACES_W, PANEL_TOP_Y,
@@ -1253,8 +1253,11 @@ void rescale_buffer()
 void create_pause_screen()
 {
 #define SPACER	8
-	int i, restore_nation;
+	int i, restore_nation, restore_fade;
 	float x,y,w,h;
+
+	restore_fade = fade_value;
+	fade_value = 1.0f;
 	restore_nation = current_nation;
 	w = powerize(PSP_SCR_WIDTH/2 - 2*SPACER);
 	h = powerize(PSP_SCR_HEIGHT/2 - 2*SPACER);
@@ -1275,6 +1278,7 @@ void create_pause_screen()
 		glCopyTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, x, y, w, h, 0);
 	}
 	current_nation = restore_nation;
+	fade_value = restore_fade;
 }
 
 void display_pause_screen()

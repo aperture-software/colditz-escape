@@ -1,5 +1,4 @@
-#ifndef _COLDITZ_H
-#define _COLDITZ_H
+#pragma once
 
 #ifdef	__cplusplus
 extern "C" {
@@ -425,7 +424,7 @@ extern "C" {
 #define STATE_STOOGE_SID		0xF9
 
 // doubt we'll need more than simultaneously enqueued events in all
-#define NB_EVENTS				4
+#define NB_EVENTS				32
 
 // How much we need to shift our screen so the seams don't show
 #define NORTHWARD_HO			28
@@ -521,87 +520,6 @@ extern "C" {
 //#define NB_PICTURE_STATES		11
 //#define FADE_INCREMENT			0.05f
 
-// Redefinition of GLUT's special keys so that they fit in our key table
-#define SPECIAL_KEY_OFFSET		0x80
-#define SPECIAL_KEY_F1          (GLUT_KEY_F1 + SPECIAL_KEY_OFFSET)
-#define SPECIAL_KEY_F2          (GLUT_KEY_F2 + SPECIAL_KEY_OFFSET)
-#define SPECIAL_KEY_F3          (GLUT_KEY_F3 + SPECIAL_KEY_OFFSET)
-#define SPECIAL_KEY_F4          (GLUT_KEY_F4 + SPECIAL_KEY_OFFSET)
-#define SPECIAL_KEY_F5          (GLUT_KEY_F5 + SPECIAL_KEY_OFFSET)
-#define SPECIAL_KEY_F6          (GLUT_KEY_F6 + SPECIAL_KEY_OFFSET)
-#define SPECIAL_KEY_F7          (GLUT_KEY_F7 + SPECIAL_KEY_OFFSET)
-#define SPECIAL_KEY_F8          (GLUT_KEY_F8 + SPECIAL_KEY_OFFSET)
-#define SPECIAL_KEY_F9          (GLUT_KEY_F9 + SPECIAL_KEY_OFFSET)
-#define SPECIAL_KEY_F10         (GLUT_KEY_F10 + SPECIAL_KEY_OFFSET)
-#define SPECIAL_KEY_F11         (GLUT_KEY_F11 + SPECIAL_KEY_OFFSET)
-#define SPECIAL_KEY_F12         (GLUT_KEY_F12 + SPECIAL_KEY_OFFSET)
-#define SPECIAL_KEY_LEFT        (GLUT_KEY_LEFT + SPECIAL_KEY_OFFSET)
-#define SPECIAL_KEY_UP          (GLUT_KEY_UP + SPECIAL_KEY_OFFSET)
-#define SPECIAL_KEY_RIGHT       (GLUT_KEY_RIGHT + SPECIAL_KEY_OFFSET)
-#define SPECIAL_KEY_DOWN        (GLUT_KEY_DOWN + SPECIAL_KEY_OFFSET)
-#define SPECIAL_KEY_PAGE_UP     (GLUT_KEY_PAGE_UP + SPECIAL_KEY_OFFSET)
-#define SPECIAL_KEY_PAGE_DOWN   (GLUT_KEY_PAGE_DOWN + SPECIAL_KEY_OFFSET)
-#define SPECIAL_KEY_HOME        (GLUT_KEY_HOME + SPECIAL_KEY_OFFSET)
-#define SPECIAL_KEY_END	        (GLUT_KEY_END	+ SPECIAL_KEY_OFFSET)
-#define SPECIAL_KEY_INSERT      (GLUT_KEY_INSERT + SPECIAL_KEY_OFFSET)
-// Same for mouse buttons (PSP's triggers are mapped to mouse buttons)
-// The GLUT_KEYs above map to [01-0C] & [64-6C], and the mouse buttons range
-// from 0 to 2, so we can safely use...
-#define SPECIAL_MOUSE_BUTTON_BASE	0x90
-#define SPECIAL_LEFT_MOUSE_BUTTON	(SPECIAL_MOUSE_BUTTON_BASE+GLUT_LEFT_BUTTON)
-#define SPECIAL_MIDDLE_MOUSE_BUTTON	(SPECIAL_MOUSE_BUTTON_BASE+GLUT_MIDDLE_BUTTON)
-#define SPECIAL_RIGHT_MOUSE_BUTTON	(SPECIAL_MOUSE_BUTTON_BASE+GLUT_RIGHT_BUTTON)
-
-#define KEY_INVENTORY_LEFT		SPECIAL_KEY_LEFT
-#define KEY_INVENTORY_RIGHT		SPECIAL_KEY_RIGHT
-#define KEY_INVENTORY_PICKUP	SPECIAL_KEY_UP	
-#define KEY_INVENTORY_DROP		SPECIAL_KEY_DOWN
-
-// Key mappings
-#if defined(PSP)
-// q = square, d = triangle, s = select, a = start
-#define KEY_FIRE				'x'
-#define KEY_TOGGLE_WALK_RUN		'o'
-#define KEY_SLEEP				'q'
-#define KEY_STOOGE				'd'
-#define KEY_ESCAPE				'a'
-#define KEY_PAUSE				's'
-#define KEY_PRISONERS_LEFT		SPECIAL_LEFT_MOUSE_BUTTON
-#define KEY_PRISONERS_RIGHT		SPECIAL_RIGHT_MOUSE_BUTTON
-// The following are unused on the PSP
-#define KEY_BRITISH				0
-#define KEY_FRENCH				0
-#define KEY_AMERICAN			0
-#define KEY_POLISH				0
-#define KEY_DIRECTION_LEFT		0
-#define KEY_DIRECTION_RIGHT		0
-#define KEY_DIRECTION_UP		0
-#define KEY_DIRECTION_DOWN		0
-#else
-#define KEY_FIRE				'5'
-#define KEY_TOGGLE_WALK_RUN		' '
-#define KEY_STOOGE				SPECIAL_KEY_F10
-#define KEY_ESCAPE				27
-#define KEY_PAUSE				SPECIAL_KEY_F5
-#define KEY_SLEEP				SPECIAL_KEY_F9
-#define KEY_PRISONERS_LEFT		0
-#define KEY_PRISONERS_RIGHT		0
-// The following are unused on the PSP
-#define KEY_BRITISH				SPECIAL_KEY_F1
-#define KEY_FRENCH				SPECIAL_KEY_F2
-#define KEY_AMERICAN			SPECIAL_KEY_F3
-#define KEY_POLISH				SPECIAL_KEY_F4
-#define KEY_DIRECTION_LEFT		'4'
-#define KEY_DIRECTION_RIGHT		'6'
-#define KEY_DIRECTION_UP		'8'
-#define KEY_DIRECTION_DOWN		'2'
-#endif
-
-#if defined(DEBUG_KEYS_ENABLED)
-#define KEY_DEBUG_PRINT_POS		'p'
-#define KEY_DEBUG_BONANZA		'#'
-#define KEY_DEBUG_CATCH_HIM		'c'
-#endif
 
 
 // Define a structure to hold the standard RGBA sprites
@@ -776,6 +694,10 @@ extern s_sfx sfx[NB_SFXS];
 #define is_inside			(current_room_index!=ROOM_OUTSIDE)
 #define prisoner_as_guard	guybrush[current_nation].is_dressed_as_guard
 #define prisoner_fatigue	p_event[current_nation].fatigue
+#define paused				(game_state & GAME_STATE_PAUSED)
+#define game_over			(game_state & GAME_STATE_GAME_OVER)
+#define intro				(game_state & GAME_STATE_INTRO)
+#define game_won			(game_state & GAME_STATE_GAME_WON)
 extern s16  last_p_x, last_p_y;
 extern s16  dx, d2y;
 extern u8  prisoner_sid;
@@ -858,4 +780,3 @@ void static_screen(u8 iff_id, void (*func)(u32), u32 param);
 #endif
 
 
-#endif /* _COLDITZ */

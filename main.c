@@ -5,12 +5,23 @@
  **
  **/
 
-/** For glut, you need the dll in the exec location or system32
+/**
+ ** For glut, you need the dll in the exec location or system32
  ** and to compile, you need:
  ** - glut32.lib in C:\Program Files\Microsoft SDKs\Windows\v6.0A\Lib
  ** - glut.h in C:\Program Files\Microsoft SDKs\Windows\v6.0A\Include\gl 
  **
  ** The libs and header can be had from http://www.opengl.org/resources/libraries/glut/glutdlls37beta.zip
+ **/
+
+/**
+ ** For expat, you need libexpatMT.lib (WIN)/libexpat.a (PSP)
+ ** and on Windows, make sure you add XML_STATIC in the C/C++ PreProcessor Definitions
+ ** 
+ ** Important note: Because I'll be darned before I agree with the XML comitee's extreme shortsightedness 
+ ** that some chars in [00-7F] should be illegal, especially when we want to define our input keys in the
+ ** XML conf file, the libexpat we use was *TWEAKED* to accept ANY [00-7F] char without barfing.
+ ** To do that, the asciitab.h file of libexpat had all its BT_NONXML changed to BT_OTHER before compiling.
  **/
 
 // NB: http://nds.cmamod.com/psp/Expat.2.01.win32_msys_bin.zip
@@ -28,6 +39,14 @@
 #pragma comment(lib, "opengl32.lib")
 #pragma comment(lib, "glu32.lib")
 #pragma comment(lib, "glut32.lib")
+// X2Audio libs -> win32/winXAudio2.cpp
+#pragma comment(lib, "X3DAudio.lib")
+// DirectShow movie player -> win32/wmp.cpp
+#pragma comment(lib, "strmiids.lib")
+// Expat lib for XML config file processing -> conf.c
+#pragma comment(lib, "libexpatMT.lib")
+// X3DAudio.lib strmiids.lib odbccp32.lib libexpatMT.lib
+
 #elif defined(PSP)
 #include <pspdebug.h>
 #include <pspdisplay.h>
@@ -52,6 +71,7 @@
 #include "game.h"
 #include "soundplayer.h"
 #include "videoplayer.h"
+#include "conf.h"
 
 // Global variables
 
@@ -89,6 +109,8 @@ bool opt_skip_intro				= true;
 // Use the new guard repositioning engine
 bool opt_enhanced_guard_reset	= true;
 
+
+
 /// DEBUG
 u64 t1;
 
@@ -117,6 +139,8 @@ int	gl_width, gl_height;
 s16 last_p_x = 0, last_p_y = 0;
 s16 dx = 0, d2y = 0;
 s16 jdx, jd2y;
+// Key modifiers for glut
+int glut_mod;
 
 // Could use a set of flags, but more explicit this way
 bool key_down[256], key_readonce[256];
@@ -148,7 +172,7 @@ typedef struct
 #define CHEAT_KEYMASTER		1
 #define CHEAT_NOGUARDS		2
 #define NO_CAKE_FOR_YOU		3
-static u8 sequence0[4]  = {KEY_INVENTORY_LEFT, KEY_INVENTORY_LEFT, KEY_INVENTORY_RIGHT, KEY_INVENTORY_RIGHT};
+static u8 sequence0[4]  = {SPECIAL_KEY_LEFT, SPECIAL_KEY_LEFT, SPECIAL_KEY_RIGHT, SPECIAL_KEY_RIGHT};
 static u8 sequence1[9]  = {'k', 'e', 'y', 'm', 'a', 's', 't', 'e', 'r'};
 static u8 sequence2[11] = {'d', 'i', 'e', ' ', 'd', 'i', 'e', ' ', 'd', 'i', 'e'};
 static u8 sequence3[17] = {'t', 'h', 'e', ' ', 'c', 'a', 'k', 'e', ' ', 'i', 's', ' ', 'a', ' ', 'l', 'i', 'e'};
@@ -210,8 +234,12 @@ s16 directions[3][3] = { {3,2,4}, {0,DIRECTION_STOPPED,1}, {6,5,7} };
 s16 dir_to_dx[8] = {-1, 1, 0, -1, 1, 0, -1, 1};
 s16 dir_to_d2y[8] = {0, 0, -1, -1, -1, 1, 1, 1};
 // The direct nation keys might not be sequencial on custom key mapping
-u8 key_nation[NB_NATIONS+2] = {KEY_BRITISH, KEY_FRENCH, KEY_AMERICAN, KEY_POLISH, 
-							 KEY_PRISONERS_LEFT, KEY_PRISONERS_RIGHT};
+u8 key_nation[NB_NATIONS+2];
+//= {KEY_BRITISH, KEY_FRENCH, KEY_AMERICAN, KEY_POLISH, 
+//							   KEY_PRISONERS_LEFT, KEY_PRISONERS_RIGHT};
+
+// Prototypes
+static void glut_idle_static_pic(void);
 
 // Update the game and program timers
 void update_timers()
@@ -290,19 +318,16 @@ static void glut_display(void)
 	if (game_suspended)
 		return;
 
-//printf("display called\n");
-
 	// Always start with a clear to black
 	glClear(GL_COLOR_BUFFER_BIT);
 
 	// Display either the current game frame or a static picture
 	if (game_state & GAME_STATE_STATIC_PIC)
 	{
-		display_picture();
-	}
-	else if (game_state & GAME_STATE_PAUSED)
-	{
-		display_pause_screen();
+		if (paused)
+			display_pause_screen();
+		else
+			display_picture();
 	}
 	else
 	{	// In game => update room content and panel
@@ -455,12 +480,18 @@ void user_input()
 	// Handle the pausing of the game 
 	if (read_key_once(KEY_PAUSE))
 	{
-		game_state ^= GAME_STATE_PAUSED|GAME_STATE_ACTION;
+		game_state |= GAME_STATE_PAUSED;
+		picture_state = GAME_FADE_OUT_START;
+		// Switch to a different idle function
+		glutIdleFunc_save(glut_idle_static_pic);
+/*
+
 		if (game_state & GAME_STATE_PAUSED)
 			create_pause_screen();
 		else
 			switch_nation(current_nation);
-	}
+*/
+		}
 
 #if defined (CHEATMODE_ENABLED)
 	// Check cheat sequences
@@ -923,14 +954,13 @@ static void glut_idle_game(void)
 // We'll use a different idle function for static picture
 static void glut_idle_static_pic(void)
 {
-
 	// As usual, we'll need the current time value for a bunch of stuff
 	update_timers();
 
 	if (key_down[KEY_ESCAPE])
 		exit(0);
 
-	if ((game_state & GAME_STATE_INTRO) && read_key_once(last_key_used))
+	if ((intro) && read_key_once(last_key_used))
 	{	// Exit intro => start new game
 		mod_release();
 		newgame_init();
@@ -938,8 +968,7 @@ static void glut_idle_static_pic(void)
 		game_state = GAME_STATE_STATIC_PIC;
 		last_key_used = 0;
 	}
-
-	else if ((game_state & GAME_STATE_GAME_OVER) && (!(picture_state == GAME_FADE_OUT)) 
+	else if (game_over && (!(picture_state == GAME_FADE_OUT)) 
 		&& read_key_once(last_key_used))
 	{	// Exit game over/game won => Intro
 		mod_release();
@@ -977,29 +1006,35 @@ static void glut_idle_static_pic(void)
 		break;
 	case PICTURE_FADE_IN_START:
 		game_state |= GAME_STATE_STATIC_PIC;
-		// We use the picture fade in to load a new MOD if needed
-		if (!is_mod_playing())
+		if paused
+			// We use the picture fade in to create the pause screen if paused
+			create_pause_screen();
+		else
 		{
-			if (game_state & GAME_STATE_INTRO)
+			// Load a new MOD if needed...
+			if (!is_mod_playing())
 			{
-				if (mod_init(mod_name[MOD_LOADTUNE]))
-					mod_play();
-				else
-					printf("Failed to load Intro tune\n");
-			}
-			else if (game_state & GAME_STATE_GAME_OVER)
-			{
-				if (mod_init(mod_name[MOD_GAMEOVER]))
-					mod_play();
-				else
-					printf("Failed to load Game Over tune\n");
-			}
-			else if (game_state & GAME_STATE_GAME_WON)
-			{
-				if (mod_init(mod_name[MOD_WHENWIN]))
-					mod_play();
-				else
-					printf("Failed to load winning tune\n");
+				if (intro)
+				{
+					if (mod_init(mod_name[MOD_LOADTUNE]))
+						mod_play();
+					else
+						printf("Failed to load Intro tune\n");
+				}
+				else if (game_over)
+				{
+					if (mod_init(mod_name[MOD_GAMEOVER]))
+						mod_play();
+					else
+						printf("Failed to load Game Over tune\n");
+				}
+				else if (game_won)
+				{
+					if (mod_init(mod_name[MOD_WHENWIN]))
+						mod_play();
+					else
+						printf("Failed to load winning tune\n");
+				}
 			}
 		}
 		transition_start = program_time;
@@ -1009,23 +1044,26 @@ static void glut_idle_static_pic(void)
 	case PICTURE_FADE_IN:
 		break;
 	case PICTURE_WAIT_START:
-		// Set the timeout start for pictures
-		picture_t = program_time;
-		// We might want to call a function to update the prisoner's status at this stage
-		if (static_screen_func != NULL)
+		if (!paused)
 		{
-			static_screen_func(static_screen_param);
-			static_screen_func = NULL;
+			// Set the timeout start for pictures
+			picture_t = program_time;
+			// We might want to call a function to update the prisoner's status at this stage
+			if (static_screen_func != NULL)
+			{
+				static_screen_func(static_screen_param);
+				static_screen_func = NULL;
+			}
+			// Add the picture loop flag here on game won
+			if (game_state & GAME_STATE_GAME_WON)
+				game_state |= GAME_STATE_PICTURE_LOOP;
 		}
-		// Add the picture loop flag here on game won
-		if (game_state & GAME_STATE_GAME_WON)
-			game_state |= GAME_STATE_PICTURE_LOOP;
 		picture_state++;
 		break;
 	case PICTURE_WAIT:
 		// Press any key
 		if (read_key_once(last_key_used) || 
-			( (!(game_state & GAME_STATE_GAME_OVER)) && (program_time-picture_t > PICTURE_TIMEOUT)))
+			( (!game_over) && (!paused) && (program_time-picture_t > PICTURE_TIMEOUT)))
 		{
 			picture_state++;
 			last_key_used = 0;
@@ -1042,9 +1080,11 @@ static void glut_idle_static_pic(void)
 		transition_start = program_time;
 		fade_out = false;
 		picture_state++;
+		if (paused)
+			switch_nation(current_nation);
 		if (game_state & GAME_STATE_PICTURE_LOOP)
 		{
-			if (game_state & GAME_STATE_INTRO)
+			if (intro)
 			{
 				current_picture++;
 				if (current_picture > INTRO_SCREEN_END)
@@ -1052,7 +1092,7 @@ static void glut_idle_static_pic(void)
 				// NB: static screen will reset picture_state to the right one
 				static_screen(current_picture, NULL, 0);
 			}
-			else if (game_state & GAME_STATE_GAME_WON)
+			else if (game_won)
 			{	// Switch to second & last GAME_WON picture
 				// We add the GAME_OVER flag so that we can reuse the GAME OVER exit code
 				game_state |= GAME_STATE_GAME_OVER;
@@ -1073,6 +1113,8 @@ static void glut_idle_static_pic(void)
 		break;
 	case PICTURE_EXIT:
 		game_state |= GAME_STATE_ACTION;
+		if (paused)
+			game_state &= ~GAME_STATE_PAUSED;
 		// Set glut_idle to our main game loop
 		glutIdleFunc_save(glut_idle_game);
 		break;
@@ -1082,16 +1124,12 @@ static void glut_idle_static_pic(void)
 	}
 
 	// Don't forget to display the image
-//	t1 = mtime();
 	glut_display();
-//	t1 = mtime() - t1;
-//	printf("spent %lld in display\n", t1);
-
 
 	// We should be able to sleep for a while
-	// Except if we're in a picture transition on the PSP
+	// Except if we're in a picture transition on the PSP, as it's too slow otherwise
 #if defined(PSP)
-	if ((fade_value == 0.0) || (fade_value = 1.0))
+	if ((fade_value == 0.0) || (fade_value == 1.0))
 #endif
 		msleep(PAUSE_DELAY);
 }
@@ -1207,11 +1245,24 @@ static void glut_joystick(uint buttonMask, int x, int y, int z)
 #endif
 }
 
+// These macro handle the readout of the Ctrl, Alt, Shift modifiers
+// Only relevant for platforms with actual keyboard
+#if !defined(PSP)
+#define KEY_MOD(mod)													\
+	key_down[SPECIAL_KEY_##mod] = (glut_mod & GLUT_ACTIVE_##mod) != 0
+#define SET_MODS { glut_mod = glutGetModifiers();						\
+	KEY_MOD(SHIFT); KEY_MOD(CTRL); KEY_MOD(ALT); }
+#else
+#define SET_MODS
+#endif
+
 static void glut_keyboard(u8 key, int x, int y)
 {
-//	printf("key = %X (%c)\n", key, key);
 	key_down[key] = true;
 	last_key_used = key;
+	SET_MODS;
+//	printf("key = %X (%c)\n", key, key);
+//	printf("  [%d%d%d]\n", key_down[SPECIAL_KEY_SHIFT]?1:0, key_down[SPECIAL_KEY_CTRL]?1:0, key_down[SPECIAL_KEY_ALT]?1:0 );
 }
 
 static void glut_keyboard_up(u8 key, int x, int y)
@@ -1221,39 +1272,53 @@ static void glut_keyboard_up(u8 key, int x, int y)
 #if defined (CHEATMODE_ENABLED)
 	key_cheat_readonce[key] = false;
 #endif
+	SET_MODS;
 }
 
 static void glut_special_keys(int key, int x, int y)
 {
-	key_down[key + SPECIAL_KEY_OFFSET] = true;
-	last_key_used = key + SPECIAL_KEY_OFFSET;
+	int converted_key;
+	converted_key = (key < GLUT_KEY_LEFT)?key-GLUT_KEY_F1+SPECIAL_KEY_OFFSET1:key-GLUT_KEY_LEFT+SPECIAL_KEY_OFFSET2;
+//	printf("key = %X (%c)\n", converted_key, converted_key);
+	key_down[converted_key] = true;
+	last_key_used = converted_key;
+	SET_MODS;
 }
 
 static void glut_special_keys_up(int key, int x, int y)
 {
-	key_down[key + SPECIAL_KEY_OFFSET] = false;
-	key_readonce[key + SPECIAL_KEY_OFFSET] = false;
+	int converted_key;
+	converted_key = (key < GLUT_KEY_LEFT)?key-GLUT_KEY_F1+SPECIAL_KEY_OFFSET1:key-GLUT_KEY_LEFT+SPECIAL_KEY_OFFSET2;
+	key_down[converted_key] = false;
+	key_readonce[converted_key] = false;
 #if defined (CHEATMODE_ENABLED)
-	key_cheat_readonce[key + SPECIAL_KEY_OFFSET] = false;
+	key_cheat_readonce[converted_key] = false;
 #endif
+	SET_MODS;
 }
 
 static void glut_mouse_buttons(int button, int state, int x, int y)
 {
+	int converted_key;
+	converted_key = SPECIAL_MOUSE_BUTTON_BASE + button - GLUT_LEFT_BUTTON;
 	if (state == GLUT_DOWN)
 	{
-		key_down[SPECIAL_MOUSE_BUTTON_BASE + button] = true;
-		last_key_used = SPECIAL_MOUSE_BUTTON_BASE + button;
+		key_down[converted_key] = true;
+		last_key_used = converted_key;
 	}
 	else
 	{
-		key_down[SPECIAL_MOUSE_BUTTON_BASE + button] = false;
-		key_readonce[SPECIAL_MOUSE_BUTTON_BASE + button] = false;
+		key_down[converted_key] = false;
+		key_readonce[converted_key] = false;
 #if defined (CHEATMODE_ENABLED)
-		key_cheat_readonce[SPECIAL_MOUSE_BUTTON_BASE + button] = false;
+		key_cheat_readonce[converted_key] = false;
 #endif
 	}
+	SET_MODS;
+	printf("key = %X (%c)\n", converted_key, converted_key);
+	printf("  [%02X %02X %02X]\n", key_down[SPECIAL_KEY_SHIFT]?SPECIAL_KEY_SHIFT:0, key_down[SPECIAL_KEY_CTRL]?SPECIAL_KEY_CTRL:0, key_down[SPECIAL_KEY_ALT]?SPECIAL_KEY_ALT:0 );
 }
+
 
 
 /* Here we go! */
@@ -1265,6 +1330,7 @@ int main (int argc, char *argv[])
 	int opt_sfx				= 0;
 	// General purpose
 	u32  i;
+
 
 #if defined(PSP)
 	setup_callbacks();
@@ -1322,6 +1388,16 @@ int main (int argc, char *argv[])
 	}
 //	opt_verbose = -1;
 
+//	readconf("config.xml");
+	init_controls();
+	// init_keys();
+	// Now that we have our config set, we can initialize some controls values
+	key_nation[0] = KEY_BRITISH;
+	key_nation[1] = KEY_FRENCH;
+	key_nation[2] = KEY_AMERICAN;
+	key_nation[3] = KEY_POLISH;
+	key_nation[4] = KEY_PRISONERS_LEFT;
+	key_nation[5] = KEY_PRISONERS_RIGHT;
 
 	// Load the data. If it's the first time the game is ran, we might have
 	// to uncompress LOADTUNE.MUS (PowerPack) and SKR_COLD (custom compression)

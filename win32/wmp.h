@@ -1,5 +1,4 @@
-#ifndef WMP_H
-#define WMP_H
+#pragma once
 
 #ifdef __cplusplus
 extern "C" {
@@ -14,4 +13,3 @@ bool wmp_isplaying();
 }
 #endif
 
-#endif

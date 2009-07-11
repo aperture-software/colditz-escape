@@ -1,12 +1,10 @@
-#ifndef _DATA_TYPES_H
-#define _DATA_TYPES_H
+#pragma once
 
 #ifdef	__cplusplus
 extern "C" {
 #endif
 
-
-// On the PSP, these are defined in psp-types.h
+// On the PSP, these are defined in pspkernel.h
 #if !defined(PSP)
 #ifndef u8
 #define u8 unsigned char
@@ -53,4 +51,3 @@ extern "C" {
 }
 #endif
 
-#endif 

@@ -1,5 +1,4 @@
-#ifndef _LOW_LEVEL_H
-#define _LOW_LEVEL_H
+#pragma once
 
 #ifdef	__cplusplus
 extern "C" {
@@ -116,4 +115,3 @@ void ppdepack(u8 *packed, u8 *depacked, u32 plen, u32 unplen);
 }
 #endif
 
-#endif 
