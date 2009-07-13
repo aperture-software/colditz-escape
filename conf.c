@@ -29,17 +29,31 @@
 #define INIT_XML_ACTUAL_INIT
 #include "conf.h"
 
+typedef struct {
+    int skip;
+    int depth;
+	char* stack[256];
+//	char* curname;
+//	void* curtable;
+	char value[256];
+	int  index;
+} Parseinfo;
 
+
+#define SET_XML_NODE_DEFAULT(table, node_name, val) {					\
+	for (i=0; i<_xml_##table##_end; i++) 								\
+		if (strcmp(#node_name, xml_##table.node[i].name) == 0)			\
+			xml_##table.node[i].value = val; }
 #if defined(PSP)
-#define SET_XML_NODE_DEFAULT(table, node_name, val1, val2) {			\
-	for (i=0; i<_ ## table ## _end; i++) 								\
-		if (strcmp(#node_name, table[i].name) == 0)						\
-			table[i].value = val1; }
+#define SET_XML_NODE_DEFAULT2(table, node_name, val1, val2) {			\
+	for (i=0; i<_xml_##table##_end; i++) 								\
+		if (strcmp(#node_name, xml_##table.node[i].name) == 0)			\
+			xml_##table.node[i].value = val1; }
 #else
-#define SET_XML_NODE_DEFAULT(table, node_name, val1, val2) {			\
-	for (i=0; i<_ ## table ## _end; i++) 								\
-		if (strcmp(#node_name, table[i].name) == 0)						\
-			table[i].value = val2; }
+#define SET_XML_NODE_DEFAULT2(table, node_name, val1, val2) {			\
+	for (i=0; i<_xml_##table##_end; i++) 								\
+		if (strcmp(#node_name, xml_##table.node[i].name) == 0)			\
+			xml_##table.node[i].value = val2; }
 #endif
 
 
@@ -156,48 +170,139 @@ int utf8_to_u16(const char* source, u16* target)
 	return utf8_to_u16_nz(source, target, len);
 }
 
-// Expat parsing of the XML conf file
+
+// Init our parsing user structure
+void init_info(Parseinfo *info) {
+    info->skip = 0;
+    info->depth = 0;
+	info->index = 0;
+}
+
+
+// Skip nodes that are undefined
+bool skip(Parseinfo *inf, const char *name, const char **attr) 
+{
+	int i;
+	switch (inf->depth) 
+	{
+	case 0:
+		// Check that the rootnode matches our definition
+		return (strcmp(name, xml_root) != 0);
+	case 1:
+		// Ignore any 1st level nodename that is not in our 1st level table
+		for (i=0; i<_xml_config_end; i++)
+			// xml_config[] is the name of our root node table
+			if (strcmp(name, xml_config.node[i].name) == 0)
+				return false;
+		return true;
+	default:
+		return false;
+	}
+}
+
+
+// Parsing of the node values
 static void XMLCALL characterData(void *userData, const char *s, int len)
 {
+	Parseinfo *inf = (Parseinfo *) userData;
 	int i, consumed;
-	u8* string = (u8*)s;
+	u8* str = (u8*)s;
 	u16 utf16;
+	if (inf->skip)
+		return;
 	for (i=0; i<len; i++)
-		switch(string[i])
+		switch(str[i])
 		{
 		// eliminate blanks
 		case 0x20:
 		case 0x0A:
-			break;
+			// TO_DO: smart elimination of whitespaces
+			if (inf->index == 0)
+			{
+				inf->value[0] = i;
+				break;
+			}
+		// copy the string data in our info structure
 		default:
-			if (string[i] >= 0x80)
+			inf->value[inf->index++] = str[i];
+//			printf(" %c\n", str[i]);
+/*
+			if (str[i] >= 0x80)
 			{
 				consumed = utf8_to_u16_nz(s+i, &utf16, len-i);
 				printf("%02X", utf16);
 				i += consumed;
 			}
 			else
-				printf("%02X", string[i]);
+				printf("%c", str[i]);*/
 			break;
 		}
 }
 
-static void XMLCALL startElement(void *userData, const char *name, const char **atts)
+// Parsing of a node name: start
+static void XMLCALL start(void *userData, const char *name, const char **attr)
 {
-  int i;
-  int *depthPtr = (int *)userData;
-  printf("\n");
-  for (i = 0; i < *depthPtr; i++)
-    putchar('\t');
-  printf("%s ", name);
-  *depthPtr += 1;
+    Parseinfo *inf = (Parseinfo *) userData;
+	inf->stack[inf->depth] = malloc(strlen(name)+1);
+	strcpy(inf->stack[inf->depth], name);
+	printf("stack[%d] = %s\n", inf->depth, inf->stack[inf->depth]);
+	inf->index = 0;
+	inf->value[0] = 0;	// for smart whitespace detection
 }
 
-static void XMLCALL endElement(void *userData, const char *name)
+/*
+void* get_current_table(Parseinfo *inf)
 {
-  int *depthPtr = (int *)userData;
-  *depthPtr -= 1;
+	int i;
+	for(i=0; i< curtable
 }
+*/
+// Parsing of a node name: end (this is where we fill our table with the node value)
+static void XMLCALL end(void *userData, const char *name)
+{
+    Parseinfo *inf = (Parseinfo *) userData;
+	// 1. find the 
+//	for (i=0;
+//	table = inf->stack
+
+	// Free the string we allocate
+	if (inf->stack[inf->depth] != NULL)
+	{
+		free(inf->stack[inf->depth]);
+		inf->stack[inf->depth] = NULL;
+	}
+	if (inf->index != 0)
+	{
+		inf->value[inf->index] = 0;
+		printf("  %s\n", inf->value);
+		inf->index = 0;
+	}
+}
+
+void rawstart(void *userData, const char *name, const char **attr) 
+{
+    Parseinfo *inf = (Parseinfo *) userData;
+//	printf("rawstart[%d].name = %s\n",  inf->depth, name);
+    if (!inf->skip) 
+	{
+        if (skip(inf, name, attr)) 
+			inf->skip = inf->depth;
+        else 
+            start(inf, name, attr); 
+    }
+    inf->depth++;	
+}
+
+void rawend(void *userData, const char *name) 
+{
+    Parseinfo *inf = (Parseinfo *) userData;
+    inf->depth--;
+    if (!inf->skip)
+        end(inf, name);
+	if (inf->skip == inf->depth) 
+        inf->skip = 0;
+}  
+
 
 
 int readconf(char* filename)
@@ -205,13 +310,19 @@ int readconf(char* filename)
 	// Expat variables
 	char buf[BUFSIZ];
 	int done;
-	int depth = 0;
 	XML_Parser parser; 
 	FILE* fd;
+	Parseinfo info;
 
 	parser = XML_ParserCreate(NULL);
-	XML_SetUserData(parser, &depth);
-	XML_SetElementHandler(parser, startElement, endElement);
+    if (parser == NULL) {
+        fprintf(stderr, "Could not allocate memory for parser\n");
+        return -1;
+    }
+    init_info(&info);
+	XML_SetUserData(parser, &info);
+    XML_SetElementHandler(parser, rawstart, rawend);
+
 	XML_SetCharacterDataHandler(parser, characterData);
 
 	if ((fd = fopen(filename, "rb")) == NULL)
@@ -240,33 +351,38 @@ int readconf(char* filename)
 }
 
 
-void init_controls()
+void init_xml_config()
 {
 	int i;
 	// The second part of a node table init MUST occur at runtime
-	INIT_XML_NODE_NAMES(controls);
+	INIT_XML_TABLE(config);
+	INIT_XML_TABLE(options);
+	INIT_XML_TABLE(controls);
 	// Set defaults values. Can be skipped if relying on the external XML
+	SET_XML_NODE_DEFAULT(options, skip_intro, false);
+	SET_XML_NODE_DEFAULT(options, enhanced_guards, true);
+	SET_XML_NODE_DEFAULT(options, picture_corners, true);
 	// The order is PSP, WIN
-	SET_XML_NODE_DEFAULT(controls, key_fire, 'x', '5');
-    SET_XML_NODE_DEFAULT(controls, key_toggle_walk_run, 'o', ' ');
-    SET_XML_NODE_DEFAULT(controls, key_pause, 's', SPECIAL_KEY_F5);
-    SET_XML_NODE_DEFAULT(controls, key_sleep, 'q', SPECIAL_KEY_F9);
-    SET_XML_NODE_DEFAULT(controls, key_stooge, 'd', SPECIAL_KEY_F10);
-    SET_XML_NODE_DEFAULT(controls, key_direction_left, 0, '4');
-    SET_XML_NODE_DEFAULT(controls, key_direction_right, 0, '6');
-    SET_XML_NODE_DEFAULT(controls, key_direction_up, 0, '8');
-    SET_XML_NODE_DEFAULT(controls, key_direction_down, 0, '2');
-    SET_XML_NODE_DEFAULT(controls, key_inventory_cycle_left, SPECIAL_KEY_LEFT, SPECIAL_KEY_LEFT);
-    SET_XML_NODE_DEFAULT(controls, key_inventory_cycle_right, SPECIAL_KEY_RIGHT, SPECIAL_KEY_RIGHT);
-    SET_XML_NODE_DEFAULT(controls, key_pickup, SPECIAL_KEY_UP, SPECIAL_KEY_UP);
-    SET_XML_NODE_DEFAULT(controls, key_dropdown, SPECIAL_KEY_DOWN, SPECIAL_KEY_DOWN);
-    SET_XML_NODE_DEFAULT(controls, key_escape, 'a', 0x1b);
-    SET_XML_NODE_DEFAULT(controls, key_prisoners_cycle_left, SPECIAL_LEFT_MOUSE_BUTTON, 0);
-    SET_XML_NODE_DEFAULT(controls, key_prisoners_cycle_right, SPECIAL_RIGHT_MOUSE_BUTTON, 0);
-    SET_XML_NODE_DEFAULT(controls, key_select_british, 0, SPECIAL_KEY_F1);
-    SET_XML_NODE_DEFAULT(controls, key_select_french, 0, SPECIAL_KEY_F2);
-    SET_XML_NODE_DEFAULT(controls, key_select_american, 0, SPECIAL_KEY_F3);
-    SET_XML_NODE_DEFAULT(controls, key_select_polish, 0, SPECIAL_KEY_F4);
+	SET_XML_NODE_DEFAULT2(controls, key_fire, 'x', '5');
+    SET_XML_NODE_DEFAULT2(controls, key_toggle_walk_run, 'o', ' ');
+    SET_XML_NODE_DEFAULT2(controls, key_pause, 's', SPECIAL_KEY_F5);
+    SET_XML_NODE_DEFAULT2(controls, key_sleep, 'q', SPECIAL_KEY_F9);
+    SET_XML_NODE_DEFAULT2(controls, key_stooge, 'd', SPECIAL_KEY_F10);
+    SET_XML_NODE_DEFAULT2(controls, key_direction_left, 0, '4');
+    SET_XML_NODE_DEFAULT2(controls, key_direction_right, 0, '6');
+    SET_XML_NODE_DEFAULT2(controls, key_direction_up, 0, '8');
+    SET_XML_NODE_DEFAULT2(controls, key_direction_down, 0, '2');
+    SET_XML_NODE_DEFAULT2(controls, key_inventory_cycle_left, SPECIAL_KEY_LEFT, SPECIAL_KEY_LEFT);
+    SET_XML_NODE_DEFAULT2(controls, key_inventory_cycle_right, SPECIAL_KEY_RIGHT, SPECIAL_KEY_RIGHT);
+    SET_XML_NODE_DEFAULT2(controls, key_pickup, SPECIAL_KEY_UP, SPECIAL_KEY_UP);
+    SET_XML_NODE_DEFAULT2(controls, key_dropdown, SPECIAL_KEY_DOWN, SPECIAL_KEY_DOWN);
+    SET_XML_NODE_DEFAULT2(controls, key_escape, 'a', 0x1b);
+    SET_XML_NODE_DEFAULT2(controls, key_prisoners_cycle_left, SPECIAL_LEFT_MOUSE_BUTTON, 0);
+    SET_XML_NODE_DEFAULT2(controls, key_prisoners_cycle_right, SPECIAL_RIGHT_MOUSE_BUTTON, 0);
+    SET_XML_NODE_DEFAULT2(controls, key_select_british, 0, SPECIAL_KEY_F1);
+    SET_XML_NODE_DEFAULT2(controls, key_select_french, 0, SPECIAL_KEY_F2);
+    SET_XML_NODE_DEFAULT2(controls, key_select_american, 0, SPECIAL_KEY_F3);
+    SET_XML_NODE_DEFAULT2(controls, key_select_polish, 0, SPECIAL_KEY_F4);
 	// Debug
-	PRINT_XML_NODES(controls);
+//	PRINT_XML_TABLE(controls);
 }
