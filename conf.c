@@ -30,30 +30,26 @@
 #include "conf.h"
 
 typedef struct {
+	char*		name;
+	s_xml_attr* attr;
+} stack_el;
+
+typedef struct {
     int skip;
     int depth;
-	char* stack[256];
-//	char* curname;
-//	void* curtable;
+	stack_el stack[256];
+	// holder for the string conversion of the read value
 	char value[256];
 	int  index;
 } Parseinfo;
 
 
-#define SET_XML_NODE_DEFAULT(table, node_name, val) {					\
-	for (i=0; i<_xml_##table##_end; i++) 								\
-		if (strcmp(#node_name, xml_##table.node[i].name) == 0)			\
-			xml_##table.node[i].value = val; }
 #if defined(PSP)
-#define SET_XML_NODE_DEFAULT2(table, node_name, val1, val2) {			\
-	for (i=0; i<_xml_##table##_end; i++) 								\
-		if (strcmp(#node_name, xml_##table.node[i].name) == 0)			\
-			xml_##table.node[i].value = val1; }
+#define SET_XML_NODE_DEFAULT2(table, node_name, val1, val2) 			\
+	SET_XML_NODE_DEFAULT(table, node_name, val1)
 #else
-#define SET_XML_NODE_DEFAULT2(table, node_name, val1, val2) {			\
-	for (i=0; i<_xml_##table##_end; i++) 								\
-		if (strcmp(#node_name, xml_##table.node[i].name) == 0)			\
-			xml_##table.node[i].value = val2; }
+#define SET_XML_NODE_DEFAULT2(table, node_name, val1, val2) 			\
+	SET_XML_NODE_DEFAULT(table, node_name, val2)
 #endif
 
 
@@ -177,25 +173,62 @@ void init_info(Parseinfo *info) {
     info->depth = 0;
 	info->index = 0;
 }
+/*
+xml_node* get_branch_node(Parseinfo *inf, int level)
+{
+	xml_node* node;
+	if (level == 0)
+	{
+		if (strcmp(inf->stack[0].name, xml_root_name) == 0)
+			return xml_root;
+		else
+			return NULL;
+	}
+	node = get_branch_node(inf, level-1);
+	for (i=0; i<GET_NODE_COUNT(node); i++)
+	{
+		if (strcmp(inf->stack[0], xml_root_name)
+	if (node == NULL)
+		return NULL;
+
+
+}
+*/
 
 
 // Skip nodes that are undefined
 bool skip(Parseinfo *inf, const char *name, const char **attr) 
 {
 	int i;
+/*
+	if (inf->depth == 0)
+		return (strcmp(name, xml_root_name) != 0);
+	else
+		getbranch(inf, name, inf->depth -1);
+*/	
 	switch (inf->depth) 
 	{
 	case 0:
+	{
+//		blah = GET_NODE_NAME(&xml_root, type_xml_node, 0);
+//		return true;	
 		// Check that the rootnode matches our definition
-		return (strcmp(name, xml_root) != 0);
-	case 1:
+//		GET_NODE_NAME(ptr, xml_type, i) (char*)(((xml_node*)&xml_root)->nodes +			
+//			0*(sizeof(char*) + xml_type_size[xml_type]))
+		printf("got %s on root\n", GET_NODE_NAME(&xml_root, type_xml_node_ptr, 0));
+		printf("xml_config[%d].name = %s. size = %d\n", controls, GET_NODE_NAME(&xml_config, type_xml_node_ptr, 2), s_xml_el_size[type_xml_node_ptr]);
+
+		exit(0);
+		return (strcmp(name, GET_NODE_NAME(&xml_root, type_xml_node_ptr, 0)) != 0);
+	}
+/*	case 1:
 		// Ignore any 1st level nodename that is not in our 1st level table
-		for (i=0; i<_xml_config_end; i++)
+		for (i=0; i<GET_NODE_COUNT(config); i++)
 			// xml_config[] is the name of our root node table
-			if (strcmp(name, xml_config.node[i].name) == 0)
+			if (strcmp(name, NODE(config, i).name) == 0)
 				return false;
 		return true;
-	default:
+*/	default:
 		return false;
 	}
 }
@@ -243,9 +276,9 @@ static void XMLCALL characterData(void *userData, const char *s, int len)
 static void XMLCALL start(void *userData, const char *name, const char **attr)
 {
     Parseinfo *inf = (Parseinfo *) userData;
-	inf->stack[inf->depth] = malloc(strlen(name)+1);
-	strcpy(inf->stack[inf->depth], name);
-	printf("stack[%d] = %s\n", inf->depth, inf->stack[inf->depth]);
+	inf->stack[inf->depth].name = malloc(strlen(name)+1);
+	strcpy(inf->stack[inf->depth].name, name);
+	printf("stack[%d] = %s\n", inf->depth, inf->stack[inf->depth].name);
 	inf->index = 0;
 	inf->value[0] = 0;	// for smart whitespace detection
 }
@@ -266,10 +299,10 @@ static void XMLCALL end(void *userData, const char *name)
 //	table = inf->stack
 
 	// Free the string we allocate
-	if (inf->stack[inf->depth] != NULL)
+	if (inf->stack[inf->depth].name != NULL)
 	{
-		free(inf->stack[inf->depth]);
-		inf->stack[inf->depth] = NULL;
+		free(inf->stack[inf->depth].name);
+		inf->stack[inf->depth].name = NULL;
 	}
 	if (inf->index != 0)
 	{
@@ -358,6 +391,7 @@ void init_xml_config()
 	INIT_XML_TABLE(config);
 	INIT_XML_TABLE(options);
 	INIT_XML_TABLE(controls);
+
 	// Set defaults values. Can be skipped if relying on the external XML
 	SET_XML_NODE_DEFAULT(options, skip_intro, false);
 	SET_XML_NODE_DEFAULT(options, enhanced_guards, true);
@@ -384,5 +418,5 @@ void init_xml_config()
     SET_XML_NODE_DEFAULT2(controls, key_select_american, 0, SPECIAL_KEY_F3);
     SET_XML_NODE_DEFAULT2(controls, key_select_polish, 0, SPECIAL_KEY_F4);
 	// Debug
-//	PRINT_XML_TABLE(controls);
+	PRINT_XML_TABLE(controls); 
 }

@@ -171,30 +171,7 @@ extern "C" {
 #define SPECIAL_MIDDLE_MOUSE_BUTTON	(GLUT_MIDDLE_BUTTON - GLUT_LEFT_BUTTON + SPECIAL_MOUSE_BUTTON_BASE)
 #define SPECIAL_RIGHT_MOUSE_BUTTON	(GLUT_RIGHT_BUTTON - GLUT_LEFT_BUTTON + SPECIAL_MOUSE_BUTTON_BASE)
 
-#define XML_VALUE(table, id)	xml_##table.node[id].value
-#define XML_NAME(table, id)		xml_##table.node[id].name
 
-// Short(?)cut defines for the main program
-#define KEY_FIRE				XML_VALUE(controls, key_fire)
-#define KEY_TOGGLE_WALK_RUN		xml_controls.node[key_toggle_walk_run].value
-#define KEY_PAUSE				xml_controls.node[key_pause].value
-#define KEY_INVENTORY_LEFT		xml_controls.node[key_inventory_cycle_left].value
-#define KEY_INVENTORY_RIGHT		xml_controls.node[key_inventory_cycle_right].value
-#define KEY_INVENTORY_PICKUP	xml_controls.node[key_pickup].value
-#define KEY_INVENTORY_DROP		xml_controls.node[key_dropdown].value
-#define KEY_SLEEP				xml_controls.node[key_sleep].value
-#define KEY_STOOGE				xml_controls.node[key_stooge].value
-#define KEY_ESCAPE				xml_controls.node[key_escape].value
-#define KEY_PRISONERS_LEFT		xml_controls.node[key_prisoners_cycle_left].value
-#define KEY_PRISONERS_RIGHT		xml_controls.node[key_prisoners_cycle_right].value
-#define KEY_BRITISH				xml_controls.node[key_select_british].value
-#define KEY_FRENCH				xml_controls.node[key_select_french].value
-#define KEY_AMERICAN			xml_controls.node[key_select_american].value
-#define KEY_POLISH				xml_controls.node[key_select_polish].value
-#define KEY_DIRECTION_LEFT		xml_controls.node[key_direction_left].value
-#define KEY_DIRECTION_RIGHT		xml_controls.node[key_direction_right].value
-#define KEY_DIRECTION_UP		xml_controls.node[key_direction_up].value
-#define KEY_DIRECTION_DOWN		xml_controls.node[key_direction_down].value
 
 // Non official debug keys
 #define KEY_DEBUG_PRINT_POS		'p'
@@ -229,9 +206,9 @@ extern "C" {
 
 // We need the following *SINGLE WORD* types to be defined, so that we can
 // figure out the type of our XML node tables at runtime
-#define pointer  void*
+//#define pointer  void*
 #define string	 char*
-#define xml_node void*
+
 enum XML_TYPE {
 	type_bool,
 	type_u8,
@@ -243,24 +220,70 @@ enum XML_TYPE {
 	type_u64,
 	type_s64,
 	type_string,
-	type_pointer,
-	type_xml_node
+//	type_pointer,
+	type_xml_node_ptr,
 };
-
-/*
-	SET_XML_TABLE(table, type, ...)
-	INSTANTIATE_XML_TABLE(table, attr, value)
-	CREATE_XML_TABLE_SINGLE()
-	CREATE_XML_TABLE_DUPLICATE_BASE()
-	CREATE_XML_TABLE_DUPLICATE()
- */
 
 typedef struct {
 	char* name;
 	char* value;
 } s_xml_attr;
 
+/*
+typedef struct { enum XML_TYPE node_type; int node_count; s_xml_attr attr;		\
+				 char** tokens; void** reuse; void* nodes; } xml_node;
+*/
+
+// We have to define one of the egg/chicken before the other, so it's a bit messy
+typedef struct yada { enum XML_TYPE node_type; int node_count; s_xml_attr attr;		\
+	char** tokens; void** reuse; struct {char* name; struct yada *value;} *nodes; } xml_node;
+#define xml_node_ptr xml_node*
+
+typedef struct {char* name; xml_node_ptr value; } xml_node_el;
+
+
 #if defined(INIT_XML_ACTUAL_INIT)
+// This macro will get the size of a structure element, taking into account any 
+// packing/padding added by the compiler
+#define SIZER(type)	sizeof(struct {char* a; type b;}[2])/2
+static int s_xml_el_size[type_xml_node_ptr+1] = {
+	SIZER(bool),
+	SIZER(u8),
+	SIZER(s8),
+	SIZER(u16),
+	SIZER(s16),
+	SIZER(u32),
+	SIZER(s32),
+	SIZER(u64),
+	SIZER(s64),
+	SIZER(string),
+//	sizeof(pointer),
+	SIZER(xml_node_ptr)
+};
+#else
+extern int xml_type_size[type_xml_node_ptr+1];
+#endif
+
+// Get the name of node i from xml table *ptr
+// This macro ASSUMES that structure data are packed 
+//#define GET_NODE_NAME(ptr, xml_type, i) (char*) ((((xml_node*)ptr)->nodes +		\
+//										i*s_xml_el_size[xml_type])
+
+#define GET_NODE_NAME(ptr, xml_type, i) \
+((char*)(*((xml_node_el**)((xml_node*)ptr)->nodes))) + i*s_xml_el_size[xml_type]
+ 
+
+//(((xml_node*)ptr)->nodes)
+
+//GET_NODE_NAME(&xml_root, type_xml_node, 0) 
+//(char*)(((xml_node*)&xml_root)->nodes +	0*(sizeof(char*) + xml_type_size[type_xml_node]))
+
+#define GET_CHILD_NODE(ptr, i) ((xml_node_el*)((xml_node*)ptr)->nodes)[i].value
+
+
+
+
+/* working
 #define CREATE_XML_TABLE(table, type, ...)										\
 	enum { __VA_ARGS__, _xml_##table##_end };									\
 	static char* _xml_##table##_names = #__VA_ARGS__;							\
@@ -268,7 +291,8 @@ typedef struct {
 	typedef struct {char* name; type value;} s_xml_##table##_element ;			\
 	typedef struct {enum XML_TYPE node_type; int node_count; s_xml_attr attr;	\
 		s_xml_##table##_element node[_xml_##table##_end];} s_xml_##table;		\
-	s_xml_##table xml_##table;
+	static s_xml_##table xml_##table;
+
 #define SET_XML_TABLE(table, type, ...)										\
 	enum { __VA_ARGS__, _xml_##table##_end };									\
 	static char* _xml_##table##_names = #__VA_ARGS__;							\
@@ -284,16 +308,9 @@ typedef struct {
 	static char* _xml_##table_attr_value = NULL;								\
 	static char* _xml_##table_attr_name = NULL;									\
 	s_xml_##table xml_##table_##value;
-#define SET_XML_ROOT(table)	static char* xml_root = #table;
-//	xml_##table.attr.name = _xml_##table_attr_name;								\
-//	xml_##table.attr.value = _xml_##table_attr_value;							\
 
-#define INIT_XML_TABLE(table) {													\
-	xml_##table.node_type = _xml_##table##_type;								\
-	xml_##table.node_count = _xml_##table##_end;								\
-	xml_##table.node[i=0].name = strtok (_xml_##table##_names, " ,\t");			\
-	while (xml_##table.node[i++].name != NULL)									\
-		xml_##table.node[i].name = strtok (NULL, " ,\t"); }		
+
+
 #else
 #define CREATE_XML_TABLE(table, type, ...)										\
 	enum { __VA_ARGS__, _xml_##table##_end };									\
@@ -302,15 +319,109 @@ typedef struct {
 	typedef struct {enum XML_TYPE node_type; int node_count;					\
 		s_xml_##table##_element node[_xml_##table##_end];} s_xml_##table;		\
 	extern s_xml_##table xml_##table;
-#define SET_XML_ROOT(table) char* xml_root;
+
+
+
+
+*/
+
+#define NODE(tabid, i)	((s_xml_##tabid##_el*)xml_##tabid.nodes)[i]
+
+// Short(?)cut defines for the main program
+#define KEY_FIRE				NODE(controls, key_fire).value
+#define KEY_TOGGLE_WALK_RUN		NODE(controls, key_toggle_walk_run).value
+#define KEY_PAUSE				NODE(controls, key_pause).value
+#define KEY_INVENTORY_LEFT		NODE(controls, key_inventory_cycle_left).value
+#define KEY_INVENTORY_RIGHT		NODE(controls, key_inventory_cycle_right).value
+#define KEY_INVENTORY_PICKUP	NODE(controls, key_pickup).value
+#define KEY_INVENTORY_DROP		NODE(controls, key_dropdown).value
+#define KEY_SLEEP				NODE(controls, key_sleep).value
+#define KEY_STOOGE				NODE(controls, key_stooge).value
+#define KEY_ESCAPE				NODE(controls, key_escape).value
+#define KEY_PRISONERS_LEFT		NODE(controls, key_prisoners_cycle_left).value
+#define KEY_PRISONERS_RIGHT		NODE(controls, key_prisoners_cycle_right).value
+#define KEY_BRITISH				NODE(controls, key_select_british).value
+#define KEY_FRENCH				NODE(controls, key_select_french).value
+#define KEY_AMERICAN			NODE(controls, key_select_american).value
+#define KEY_POLISH				NODE(controls, key_select_polish).value
+#define KEY_DIRECTION_LEFT		NODE(controls, key_direction_left).value
+#define KEY_DIRECTION_RIGHT		NODE(controls, key_direction_right).value
+#define KEY_DIRECTION_UP		NODE(controls, key_direction_up).value
+#define KEY_DIRECTION_DOWN		NODE(controls, key_direction_down).value
+
+#define SET_XML_NODE_DEFAULT(tabid, node_name, val) {							\
+	for (i=0; i<xml_##tabid.node_count; i++) 									\
+		if (strcmp(#node_name, NODE(tabid, i).name) == 0)						\
+			NODE(tabid, i).value = val; }
+
+
+#if defined(INIT_XML_ACTUAL_INIT)
+#define DEFINE_XML_NODES(nodid, ...)											\
+	enum { __VA_ARGS__, _xml_##nodid##_end };									\
+	static void* _xml_##nodid##_reuse = NULL;									\
+	static char* _xml_##nodid##_names = #__VA_ARGS__;		
+
+#define CREATE_XML_TABLE(tabid, nodid, type)									\
+	typedef struct {char* name; type value;} s_xml_##tabid##_el;				\
+	static s_xml_##tabid##_el _xml_##tabid##_nodes[_xml_##nodid##_end];			\
+	typedef struct {enum XML_TYPE node_type; int node_count; s_xml_attr attr;	\
+		char** tokens; void** reuse; s_xml_##tabid##_el* nodes; } s_xml_##tabid;\
+	s_xml_##tabid xml_##tabid = {type_##type, _xml_##nodid##_end, { NULL, NULL},\
+		&_xml_##nodid##_names, &_xml_##nodid##_reuse, _xml_##tabid##_nodes };
+
+
+//TO_DO: init attribute names
+#define INIT_XML_TABLE(tabid) {													\
+	if (*(xml_##tabid.reuse) == NULL) {											\
+		*(xml_##tabid.reuse) = _xml_##tabid##_nodes;							\
+		NODE(tabid, i=0).name = strtok(*(xml_##tabid.tokens), " ,\t");			\
+		while (NODE(tabid, i++).name != NULL)									\
+			NODE(tabid, i).name = strtok (NULL, " ,\t"); 						\
+	} else {																	\
+		for (i=0; i<xml_##tabid.node_count; i++) NODE(tabid,i).name =			\
+			((s_xml_##tabid##_el*)*(xml_##tabid.reuse))[i].name; } } 
+
+/*
+typedef struct {enum XML_TYPE node_type; int node_count; s_xml_attr attr;		\
+				char** tokens; void** reuse; void* nodes; } xml_node;
+
+typedef struct {char* name; xml_node value; } xml_node_el;
+*/
+
+#define SET_XML_ROOT(tabid)														\
+	xml_node_el _xml_root[2] = { { #tabid, (xml_node*)&xml_##tabid }, {"yada", NULL} };				\
+	xml_node xml_root = { type_xml_node_ptr, 1, {NULL, NULL}, NULL, NULL, _xml_root };
+
+
+
+/*
+xml_node xml_root = { type_xml_node_ptr, 1, {NULL, NULL}, NULL, NULL, { #tabid, (xml_node*)&xml_##tabid } };
+*/
+		
+//static char* xml_root_name = #tabid;				\
+//	static xml_node* xml_root = (xml_node*)&xml_##tabid;
+
+#else
+
+#define DEFINE_XML_NODES(nodid, ...)											\
+	enum { __VA_ARGS__, _xml_##nodid##_end };	
+
+#define CREATE_XML_TABLE(tabid, nodid, type)									\
+	typedef struct {char* name; type value;} s_xml_##tabid##_el;				\
+	typedef struct {enum XML_TYPE node_type; int node_count; s_xml_attr attr;	\
+		char** tokens; void** reuse; s_xml_##tabid##_el* nodes; } s_xml_##tabid;\
+	extern s_xml_##tabid xml_##tabid; 
+
+#define SET_XML_ROOT(table) extern xml_node xml_root;
+
 #endif
 
 
 // Debug printout of the node tree
-#define PRINT_XML_TABLE(table)												\
-	for (i=0; i<_xml_##table##_end; i++) {									\
-		printf("node[%d].name = %s\n", i, xml_##table.node[i].name);		\
-		printf("node[%d].value = %X\n", i, xml_##table.node[i].value); }
+#define PRINT_XML_TABLE(tabid)													\
+	for (i=0; i<xml_##tabid.node_count; i++) {									\
+		printf("node[%d].name = %s\n", i, NODE(tabid, i).name);					\
+		printf("node[%d].value = %X\n", i, NODE(tabid, i).value); }
 
 
 
@@ -319,39 +430,40 @@ typedef struct {
 //
 
 // root node
-CREATE_XML_TABLE(config, xml_node, runtime,		\
-				 options,						\
+DEFINE_XML_NODES(config_nodes, runtime,		\
+				 options,					\
 				 controls)
+CREATE_XML_TABLE(config, config_nodes, xml_node_ptr) 
 SET_XML_ROOT(config)
 
-
 // General program options
-CREATE_XML_TABLE(options, bool, skip_intro,	\
+DEFINE_XML_NODES(options_nodes, skip_intro,	\
 				 enhanced_guards,			\
 				 picture_corners)
+CREATE_XML_TABLE(options, options_nodes, bool)
 
 // User input mappings
-CREATE_XML_TABLE(controls, u8, key_fire,	\
-			   key_toggle_walk_run,			\
-			   key_pause,					\
-			   key_sleep,					\
-			   key_stooge,					\
-			   key_direction_left,			\
-			   key_direction_right,			\
-			   key_direction_up,			\
-			   key_direction_down,			\
-			   key_inventory_cycle_left,	\
-			   key_inventory_cycle_right,	\
-			   key_pickup,					\
-			   key_dropdown,				\
-			   key_escape,					\
-			   key_prisoners_cycle_left,	\
-			   key_prisoners_cycle_right,	\
-			   key_select_british,			\
-			   key_select_french,			\
-			   key_select_american,			\
-			   key_select_polish)
-
+DEFINE_XML_NODES(controls_nodes, key_fire,	
+				 key_toggle_walk_run,		\
+				 key_pause,					\
+				 key_sleep,					\
+				 key_stooge,				\
+				 key_direction_left,		\
+				 key_direction_right,		\
+				 key_direction_up,			\
+				 key_direction_down,		\
+				 key_inventory_cycle_left,	\
+				 key_inventory_cycle_right,	\
+				 key_pickup,				\
+				 key_dropdown,				\
+				 key_escape,				\
+				 key_prisoners_cycle_left,	\
+				 key_prisoners_cycle_right,	\
+				 key_select_british,		\
+				 key_select_french,			\
+				 key_select_american,		\
+				 key_select_polish)
+CREATE_XML_TABLE(controls, controls_nodes, u8)
 
 /////////////////////////////////////////////////////////////////////////////////
 // Function prototypes
