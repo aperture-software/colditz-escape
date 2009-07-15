@@ -1389,7 +1389,8 @@ int main (int argc, char *argv[])
 //	opt_verbose = -1;
 
 //	readconf("config.xml");
-	init_controls();
+	init_xml_config();
+	readconf("config.xml");
 	// init_keys();
 	// Now that we have our config set, we can initialize some controls values
 	key_nation[0] = KEY_BRITISH;

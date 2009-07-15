@@ -32,15 +32,19 @@
 typedef struct {
 	char*		name;
 	s_xml_attr* attr;
+	xml_node*	node;
 } stack_el;
 
 typedef struct {
     int skip;
     int depth;
-	stack_el stack[256];
+	stack_el stack[XML_STACK_SIZE];
 	// holder for the string conversion of the read value
 	char value[256];
-	int  index;
+	// For intelligent white space detection and assignation. Allows a sequence 
+	// of white spaces to be assigned as a value ifonly white spaces are present
+	int white_space_value;
+	int index;
 } Parseinfo;
 
 
@@ -53,8 +57,9 @@ typedef struct {
 #endif
 
 
-
-
+/*
+	UTF-8 conversion constants
+*/
 static const char trailingBytesForUTF8[256] = {
     0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
     0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -99,21 +104,23 @@ static bool isLegalUTF8(const char *source, int length)
 }
 
 
-// Convert a single UTF8 sequence to a 16 bit UTF16, for a non zero 
-// terminated string 'source' of length 'len'. Fill a 16 bit UTF16 in
-// '*target' and returns the number of bytes consumed.
-// If the target glyph is not valid Unicode, FFFF is returned
-// If the target glyph is valid but falls outside our scope, FFFD is returned
-// 
-// Note that this is NOT a true UTF8 to UTF16 conversion function, as it 
-// only returns UTF16 chars in the range [0000-FFFF], whereas true UTF16
-// is [0000-10FFFF]
-int utf8_to_u16_nz(const char* source, u16* target, size_t len) 
+/*
+	Convert a single UTF8 sequence to a 16 bit UTF16, for a non zero 
+	terminated string 'source' of length 'len'. Fill a 16 bit UTF16 in
+	'*target' and returns the number of bytes consumed.
+	If the target glyph is not valid Unicode, FFFF is returned
+	If the target glyph is valid but falls outside our scope, FFFD is returned
+
+	Note that this is NOT a true UTF8 to UTF16 conversion function, as it 
+	only returns UTF16 chars in the range [0000-FFFF], whereas true UTF16
+	is [0000-10FFFF]
+*/
+int utf8_to_u16_nz(const char* source, unsigned short* target, size_t len) 
 {
 	unsigned long ch = 0;
 	int extraBytesToRead;
 	int pos = 0;
-	// Make sure we deal with UNSIGNED chars at all time 
+	// To make sure we deal with UNSIGNED chars at all time 
 	const unsigned char *src = (unsigned char*)source;
 
 	if (source == NULL)
@@ -150,7 +157,7 @@ int utf8_to_u16_nz(const char* source, u16* target, size_t len)
 	ch -= offsetsFromUTF8[extraBytesToRead];
 
 	if (ch < 0xFFFC) 
-		*target = ch & 0xFFFF;
+		*target = (unsigned short)ch;
 	else
 		*target = 0xFFFD;	// replacement character
 
@@ -161,76 +168,123 @@ int utf8_to_u16_nz(const char* source, u16* target, size_t len)
 // Same as above, for NULL terminated strings
 int utf8_to_u16(const char* source, u16* target) 
 {
-	size_t len;
-	len = strlen(source);
-	return utf8_to_u16_nz(source, target, len);
+	return utf8_to_u16_nz(source, target, strlen(source));
 }
 
 
-// Init our parsing user structure
+/*
+   XML parser
+*/
+
+// Return the node index of child node "name" from node "parent". -1 if not found
+static __inline int get_node_index(const char* name, xml_node* parent)
+{
+	int i;
+	for (i=0; i<parent->node_count; i++)
+		if (strcmp(name, parent->name[i]) == 0)
+			return i;
+	return -1;
+}
+
+#define STACK_NODE(depth)	inf->stack[depth].node
+
+// Init the  parsing user structure
 void init_info(Parseinfo *info) {
     info->skip = 0;
     info->depth = 0;
 	info->index = 0;
 }
+
 /*
+// TO_DO: attribute recognition
 xml_node* get_branch_node(Parseinfo *inf, int level)
 {
+	int i;
 	xml_node* node;
 	if (level == 0)
-	{
-		if (strcmp(inf->stack[0].name, xml_root_name) == 0)
-			return xml_root;
+	{	// root node
+		if (strcmp(inf->stack[0].name, xml_root.name[0]) == 0)
+			return xml_root.value[0];
 		else
 			return NULL;
 	}
+
 	node = get_branch_node(inf, level-1);
-	for (i=0; i<GET_NODE_COUNT(node); i++)
-	{
-		if (strcmp(inf->stack[0], xml_root_name)
+
 	if (node == NULL)
 		return NULL;
 
+	for (i=0; i<node->node_count; i++)
+		if (strcmp(inf->stack[level].name, node->name[i]) == 0)
+			return node->value[i];
 
+	return NULL;
 }
 */
+
+/*
+	This function is used to create the XML tree by linking the tables previously 
+	defined. No special cases needed for duplicates as each node/table has a unique
+	name => a specific table can only ever have one parent.
+*/
+bool link_table(xml_node* child, xml_node* potential_parent)
+{
+	int i;
+
+	// only bother if the potential_parent is a meta node
+	if (potential_parent->node_type != type_xml_node_ptr)
+		return false;
+
+	// Explore all subnodes
+	for (i=0; i<potential_parent->node_count; i++)
+	{
+		if (strcmp(*(child->id), potential_parent->name[i]) == 0)
+		{
+			potential_parent->value[i] = child;
+			printf("link_table: matched child xml_%s with parent xml_%s[%s]\n", 
+				*(child->id), *potential_parent->id, potential_parent->name[i]);
+			return true;
+		}
+		// If the potential_parent has children nodes, see if these might not be the actual parent
+		if ( (potential_parent->value[i] != NULL) && link_table(child, potential_parent->value[i]) )
+			return true;
+	}
+	return false;
+}
+
+
+int look_for_orphans()
+{
+	return 0;
+}
 
 
 // Skip nodes that are undefined
 bool skip(Parseinfo *inf, const char *name, const char **attr) 
 {
-	int i;
-/*
-	if (inf->depth == 0)
-		return (strcmp(name, xml_root_name) != 0);
-	else
-		getbranch(inf, name, inf->depth -1);
-*/	
-	switch (inf->depth) 
-	{
-	case 0:
-	{
-//		blah = GET_NODE_NAME(&xml_root, type_xml_node, 0);
-//		return true;	
-		// Check that the rootnode matches our definition
-//		GET_NODE_NAME(ptr, xml_type, i) (char*)(((xml_node*)&xml_root)->nodes +			
-//			0*(sizeof(char*) + xml_type_size[xml_type]))
-		printf("got %s on root\n", GET_NODE_NAME(&xml_root, type_xml_node_ptr, 0));
-		printf("xml_config[%d].name = %s. size = %d\n", controls, GET_NODE_NAME(&xml_config, type_xml_node_ptr, 2), s_xml_el_size[type_xml_node_ptr]);
+	int index;
 
-		exit(0);
-		return (strcmp(name, GET_NODE_NAME(&xml_root, type_xml_node_ptr, 0)) != 0);
+	if (inf->depth == 0)
+		return (strcmp(name, xml_root.name[0]) != 0);
+
+	// find out if "name" is one of the previous node's children
+	index = get_node_index(name, STACK_NODE(inf->depth-1));
+	if (index != -1)
+	{	// Got a match for our name in the parent table
+		// In case the parent is a meta-node, is this parent link actually pointing to a table?
+		if ( (STACK_NODE(inf->depth-1)->node_type == type_xml_node_ptr) &&
+			 (STACK_NODE(inf->depth-1)->value[index] == NULL) )
+		{
+			printf("skip: Orphan link found for node table xml_%s[%s]: Did you forget to create table xml_%s in your source?\n", 
+				*STACK_NODE(inf->depth-1)->id, STACK_NODE(inf->depth-1)->name[index], 
+				STACK_NODE(inf->depth-1)->name[index]);
+			return true;
+		}
+		else
+			return false;
 	}
-/*	case 1:
-		// Ignore any 1st level nodename that is not in our 1st level table
-		for (i=0; i<GET_NODE_COUNT(config); i++)
-			// xml_config[] is the name of our root node table
-			if (strcmp(name, NODE(config, i).name) == 0)
-				return false;
-		return true;
-*/	default:
-		return false;
-	}
+	// Not found
+	return true;
 }
 
 
@@ -238,27 +292,117 @@ bool skip(Parseinfo *inf, const char *name, const char **attr)
 static void XMLCALL characterData(void *userData, const char *s, int len)
 {
 	Parseinfo *inf = (Parseinfo *) userData;
-	int i, consumed;
+	int i;
 	u8* str = (u8*)s;
-	u16 utf16;
 	if (inf->skip)
 		return;
 	for (i=0; i<len; i++)
+		// copy the string data in our info structure
 		switch(str[i])
 		{
-		// eliminate blanks
+		/*		
+			White space, as defined by section 2.3 of the XML specs (http://www.w3.org/TR/REC-xml)
+
+			In this section we perform smart elimination of whitespaces: If the value is only
+			whitespace, we use that value, otherwise whitespaces are eliminated.
+			Not quite 'xml:space="preserve"' but close enough for our use
+		*/
 		case 0x20:
+		case 0x09:
+		case 0x0D:
 		case 0x0A:
-			// TO_DO: smart elimination of whitespaces
-			if (inf->index == 0)
-			{
-				inf->value[0] = i;
-				break;
-			}
-		// copy the string data in our info structure
+			if (inf->white_space_value)
+				inf->value[inf->index++] = str[i];
+			break;
 		default:
+			if (inf->white_space_value)
+			{	// Non whitespace encountered => reset
+				inf->white_space_value = 0;
+				inf->index = 0;
+			}
 			inf->value[inf->index++] = str[i];
-//			printf(" %c\n", str[i]);
+			break;
+		}
+}
+
+
+
+// Parsing of a node name: start
+static void XMLCALL start(void *userData, const char *name, const char **attr)
+{
+    Parseinfo *inf = (Parseinfo *) userData;
+	int i;
+	inf->stack[inf->depth].name = malloc(strlen(name)+1);
+	// Consider the value is whitespace until proven otherwise
+	inf->white_space_value = -1;
+	strcpy(inf->stack[inf->depth].name, name);
+	printf("stack[%d] = %s\n", inf->depth, inf->stack[inf->depth].name);
+	if (inf->depth == 0)
+		inf->stack[inf->depth].node = xml_root.value[0];
+	else
+	{
+		i = get_node_index(name, STACK_NODE(inf->depth-1));
+		if ((i != -1) && (STACK_NODE(inf->depth-1)->node_type == type_xml_node_ptr))
+		{
+			STACK_NODE(inf->depth) = STACK_NODE(inf->depth-1)->value[i];
+			if (STACK_NODE(inf->depth) == NULL)
+				printf("start: Orphan link for node table xml_%s[%s]: Did you forget to create table xml_%s in your source?\n", 
+					*STACK_NODE(inf->depth-1)->id,  STACK_NODE(inf->depth-1)->name[i], 
+					STACK_NODE(inf->depth-1)->name[i]);
+		}
+
+/*
+		for (i=0; i<STACK_NODE(inf->depth-1)->node_count; i++)
+		{
+			if ( (strcmp(name, STACK_NODE(inf->depth-1)->name[i]) == 0) &&
+				 (STACK_NODE(inf->depth-1)->node_type == type_xml_node_ptr) )
+			{
+				STACK_NODE(inf->depth) = STACK_NODE(inf->depth-1)->value[i];
+//				printf("match[%d]: link to xml_%s is %X\n", inf->depth, inf->stack[inf->depth-1].node->name[i], inf->stack[inf->depth].node );
+				if (STACK_NODE(inf->depth) == NULL)
+					printf("start: Orphan link for node table xml_%s[%s]: Did you forget to create table xml_%s in your source?\n", 
+						*STACK_NODE(inf->depth-1)->id,  STACK_NODE(inf->depth-1)->name[i], 
+						STACK_NODE(inf->depth-1)->name[i]);
+			}
+		}
+*/
+	}
+	inf->index = 0;
+	inf->value[0] = 0;	// reinit for smart whitespace detection
+}
+
+
+// Parsing of a node name: end (this is where we fill our table with the node value)
+static void XMLCALL end(void *userData, const char *name)
+{
+	int i, consumed;
+	unsigned short utf16;
+    Parseinfo *inf = (Parseinfo *) userData;
+
+	if (inf->index != 0)
+	{	// We have a regular value
+		inf->value[inf->index] = 0;
+//		printf("  reminder: table = xml_%s\n", *STACK_NODE(inf->depth-1)->id);
+		switch(STACK_NODE(inf->depth-1)->node_type)
+		{
+		case type_u8:
+			i = get_node_index(name, STACK_NODE(inf->depth-1));
+			if (i == -1)
+			{
+				printf("assign value: could not find node named %s in xml_%s\n", name, *STACK_NODE(inf->depth-1)->id);
+				return;
+			}
+			utf8_to_u16(inf->value, &utf16);
+			if (utf16 > 0x100)
+				printf("UTF16 sequence too high\n");
+			((u8*)STACK_NODE(inf->depth-1)->value)[i] = (u8)(utf16&0xFF);
+			printf("  u8: %02X\n", (u8)(utf16&0xFF));
+			break;
+		default:
+			printf("  string: '%s'\n", inf->value);
+			break;
+		}
+
 /*
 			if (str[i] >= 0x80)
 			{
@@ -266,50 +410,26 @@ static void XMLCALL characterData(void *userData, const char *s, int len)
 				printf("%02X", utf16);
 				i += consumed;
 			}
-			else
-				printf("%c", str[i]);*/
-			break;
-		}
-}
-
-// Parsing of a node name: start
-static void XMLCALL start(void *userData, const char *name, const char **attr)
-{
-    Parseinfo *inf = (Parseinfo *) userData;
-	inf->stack[inf->depth].name = malloc(strlen(name)+1);
-	strcpy(inf->stack[inf->depth].name, name);
-	printf("stack[%d] = %s\n", inf->depth, inf->stack[inf->depth].name);
-	inf->index = 0;
-	inf->value[0] = 0;	// for smart whitespace detection
-}
-
-/*
-void* get_current_table(Parseinfo *inf)
-{
-	int i;
-	for(i=0; i< curtable
-}
 */
-// Parsing of a node name: end (this is where we fill our table with the node value)
-static void XMLCALL end(void *userData, const char *name)
-{
-    Parseinfo *inf = (Parseinfo *) userData;
-	// 1. find the 
-//	for (i=0;
-//	table = inf->stack
 
-	// Free the string we allocate
+		inf->index = 0;
+	}
+
+	// Free the string we allocated for the node name
 	if (inf->stack[inf->depth].name != NULL)
 	{
 		free(inf->stack[inf->depth].name);
 		inf->stack[inf->depth].name = NULL;
 	}
-	if (inf->index != 0)
-	{
-		inf->value[inf->index] = 0;
-		printf("  %s\n", inf->value);
-		inf->index = 0;
+
+
+/*
+	else if (!inf->assigned)
+	{	// Nothing was assigned yet, so we might want 
+		printf("  0x%02X\n", inf->value[0]);
+		inf->assigned = true;
 	}
+*/
 }
 
 void rawstart(void *userData, const char *name, const char **attr) 
@@ -319,10 +439,15 @@ void rawstart(void *userData, const char *name, const char **attr)
     if (!inf->skip) 
 	{
         if (skip(inf, name, attr)) 
+		{
+//			printf("  skipped!\n");
 			inf->skip = inf->depth;
+		}
         else 
             start(inf, name, attr); 
     }
+//	else
+//		printf("  skipped!\n");
     inf->depth++;	
 }
 
@@ -338,7 +463,7 @@ void rawend(void *userData, const char *name)
 
 
 
-int readconf(char* filename)
+int readconf(const char* filename)
 {
 	// Expat variables
 	char buf[BUFSIZ];
@@ -380,6 +505,7 @@ int readconf(char* filename)
 	XML_ParserFree(parser);
 	fclose(fd);
 
+	exit(1);
 	return 0;
 }
 
@@ -418,5 +544,5 @@ void init_xml_config()
     SET_XML_NODE_DEFAULT2(controls, key_select_american, 0, SPECIAL_KEY_F3);
     SET_XML_NODE_DEFAULT2(controls, key_select_polish, 0, SPECIAL_KEY_F4);
 	// Debug
-	PRINT_XML_TABLE(controls); 
+//	PRINT_XML_TABLE(controls); 
 }

@@ -1,44 +1,58 @@
 /*
-	Read and populate the XML config file
+	Eschew = Even Simpler C Heuristic Expat Wrapper
 
-	This is an XML simple DOM constructor + runtime parser wrapper
+	* GOAL:
+	This is a XML simple DOM constructor + runtime parser wrapper
 	The goal here is to create XML node tables that are available at compilation 
 	time (so that they can be referenced statically in the program) and provide
 	the helper classes to populate these nodes from an XML file at runtime.
 	This is typically used to set application options from an XML configuration 
 	file.
 
+	* ESCHEW vs SCEW: Why not use SCEW (Simple C Expat Wrapper)?
+	1. Scew's node values are string only / we want to define any type
+	2. Scew's nodes are only available at runtime => massive overhead everytime you
+	   want to access a value, which you can't afford if you define your user input
+	   controls in the XML. In Eschew, table values are directly accessible at 
+	   compilation time, in their declared type, whilst being updated from the XML
+	   at runtime
+	3. Scew provide writing to XML, mutliple attribute hnadling and other features
+	   which are not really required for a simple xml options readout operation
+
 	Note that, after the XML file has been read to populate the tables, NO string
-	resolution intervenes to access the table values (it's all done through enum
-	so you can actually manually use, which is what the XML_VAL() macro defines: 
-		((s_xml_keys*) xml_keys_player_1.nodes)[right].value
-	In the statement above, "right" is the value of an enum and NOT a string!
+	resolution intervenes to access the table values (it's all done through enums)
+	so after you called the macro to create the xml_keys_player_1 and declare its
+	nodes (which includes "dir_up"), you can directly use in your source:
 
+		if (current_key = xml_keys_player_1.value[dir_up])
+			jump();
+
+	* LIMITATIONS
 	The following limitations are in effect when using this wrapper:
-	- Regardless of where they are placed in the XML tree, no two XML nodes can 
-	  have the same name (as every node name is part of a specific enum), 
-	- Child nodes of a specific branch must all be of the same type
-	- Using multiple instances of the same node is possible (except for root) but
-	  each node must be identified by a unique attribute within the same level 
-	  branch (see example below for multiple instances of the "keys" node)
- 
-	It is meant to help setup and make the link between compilation time option
-	tables, and these options definition
+	- Only one atribute can be declared per node, which is then used to differen-
+	  tiate between nodes bearing the same name. See example below for the "keys"
+	  node
+	- Child nodes of a specific branch must all be of the same type (i.e. no 
+	  mixing of strings/integers/booleans within the same branch)
+	- node definitions must be issued from the top down, i.e. parent node before 
+	  any of its children
 
+	* EXAMPLE
+	Let's suppose you want to make the following configuration options available
+	to your program:
 
-	eg:
 	<?xml version="1.0" encoding="utf-8"?>
 	<config>
 	  <resolution>
-	    <width>1280</width>
-		<height>1024</height>
+	    <scr_width>1280</scr_width>
+		<scr_height>1024</scr_height>
 		<fullscreen>1</fullscreen>
 	  </resolution>
 	  <keys player="1">
-	    <left>&#x8C;</left>
-		<right>&#x8E;</right>
-		<up>&#x8D;</up>
-		<down>&#x8F;</down>
+	    <dir_left>&#x8C;</dir_left>
+		<dir_right>&#x8E;</dir_right>
+		<dir_up>&#x8D;</dir_up>
+		<dir_down>&#x8F;</dir_down>
 	  </keys>
 	  <keys player="2">
 	    <left>a</left>
@@ -46,25 +60,42 @@
 		<up>w</up>
 		<down>s</down>
 	  </keys>
-	  <messages lang="en">
+	  <messages>
 	    <msg1>ha ha! pwnd!</msg1>
 		<msg2>%s has left the game</msg2>
 	  </messages>
     </config>
 
-	In your program, you should then use the following macros to initialize and
-	instantiate the tables:
-	SET_XML_TABLE_ROOT(config);
-	CREATE_XML_TABLE(config, xml_node, resolution, keys_player_1, keys_player_2)
-	CREATE_XML_TABLE(resolution, int, width, height, fullscreen)
-	CREATE_XML_TABLE_WITH_ATTR(keys, player, 1, int, left, right, up, down)
-	CREATE_XML_TABLE_WITH_ATTR(keys, player, 2, int, left, right, up, down)
+	With Eschew, you simply need to issue the following in one of your headers:
 
-	This will create the following tables
-	xml_node xml_config[3] = [resolution, keys_player_1, keys_player_2];
-	int xml_resolution[3] = [width, height, fullscreen];
-	int xml_keys_player_1[4] = [left, right, up, down];
-	int xml_keys_player_2[4] = {left, right, up, down};
+	DEFINE_XML_NODES(config_nodes, resolution, keys_player_1, keys_player_2, messages)
+	CREATE_XML_TABLE(config, config_nodes, xml_node_ptr) 
+	SET_XML_ROOT(config)
+
+	DEFINE_XML_NODES(res_nodes, scr_width, scr_height, fullscreen)
+	CREATE_XML_TABLE(resolution, res_nodes, int)
+
+	DEFINE_XML_NODES(keys_nodes, dir_left, dir_right, dir_up, dir_down)
+	CREATE_XML_TABLE(keys_player_1, keys_nodes, u8)
+	CREATE_XML_TABLE(keys_player_2, keys_nodes, u8)
+
+	DEFINE_XML_NODES(msg_nodes, msg1, msg2)
+	CREATE_XML_TABLE(messages, msg_nodes, string)
+
+	This results in the creation of the following enum and tables which you 
+	can use	straight away
+	enum { resolution, keys_player_1, keys_player_2, messages };
+	enum { dir_left, dir_right, dir_up, dir_down };
+	enum { msg1, msg2 };
+	char*     xml_config.names[4];  // containing the names of the nodes
+	xml_node* xml_config.values[4]; // pointer to the child tables
+	char*     xml_resolution[3]; 
+	int
+		{ "resolution", "keys_player_1", "keys_player_2", "messages" };
+	u8    xml_config.values[4] = 
+		{ &xml_resolution, &xml_keys_player_1, &xml_keys_player2, &xml_messages };
+	xml_keys_player_1 = [left, right, up, down];
+	xml_keys_player_2 = [left, right, up, down];
 
 
 
@@ -88,6 +119,8 @@
 #ifdef	__cplusplus
 extern "C" {
 #endif
+
+#define XML_STACK_SIZE 16
 
 /////////////////////////////////////////////////////////////////////////////////
 // Custom key mappings
@@ -209,6 +242,28 @@ extern "C" {
 //#define pointer  void*
 #define string	 char*
 
+#define xml_unsigned_char		unsigned char
+#define xml_unsigned_char_ptr	unsigned char*
+#define xml_char				char
+#define xml_char_ptr			char*
+#define xml_unsigned_short		unsigned short
+#define xml_unsigned_short_ptr	unsigned short*
+#define xml_short				short
+#define xml_short_ptr			short*
+#define xml_int					int
+#define xml_int_ptrs			int*
+#define xml_unsigned_int		unsigned int
+#define xml_unsigned_int_ptr	unsigned int*
+
+
+// Ask the user to create a def file? But then what of the case switch
+#blah(yada, yodo)
+#define yada_yodo				yada yodo
+#define type_yada_yodo
+
+case type_yada_yodo				(yada yodo)value
+
+
 enum XML_TYPE {
 	type_bool,
 	type_u8,
@@ -229,45 +284,20 @@ typedef struct {
 	char* value;
 } s_xml_attr;
 
-/*
-typedef struct { enum XML_TYPE node_type; int node_count; s_xml_attr attr;		\
-				 char** tokens; void** reuse; void* nodes; } xml_node;
-*/
 
-// We have to define one of the egg/chicken before the other, so it's a bit messy
-typedef struct yada { enum XML_TYPE node_type; int node_count; s_xml_attr attr;		\
-	char** tokens; void** reuse; struct {char* name; struct yada *value;} *nodes; } xml_node;
+typedef struct _xml_node { enum XML_TYPE node_type; int node_count; s_xml_attr attr;	\
+		char** id; char** name; struct _xml_node **value; } xml_node;
 #define xml_node_ptr xml_node*
 
-typedef struct {char* name; xml_node_ptr value; } xml_node_el;
+// We need to keep a linked list of all the xml tables defined so that we can link them
+// to one another at runtime (NB: we could probably do without it, but we'd have to ask
+// people to define their XML tables starting from the bottom => not desirable)
+typedef struct _xml_list { char* name; xml_node* table; struct _xml_list *next; } xml_list;
 
 
-#if defined(INIT_XML_ACTUAL_INIT)
-// This macro will get the size of a structure element, taking into account any 
-// packing/padding added by the compiler
-#define SIZER(type)	sizeof(struct {char* a; type b;}[2])/2
-static int s_xml_el_size[type_xml_node_ptr+1] = {
-	SIZER(bool),
-	SIZER(u8),
-	SIZER(s8),
-	SIZER(u16),
-	SIZER(s16),
-	SIZER(u32),
-	SIZER(s32),
-	SIZER(u64),
-	SIZER(s64),
-	SIZER(string),
-//	sizeof(pointer),
-	SIZER(xml_node_ptr)
-};
-#else
-extern int xml_type_size[type_xml_node_ptr+1];
-#endif
 
-// Get the name of node i from xml table *ptr
-// This macro ASSUMES that structure data are packed 
-//#define GET_NODE_NAME(ptr, xml_type, i) (char*) ((((xml_node*)ptr)->nodes +		\
-//										i*s_xml_el_size[xml_type])
+/*
+
 
 #define GET_NODE_NAME(ptr, xml_type, i) \
 ((char*)(*((xml_node_el**)((xml_node*)ptr)->nodes))) + i*s_xml_el_size[xml_type]
@@ -280,7 +310,10 @@ extern int xml_type_size[type_xml_node_ptr+1];
 
 #define GET_CHILD_NODE(ptr, i) ((xml_node_el*)((xml_node*)ptr)->nodes)[i].value
 
+*/
 
+//#define GET_NODE_NAME(ptr, i) (*(xml_node*)ptr).name[i]
+	
 
 
 /* working
@@ -325,81 +358,74 @@ extern int xml_type_size[type_xml_node_ptr+1];
 
 */
 
-#define NODE(tabid, i)	((s_xml_##tabid##_el*)xml_##tabid.nodes)[i]
+#define XML_VALUE(tabid, i)			xml_##tabid.value[i]
+#define XML_NAME(tabid, i)			xml_##tabid.name[i]
 
 // Short(?)cut defines for the main program
-#define KEY_FIRE				NODE(controls, key_fire).value
-#define KEY_TOGGLE_WALK_RUN		NODE(controls, key_toggle_walk_run).value
-#define KEY_PAUSE				NODE(controls, key_pause).value
-#define KEY_INVENTORY_LEFT		NODE(controls, key_inventory_cycle_left).value
-#define KEY_INVENTORY_RIGHT		NODE(controls, key_inventory_cycle_right).value
-#define KEY_INVENTORY_PICKUP	NODE(controls, key_pickup).value
-#define KEY_INVENTORY_DROP		NODE(controls, key_dropdown).value
-#define KEY_SLEEP				NODE(controls, key_sleep).value
-#define KEY_STOOGE				NODE(controls, key_stooge).value
-#define KEY_ESCAPE				NODE(controls, key_escape).value
-#define KEY_PRISONERS_LEFT		NODE(controls, key_prisoners_cycle_left).value
-#define KEY_PRISONERS_RIGHT		NODE(controls, key_prisoners_cycle_right).value
-#define KEY_BRITISH				NODE(controls, key_select_british).value
-#define KEY_FRENCH				NODE(controls, key_select_french).value
-#define KEY_AMERICAN			NODE(controls, key_select_american).value
-#define KEY_POLISH				NODE(controls, key_select_polish).value
-#define KEY_DIRECTION_LEFT		NODE(controls, key_direction_left).value
-#define KEY_DIRECTION_RIGHT		NODE(controls, key_direction_right).value
-#define KEY_DIRECTION_UP		NODE(controls, key_direction_up).value
-#define KEY_DIRECTION_DOWN		NODE(controls, key_direction_down).value
+#define KEY_FIRE				XML_VALUE(controls, key_fire)
+#define KEY_TOGGLE_WALK_RUN		XML_VALUE(controls, key_toggle_walk_run)
+#define KEY_PAUSE				XML_VALUE(controls, key_pause)
+#define KEY_INVENTORY_LEFT		XML_VALUE(controls, key_inventory_cycle_left)
+#define KEY_INVENTORY_RIGHT		XML_VALUE(controls, key_inventory_cycle_right)
+#define KEY_INVENTORY_PICKUP	XML_VALUE(controls, key_pickup)
+#define KEY_INVENTORY_DROP		XML_VALUE(controls, key_dropdown)
+#define KEY_SLEEP				XML_VALUE(controls, key_sleep)
+#define KEY_STOOGE				XML_VALUE(controls, key_stooge)
+#define KEY_ESCAPE				XML_VALUE(controls, key_escape)
+#define KEY_PRISONERS_LEFT		XML_VALUE(controls, key_prisoners_cycle_left)
+#define KEY_PRISONERS_RIGHT		XML_VALUE(controls, key_prisoners_cycle_right)
+#define KEY_BRITISH				XML_VALUE(controls, key_select_british)
+#define KEY_FRENCH				XML_VALUE(controls, key_select_french)
+#define KEY_AMERICAN			XML_VALUE(controls, key_select_american)
+#define KEY_POLISH				XML_VALUE(controls, key_select_polish)
+#define KEY_DIRECTION_LEFT		XML_VALUE(controls, key_direction_left)
+#define KEY_DIRECTION_RIGHT		XML_VALUE(controls, key_direction_right)
+#define KEY_DIRECTION_UP		XML_VALUE(controls, key_direction_up)
+#define KEY_DIRECTION_DOWN		XML_VALUE(controls, key_direction_down)
 
 #define SET_XML_NODE_DEFAULT(tabid, node_name, val) {							\
 	for (i=0; i<xml_##tabid.node_count; i++) 									\
-		if (strcmp(#node_name, NODE(tabid, i).name) == 0)						\
-			NODE(tabid, i).value = val; }
+		if (strcmp(#node_name, XML_NAME(tabid, i)) == 0)						\
+			XML_VALUE(tabid, i) = val; }
 
 
 #if defined(INIT_XML_ACTUAL_INIT)
+
+// This macro defines an enum and sets the 2 variables used for tokenization
 #define DEFINE_XML_NODES(nodid, ...)											\
 	enum { __VA_ARGS__, _xml_##nodid##_end };									\
-	static void* _xml_##nodid##_reuse = NULL;									\
-	static char* _xml_##nodid##_names = #__VA_ARGS__;		
+	static char* _xml_##nodid##_names[_xml_##nodid##_end];						\
+	static char* _xml_##nodid##_tokens = #__VA_ARGS__;		
 
+// Creates the xml_tabid[] with the nodes previously defined. 
 #define CREATE_XML_TABLE(tabid, nodid, type)									\
-	typedef struct {char* name; type value;} s_xml_##tabid##_el;				\
-	static s_xml_##tabid##_el _xml_##tabid##_nodes[_xml_##nodid##_end];			\
+	static type _xml_##tabid##_values[_xml_##nodid##_end];						\
+	static char* _xml_my_name_##tabid = #tabid;									\
 	typedef struct {enum XML_TYPE node_type; int node_count; s_xml_attr attr;	\
-		char** tokens; void** reuse; s_xml_##tabid##_el* nodes; } s_xml_##tabid;\
+		char** id; char** name; type* value; } s_xml_##tabid;					\
 	s_xml_##tabid xml_##tabid = {type_##type, _xml_##nodid##_end, { NULL, NULL},\
-		&_xml_##nodid##_names, &_xml_##nodid##_reuse, _xml_##tabid##_nodes };
+		&_xml_##nodid##_tokens, _xml_##nodid##_names, _xml_##tabid##_values };	
 
-
+// A runtime initialization is necessary for the tokenization of the node names
+// and their copying into the table
+// Before this function, id is set to the token list. After that, id is the name 
+// of the table itsel
 //TO_DO: init attribute names
 #define INIT_XML_TABLE(tabid) {													\
-	if (*(xml_##tabid.reuse) == NULL) {											\
-		*(xml_##tabid.reuse) = _xml_##tabid##_nodes;							\
-		NODE(tabid, i=0).name = strtok(*(xml_##tabid.tokens), " ,\t");			\
-		while (NODE(tabid, i++).name != NULL)									\
-			NODE(tabid, i).name = strtok (NULL, " ,\t"); 						\
-	} else {																	\
-		for (i=0; i<xml_##tabid.node_count; i++) NODE(tabid,i).name =			\
-			((s_xml_##tabid##_el*)*(xml_##tabid.reuse))[i].name; } } 
+	if (xml_##tabid.name[0] == NULL) {											\
+		xml_##tabid.name[i=0] = strtok(*(xml_##tabid.id), " ,\t");				\
+		while (xml_##tabid.name[i++] != NULL)									\
+			xml_##tabid.name[i] = strtok (NULL, " ,\t"); }						\
+	xml_##tabid.id = &_xml_my_name_##tabid;										\
+	if (!link_table((xml_node*)&xml_##tabid, &xml_root))						\
+		printf("could not find parent for %s!!!\n", *xml_##tabid.id); }
 
-/*
-typedef struct {enum XML_TYPE node_type; int node_count; s_xml_attr attr;		\
-				char** tokens; void** reuse; void* nodes; } xml_node;
-
-typedef struct {char* name; xml_node value; } xml_node_el;
-*/
-
+// At least one table must be defined as root (after it has been created)
 #define SET_XML_ROOT(tabid)														\
-	xml_node_el _xml_root[2] = { { #tabid, (xml_node*)&xml_##tabid }, {"yada", NULL} };				\
-	xml_node xml_root = { type_xml_node_ptr, 1, {NULL, NULL}, NULL, NULL, _xml_root };
-
-
-
-/*
-xml_node xml_root = { type_xml_node_ptr, 1, {NULL, NULL}, NULL, NULL, { #tabid, (xml_node*)&xml_##tabid } };
-*/
-		
-//static char* xml_root_name = #tabid;				\
-//	static xml_node* xml_root = (xml_node*)&xml_##tabid;
+	xml_node* _p_root_table = (xml_node*) &xml_##tabid;							\
+	char* _p_root_name = #tabid; char* _p_root_id = "root";						\
+	xml_node xml_root = { type_xml_node_ptr, 1, {NULL, NULL}, &_p_root_id,		\
+			&_p_root_name, &_p_root_table };									
 
 #else
 
@@ -409,7 +435,7 @@ xml_node xml_root = { type_xml_node_ptr, 1, {NULL, NULL}, NULL, NULL, { #tabid, 
 #define CREATE_XML_TABLE(tabid, nodid, type)									\
 	typedef struct {char* name; type value;} s_xml_##tabid##_el;				\
 	typedef struct {enum XML_TYPE node_type; int node_count; s_xml_attr attr;	\
-		char** tokens; void** reuse; s_xml_##tabid##_el* nodes; } s_xml_##tabid;\
+		char** tokens; char** name; type* value; } s_xml_##tabid;				\
 	extern s_xml_##tabid xml_##tabid; 
 
 #define SET_XML_ROOT(table) extern xml_node xml_root;
@@ -420,8 +446,8 @@ xml_node xml_root = { type_xml_node_ptr, 1, {NULL, NULL}, NULL, NULL, { #tabid, 
 // Debug printout of the node tree
 #define PRINT_XML_TABLE(tabid)													\
 	for (i=0; i<xml_##tabid.node_count; i++) {									\
-		printf("node[%d].name = %s\n", i, NODE(tabid, i).name);					\
-		printf("node[%d].value = %X\n", i, NODE(tabid, i).value); }
+		printf("node[%d].name = %s\n", i, XML_NAME(tabid, i));					\
+		printf("node[%d].value = %X\n", i, XML_VALUE(tabid, i)); }
 
 
 
@@ -470,7 +496,7 @@ CREATE_XML_TABLE(controls, controls_nodes, u8)
 //
 int utf8_to_u16_nz(const char* source, u16* target, size_t len);
 int utf8_to_u16(const char* source, u16* target);
-int readconf(char* filename);
+int readconf(const char* filename);
 void init_xml_config(); 
 
 #ifdef	__cplusplus
