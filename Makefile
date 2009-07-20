@@ -1,5 +1,5 @@
 TARGET = colditz
-OBJS = psp/psp-setup.o low-level.o soundplayer.o videoplayer.o md5.o game.o graphics.o conf.o main.o
+OBJS = psp/psp-setup.o low-level.o soundplayer.o videoplayer.o md5.o game.o graphics.o eschew.o conf.o main.o
 #getopt.o  // No longer needed
 #OBJS = copytex.o firefox.o
 

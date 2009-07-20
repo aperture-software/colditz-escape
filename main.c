@@ -71,6 +71,7 @@
 #include "game.h"
 #include "soundplayer.h"
 #include "videoplayer.h"
+#include "eschew.h"
 #include "conf.h"
 
 // Global variables
@@ -1390,7 +1391,7 @@ int main (int argc, char *argv[])
 
 //	readconf("config.xml");
 	init_xml_config();
-	readconf("config.xml");
+	read_xml("config.xml");
 	// init_keys();
 	// Now that we have our config set, we can initialize some controls values
 	key_nation[0] = KEY_BRITISH;

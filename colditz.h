@@ -4,11 +4,6 @@
 extern "C" {
 #endif
 
-#if defined(WIN32)
-// Disable the _CRT_SECURE_DEPRECATE warnings of VC++
-#pragma warning(disable:4996)
-#endif
-
 // General compilation options for the program
 #define CHEATMODE_ENABLED
 #define ANTI_TAMPERING_ENABLED
