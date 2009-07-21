@@ -98,70 +98,86 @@ extern "C" {
 //#define opt_skip_intro			options.node[skip_intro].value
 //#define opt_enhanced_guards		options.node[enhanced_guards].value
 //#define opt_picture_corners		options.node[picture_corners].value
+#if defined(PSP)
+#define KEYVAL(key)		XML_VALUE(controls_target_psp, key)
+#else
+#define KEYVAL(key)		XML_VALUE(controls_target_windows, key)		
+#endif
 
 // Short(?)cut defines for the main program
-#define KEY_FIRE				XML_VALUE(controls, key_fire)
-#define KEY_TOGGLE_WALK_RUN		XML_VALUE(controls, key_toggle_walk_run)
-#define KEY_PAUSE				XML_VALUE(controls, key_pause)
-#define KEY_INVENTORY_LEFT		XML_VALUE(controls, key_inventory_cycle_left)
-#define KEY_INVENTORY_RIGHT		XML_VALUE(controls, key_inventory_cycle_right)
-#define KEY_INVENTORY_PICKUP	XML_VALUE(controls, key_pickup)
-#define KEY_INVENTORY_DROP		XML_VALUE(controls, key_dropdown)
-#define KEY_SLEEP				XML_VALUE(controls, key_sleep)
-#define KEY_STOOGE				XML_VALUE(controls, key_stooge)
-#define KEY_ESCAPE				XML_VALUE(controls, key_escape)
-#define KEY_PRISONERS_LEFT		XML_VALUE(controls, key_prisoners_cycle_left)
-#define KEY_PRISONERS_RIGHT		XML_VALUE(controls, key_prisoners_cycle_right)
-#define KEY_BRITISH				XML_VALUE(controls, key_select_british)
-#define KEY_FRENCH				XML_VALUE(controls, key_select_french)
-#define KEY_AMERICAN			XML_VALUE(controls, key_select_american)
-#define KEY_POLISH				XML_VALUE(controls, key_select_polish)
-#define KEY_DIRECTION_LEFT		XML_VALUE(controls, key_direction_left)
-#define KEY_DIRECTION_RIGHT		XML_VALUE(controls, key_direction_right)
-#define KEY_DIRECTION_UP		XML_VALUE(controls, key_direction_up)
-#define KEY_DIRECTION_DOWN		XML_VALUE(controls, key_direction_down)
+#define KEY_FIRE				KEYVAL(key_fire)
+#define KEY_TOGGLE_WALK_RUN		KEYVAL(key_toggle_walk_run)
+#define KEY_PAUSE				KEYVAL(key_pause)
+#define KEY_INVENTORY_LEFT		KEYVAL(key_inventory_cycle_left)
+#define KEY_INVENTORY_RIGHT		KEYVAL(key_inventory_cycle_right)
+#define KEY_INVENTORY_PICKUP	KEYVAL(key_pickup)
+#define KEY_INVENTORY_DROP		KEYVAL(key_dropdown)
+#define KEY_SLEEP				KEYVAL(key_sleep)
+#define KEY_STOOGE				KEYVAL(key_stooge)
+#define KEY_ESCAPE				KEYVAL(key_escape)
+#define KEY_PRISONERS_LEFT		KEYVAL(key_prisoners_cycle_left)
+#define KEY_PRISONERS_RIGHT		KEYVAL(key_prisoners_cycle_right)
+#define KEY_BRITISH				KEYVAL(key_select_british)
+#define KEY_FRENCH				KEYVAL(key_select_french)
+#define KEY_AMERICAN			KEYVAL(key_select_american)
+#define KEY_POLISH				KEYVAL(key_select_polish)
+#define KEY_DIRECTION_LEFT		KEYVAL(key_direction_left)
+#define KEY_DIRECTION_RIGHT		KEYVAL(key_direction_right)
+#define KEY_DIRECTION_UP		KEYVAL(key_direction_up)
+#define KEY_DIRECTION_DOWN		KEYVAL(key_direction_down)
 
+#define opt_picture_corners			XML_VALUE(options, picture_corners)	
+#define opt_enhanced_guard_handling	XML_VALUE(options, enhanced_guard_handling)	
+#define opt_skip_intro				XML_VALUE(options, skip_intro)
 
 /////////////////////////////////////////////////////////////////////////////////
 // XML tables definitions
 //
 
 // root node
-DEFINE_XML_NODES(config_nodes, runtime,		\
-				 options,					\
+DEFINE_XML_NODES(config_nodes, runtime,		
+				 options,					
 				 controls)
-CREATE_XML_TABLE(config, config_nodes, xml_node_ptr) 
+CREATE_XML_TABLE(config, config_nodes, xml_node) 
 SET_XML_ROOT(config)
 
 // General program options
-DEFINE_XML_NODES(options_nodes, skip_intro,	\
-				 enhanced_guards,			\
+DEFINE_XML_NODES(options_nodes, skip_intro,	
+				 enhanced_guard_handling,	
 				 picture_corners)
 CREATE_XML_TABLE(options, options_nodes, xml_int)
 
 // User input mappings
 DEFINE_XML_NODES(controls_nodes, key_fire,	
-				 key_toggle_walk_run,		\
-				 key_pause,					\
-				 key_sleep,					\
-				 key_stooge,				\
-				 key_direction_left,		\
-				 key_direction_right,		\
-				 key_direction_up,			\
-				 key_direction_down,		\
-				 key_inventory_cycle_left,	\
-				 key_inventory_cycle_right,	\
-				 key_pickup,				\
-				 key_dropdown,				\
-				 key_escape,				\
-				 key_prisoners_cycle_left,	\
-				 key_prisoners_cycle_right,	\
-				 key_select_british,		\
-				 key_select_french,			\
-				 key_select_american,		\
+				 key_toggle_walk_run,		
+				 key_pause,					
+				 key_sleep,					
+				 key_stooge,				
+				 key_direction_left,		
+				 key_direction_right,		
+				 key_direction_up,			
+				 key_direction_down,		
+				 key_inventory_cycle_left,	
+				 key_inventory_cycle_right,	
+				 key_pickup,				
+				 key_dropdown,				
+				 key_escape,				
+				 key_prisoners_cycle_left,	
+				 key_prisoners_cycle_right,	
+				 key_select_british,		
+				 key_select_french,			
+				 key_select_american,		
 				 key_select_polish)
-CREATE_XML_TABLE(controls, controls_nodes, xml_unsigned_char)
+#if defined(PSP)
 CREATE_XML_TABLE(controls_target_psp, controls_nodes, xml_unsigned_char)
+#else
+CREATE_XML_TABLE(controls_target_windows, controls_nodes, xml_unsigned_char)
+#endif
+
+// TEST TEST TEST
+DEFINE_XML_NODES(test_nodes, test1,	test2)
+CREATE_XML_TABLE(testerrata, test_nodes, xml_int)
+
 
 
 void init_xml_config(); 

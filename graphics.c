@@ -29,6 +29,8 @@
 #include "data-types.h"
 #include "low-level.h"
 #include "colditz.h"
+#include "eschew.h"
+#include "conf.h"
 #include "graphics.h"
 #include "game.h"
 #if defined(ANTI_TAMPERING_ENABLED)

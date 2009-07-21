@@ -26,6 +26,8 @@
 #include "colditz.h"
 #include "graphics.h"
 #include "game.h"
+#include "eschew.h"
+#include "conf.h"
 #if defined(ANTI_TAMPERING_ENABLED)
 #include "md5.h"
 #endif
@@ -1510,7 +1512,7 @@ bool guard_in_pursuit(int i, int p)
 		// Indicate that we deviate from the normal flight path
 		printf("guard %d walk starts\n", i);
 		// save the start of pursuit position (if blank)
-		if (opt_enhanced_guard_reset && (guard(i).resume_px == GET_LOST_X))
+		if (opt_enhanced_guard_handling && (guard(i).resume_px == GET_LOST_X))
 		{
 			guard(i).resume_px = guard(i).px;
 			guard(i).resume_p2y = guard(i).p2y;
@@ -1710,7 +1712,7 @@ bool move_guards()
 				}
 
 				// For clarity purposes
-				do_i_know_you = opt_enhanced_guard_reset && guy(p).is_dressed_as_guard && 
+				do_i_know_you = opt_enhanced_guard_handling && guy(p).is_dressed_as_guard && 
 					guard(i).fooled_by[p];	
 
 				// 3d. If that prisoner is not suspicious yet, should he be?
@@ -1759,7 +1761,7 @@ bool move_guards()
 				if ((guard(i).state & STATE_IN_PURSUIT) && (guard(i).target == p))
 				{
 					printf("LOS on %d\n", i);
-					if (opt_enhanced_guard_reset)
+					if (opt_enhanced_guard_handling)
 					{
 						printf("delayed pursuit reset from %d for %d\n", i, p);
 						// Clear the in pursuit flag if our prisoner behaved in the next minute
@@ -1778,7 +1780,7 @@ bool move_guards()
 		if (continue_parent)
 			continue;
 
-		if (opt_enhanced_guard_reset)
+		if (opt_enhanced_guard_handling)
 		{	// 4. Return to our route if we finished a pursuit
 			if (guard(i).state & STATE_RESUME_ROUTE_WAIT)
 			{
@@ -2627,7 +2629,7 @@ void go_to_jail(u32 p)
 	}
 
 	// Reset all the guards that were in pursuit
-	if (opt_enhanced_guard_reset)
+	if (opt_enhanced_guard_handling)
 		reset_guards_in_pursuit(p);
 	else
 		reinstantiate_guards_in_pursuit(p);
@@ -2664,7 +2666,7 @@ void require_pass(u32 p)
 		props[p][ITEM_PASS]--;				// we have to re-cycle in a hurry
 //		show_prop_count();					// => let's comment these lines out
 		// Reset all the guards that were in pursuit
-		if (opt_enhanced_guard_reset)
+		if (opt_enhanced_guard_handling)
 		{
 			// Guards remember when they've seen a pass
 			for (g=0; g<NB_GUARDS; g++)
@@ -2772,7 +2774,7 @@ void check_on_prisoners()
 		}
 		else if (p_event[p].display_shot)
 		{	// End of the shot animation
-			if (opt_enhanced_guard_reset)
+			if (opt_enhanced_guard_handling)
 			{
 				// Keep the guard onscreen in aiming position for a little while longer
 				static_screen(PRISONER_SHOT, NULL, 0);

@@ -633,8 +633,6 @@ extern bool	opt_keymaster;
 extern bool	opt_thrillerdance;
 extern bool	opt_no_guards;
 extern bool	opt_haunted_castle;
-extern bool opt_picture_corners;
-extern bool opt_enhanced_guard_reset;
 extern int	nb_escaped;
 extern int	stat;
 extern int  debug_flag;

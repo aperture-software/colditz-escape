@@ -104,11 +104,11 @@ bool display_paused				= false;
 // we might need to suspend the game for videos, debug, etc
 bool game_suspended				= false;
 // Some people don't like picture corners
-bool opt_picture_corners		= true;
+//bool opt_picture_corners		= true;
 // Skip intro stuff
-bool opt_skip_intro				= true;
+//bool opt_skip_intro				= true;
 // Use the new guard repositioning engine
-bool opt_enhanced_guard_reset	= true;
+//bool opt_enhanced_guard_handling = true;
 
 
 

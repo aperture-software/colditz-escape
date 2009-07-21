@@ -1,5 +1,6 @@
 /*
 	Eschew XML parser helper functions (XML Parse, UTF-8 conversions, etc.)
+	See .h for details
 	
 	UTF-8 to UTF-16 conversion adapted from unicode.org
 	See http://unicode.org/Public/PROGRAMS/CVTUTF/ConvertUTF.c and
@@ -24,13 +25,14 @@
 #endif
 
 // The root is defined in another source
-extern xml_node xml_root;
+extern xnode xml_root;
 
 // Our stack structure
 typedef struct {
 	char*		name;
-	s_xml_attr* attr;
-	xml_node*	node;
+//	int			index;
+//	s_xml_attr* attr;
+	xml_node	node;
 } stack_el;
 
 typedef struct {
@@ -195,10 +197,10 @@ int xml_to_bool(const char* str, xml_boolean* val)
 	return 0;
 }
 
-
+// static __inline
 
 // Return the node index of child node "name" from node "parent". -1 if not found
-static __inline int get_node_index(const char* name, xml_node* parent)
+static __inline int get_node_index(const char* name, xml_node parent)
 {
 	int i;
 	for (i=0; i<parent->node_count; i++)
@@ -206,6 +208,40 @@ static __inline int get_node_index(const char* name, xml_node* parent)
 			return i;
 	return -1;
 }
+
+/*
+// Return the node index of child node "name" from node "parent". -1 if not found
+ int get_node_index(const char* name, xml_node parent, const char** attr)
+{
+	int i;
+	for (i=0; i<parent->node_count; i++)
+		if (strcmp(name, parent->name[i]) == 0)
+		{
+			if ((parent->node_type == t_xml_node) && (parent->value[i] != NULL))
+				printf("name = %s, parent_name=%s, parent_attr = %s\n", name, parent->name[i], parent->value[i]->attr.name);
+//				printf("name = %s, parent_name=%s, ptr = %X\n", name, parent->name[i], parent->value[i]);
+			// Check attributes 
+			if ((parent->node_type == t_xml_node) && (attr != NULL) && (attr[0]!=NULL) && (attr[1]!=NULL))
+			{
+				if (parent->value[i] == NULL)
+					continue;
+				if (parent->value[i]->attr.name == NULL)
+					printf("attr name: match on NULL\n");
+				else if ((strcmp(attr[0], parent->value[i]->attr.name) == 0) &&
+					(strcmp(attr[1], parent->value[i]->attr.value) == 0))
+					printf("attr name match on %s=%s\n", attr[0], attr[1]);
+				else
+				{
+					printf("attr %s=%s - no match\n", attr[0], attr[1]);
+					printf("PS: %s %s=%s\n", parent->name[i], parent->value[i]->attr.name, parent->value[i]->attr.value);
+					continue;
+				}
+			}
+			return i;
+		}
+	return -1;
+}
+*/
 
 #define STACK_NODE(depth)	inf->stack[depth].node
 
@@ -218,10 +254,10 @@ void init_info(Parseinfo *info) {
 
 /*
 // TO_DO: attribute recognition
-xml_node* get_branch_node(Parseinfo *inf, int level)
+xml_node get_branch_node(Parseinfo *inf, int level)
 {
 	int i;
-	xml_node* node;
+	xml_node node;
 	if (level == 0)
 	{	// root node
 		if (strcmp(inf->stack[0].name, xml_root.name[0]) == 0)
@@ -243,27 +279,62 @@ xml_node* get_branch_node(Parseinfo *inf, int level)
 }
 */
 
+
+/*
+	This function returns a node to the relevant sibling according to the attribute
+	passed as parameter (if attribute is null, return the first sibling)
+*/
+xml_node get_sibling(xml_node startnode, const char** attr)
+{
+	xml_node curnode = startnode;
+	if ((attr == NULL) || (attr[0] == NULL) || (attr[1] == NULL))
+		return startnode;
+
+	while(curnode != NULL)
+	{
+		if ((strcmp(attr[0], curnode->attr.name) == 0) &&
+			(strcmp(attr[1], curnode->attr.value) == 0 ) )
+			return curnode;
+		curnode = curnode->next;
+	}
+	return NULL;
+}
+
+
 /*
 	This function is used to create the XML tree by linking the tables previously 
 	defined. No special cases needed for duplicates as each node/table has a unique
 	name => a specific table can only ever have one parent.
 */
-int link_table(xml_node* child, xml_node* potential_parent)
+int link_table(xml_node child, xml_node potential_parent)
 {
 	int i;
+	xml_node node;
 
 	// only bother if the potential_parent is a meta node
-	if (potential_parent->node_type != t_xml_node_ptr)
+	if (potential_parent->node_type != t_xml_node)
 		return 0;
 
 	// Explore all subnodes
 	for (i=0; i<potential_parent->node_count; i++)
 	{
-		if (strcmp(*(child->id), potential_parent->name[i]) == 0)
+		if (strcmp(child->id, potential_parent->name[i]) == 0)
 		{
-			potential_parent->value[i] = child;
 			printf("link_table: matched child xml_%s with parent xml_%s[%s]\n", 
-				*(child->id), *potential_parent->id, potential_parent->name[i]);
+				child->id, potential_parent->id, potential_parent->name[i]);
+
+			// Same index is used for siblings, so fill out the siblings if needed
+			if (potential_parent->value[i] == NULL)
+				potential_parent->value[i] = child;
+			else
+			{
+				node = potential_parent->value[i];
+				while (node->next != NULL)
+					node = node->next;
+				node->next = child;
+				printf("  SET SIBLING!\n");
+			}
+
 			return -1;
 		}
 		// If the potential_parent has children nodes, see if these might not be the actual parent
@@ -293,15 +364,19 @@ int skip(Parseinfo *inf, const char *name, const char **attr)
 	if (index != -1)
 	{	// Got a match for our name in the parent table
 		// In case the parent is a meta-node, is this parent link actually pointing to a table?
-		if ( (STACK_NODE(inf->depth-1)->node_type == t_xml_node_ptr) &&
+		if ( (STACK_NODE(inf->depth-1)->node_type == t_xml_node) &&
 			 (STACK_NODE(inf->depth-1)->value[index] == NULL) )
 		{
 			printf("skip: Orphan link found for node table xml_%s[%s]\n" 
 				"Did you forget to create table xml_%s in your source?\n", 
-				*STACK_NODE(inf->depth-1)->id, STACK_NODE(inf->depth-1)->name[index], 
+				STACK_NODE(inf->depth-1)->id, STACK_NODE(inf->depth-1)->name[index], 
 				STACK_NODE(inf->depth-1)->name[index]);
 			return -1;
 		}
+		// In case the parent is a meta node, do we have the right sibling
+		else if ( (STACK_NODE(inf->depth-1)->node_type == t_xml_node) &&
+				  (get_sibling((xml_node) (STACK_NODE(inf->depth-1)->value[index]), attr) == NULL) )
+			return -1;
 		else
 			return 0;
 	}
@@ -352,6 +427,7 @@ static void XMLCALL characterData(void *userData, const char *s, int len)
 static void XMLCALL start(void *userData, const char *name, const char **attr)
 {
     Parseinfo *inf = (Parseinfo *) userData;
+	xml_node node;
 	int i;
 	inf->stack[inf->depth].name = malloc(strlen(name)+1);
 	// Whitespace, until proven otherwise
@@ -359,27 +435,30 @@ static void XMLCALL start(void *userData, const char *name, const char **attr)
 	strcpy(inf->stack[inf->depth].name, name);
 	printf("stack[%d] = %s\n", inf->depth, inf->stack[inf->depth].name);
 
-	// Attributes
-	if (attr[0] != NULL)
-	{
-		printf("got attribute name %s\n", attr[0]);
-		if (attr[1] != NULL)
-			printf("got attribute value %s\n", attr[1]);
-	}
 
 	if (inf->depth == 0)
 		inf->stack[inf->depth].node = xml_root.value[0];
 	else
 	{
 		i = get_node_index(name, STACK_NODE(inf->depth-1));
-		if ((i != -1) && (STACK_NODE(inf->depth-1)->node_type == t_xml_node_ptr))
+		// Spare the index value in our stack
+//		inf->stack[inf->depth].index = i;
+		if ((i != -1) && (STACK_NODE(inf->depth-1)->node_type == t_xml_node))
 		{
-			STACK_NODE(inf->depth) = STACK_NODE(inf->depth-1)->value[i];
-			if (STACK_NODE(inf->depth) == NULL)
+			if (STACK_NODE(inf->depth-1)->value[i] == NULL)
+			{
 				printf("start: Orphan link for node table xml_%s[%s]\n"
 					"Did you forget to create table xml_%s in your source?\n", 
-					*STACK_NODE(inf->depth-1)->id,  STACK_NODE(inf->depth-1)->name[i], 
+					STACK_NODE(inf->depth-1)->id,  STACK_NODE(inf->depth-1)->name[i], 
 					STACK_NODE(inf->depth-1)->name[i]);
+				STACK_NODE(inf->depth) = NULL;
+			}
+			else
+			{
+				node = STACK_NODE(inf->depth-1)->value[i];
+				// HERE!!!
+				STACK_NODE(inf->depth) = STACK_NODE(inf->depth-1)->value[i];
+			}
 		}
 	}
 	inf->index = 0;
@@ -402,11 +481,11 @@ static void XMLCALL end(void *userData, const char *name)
 		i = get_node_index(name, STACK_NODE(inf->depth-1));
 		if (i == -1)
 		{
-			printf("assign value: could not find node named %s in xml_%s\n", name, *STACK_NODE(inf->depth-1)->id);
+			printf("assign value: could not find node named %s in xml_%s\n", name, STACK_NODE(inf->depth-1)->id);
 			return;
 		}
 
-//		printf("  reminder: table = xml_%s\n", *STACK_NODE(inf->depth-1)->id);
+//		printf("  reminder: table = xml_%s\n", STACK_NODE(inf->depth-1)->id);
 		switch(STACK_NODE(inf->depth-1)->node_type)
 		{
 		// BOOLEAN types
@@ -465,7 +544,7 @@ static void XMLCALL end(void *userData, const char *name)
 		// UNSUPPORTED
 		default:
 			printf("  Conversion of '%s' into table's %s type is not supported yet.\n", 
-				inf->value, *STACK_NODE(inf->depth-1)->id);
+				inf->value, STACK_NODE(inf->depth-1)->id);
 			break;
 		}
 		inf->index = 0;
@@ -484,6 +563,8 @@ void rawstart(void *userData, const char *name, const char **attr)
 {
     Parseinfo *inf = (Parseinfo *) userData;
 //	printf("rawstart[%d].name = %s\n",  inf->depth, name);
+//	if ((attr != NULL) && (attr[0] != NULL) && (attr[1] != NULL))
+//		printf("attr: %s=%s\n", attr[0], attr[1]);
     if (!inf->skip) 
 	{
         if (skip(inf, name, attr)) 

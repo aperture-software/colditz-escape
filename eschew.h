@@ -2,56 +2,67 @@
 	Eschew = Even Simpler C-Heuristic Expat Wrapper
 
 	* GOAL:
-	This is a XML simple DOM constructor + runtime parser wrapper
+	This is a XML simple DOM tables constructor + runtime parser wrapper
 	The goal here is to create XML node tables that are available at compilation 
 	time (so that they can be referenced statically in the program) and provide
 	the helper classes to populate these nodes from an XML file at runtime.
-	This is typically used to set application options from an XML configuration 
-	file.
+	Eschew is typically used to set application options from an XML conf file.
 
 	* ESCHEW vs SCEW, or why not use SCEW (Simple C Expat Wrapper) instead?
-	1. Scew's node values are string only / we want to define any type
+	1. Scew's node values are string only, whereas Eschew can define and populate 
+	   any type
 	2. Scew's nodes are only available at runtime => massive overhead everytime you
-	   want to access a value, which you can't afford if you define your user input
-	   controls in the XML. In Eschew, table values are directly accessible at 
-	   compilation time, in their declared type, whilst being updated from the XML
-	   at runtime
+	   access a simple value. If you define user input controls in the XML, this is
+	   not a viable option. In Eschew on the other hand, table values are *directly*
+	   accessible at compilation time, in their declared type, whilst still being 
+	   populated from the XML at runtime
 	3. Scew provide writing to XML, mutliple attribute handling and other features
 	   which are not really required for a simple xml options readout operation
+	3. As the nodes you define are automatically added as enums, you must make sure
+	   that your node names don't conflict with keywords or variable names
 
-	Note that, after the XML file has been read to populate the tables, NO string
-	resolution intervenes to access the table values (it's all done through enums)
-	so after you called the macro to create the xml_keys_player_1 and declare its
-	nodes (which includes "dir_up"), you can directly use in your source:
+	Once again, the main advantage of Eschew is that, after the XML file has been 
+	read, NO string	or cycle consuming resolution intervenes to access the table 
+	values. They are available like any other regular C array of values (with the
+	node names defined as enum for you to facilitate access). 
+	For instance, if you use the Eschew macros to create the xml_keys_player_1 
+	XML table (which includes the node "dir_up"), you can directly use in your 
+	source:
 
 		if (current_key = xml_keys_player_1.value[dir_up])
 			move_player_forward();
 
 	* LIMITATIONS
-	The following limitations are in effect when using this wrapper:
-	- Only one atribute can be declared per node, which is then used to differen-
-	  tiate between nodes bearing the same name. See example below for the "keys"
-	  node
-	- Child nodes of a specific branch must all be of the same type, i.e. no 
-	  mixing of strings/integers/booleans within the same branch. However, boolean
-	  values ("true", "enabled", "false", "off") will be detected within integer
-	  values and set accordingly
-	- node definitions must be issued from the top down, i.e. parent node before 
-	  any of its children, for the macros to work
+	The following limitations are in effect when using this XML wrapper:
+	- Only one atribute can be declared per node, which is used to differentiate 
+	  between nodes of the same name. See example below for the "keys" node
+	- Child nodes of a specific branch must all be of the same type (because they
+	  all belong to the same C table, which of course can only have one type in C)
+	  However, if you declare an integer xml tablein Eschew, boolean values like
+	  "true", "enabled", "on", "false", "disable", "off" will be detected and set 
+	  accordingly (i.e. false -> 0, true -> non zero)
+	- node definitions must follow the logical order, i.e. parent nodes must be 
+	  instantiated before of their children, for the macros to work.
 	- You cannot use underscores in your base table names, as underscores are used
-	  to separate attributes properties (if this is too much of a limitation, this
-	  can be changed by modifying the XML_ATTRIBUTE_SEPARATOR macro
+	  to separate attributes properties (but if you feel this is too much of a 
+	  limitation, you can change the XML_ATTRIBUTE_SEPARATOR definition to set the
+	  attribute separator to something else). You are free to use underscore in
+	  node names.
+	- You must use one of the xml_#### types when defining your table. If you look
+	  at the .h, you will see that there are just a redefinition for what you'd 
+	  expect (eg: xml_unsigned_char is a redefintion of "unsigned char"). The 
+	  reason is that any type used for your defintions must be a single word.
 
 	* EXAMPLE
-	Let's suppose you want to make the following configuration options available
-	to your program:
+	Suppose you want to make the following configuration options available to your 
+	program:
 
 	<?xml version="1.0" encoding="utf-8"?>
 	<config>
 	  <resolution>
 	    <scr_width>1280</scr_width>
 		<scr_height>1024</scr_height>
-		<fullscreen>1</fullscreen>
+		<fullscreen>disabled</fullscreen>
 	  </resolution>
 	  <keys player="1">
 	    <dir_left>&#x8C;</dir_left>
@@ -71,36 +82,66 @@
 	  </messages>
     </config>
 
-	With Eschew, you simply need to issue the following in one of your headers:
+	With Eschew, you simply need to create a header with the following:
 
-	DEFINE_XML_NODES(config_nodes, resolution, keys_player_1, keys_player_2, messages)
-	CREATE_XML_TABLE(config, config_nodes, xml_node_ptr) 
+	DEFINE_XML_NODES(config_nodes, resolution, keys, messages)
+	// Table ot tables => xml_node type
+	CREATE_XML_TABLE(config, config_nodes, xml_node) 
+	// config is the root node => declare it as such
 	SET_XML_ROOT(config)
 
 	DEFINE_XML_NODES(res_nodes, scr_width, scr_height, fullscreen)
-	CREATE_XML_TABLE(resolution, res_nodes, int)
+	// Integers or booleans => xml_int
+	CREATE_XML_TABLE(resolution, res_nodes, xml_int)
 
 	DEFINE_XML_NODES(keys_nodes, dir_left, dir_right, dir_up, dir_down)
-	CREATE_XML_TABLE(keys_player_1, keys_nodes, u8)
-	CREATE_XML_TABLE(keys_player_2, keys_nodes, u8)
+	// Single character values => xml_unsigned_char
+	CREATE_XML_TABLE(keys_player_1, keys_nodes, xml_unsigned_char)
+	CREATE_XML_TABLE(keys_player_2, keys_nodes, xml_unsigned_char)
 
 	DEFINE_XML_NODES(msg_nodes, msg1, msg2)
-	CREATE_XML_TABLE(messages, msg_nodes, string)
+	// Strings => xml_string
+	CREATE_XML_TABLE(messages, msg_nodes, xml_string)
 
-	This results in the creation of the following enum and tables which you 
-	can use	straight away
+
+	This results in the creation of the following tables which you can
+	use	straight away (with the content initialized at runtime)
+
+	int				resolution.value[3] = {1280, 1024, 0};
+	unsigned char	keys_player_1.value[4] = {0x8C, 0x8E, 0x8D, 0x8F};
+	unsigned char	keys_player_2.value[4] = {'a', 'd', 'w', 's'};
+	char*			messages.values[2] = { "ha ha! pwnd!", "%s has left the game"};
+
+	The following enums are also automatically set
+
 	enum { resolution, keys_player_1, keys_player_2, messages };
 	enum { dir_left, dir_right, dir_up, dir_down };
 	enum { msg1, msg2 };
-	char*     xml_config.names[4];  // containing the names of the nodes
-	xml_node* xml_config.values[4]; // pointer to the child tables
-	char*     xml_resolution[3]; 
-	int
-		{ "resolution", "keys_player_1", "keys_player_2", "messages" };
-	u8    xml_config.values[4] = 
-		{ &xml_resolution, &xml_keys_player_1, &xml_keys_player2, &xml_messages };
-	xml_keys_player_1 = [left, right, up, down];
-	xml_keys_player_2 = [left, right, up, down];
+
+	If needed, the names for the nodes are also available in 
+	xml_<table_name>.name[i], as well as the parent table (xml_config)
+
+
+	Then in the C counterpart:
+
+	#define INIT_XML_ACTUAL_INIT
+	#include "eschew.h"
+	#include "the_header_you_created_above.h"
+
+	void init_xml_config()
+	{
+		INIT_XML_TABLE(config);
+		INIT_XML_TABLE(resolution);
+		INIT_XML_TABLE(keys_player_1);
+		INIT_XML_TABLE(keys_player_2);
+		INIT_XML_TABLE(messages);
+	}
+
+	Call the function above at runtime, call read_xml() with the name of 
+	your XML config file and make sure you include your 2 headers (without
+	the ACTUAL_INIT define) in all the source you plan to use your tables,
+	That's it!
+
 */
 
 #pragma once
@@ -131,7 +172,7 @@ extern "C" {
 #define xml_float				float
 #define xml_double				double
 #define xml_string				char*
-#define xml_node_ptr			xml_node*
+#define xml_node				xnode*
 #define xml_illegal_type		void*
 
 enum XML_TYPE {
@@ -149,7 +190,7 @@ enum XML_TYPE {
 	t_xml_float,
 	t_xml_double,
 	t_xml_string,
-	t_xml_node_ptr,
+	t_xml_node,
 	t_xml_illegal_type };
 
 
@@ -192,14 +233,16 @@ typedef struct {
 } s_xml_attr;
 
 // The main XML node
-typedef struct _xml_node { 
+typedef struct _xnode { 
 	enum XML_TYPE node_type; 
 	int node_count; 
 	s_xml_attr attr;	
-	char** id; 
+	char** _tokens;
+	char*  id; 
 	char** name; 
-	struct _xml_node **value; } xml_node;
-#define xml_node_ptr xml_node*
+	struct _xnode **value;
+	struct _xnode *next;} xnode;
+
 
 // Useful access macros
 #define XML_VALUE(tabid, i)	xml_##tabid.value[i]
@@ -247,53 +290,47 @@ static int i;
 // Creates the xml_tabid[] with the nodes previously defined. 
 #define CREATE_XML_TABLE(tabid, nodid, type)									\
 	static type _xml_##tabid##_values[_xml_##nodid##_end];						\
-	static char* _xml_my_name_##tabid = #tabid;									\
 	typedef struct {enum XML_TYPE node_type; int node_count; s_xml_attr attr;	\
-		char** id; char** name; type* value; } s_xml_##tabid;					\
+		char** _tokens; char* id; char** name; type* value; xml_node next;}		\
+		s_xml_##tabid;															\
 	s_xml_##tabid xml_##tabid = {t_##type, _xml_##nodid##_end, { NULL, NULL},	\
-	&_xml_##nodid##_tokens, _xml_##nodid##_names, _xml_##tabid##_values };
+	&_xml_##nodid##_tokens, #tabid, _xml_##nodid##_names, _xml_##tabid##_values,\
+		NULL };
 
-// NB: id has already been initialized, and will be truncated automatically if needed
+// NB: No need to touch .id
 #define SET_ATTRIBUTE(tabid)													\
-	if (strtok(_xml_my_name_##tabid, XML_ATTRIBUTE_SEPARATOR) != NULL) {		\
+	if (strtok(xml_##tabid.id, XML_ATTRIBUTE_SEPARATOR) != NULL) {				\
 		xml_##tabid.attr.name = strtok(NULL, XML_ATTRIBUTE_SEPARATOR);			\
 		xml_##tabid.attr.value = strtok(NULL, XML_ATTRIBUTE_SEPARATOR);	}
 
 // A runtime initialization is necessary for the tokenization of the node names
 // and their copying into the table
-// Before this function, id is set to the token list. After that, id is the name 
-// of the table itsel
-//TO_DO: init attribute names
 #define INIT_XML_TABLE(tabid) {													\
 	if (xml_##tabid.name[0] == NULL) {											\
-		xml_##tabid.name[i=0] = strtok(*(xml_##tabid.id), " ,\t");				\
+		xml_##tabid.name[i=0] = strtok(*(xml_##tabid._tokens), " ,\t");			\
 		while (xml_##tabid.name[i++] != NULL)									\
 			xml_##tabid.name[i] = strtok (NULL, " ,\t"); }						\
-	xml_##tabid.id = &_xml_my_name_##tabid;	SET_ATTRIBUTE(tabid)				\
-	if (!link_table((xml_node*)&xml_##tabid, &xml_root))						\
-		printf("could not find parent for %s!!!\n", *xml_##tabid.id); }
-
+	SET_ATTRIBUTE(tabid) if (!link_table((xml_node)&xml_##tabid, &xml_root))	\
+		printf("Could not find parent for table %s!!!\n", xml_##tabid.id); }
 
 // At least one table must be defined as root (after it has been created)
+// Note that _p_root_name MUST be initialized to NULL, else a sibling is created
 #define SET_XML_ROOT(tabid)														\
-	xml_node* _p_root_table = (xml_node*) &xml_##tabid;							\
-	char* _p_root_name = #tabid; char* _p_root_id = "root";						\
-	xml_node xml_root = { t_xml_node_ptr, 1, {NULL, NULL}, &_p_root_id,			\
-			&_p_root_name, &_p_root_table };									
+	xml_node _p_root_table = NULL;	char* _p_root_name = #tabid;				\
+	xnode xml_root = { t_xml_node, 1, {NULL, NULL}, NULL, "root",				\
+			&_p_root_name, &_p_root_table, NULL };									
 
 #else
 
 #define DEFINE_XML_NODES(nodid, ...) 											\
 	enum { __VA_ARGS__, _xml_##nodid##_end };	
 
-
 #define CREATE_XML_TABLE(tabid, nodid, type)									\
-	extern char* _xml_my_name_##tabid;											\
 	typedef struct {enum XML_TYPE node_type; int node_count; s_xml_attr attr;	\
-		char** id; char** name; type* value; } s_xml_##tabid;					\
-	extern s_xml_##tabid xml_##tabid; 
+		char** _tokens; char* id; char** name; type* value; xml_node next;}		\
+		s_xml_##tabid;	extern s_xml_##tabid xml_##tabid; 
 
-#define SET_XML_ROOT(table) extern xml_node xml_root;
+#define SET_XML_ROOT(table) extern xnode xml_root;
 
 #endif
 
@@ -308,8 +345,8 @@ static int i;
  */
 int utf8_to_u16_nz(const char* source, unsigned short* target, size_t len);
 int utf8_to_u16(const char* source, unsigned short* target);
+int link_table(xml_node child, xml_node potential_parent);
 int read_xml(const char* filename);
-int link_table(xml_node* child, xml_node* potential_parent);
 
 #ifdef	__cplusplus
 }
