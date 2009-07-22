@@ -1237,7 +1237,10 @@ void rescale_buffer()
 	    glOrtho(0, gl_width, gl_height, 0, -1, 1);
 
 		// OK, now we can display the whole texture
-		display_sprite(0, gl_height, gl_width, -gl_height, render_texid);
+		if (opt_gl_linear)
+			display_sprite_linear(0, gl_height, gl_width, -gl_height, render_texid);
+		else
+			display_sprite(0, gl_height, gl_width, -gl_height, render_texid);
 
 		// Finally, we restore the parameters
 		glMatrixMode(GL_PROJECTION);
@@ -1294,6 +1297,8 @@ void display_pause_screen()
 
 	for (i=0; i<NB_NATIONS; i++)
 	{
+		glColor3f(fade_value, fade_value, fade_value);
+
 		j = (2*(i+1) + i/2)%4;	// we need to display in 2, 0, 3, 1 order because of texture 
 								// overlap correction due to having to use powerized ones on PSP
 		x = (j%2)*(PSP_SCR_WIDTH/2) + SPACER + x_shift[j%2] + 0.5;
@@ -1304,8 +1309,8 @@ void display_pause_screen()
 
 		// Draw the border
 		glDisable(GL_TEXTURE_2D);	// F...ing openGL a...oles!!! Why is it that as soon as you have textures
-									// Enabled, you cannot draw plain COLOURED primitives any longer
-		glColor3ub(pause_rgb[RED], pause_rgb[GREEN], pause_rgb[BLUE]);
+									// enabled, you cannot draw plain COLOURED primitives any longer?!?
+		glColor3ub(pause_rgb[RED]*fade_value, pause_rgb[GREEN]*fade_value, pause_rgb[BLUE]*fade_value);
 		glBegin(GL_LINE_STRIP);		// doesn't look like pspGL handles LINE_LOOP
 			glVertex2f(x, y);
 			glVertex2f(x+w, y);
@@ -1313,7 +1318,6 @@ void display_pause_screen()
 			glVertex2f(x, y-h);
 			glVertex2f(x, y);
 		glEnd();
-		glColor3f(fade_value, fade_value, fade_value);
 		glEnable(GL_TEXTURE_2D);
 	}
 

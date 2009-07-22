@@ -248,7 +248,7 @@ static __inline int get_node_index(const char* name, xml_node parent)
 // Init the  parsing user structure
 void init_info(Parseinfo *info) {
     info->skip = 0;
-    info->depth = 0;
+    info->depth = 1;	// Must start at 1
 	info->index = 0;
 }
 
@@ -356,7 +356,7 @@ int skip(Parseinfo *inf, const char *name, const char **attr)
 {
 	int index;
 
-	if (inf->depth == 0)
+	if (inf->depth <= 1)
 		return (strcmp(name, xml_root.name[0]) != 0);
 
 	// find out if "name" is one of the previous node's children
@@ -435,8 +435,7 @@ static void XMLCALL start(void *userData, const char *name, const char **attr)
 	strcpy(inf->stack[inf->depth].name, name);
 	printf("stack[%d] = %s\n", inf->depth, inf->stack[inf->depth].name);
 
-
-	if (inf->depth == 0)
+	if (inf->depth <= 1)
 		inf->stack[inf->depth].node = xml_root.value[0];
 	else
 	{
@@ -569,7 +568,7 @@ void rawstart(void *userData, const char *name, const char **attr)
 	{
         if (skip(inf, name, attr)) 
 		{
-//			printf("  skipped!\n");
+//			printf("  skipped_d!\n");
 			inf->skip = inf->depth;
 		}
         else 

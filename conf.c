@@ -28,7 +28,7 @@
 #include "conf.h"
 
 
-void init_xml_config()
+void init_xml()
 {
 	// The second part of a node table init MUST occur at runtime
 	INIT_XML_TABLE(config);

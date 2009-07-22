@@ -2740,13 +2740,13 @@ void check_on_prisoners()
 		if (p_event[p].escaped)
 			game_won_count++;
 	}
-	if (game_over_count == NB_NATIONS)
+	if (game_over_count == 1) //NB_NATIONS)
 	{
 		game_state = GAME_STATE_GAME_OVER;
 		static_screen(GAME_OVER_TEXT, NULL, 0);
 		return;
 	}
-	if (game_won_count == NB_NATIONS)
+	if (game_won_count == 1) //NB_NATIONS)
 	{
 		game_state = GAME_STATE_GAME_WON;
 		static_screen(PRISONER_FREE_ALL_TEXT, NULL, 0);

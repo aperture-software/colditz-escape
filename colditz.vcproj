@@ -115,9 +115,11 @@
 				Optimization="3"
 				InlineFunctionExpansion="0"
 				EnableIntrinsicFunctions="true"
-				AdditionalIncludeDirectories="&quot;E:\Program Files (x86)\Microsoft DirectX SDK (March 2009)\Include&quot;"
-				PreprocessorDefinitions="WIN32;NDEBUG;_CONSOLE"
-				RuntimeLibrary="2"
+				FavorSizeOrSpeed="0"
+				AdditionalIncludeDirectories="&quot;C:\Program Files\Microsoft SDKs\Windows\v6.0A\Include&quot;;&quot;E:\Program Files (x86)\Microsoft DirectX SDK (March 2009)\Include&quot;"
+				PreprocessorDefinitions="WIN32;NDEBUG;_CONSOLE;XML_STATIC;_CRT_SECURE_NO_DEPRECATE;_CRT_NONSTDC_NO_DEPRECATE"
+				BasicRuntimeChecks="0"
+				RuntimeLibrary="0"
 				EnableFunctionLevelLinking="true"
 				EnableEnhancedInstructionSet="0"
 				UsePrecompiledHeader="0"
@@ -136,9 +138,8 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalDependencies="X3DAudio.lib"
 				LinkIncremental="1"
-				AdditionalLibraryDirectories="&quot;E:\Program Files (x86)\Microsoft DirectX SDK (March 2009)\Lib\x64&quot;;&quot;E:\Program Files (x86)\Microsoft DirectX SDK (March 2009)\Lib\x86&quot;"
+				AdditionalLibraryDirectories="&quot;C:\Users\nil\Documents\Visual Studio 2008\Projects\colditz\libs&quot;;&quot;C:\Program Files\Microsoft SDKs\Windows\v6.0A\Lib&quot;;&quot;E:\Program Files\Microsoft SDKs\Windows\v6.0\Lib\x86&quot;;&quot;E:\Program Files\Microsoft SDKs\Windows\v6.0\Lib\x64&quot;;&quot;E:\Program Files (x86)\Microsoft DirectX SDK (March 2009)\Lib\x64&quot;;&quot;E:\Program Files (x86)\Microsoft DirectX SDK (March 2009)\Lib\x86&quot;"
 				GenerateDebugInformation="true"
 				SubSystem="1"
 				OptimizeReferences="2"
@@ -177,7 +178,23 @@
 			UniqueIdentifier="{4FC737F1-C7A5-4376-A066-2A32D752A2FF}"
 			>
 			<File
+				RelativePath=".\conf.c"
+				>
+			</File>
+			<File
+				RelativePath=".\eschew.c"
+				>
+			</File>
+			<File
+				RelativePath=".\game.c"
+				>
+			</File>
+			<File
 				RelativePath=".\getopt.c"
+				>
+			</File>
+			<File
+				RelativePath=".\graphics.c"
 				>
 			</File>
 			<File
@@ -201,11 +218,15 @@
 				>
 			</File>
 			<File
-				RelativePath=".\utilities.c"
+				RelativePath=".\videoplayer.c"
 				>
 			</File>
 			<File
 				RelativePath=".\win32\winXAudio2.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\win32\wmp.cpp"
 				>
 			</File>
 		</Filter>
@@ -219,11 +240,43 @@
 				>
 			</File>
 			<File
+				RelativePath=".\conf.h"
+				>
+			</File>
+			<File
 				RelativePath=".\data-types.h"
 				>
 			</File>
 			<File
+				RelativePath=".\eschew.h"
+				>
+			</File>
+			<File
+				RelativePath=".\expat.h"
+				>
+			</File>
+			<File
+				RelativePath=".\expat_external.h"
+				>
+			</File>
+			<File
+				RelativePath=".\game.h"
+				>
+			</File>
+			<File
 				RelativePath=".\getopt.h"
+				>
+			</File>
+			<File
+				RelativePath=".\getopt_int.h"
+				>
+			</File>
+			<File
+				RelativePath=".\gettext.h"
+				>
+			</File>
+			<File
+				RelativePath=".\graphics.h"
 				>
 			</File>
 			<File
@@ -243,6 +296,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\psp\pmp.h"
+				>
+			</File>
+			<File
 				RelativePath=".\psp\psp-printf.h"
 				>
 			</File>
@@ -255,11 +312,15 @@
 				>
 			</File>
 			<File
-				RelativePath=".\utilities.h"
+				RelativePath=".\videoplayer.h"
 				>
 			</File>
 			<File
 				RelativePath=".\win32\winXAudio2.h"
+				>
+			</File>
+			<File
+				RelativePath=".\win32\wmp.h"
 				>
 			</File>
 		</Filter>
@@ -269,6 +330,10 @@
 			UniqueIdentifier="{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}"
 			>
 		</Filter>
+		<File
+			RelativePath="..\Release\config.xml"
+			>
+		</File>
 	</Files>
 	<Globals>
 	</Globals>

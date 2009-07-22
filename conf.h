@@ -129,26 +129,33 @@ extern "C" {
 #define opt_picture_corners			XML_VALUE(options, picture_corners)	
 #define opt_enhanced_guard_handling	XML_VALUE(options, enhanced_guard_handling)	
 #define opt_skip_intro				XML_VALUE(options, skip_intro)
+#define opt_gl_linear				XML_VALUE(options, gl_linear)
+#define opt_fullscreen				XML_VALUE(options, fullscreen)
 
 /////////////////////////////////////////////////////////////////////////////////
 // XML tables definitions
 //
 
 // root node
-DEFINE_XML_NODES(config_nodes, runtime,		
+DEFINE_XML_NODES(config_nodes, 
+				 runtime,		
 				 options,					
 				 controls)
 CREATE_XML_TABLE(config, config_nodes, xml_node) 
 SET_XML_ROOT(config)
 
 // General program options
-DEFINE_XML_NODES(options_nodes, skip_intro,	
+DEFINE_XML_NODES(options_nodes, 
+				 skip_intro,	
 				 enhanced_guard_handling,	
-				 picture_corners)
+				 picture_corners,
+				 gl_linear,
+				 fullscreen)
 CREATE_XML_TABLE(options, options_nodes, xml_int)
 
 // User input mappings
-DEFINE_XML_NODES(controls_nodes, key_fire,	
+DEFINE_XML_NODES(controls_nodes, 
+				 key_fire,	
 				 key_toggle_walk_run,		
 				 key_pause,					
 				 key_sleep,					
@@ -180,7 +187,7 @@ CREATE_XML_TABLE(testerrata, test_nodes, xml_int)
 
 
 
-void init_xml_config(); 
+void init_xml(); 
 
 #ifdef	__cplusplus
 }

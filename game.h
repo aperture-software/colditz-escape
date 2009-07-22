@@ -39,8 +39,9 @@ extern "C" {
 #define ignore_offscreen_x(ovl)	{if is_offscreen_x(overlay[ovl].x) continue;}
 #define ignore_offscreen_y(ovl)	{if is_offscreen_y(overlay[ovl].y) continue;}
 
-#define get_guybrush_sid(x)					\
-	((((guybrush[x].state & STATE_MOTION) || (guybrush[x].state & STATE_ANIMATED)) && (!(guybrush[x].state & STATE_BLOCKED)))?	\
+#define get_guybrush_sid(x)																\
+	( ((((guybrush[x].state & STATE_MOTION) || (guybrush[x].state & STATE_ANIMATED))	\
+	&& (!(guybrush[x].state & STATE_BLOCKED))) && !paused)?								\
 	get_animation_sid(x, true):get_stop_animation_sid(x, true))
 
 #define safe_nb_animations_increment() {	\

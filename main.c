@@ -1,30 +1,25 @@
-/**
- **  ESCAPE FROM COLDITZ 2009 / for PSP & Windows
- **
- **  
- **
- **/
+/*
+	ESCAPE FROM COLDITZ 2009 / for PSP & Windows
+*/
 
-/**
- ** For glut, you need the dll in the exec location or system32
- ** and to compile, you need:
- ** - glut32.lib in C:\Program Files\Microsoft SDKs\Windows\v6.0A\Lib
- ** - glut.h in C:\Program Files\Microsoft SDKs\Windows\v6.0A\Include\gl 
- **
- ** The libs and header can be had from http://www.opengl.org/resources/libraries/glut/glutdlls37beta.zip
- **/
+/*
+	For glut, you need the dll in the exec location or system32
+	and to compile, you need:
+	- glut32.lib in C:\Program Files\Microsoft SDKs\Windows\v6.0A\Lib
+	- glut.h in C:\Program Files\Microsoft SDKs\Windows\v6.0A\Include\gl 
+	
+	The libs and header can be had from http://www.opengl.org/resources/libraries/glut/glutdlls37beta.zip
 
-/**
- ** For expat, you need libexpatMT.lib (WIN)/libexpat.a (PSP)
- ** and on Windows, make sure you add XML_STATIC in the C/C++ PreProcessor Definitions
- ** 
- ** Important note: Because I'll be darned before I agree with the XML comitee's extreme shortsightedness 
- ** that some chars in [00-7F] should be illegal, especially when we want to define our input keys in the
- ** XML conf file, the libexpat we use was *TWEAKED* to accept ANY [00-7F] char without barfing.
- ** To do that, the asciitab.h file of libexpat had all its BT_NONXML changed to BT_OTHER before compiling.
- **/
+	For expat, you need libexpatMT.lib (WIN)/libexpat.a (PSP) and on Windows, you must add XML_STATIC in 
+	the C/C++ PreProcessor Definitions
+	I bleive I downloaded my Expat from http://nds.cmamod.com/psp/Expat.2.01.win32_msys_bin.zip
 
-// NB: http://nds.cmamod.com/psp/Expat.2.01.win32_msys_bin.zip
+	Important note: Because I'll be darned before I agree with the XML comitee's extreme shortsightedness 
+	that some chars in [00-7F] should be illegal, especially when we want to define our input keys in the
+	XML conf file, the libexpat we use was *TWEAKED* to accept ANY [00-7F] char without barfing.
+	To do that, the asciitab.h file of libexpat had all its BT_NONXML changed to BT_OTHER before compiling.
+*/
+
 #include <stdio.h>
 #include <stdlib.h>	
 #include <string.h>
@@ -474,8 +469,12 @@ void user_input()
 	// Return to intro screen
 	if (key_down[KEY_ESCAPE])
 	{
+#if defined(PSP)
+		back_to_kernel();
+#else
 		//game_state = GAME_STATE_INTRO | GAME_STATE_STATIC_PIC;
 		exit(0);
+#endif
 	}
 
 	// Handle the pausing of the game 
@@ -485,14 +484,7 @@ void user_input()
 		picture_state = GAME_FADE_OUT_START;
 		// Switch to a different idle function
 		glutIdleFunc_save(glut_idle_static_pic);
-/*
-
-		if (game_state & GAME_STATE_PAUSED)
-			create_pause_screen();
-		else
-			switch_nation(current_nation);
-*/
-		}
+	}
 
 #if defined (CHEATMODE_ENABLED)
 	// Check cheat sequences
@@ -974,8 +966,7 @@ static void glut_idle_static_pic(void)
 	{	// Exit game over/game won => Intro
 		mod_release();
 		picture_state = PICTURE_FADE_OUT_START;
-		game_state = GAME_STATE_INTRO | GAME_STATE_STATIC_PIC | GAME_STATE_PICTURE_LOOP;
-		current_picture = INTRO_SCREEN_START-1;
+		game_state |= GAME_STATE_PICTURE_LOOP;
 		last_key_used = 0;
 	}
 
@@ -1086,12 +1077,17 @@ static void glut_idle_static_pic(void)
 		if (game_state & GAME_STATE_PICTURE_LOOP)
 		{
 			if (intro)
-			{
+			{	// Cycle through Intro screens
 				current_picture++;
 				if (current_picture > INTRO_SCREEN_END)
 					current_picture = INTRO_SCREEN_START;
 				// NB: static screen will reset picture_state to the right one
 				static_screen(current_picture, NULL, 0);
+			}
+			else if (game_over)
+			{	
+				game_state = GAME_STATE_INTRO | GAME_STATE_PICTURE_LOOP | GAME_STATE_STATIC_PIC;
+				static_screen(INTRO_SCREEN_START, NULL, 0);
 			}
 			else if (game_won)
 			{	// Switch to second & last GAME_WON picture
@@ -1169,6 +1165,7 @@ static bool video_initialized = false;
 	if ((!game_suspended) || read_key_once(last_key_used))
 	{
 		// Prevents unwanted transitions to transparent!
+		fade_value = 0.0f;
 		glClear(GL_COLOR_BUFFER_BIT);
 		glutSwapBuffers();
 
@@ -1389,10 +1386,14 @@ int main (int argc, char *argv[])
 	}
 //	opt_verbose = -1;
 
-//	readconf("config.xml");
-	init_xml_config();
+	init_xml();
 	read_xml("config.xml");
-	// init_keys();
+
+#if !defined(PSP)
+	if (opt_fullscreen)
+		glutFullScreen();
+#endif
+
 	// Now that we have our config set, we can initialize some controls values
 	key_nation[0] = KEY_BRITISH;
 	key_nation[1] = KEY_FRENCH;

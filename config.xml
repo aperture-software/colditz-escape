@@ -1,0 +1,86 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<config>
+  <runtime>
+    <cheatmode>enabled</cheatmode>
+    <debug_keys>enabled</debug_keys>
+  </runtime>
+  <options>
+    <skip_intro>false</skip_intro>
+    <!-- have guards remember when they've seen a pass -->
+    <enhanced_guard_handling>true</enhanced_guard_handling>
+    <!-- display texturized picture corners, rather than black triangles -->
+    <picture_corners>enabled</picture_corners>
+    <!-- use linear interpolation for rescale (rather than nearest) -->
+    <gl_linear>true</gl_linear>
+    <fullscreen>off</fullscreen>
+  </options>
+  <unused>
+    <ghost>disabled</ghost>
+    <thrillerdance>disabled</thrillerdance>
+    <verbose>disabled</verbose>
+    <debug>disabled</debug>
+  </unused>
+  <cheats>
+    <play_as_the_safe>disabled</play_as_the_safe>
+    <no_guards>disabled</no_guards>
+    <keymaster>disabled</keymaster>
+  </cheats>
+  <!-- About our key mappings:
+       Standard key = regular (lowercase) ASCII code
+       0x7F         = Del
+       [0x80-0x8B]  = [F1-F12] 
+       [0x8C-0x8F]  = [Left, Up, Right, Down]
+       [0x90-0x94]  = [PgUp, PgDn, Home, End, Insert] 
+       [0x95-0x97]  = [Shift, Ctrl, Alt] (*)
+       [0x98-0x9A]  = [Mouse Left, Mouse Middle, Mouse Right]
+       (*) Because of GLUT's limitations, these key events are ONLY detected
+       in conjuction with other keypresses, and cannot be used as standalone
+       see http://www.nabble.com/Re%3A-Status-of-modifier-keys-(shift-ctrl-alt)-p6983221.html
+   
+       Now with regards to the PSP GLUT key mappings conversions    
+       [X] = 'x'
+       [O] = 'o'
+       [Square] = 'q'
+       [Triangle] = 'd'
+       [Select] = 's'
+       [Start] = 'a'
+       [Left, Up, Right, Down] = same as above
+       [Left Trigger] = Mouse Left (see above for the actual code)
+       [Right Trigger] = Mouse Right (see above for the actual code)
+   -->
+  <controls target="windows">
+    <key_fire>5</key_fire>
+    <key_toggle_walk_run> </key_toggle_walk_run>
+    <key_pause>&#x84;</key_pause>
+    <key_sleep>&#x88;</key_sleep>
+    <key_stooge>&#x89;</key_stooge>
+    <key_direction_left>4</key_direction_left>
+    <key_direction_right>6</key_direction_right>
+    <key_direction_up>8</key_direction_up>
+    <key_direction_down>2</key_direction_down>
+    <key_inventory_cycle_left>&#x8C;</key_inventory_cycle_left>
+    <key_inventory_cycle_right>&#x8E;</key_inventory_cycle_right>
+    <key_pickup>&#x8D;</key_pickup>
+    <key_dropdown>&#x8F;</key_dropdown>
+    <!-- 'Esc' character illegal in XML? Well, ***FUCK YOU***, W3C XML comittee!!! 
+         There is NO valid reason to ostracise users when there exists a perfectly good 
+         escape sequence for [00-7F] ASCII characters. So, we'll just ignore your "precious"
+         recommendations and tweak libexpat to parse any damn characters we want -->
+    <key_escape>&#x1B;</key_escape>
+    <key_select_british>&#x80;</key_select_british>
+    <key_select_french>&#x81;</key_select_french>
+    <key_select_american>&#x82;</key_select_american>
+    <key_select_polish>&#x83;</key_select_polish>
+  </controls>
+  <controls target="psp">
+    <key_fire>x</key_fire>
+    <key_toggle_walk_run>o</key_toggle_walk_run>
+    <key_stooge>d</key_stooge>
+    <key_escape>a</key_escape>
+    <key_pause>s</key_pause>
+    <key_sleep>q</key_sleep>
+    <key_prisoners_cycle_left>&#x98;</key_prisoners_cycle_left>
+    <key_prisoners_cycle_right>&#x9A;</key_prisoners_cycle_right>
+    <!-- Analog Joystick is used for direction on PSP -->
+  </controls>
+</config>
