@@ -1,12 +1,29 @@
-/**
- **  Escape from Colditz
- **
- **  Low level helper functions (byte/bit/char manipulation, compression, etc.)
- **
- **  Aligned malloc code from Satya Kiran Popuri (http://www.cs.uic.edu/~spopuri/amalloc.html)
- **  PowerPacker unpack code from ppdepack by Marc Espie 
- **
- **/
+/*
+ *  Colditz Escape! - Rewritten Engine for "Escape From Colditz"
+ *  copyright (C) 2008-2009 Aperture Software 
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 3 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License along
+ *  with this program; if not, write to the Free Software Foundation, Inc.,
+ *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+ *
+ *  ---------------------------------------------------------------------------
+ *  low-level.c: Helper functions for byte/bit/char manipulation & compression
+ *  Aligned malloc code from Satya Kiran Popuri:
+ *    http://www.cs.uic.edu/~spopuri/amalloc.html
+ *  PowerPacker decrunch code from 'amigadepacker' by Heikki Orsila:
+ *    http://zakalwe.fi/~shd/foss/amigadepacker/
+ *  ---------------------------------------------------------------------------
+ */
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -77,10 +94,9 @@ u16 powerize(u16 n)
 
 
 
-//
-// Custom SKR_COLD compression functions
-/////////////////////////////////////////////////////////////
-
+/*
+ * Custom SKR_COLD compression functions
+ */
 
 // Get one bit and read ahead if needed
 u32 getbit(u32 *address, u32 *data)
@@ -138,9 +154,11 @@ void duplicate(u32 *address, u32 offset, u32 nb_bytes)
 	}
 }
 
-// Colditz loader uncompression.
-// Don't ask me what kind of compression algorithm is used there, I'm just the guy 
-// who reverse engineered what he saw in the disassembly...
+/*
+	Colditz loader uncompression.
+	Don't ask me what kind of compression algorithm is used there, I'm just  
+	the guy who reverse engineered the bloody thing...
+ */
 int uncompress(u32 expected_size)
 {
 	u32 source = LOADER_DATA_START;
@@ -359,73 +377,76 @@ u32 get_bits(u32 n)
 	return result;
 }
 
+/*
+ * PowerPacker decruncher functions from 'amigadepacker' by Heikki Orsila
+ */
 
-void ppdepack(u8 *packed, u8 *depacked, u32 plen, u32 unplen)
+#define PP_READ_BITS(nbits, var) do {                          \
+  bit_cnt = (nbits);                                           \
+  while (bits_left < bit_cnt) {                                \
+    if (buf_src < src) return 0; /* out of source bits */      \
+    bit_buffer |= (*--buf_src << bits_left);                   \
+    bits_left += 8;                                            \
+  }                                                            \
+  (var) = 0;                                                   \
+  bits_left -= bit_cnt;                                        \
+  while (bit_cnt--) {                                          \
+    (var) = ((var) << 1) | (bit_buffer & 1);                   \
+    bit_buffer >>= 1;                                          \
+  }                                                            \
+} while(0)
+
+#define PP_BYTE_OUT(byte) do {                                 \
+  if (out <= dest) return 0; /* output overflow */             \
+  *--out = ((u8)byte);                                         \
+  written++;                                                   \
+} while (0)
+
+
+int ppDecrunch(u8 *src, u8 *dest, u8 *offset_lens, u32 src_len, u32 dest_len, u8 skip_bits)
 {
-	u8 *dest;
-	int n_bits;
-	int idx;
-	u32 bytes;
-	int to_add;
-	u32 offset;
-	u8 offset_sizes[4];
-	u32 i;
+  u8 *buf_src, *out, *dest_end, bits_left = 0, bit_cnt;
+  u32 bit_buffer = 0, x, todo, offbits, offset, written=0;
 
-	offset_sizes[0] = packed[4];	/* skip signature */
-	offset_sizes[1] = packed[5];
-	offset_sizes[2] = packed[6];
-	offset_sizes[3] = packed[7];	
+  if (src == NULL || dest == NULL || offset_lens == NULL) return 0;
 
-	/* initialize source of bits */
-	pp_source = packed + plen - 4;
+  /* set up input and output pointers */
+  buf_src = src + src_len;
+  out = dest_end = dest + dest_len;
 
-	dest = depacked + unplen;
+  /* skip the first few bits */
+  PP_READ_BITS(skip_bits, x);
 
-	/* skip bits */
-	get_bits(pp_source[3]);
+  /* while there are input bits left */
+  while (written < dest_len) {
+    PP_READ_BITS(1, x);
+    if (x == 0) {
+      /* 1bit==0: literal, then match. 1bit==1: just match */
+      todo = 1; do { PP_READ_BITS(2, x); todo += x; } while (x == 3);
+      while (todo--) { PP_READ_BITS(8, x); PP_BYTE_OUT(x); }
 
-	/* do it forever, i.e., while the whole file isn't unpacked */
-	while (1)
-	{
-		/* copy some bytes from the source anyway */
-		if (get_bits(1) == 0)
-		{
-			bytes = 0;
-			do {
-				to_add = get_bits(2);
-				bytes += to_add;
-			} while (to_add == 3);
-			for (i = 0; i <= bytes; i++)
-				*--dest = (u8)get_bits(8);
-			if (dest <= depacked)
-				return;
-		}
-		/* decode what to copy from the destination file */
-		idx = get_bits(2);
-		n_bits = offset_sizes[idx];
-		/* bytes to copy */
-		bytes = idx+1;
-		if (bytes == 4)	/* 4 means >=4 */
-		{
-			/* and maybe a bigger offset */
-			if (get_bits(1) == 0)
-				offset = get_bits(7);
-			else
-				offset = get_bits(n_bits);
+      /* should we end decoding on a literal, break out of the main loop */
+      if (written == dest_len) break;
+    }
 
-			do {
-				to_add = get_bits(3);
-				bytes += to_add;
-			} while (to_add == 7);
-		}
-		else
-			offset = get_bits(n_bits);
-		for (i = 0; i <= bytes; i++)
-		{
-			dest[-1] = dest[offset];
-			dest--;
-		}
-		if (dest <= depacked)
-			return;
-	}
-}
+    /* match: read 2 bits for initial offset bitlength / match length */
+    PP_READ_BITS(2, x);
+    offbits = offset_lens[x];
+    todo = x+2;
+    if (x == 3) {
+      PP_READ_BITS(1, x);
+      if (x==0) offbits = 7;
+      PP_READ_BITS((u8)offbits, offset);
+      do { PP_READ_BITS(3, x); todo += x; } while (x == 7);
+    }
+    else {
+      PP_READ_BITS((u8)offbits, offset);
+    }
+    if ((out + offset) >= dest_end) return 0; /* match overflow */
+    while (todo--) { x = out[offset]; PP_BYTE_OUT(x); }
+  }
+
+  /* all output bytes written without error */
+  return 1;
+  /* return (src == buf_src) ? 1 : 0; */
+}                     

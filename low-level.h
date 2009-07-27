@@ -1,3 +1,25 @@
+/*
+ *  Colditz Escape! - Rewritten Engine for "Escape From Colditz"
+ *  copyright (C) 2008-2009 Aperture Software 
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 3 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License along
+ *  with this program; if not, write to the Free Software Foundation, Inc.,
+ *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+ *
+ *  ---------------------------------------------------------------------------
+ *  low-level.h: low level helper functions definitions
+ *  ---------------------------------------------------------------------------
+ */
 #pragma once
 
 #ifdef	__cplusplus
@@ -6,7 +28,6 @@ extern "C" {
 
 // Define our msleep function
 #if defined(WIN32)
-//#include <Windows.h>
 #define msleep(msecs) Sleep(msecs)
 #include <Windows.h>
 static __inline u64 mtime(void)
@@ -48,6 +69,8 @@ static __inline u64 mtime(void)
 #define printb(...)		if(opt_debug) print(__VA_ARGS__)
 #define perrb(...)		if(opt_debug) perr(__VA_ARGS__)
 
+// size of an array
+#define SIZE_A(ar)		(sizeof(ar)/sizeof(ar[0]))
 
 // concatenate 2 words into a long 
 #define to_long(msw,lsw)			\
@@ -93,7 +116,6 @@ static __inline void writeword(u8* buffer, u32 addr, u16 value)
 	buffer[addr+1] = (u8)value;
 }
 
-
 static __inline u8 readbyte(u8* buffer, u32 addr)
 {
 	return buffer[addr];
@@ -104,12 +126,13 @@ static __inline void writebyte(u8* buffer, u32 addr, u8 value)
 	buffer[addr] = value;
 }
 
+// Prototypes
 u16 powerize(u16 n);
 int uncompress(u32 expected_size);
 void *aligned_malloc(size_t bytes, size_t alignment);
 void aligned_free(void *ptr);
 const char *to_binary(u32 x);
-void ppdepack(u8 *packed, u8 *depacked, u32 plen, u32 unplen);
+int ppDecrunch(u8 *src, u8 *dest, u8 *offset_lens, u32 src_len, u32 dest_len, u8 skip_bits);
 
 #ifdef	__cplusplus
 }

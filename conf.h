@@ -1,6 +1,25 @@
 /*
-	configuration file handling
-*/
+ *  Colditz Escape! - Rewritten Engine for "Escape From Colditz"
+ *  copyright (C) 2008-2009 Aperture Software 
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 3 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License along
+ *  with this program; if not, write to the Free Software Foundation, Inc.,
+ *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+ *
+ *  ---------------------------------------------------------------------------
+ *  conf.h: XML/Eschew configuration wrapper. Also user input definitions
+ *  ---------------------------------------------------------------------------
+ */
 
 #pragma once
 
@@ -180,12 +199,6 @@ CREATE_XML_TABLE(controls_target_psp, controls_nodes, xml_unsigned_char)
 #else
 CREATE_XML_TABLE(controls_target_windows, controls_nodes, xml_unsigned_char)
 #endif
-
-// TEST TEST TEST
-DEFINE_XML_NODES(test_nodes, test1,	test2)
-CREATE_XML_TABLE(testerrata, test_nodes, xml_int)
-
-
 
 void init_xml(); 
 

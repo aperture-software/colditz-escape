@@ -1,9 +1,25 @@
-/**
- **  Escape from Colditz
- **
- **  Game functions
- **
- **/
+/*
+ *  Colditz Escape! - Rewritten Engine for "Escape From Colditz"
+ *  copyright (C) 2008-2009 Aperture Software 
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 3 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License along
+ *  with this program; if not, write to the Free Software Foundation, Inc.,
+ *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+ *
+ *  ---------------------------------------------------------------------------
+ *  game.h: Game runtime functions
+ *  ---------------------------------------------------------------------------
+ */
 
 
 #include <stdio.h>
@@ -12,8 +28,7 @@
 
 #if defined(WIN32)
 #include <windows.h>
-#endif
-#if defined(PSP)
+#elif defined(PSP)
 #include <stdarg.h>
 #include <pspkernel.h>
 #include <pspdebug.h>
@@ -62,7 +77,7 @@ u32 mask_offset[4];		// tile boundary
 u32 exit_offset[4];		// exit boundary
 u8  tunexit_tool[4];	// tunnel tool
 s16 exit_dx[2];
-//u8 pause_rgb[3];
+
 #if defined(ANTI_TAMPERING_ENABLED)
 u8  fmdxhash[NB_FILES][5]= FMDXHASHES;
 #endif
@@ -104,64 +119,6 @@ ROM:00008A42                 dc.l ger_kneel_ani      ; #58
 u8 looping_animation[NB_ANIMATED_SPRITES] =
 	{	1, 1, 0, 0, 1, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0 };
 
-
-/*
-#if defined(ANTI_TAMPERING_ENABLED)
-// This inline performs an obfuscated MD5 check on file i
-// Conveniently used to discreetly check for file tampering anytime during the game
-static __inline bool integrity_check(u16 i)
-{
-	u8 md5hash[16];
-	u8 blah = 0x5A;
-	md5(fbuffer[i]+((i==LOADER)?LOADER_PADDING:0), fsize[i], md5hash);
-//	printf("{ ");
-	blah ^= md5hash[7];
-//	printf("0x%02x, ", blah);
-	if (blah != fmdxhash[i][0]) return false;
-	blah ^= md5hash[12];
-//	printf("0x%02x, ", blah);
-	if (blah != fmdxhash[i][1]) return false;
-	blah ^= md5hash[1];
-//	printf("0x%02x, ", blah);
-	if (blah != fmdxhash[i][2]) return false;
-	blah ^= md5hash[13];
-//	printf("0x%02x, ", blah);
-	if (blah != fmdxhash[i][3]) return false;
-	blah ^= md5hash[9];
-//	printf("0x%02x }, \\\n", blah);
-	if (blah != fmdxhash[i][4]) return false;
-	return true;
-}
-#endif
-*/
-
-#if defined(ANTI_TAMPERING_ENABLED)
-// This inline performs an obfuscated MD5 check on file i
-// Conveniently used to discreetly check for file tampering anytime during the game
-bool integrity_check(u16 i)
-{
-	u8 md5hash[16];
-	u8 blah = 0x5A;
-	md5(fbuffer[i]+((i==LOADER)?LOADER_PADDING:0), fsize[i], md5hash);
-//	printf("{ ");
-	blah ^= md5hash[7];
-//	printf("0x%02x, ", blah);
-	if (blah != fmdxhash[i][0]) return false;
-	blah ^= md5hash[12];
-//	printf("0x%02x, ", blah);
-	if (blah != fmdxhash[i][1]) return false;
-	blah ^= md5hash[1];
-//	printf("0x%02x, ", blah);
-	if (blah != fmdxhash[i][2]) return false;
-	blah ^= md5hash[13];
-//	printf("0x%02x, ", blah);
-	if (blah != fmdxhash[i][3]) return false;
-	blah ^= md5hash[9];
-//	printf("0x%02x }, \\\n", blah);
-	if (blah != fmdxhash[i][4]) return false;
-	return true;
-}
-#endif
 
 // Uncompress the PowerPacked LOADTUNE.MUS if needed
 void depack_loadtune()
@@ -222,7 +179,7 @@ void depack_loadtune()
 
 	printf("  Uncompressing...");
 	// Call the PowerPacker unpack subroutine
-	ppdepack(ppbuffer, buffer, PP_LOADTUNE_SIZE, length);
+	ppDecrunch(&ppbuffer[8], buffer, &ppbuffer[4], PP_LOADTUNE_SIZE-12, length, ppbuffer[PP_LOADTUNE_SIZE-1]);
 	free(ppbuffer);
 	
 	// We'll play MOD directly from files, so write it
@@ -1229,6 +1186,8 @@ u8 i, sid;
 			overlay[overlay_index].sid = FOOLED_BY_SPRITE;
 			safe_overlay_index_increment();
 		}
+		// Guard number
+//		if (
 			 
 	}
 
@@ -2940,12 +2899,13 @@ void set_sfxs()
 		for (j=0; j<sfx[i].length; j++)
 			writebyte(fbuffer[LOADER], sfx[i].address+j, 
 				(u8) (readbyte(fbuffer[LOADER], sfx[i].address+j) + 0x80));
-#endif
-#if defined(PSP)
+#elif defined(PSP)
 		// On the PSP on the other hand, we must upconvert our 8 bit mono samples @ whatever frequency
 		// to 16bit/44.1 kHz. The psp_upsample() routine from soundplayer is there for that.
 		psp_upsample(&(sfx[i].upconverted_address), &(sfx[i].upconverted_length),
 			(char*)(fbuffer[LOADER] + sfx[i].address), sfx[i].length, sfx[i].frequency);
+#else
+#error No SFX playout for this platform
 #endif
 	}
 
@@ -2959,9 +2919,10 @@ void play_sfx(int sfx_id)
 {
 #if defined(WIN32)
 	play_sample(-1, sfx[sfx_id].volume, fbuffer[LOADER] + sfx[sfx_id].address, sfx[sfx_id].length, sfx[sfx_id].frequency, 8);
-#endif
-#if defined(PSP)
+#elif defined(PSP)
 	play_sample(-1, sfx[sfx_id].volume, sfx[sfx_id].upconverted_address, sfx[sfx_id].upconverted_length, PLAYBACK_FREQ, 16);
+#else
+#error No SFX playout for this platform
 #endif
 
 }

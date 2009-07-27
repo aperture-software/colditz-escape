@@ -1,21 +1,15 @@
 TARGET = colditz
 OBJS = psp/psp-setup.o low-level.o soundplayer.o videoplayer.o md5.o game.o graphics.o eschew.o conf.o main.o
-#getopt.o  // No longer needed
-#OBJS = copytex.o firefox.o
 
 INCDIR = 
 ;CFLAGS = -O2 -G0 -Wall
-CFLAGS = -O3 -Wall -G0 
+CFLAGS = -O3 -Wall -G0 -Xlinker -S -Xlinker -x
 CXXFLAGS = $(CFLAGS) -fno-exceptions -fno-rtti
 ASFLAGS = $(CFLAGS)
-
-#LIBS += -lpsphprm_driver
-# -lpspvfpu
 
 LIBDIR = .
 FLAGS =
 LIBS += -lglut -lGLU -lGL -lpmp -lexpat -lpspgum -lpspgu -lpsprtc -lm -lc -lpspaudiolib -lpspaudio -lpspaudiocodec -lpspmpeg -lpsppower
-# -lz   -lpspctrl  -lpspaudio 
 
 BUILD_PRX = 1
 EXTRA_TARGETS = EBOOT.PBP
@@ -35,4 +29,3 @@ PSP_FW_VERSION = 371
 PSPSDK=$(shell psp-config --pspsdk-path)
 include $(PSPSDK)/lib/build.mak
 
-#LIBS += -lpsphprm_driver -lpmp

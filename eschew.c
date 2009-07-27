@@ -1,14 +1,27 @@
 /*
-	Eschew XML parser helper functions (XML Parse, UTF-8 conversions, etc.)
-	See .h for details
-	
-	UTF-8 to UTF-16 conversion adapted from unicode.org
-	See http://unicode.org/Public/PROGRAMS/CVTUTF/ConvertUTF.c and
-	    http://unicode.org/Public/PROGRAMS/CVTUTF/ConvertUTF.h
-
-*/
-
-
+ *  Eschew - Even Simpler C-Heuristic Expat Wrapper
+ *  copyright (C) 2008-2009 Aperture Software
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 3 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License along
+ *  with this program; if not, write to the Free Software Foundation, Inc.,
+ *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+ *
+ *  ---------------------------------------------------------------------------
+ * 	UTF-8 to UTF-16 conversion adapted from unicode.org
+ *  See http://unicode.org/Public/PROGRAMS/CVTUTF/ConvertUTF.c and
+ *      http://unicode.org/Public/PROGRAMS/CVTUTF/ConvertUTF.h
+ *  ---------------------------------------------------------------------------
+ */
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -30,8 +43,6 @@ extern xnode xml_root;
 // Our stack structure
 typedef struct {
 	char*		name;
-//	int			index;
-//	s_xml_attr* attr;
 	xml_node	node;
 } stack_el;
 
@@ -47,14 +58,13 @@ typedef struct {
 	int index;
 } Parseinfo;
 
-// To prevent gcc's warning 'array subscript is above array bounds'
-#define NB_XML_BOOL_VALUES 3
+#define STACK_NODE(depth)	inf->stack[depth].node
+#define NB_XML_BOOL_VALUES	3
 static const char* xml_true_values[NB_XML_BOOL_VALUES] = { "true", "enabled", "on" };
 static const char* xml_false_values[NB_XML_BOOL_VALUES] = { "false", "disabled", "off" };
 
-
 /*
-	UTF-8 conversion constants
+	UTF-8 conversion
 */
 static const char trailingBytesForUTF8[256] = {
     0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -71,9 +81,7 @@ static const unsigned long offsetsFromUTF8[6] = { 0x00000000, 0x00003080,
 	0x000E2080, 0x03C82080, 0xFA082080, 0x82082080 };
 
 
-/*
-	Checks UTF8 validity. Returns -1 if valid, 0 otherwise
-*/
+// Checks UTF8 validity. Returns -1 if valid, 0 otherwise
 static int isLegalUTF8(const char *source, int length) 
 {
     unsigned char a;
@@ -172,10 +180,9 @@ int utf8_to_u16(const char* source, unsigned short* target)
 
 
 /*
-   XML parser
-*/
+	XML parser section
 
-/*
+
 	Convert string 'str' to boolean '*val'
 	Returns 0 if string is not a boolean true or false value, 0 otherwise
 */
@@ -197,8 +204,6 @@ int xml_to_bool(const char* str, xml_boolean* val)
 	return 0;
 }
 
-// static __inline
-
 // Return the node index of child node "name" from node "parent". -1 if not found
 static __inline int get_node_index(const char* name, xml_node parent)
 {
@@ -209,76 +214,12 @@ static __inline int get_node_index(const char* name, xml_node parent)
 	return -1;
 }
 
-/*
-// Return the node index of child node "name" from node "parent". -1 if not found
- int get_node_index(const char* name, xml_node parent, const char** attr)
-{
-	int i;
-	for (i=0; i<parent->node_count; i++)
-		if (strcmp(name, parent->name[i]) == 0)
-		{
-			if ((parent->node_type == t_xml_node) && (parent->value[i] != NULL))
-				printf("name = %s, parent_name=%s, parent_attr = %s\n", name, parent->name[i], parent->value[i]->attr.name);
-//				printf("name = %s, parent_name=%s, ptr = %X\n", name, parent->name[i], parent->value[i]);
-			// Check attributes 
-			if ((parent->node_type == t_xml_node) && (attr != NULL) && (attr[0]!=NULL) && (attr[1]!=NULL))
-			{
-				if (parent->value[i] == NULL)
-					continue;
-				if (parent->value[i]->attr.name == NULL)
-					printf("attr name: match on NULL\n");
-				else if ((strcmp(attr[0], parent->value[i]->attr.name) == 0) &&
-					(strcmp(attr[1], parent->value[i]->attr.value) == 0))
-					printf("attr name match on %s=%s\n", attr[0], attr[1]);
-				else
-				{
-					printf("attr %s=%s - no match\n", attr[0], attr[1]);
-					printf("PS: %s %s=%s\n", parent->name[i], parent->value[i]->attr.name, parent->value[i]->attr.value);
-					continue;
-				}
-			}
-			return i;
-		}
-	return -1;
-}
-*/
-
-#define STACK_NODE(depth)	inf->stack[depth].node
-
 // Init the  parsing user structure
 void init_info(Parseinfo *info) {
     info->skip = 0;
     info->depth = 1;	// Must start at 1
 	info->index = 0;
 }
-
-/*
-// TO_DO: attribute recognition
-xml_node get_branch_node(Parseinfo *inf, int level)
-{
-	int i;
-	xml_node node;
-	if (level == 0)
-	{	// root node
-		if (strcmp(inf->stack[0].name, xml_root.name[0]) == 0)
-			return xml_root.value[0];
-		else
-			return NULL;
-	}
-
-	node = get_branch_node(inf, level-1);
-
-	if (node == NULL)
-		return NULL;
-
-	for (i=0; i<node->node_count; i++)
-		if (strcmp(inf->stack[level].name, node->name[i]) == 0)
-			return node->value[i];
-
-	return NULL;
-}
-*/
-
 
 /*
 	This function returns a node to the relevant sibling according to the attribute
@@ -320,8 +261,8 @@ int link_table(xml_node child, xml_node potential_parent)
 	{
 		if (strcmp(child->id, potential_parent->name[i]) == 0)
 		{
-			printf("link_table: matched child xml_%s with parent xml_%s[%s]\n", 
-				child->id, potential_parent->id, potential_parent->name[i]);
+//			printf("link_table: matched child xml_%s with parent xml_%s[%s]\n", 
+//				child->id, potential_parent->id, potential_parent->name[i]);
 
 			// Same index is used for siblings, so fill out the siblings if needed
 			if (potential_parent->value[i] == NULL)
@@ -332,7 +273,7 @@ int link_table(xml_node child, xml_node potential_parent)
 				while (node->next != NULL)
 					node = node->next;
 				node->next = child;
-				printf("  SET SIBLING!\n");
+//				printf("  SET SIBLING!\n");
 			}
 
 			return -1;
@@ -367,7 +308,7 @@ int skip(Parseinfo *inf, const char *name, const char **attr)
 		if ( (STACK_NODE(inf->depth-1)->node_type == t_xml_node) &&
 			 (STACK_NODE(inf->depth-1)->value[index] == NULL) )
 		{
-			printf("skip: Orphan link found for node table xml_%s[%s]\n" 
+			fprintf(stderr, "eschew.skip: Orphan link found for node table xml_%s[%s]\n" 
 				"Did you forget to create table xml_%s in your source?\n", 
 				STACK_NODE(inf->depth-1)->id, STACK_NODE(inf->depth-1)->name[index], 
 				STACK_NODE(inf->depth-1)->name[index]);
@@ -433,7 +374,7 @@ static void XMLCALL start(void *userData, const char *name, const char **attr)
 	// Whitespace, until proven otherwise
 	inf->white_space_value = -1;
 	strcpy(inf->stack[inf->depth].name, name);
-	printf("stack[%d] = %s\n", inf->depth, inf->stack[inf->depth].name);
+//	printf("stack[%d] = %s\n", inf->depth, inf->stack[inf->depth].name);
 
 	if (inf->depth <= 1)
 		inf->stack[inf->depth].node = xml_root.value[0];
@@ -446,7 +387,7 @@ static void XMLCALL start(void *userData, const char *name, const char **attr)
 		{
 			if (STACK_NODE(inf->depth-1)->value[i] == NULL)
 			{
-				printf("start: Orphan link for node table xml_%s[%s]\n"
+				fprintf(stderr, "eschew.start: Orphan link for node table xml_%s[%s]\n"
 					"Did you forget to create table xml_%s in your source?\n", 
 					STACK_NODE(inf->depth-1)->id,  STACK_NODE(inf->depth-1)->name[i], 
 					STACK_NODE(inf->depth-1)->name[i]);
@@ -455,7 +396,6 @@ static void XMLCALL start(void *userData, const char *name, const char **attr)
 			else
 			{
 				node = STACK_NODE(inf->depth-1)->value[i];
-				// HERE!!!
 				STACK_NODE(inf->depth) = STACK_NODE(inf->depth-1)->value[i];
 			}
 		}
@@ -466,7 +406,7 @@ static void XMLCALL start(void *userData, const char *name, const char **attr)
 
 
 // Parsing of a node name: end (this is where we fill our table with the node value)
-static void XMLCALL end(void *userData, const char *name)
+static void XMLCALL assign(void *userData, const char *name)
 {
 	int i;
 	unsigned short utf16;
@@ -480,7 +420,7 @@ static void XMLCALL end(void *userData, const char *name)
 		i = get_node_index(name, STACK_NODE(inf->depth-1));
 		if (i == -1)
 		{
-			printf("assign value: could not find node named %s in xml_%s\n", name, STACK_NODE(inf->depth-1)->id);
+			printf("eschew.assign: could not find node named %s in xml_%s\n", name, STACK_NODE(inf->depth-1)->id);
 			return;
 		}
 
@@ -492,7 +432,7 @@ static void XMLCALL end(void *userData, const char *name)
 			if (xml_to_bool(inf->value, &tmp_bool)) 
 				((xml_boolean*)STACK_NODE(inf->depth-1)->value)[i] = tmp_bool; 
 			else
-				printf("  %s: not a valid boolean value\n", inf->value);
+				fprintf(stderr, "eschew.assign: %s: not a valid boolean value\n", inf->value);
 			break;
 		// BYTE types
 		case t_xml_unsigned_char:
@@ -500,21 +440,21 @@ static void XMLCALL end(void *userData, const char *name)
 			utf8_to_u16(inf->value, &utf16);
 			// TO_DO: check consumed
 			if (utf16 > 0x100)
-				printf("Unicode sequence truncated to fit single byte\n");
+				fprintf(stderr, "eschew.assign: Unicode sequence truncated to fit single byte\n");
 			XML_CAST_TO_BYTE(STACK_NODE(inf->depth-1)->value, i, utf16&0xFF, 
 				STACK_NODE(inf->depth-1)->node_type); 
-			printf("  u8: %02X\n", (unsigned char)(utf16&0xFF));
+//			printf("  u8: %02X\n", (unsigned char)(utf16&0xFF));
 			break;
 		// STRING types
 		case t_xml_string:
 			// Convert to string
 			((xml_string*)STACK_NODE(inf->depth-1)->value)[i] = strdup(inf->value); 
-			printf("  string: '%s'\n", inf->value);
+//			printf("  string: '%s'\n", inf->value);
 			break;
 		// FLOATING POINT types
 		case t_xml_float:
 		case t_xml_double:
-			printf("  float: '%s'\n", inf->value);
+//			printf("  float: '%s'\n", inf->value);
 			XML_CAST_TO_INTEGER(STACK_NODE(inf->depth-1)->value, i, 
 				atof(inf->value), STACK_NODE(inf->depth-1)->node_type); 
 			break;
@@ -530,19 +470,19 @@ static void XMLCALL end(void *userData, const char *name)
 			// Check if the string value is a boolean
 			if (xml_to_bool(inf->value, &tmp_bool))
 			{
-				printf("  boolean, set to %s\n", tmp_bool?"true":"false");
+//				printf("  boolean, set to %s\n", tmp_bool?"true":"false");
 				((xml_boolean*)STACK_NODE(inf->depth-1)->value)[i] = tmp_bool; 
 			}
 			else	// Not a boolean
 			{
-				printf("  integer: '%s'\n", inf->value);
+//				printf("  integer: '%s'\n", inf->value);
 				XML_CAST_TO_INTEGER(STACK_NODE(inf->depth-1)->value, i, 
 					atoll(inf->value), STACK_NODE(inf->depth-1)->node_type); 
 			}
 			break;
 		// UNSUPPORTED
 		default:
-			printf("  Conversion of '%s' into table's %s type is not supported yet.\n", 
+			fprintf(stderr, "eschew.assign: Conversion of '%s' into table %s's type is not supported yet.\n", 
 				inf->value, STACK_NODE(inf->depth-1)->id);
 			break;
 		}
@@ -584,7 +524,7 @@ void rawend(void *userData, const char *name)
     Parseinfo *inf = (Parseinfo *) userData;
     inf->depth--;
     if (!inf->skip)
-        end(inf, name);
+        assign(inf, name);
 	if (inf->skip == inf->depth) 
         inf->skip = 0;
 }  
@@ -604,7 +544,7 @@ int read_xml(const char* filename)
 
 	parser = XML_ParserCreate(NULL);
     if (parser == NULL) {
-        fprintf(stderr, "Could not allocate memory for parser\n");
+		fprintf(stderr, "eschew.read_xml: Could not allocate memory for parser\n");
         return 0;
     }
     init_info(&info);
@@ -615,7 +555,7 @@ int read_xml(const char* filename)
 
 	if ((fd = fopen(filename, "rb")) == NULL)
 	{
-		printf("read_xml: can't find '%s' - Aborting.\n", filename);
+		fprintf(stderr, "eschew.read_xml: can't find '%s' - Aborting.\n", filename);
 		return 0;
 	}
 
@@ -625,7 +565,7 @@ int read_xml(const char* filename)
 		done = len < sizeof(buf);
 		if (XML_Parse(parser, buf, len, done) == XML_STATUS_ERROR) 
 		{
-			fprintf(stderr, "[%d] %s at line %lu\n", XML_GetErrorCode(parser),
+			fprintf(stderr, "expat: [%d] %s at line %lu\n", XML_GetErrorCode(parser),
 				XML_ErrorString(XML_GetErrorCode(parser)),
 				XML_GetCurrentLineNumber(parser));
 			return 0;

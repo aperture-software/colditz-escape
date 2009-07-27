@@ -1,0 +1,24 @@
+  Colditz Escape! - Rewritten Engine for "Escape From Colditz"
+
+	For glut, you need the dll in the exec location or system32
+	and to compile, you need:
+	- glut32.lib in C:\Program Files\Microsoft SDKs\Windows\v6.0A\Lib
+	- glut.h in C:\Program Files\Microsoft SDKs\Windows\v6.0A\Include\gl 
+	
+	The libs and header can be had from http://www.opengl.org/resources/libraries/glut/glutdlls37beta.zip
+
+	For expat, you need libexpatMT.lib (WIN)/libexpat.a (PSP) and on Windows, you must add XML_STATIC in 
+	the C/C++ PreProcessor Definitions
+	I believe I downloaded my Expat from http://nds.cmamod.com/psp/Expat.2.01.win32_msys_bin.zip
+	For PSP recompilation, use the expat_config.h in extras/
+
+	Important note: Because I'll be darned before I agree with the XML comitee's extreme shortsightedness 
+	that some chars in [00-7F] should be illegal, especially when we want to define our input keys in the
+	XML conf file, the libexpat we use was *TWEAKED* to accept ANY [00-7F] char without barfing.
+	To do that, the asciitab.h file of libexpat had all its BT_NONXML changed to BT_OTHER before compiling.
+	
+	If you don't want to have to tweak expat, you can modifie eschew.c to convert integer strings to 
+	unsigned char rather than simply read the value, and modify the config.xml
+
+  For PSP you will need
+  pmplib

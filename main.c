@@ -1,24 +1,27 @@
 /*
-	ESCAPE FROM COLDITZ 2009 / for PSP & Windows
-*/
+ *  Colditz Escape! - Rewritten Engine for "Escape From Colditz"
+ *  copyright (C) 2008-2009 Aperture Software 
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 3 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License along
+ *  with this program; if not, write to the Free Software Foundation, Inc.,
+ *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+ *
+ *  ---------------------------------------------------------------------------
+ *  main.c: Game engine entrypoint and GLUT functions
+ *  ---------------------------------------------------------------------------
+ */
 
-/*
-	For glut, you need the dll in the exec location or system32
-	and to compile, you need:
-	- glut32.lib in C:\Program Files\Microsoft SDKs\Windows\v6.0A\Lib
-	- glut.h in C:\Program Files\Microsoft SDKs\Windows\v6.0A\Include\gl 
-	
-	The libs and header can be had from http://www.opengl.org/resources/libraries/glut/glutdlls37beta.zip
 
-	For expat, you need libexpatMT.lib (WIN)/libexpat.a (PSP) and on Windows, you must add XML_STATIC in 
-	the C/C++ PreProcessor Definitions
-	I bleive I downloaded my Expat from http://nds.cmamod.com/psp/Expat.2.01.win32_msys_bin.zip
-
-	Important note: Because I'll be darned before I agree with the XML comitee's extreme shortsightedness 
-	that some chars in [00-7F] should be illegal, especially when we want to define our input keys in the
-	XML conf file, the libexpat we use was *TWEAKED* to accept ANY [00-7F] char without barfing.
-	To do that, the asciitab.h file of libexpat had all its BT_NONXML changed to BT_OTHER before compiling.
-*/
 
 #include <stdio.h>
 #include <stdlib.h>	
@@ -104,6 +107,13 @@ bool game_suspended				= false;
 //bool opt_skip_intro				= true;
 // Use the new guard repositioning engine
 //bool opt_enhanced_guard_handling = true;
+bool init_animations			= true;
+bool is_fire_pressed			= false;
+// Used for fade in/fade out of static images
+float fade_value = 1.0f;
+// false for fade in, true for fade out
+bool fade_out = false;
+
 
 
 
@@ -125,10 +135,6 @@ s_tex texture[NB_TEXTURES]	= TEXTURES;
 char* mod_name[NB_MODS]		= MOD_NAMES;
 s_sfx sfx[NB_SFXS];
 
-// Used for fade in/fade out of static images
-float fade_value = 1.0f;
-// false for fade in, true for fade out
-bool fade_out = false;
 
 // OpenGL window size
 int	gl_width, gl_height;
@@ -163,22 +169,25 @@ typedef struct
 	u8  cur_pos;
 	u8* keys;
 } s_cheat_sequence;
-#define NB_CHEAT_SEQUENCES	4
+
+// Cheat definitions
+static u8 sequence0[4]  = {SPECIAL_KEY_LEFT, SPECIAL_KEY_LEFT, SPECIAL_KEY_RIGHT, SPECIAL_KEY_RIGHT};
+static u8 keymaster[]	= "keymaster";
+static u8 die_die[]		= "die die die";
+static u8 no_cake[]		= "the cake is a lie";
+s_cheat_sequence cheat_sequence[] = {
+	{4, 0, sequence0}, 
+	{SIZE_A(keymaster)-1, 0, keymaster},
+	{SIZE_A(die_die)-1, 0, die_die}, 
+	{SIZE_A(no_cake)-1, 0, no_cake}
+};
+#define NB_CHEAT_SEQUENCES	SIZE_A(cheat_sequence)
 #define CHEAT_PROP_BONANZA	0
 #define CHEAT_KEYMASTER		1
 #define CHEAT_NOGUARDS		2
 #define NO_CAKE_FOR_YOU		3
-static u8 sequence0[4]  = {SPECIAL_KEY_LEFT, SPECIAL_KEY_LEFT, SPECIAL_KEY_RIGHT, SPECIAL_KEY_RIGHT};
-static u8 sequence1[9]  = {'k', 'e', 'y', 'm', 'a', 's', 't', 'e', 'r'};
-static u8 sequence2[11] = {'d', 'i', 'e', ' ', 'd', 'i', 'e', ' ', 'd', 'i', 'e'};
-static u8 sequence3[17] = {'t', 'h', 'e', ' ', 'c', 'a', 'k', 'e', ' ', 'i', 's', ' ', 'a', ' ', 'l', 'i', 'e'};
-s_cheat_sequence cheat_sequence[NB_CHEAT_SEQUENCES] = {
-	{4, 0, sequence0}, {9, 0, sequence1}, {11, 0, sequence2}, {17, 0, sequence3}
-};
 #endif
 
-bool init_animations = true;
-bool is_fire_pressed = false;
 s_animation	animations[MAX_ANIMATIONS];
 u8	nb_animations = 0;
 // last time for Animations and rePosition of the guards
@@ -231,8 +240,6 @@ s16 dir_to_dx[8] = {-1, 1, 0, -1, 1, 0, -1, 1};
 s16 dir_to_d2y[8] = {0, 0, -1, -1, -1, 1, 1, 1};
 // The direct nation keys might not be sequencial on custom key mapping
 u8 key_nation[NB_NATIONS+2];
-//= {KEY_BRITISH, KEY_FRENCH, KEY_AMERICAN, KEY_POLISH, 
-//							   KEY_PRISONERS_LEFT, KEY_PRISONERS_RIGHT};
 
 // Prototypes
 static void glut_idle_static_pic(void);
@@ -1313,8 +1320,8 @@ static void glut_mouse_buttons(int button, int state, int x, int y)
 #endif
 	}
 	SET_MODS;
-	printf("key = %X (%c)\n", converted_key, converted_key);
-	printf("  [%02X %02X %02X]\n", key_down[SPECIAL_KEY_SHIFT]?SPECIAL_KEY_SHIFT:0, key_down[SPECIAL_KEY_CTRL]?SPECIAL_KEY_CTRL:0, key_down[SPECIAL_KEY_ALT]?SPECIAL_KEY_ALT:0 );
+//	printf("key = %X (%c)\n", converted_key, converted_key);
+//	printf("  [%02X %02X %02X]\n", key_down[SPECIAL_KEY_SHIFT]?SPECIAL_KEY_SHIFT:0, key_down[SPECIAL_KEY_CTRL]?SPECIAL_KEY_CTRL:0, key_down[SPECIAL_KEY_ALT]?SPECIAL_KEY_ALT:0 );
 }
 
 
@@ -1328,7 +1335,6 @@ int main (int argc, char *argv[])
 	int opt_sfx				= 0;
 	// General purpose
 	u32  i;
-
 
 #if defined(PSP)
 	setup_callbacks();
@@ -1344,6 +1350,18 @@ int main (int argc, char *argv[])
 
 	// Need to have a working GL before we proceed. This is our own init() function
 	glut_init();
+
+	printf("# sizeof(unsigned long)=%u\n", (unsigned)sizeof(unsigned long));
+	printf("# 10000=%#02x\n", *(unsigned char*)0x10000);
+	printf("# 10001=%.3s\n", (char*)0x10001);
+
+	/* output of %p can either be hex or decimal, so comment it out */
+	printf("# addr_main_p=%p\n\n", main);
+
+	/* suffix "_x" is required by post-processing (etc/calc.pl) */
+	printf("addr_main_x=%lx\n", (unsigned long)main);
+	printf("ofs_main_x=%lx\n", (unsigned long)main - 0x10000);
+	printf("ofs_main=%lx\n", (unsigned long)main - 0x10000);
 
 	// Let's clean up our buffers
 	fflush(stdin);
