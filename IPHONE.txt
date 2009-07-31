@@ -1,0 +1,4 @@
+Regarding the porting this application to the Apple Appstore:
+
+Because the code is GPL v3, you can NOT port this application to the Apple Appstore, even if you publish the sources, as Appstore does not allow end users to recompile and run their own version. Sorry folks, but that's what you get when you lose control to what you can run on the hardware that you own.
+Of course, no such restriction exist for a jailbroken iPhone/iPod Touch

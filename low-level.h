@@ -38,6 +38,7 @@ static __inline u64 mtime(void)
 #elif defined(PSP)
 #include <pspthreadman.h>
 #include <psprtc.h>
+#include <pspctrl.h>
 #define msleep(msecs) sceKernelDelayThread(1000*msecs)
 static __inline u64 mtime(void)
 {
@@ -60,8 +61,42 @@ static __inline u64 mtime(void)
 
 // Handy macro for exiting. xbuffer or fd = NULL is no problemo 
 // (except for lousy Visual C++, that will CRASH on fd = NULL!!!!)
-#define FREE_BUFFERS	{int _buf; for (_buf=0;_buf<NB_FILES;_buf++) aligned_free(fbuffer[_buf]); aligned_free(mbuffer);}
-#define ERR_EXIT		{FREE_BUFFERS; if (fd != NULL) fclose(fd); fflush(stdin); exit(0);}
+//#define FREE_BUFFERS	{int _buf; for (_buf=0;_buf<NB_FILES;_buf++) aligned_free(fbuffer[_buf]); aligned_free(mbuffer);}
+//#define ERR_EXIT		{FREE_BUFFERS; if (fd != NULL) fclose(fd); fflush(stdin); exit(0);}
+// On Windows and PSP, exiting the application will automatically free allocated memory blocks
+// so we don't bother freeing any buffers here
+#if defined(WIN32)
+#define LEAVE			exit(0)
+#define FATAL			exit(1)
+#elif defined(PSP)
+#define LEAVE			back_to_kernel()
+#if defined(PSP_ONSCREEN_STDOUT)
+// No immediate exit on PSP as we might want to display the error
+extern void back_to_kernel (void);
+// Wait for a (new) keypress (can't use idle_supended as we can't continue on error)
+static __inline void psp_any_key() 
+{
+	unsigned int initialButtons;
+	SceCtrlData pad;
+
+	sceCtrlReadBufferPositive(&pad, 1);
+	initialButtons = pad.Buttons;
+
+	while (pad.Buttons == initialButtons)
+	{
+		sceCtrlReadBufferPositive(&pad, 1);
+		if (pad.Buttons == 0)
+			initialButtons = 0;
+	}
+}
+#define FATAL_MSG		"\n\n\t\tFATAL ERROR: Press any key to exit the program\n"
+#define FATAL			{ printf(FATAL_MSG); psp_any_key(); back_to_kernel(); }
+#else
+// so screen stdout => immediate exit
+#define FATAL			back_to_kernel()
+#endif
+#endif
+#define ERR_EXIT		{if (fd!=NULL) fclose(fd); RECORD(0xDEAD); RECORD(0); fflush(stdout); FATAL;}
 #define perr(...)		fprintf(stderr, __VA_ARGS__)
 #define print(...)		printf(__VA_ARGS__)
 #define printv(...)		if(opt_verbose) print(__VA_ARGS__)
@@ -91,10 +126,17 @@ static __inline u32 readlong(u8* buffer, u32 addr)
 		(((u32)buffer[addr+2])<<8) + ((u32)buffer[addr+3]));
 }
 
-static __inline u32 read24(u8* buffer, u32 addr)
+static __inline u32 freadlong(FILE* fd)
 {
-	return ((((u32)buffer[addr+0])<<16) + (((u32)buffer[addr+1])<<8) +
-		((u32)buffer[addr+2]));
+	u8	b, i;
+	u32 r = 0;
+	for (i=0; i<4; i++)
+	{
+		fread(&b, 1, 1, fd);
+		r <<= 8;
+		r |= b;
+	}
+	return r;
 }
 
 static __inline void writelong(u8* buffer, u32 addr, u32 value)
@@ -105,9 +147,28 @@ static __inline void writelong(u8* buffer, u32 addr, u32 value)
 	buffer[addr+3] = (u8)value;
 }
 
+static __inline u32 read24(u8* buffer, u32 addr)
+{
+	return ((((u32)buffer[addr+0])<<16) + (((u32)buffer[addr+1])<<8) +
+		((u32)buffer[addr+2]));
+}
+
 static __inline u16 readword(u8* buffer, u32 addr)
 {
 	return ((((u16)buffer[addr+0])<<8) + ((u16)buffer[addr+1]));
+}
+
+static __inline u16 freadword(FILE* fd)
+{
+	u8	b,i;
+	u16 r = 0;
+	for (i=0; i<2; i++)
+	{
+		fread(&b, 1, 1, fd);
+		r <<= 8;
+		r |= b;
+	}
+	return r;
 }
 
 static __inline void writeword(u8* buffer, u32 addr, u16 value)
@@ -119,6 +180,13 @@ static __inline void writeword(u8* buffer, u32 addr, u16 value)
 static __inline u8 readbyte(u8* buffer, u32 addr)
 {
 	return buffer[addr];
+}
+
+static __inline u8 freadbyte(FILE* fd)
+{
+	u8	b = 0;
+	fread(&b, 1, 1, fd);
+	return b;
 }
 
 static __inline void writebyte(u8* buffer, u32 addr, u8 value)

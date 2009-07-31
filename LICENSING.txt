@@ -4,7 +4,7 @@ ORIGINAL SOURCECODE LICENSING:
       http://code.google.com/[TBD]
       GPL v3.0. See LICENSE.txt in extras/GPL
 
-COMMON SOURCECODE & LIBRARIES LICENSING:
+COMMON SOURCE & LIBRARIES LICENSING:
 
 Uses: Expat XML Parser library by James Clark 
       http://expat.sourceforge.net/
@@ -17,16 +17,17 @@ Uses: MD5 hash functions, from PolarSSL by Paul Bakker
       http://polarssl.org/?page=show_source&type=source&file=md5
       GPL v2.0 or later. See LICENSE.txt in extras/GPL
 Uses: Aligned malloc code, from Satya Kiran Popuri
-      http://www.cs.uic.edu/~spopuri/amalloc.html
+      http://www.cs.uic.edu/~spopuri/amalloc.html (link is dead)
       Free license
 Uses: PowerPacker decrunch code, from amigadepacker by Heikki Orsila:
       http://zakalwe.fi/~shd/foss/amigadepacker/
       Public domain
-Uses: IFF loader code from LBMVIEW V1.0b:
-      http://cd.textfiles.com/scene96-2/graphics/tools/lbmview/lbmview.c
-      Free license for non commercial use
+Uses: IFF loader code, modified from IFF C samples by Jerry Morrison and Steve Shaw (Electronic Arts)
+      http://ftp.funet.fi/pub/amiga/fish/001-100/ff010/iff.lha 
+      http://www.martinreddy.net/gfx/2d/IFF.txt
+      Public domain
       
-PSP SOURCECODE & LIBRARIES LICENSING:
+PSP SOURCE & LIBRARIES LICENSING:
 
 Uses: PSP ModPlayer v1.0, from PSPMediaCenter by adresd
       http://svn.pspdev.org/listing.php?repname=pspware&path=%2Ftrunk%2FPSPMediaCenter%2Fcodec%2Fmod%2F&rev=0&sc=0
@@ -41,7 +42,7 @@ Uses: PSPSDK libraries by adresd, Marcus R. Brown, James Forshaw, John Kelley, J
       http://svn.ps2dev.org/listing.php?repname=psp&path=%2Ftrunk%2Fpspsdk%2F&rev=0&sc=0
       See LICENSE.txt in extras/pspsdk
       
-WINDOWS SOURCECODE & LIBRARIES LICENSING:
+WINDOWS SOURCE & LIBRARIES LICENSING:
 
 Uses: GLUT for Windows, by Mark J. Kilgard
       Freely distributable without licensing fees

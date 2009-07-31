@@ -62,9 +62,9 @@ extern "C" {
 #define ignore_offscreen_x(ovl)	{if is_offscreen_x(overlay[ovl].x) continue;}
 #define ignore_offscreen_y(ovl)	{if is_offscreen_y(overlay[ovl].y) continue;}
 
-#define get_guybrush_sid(x)																\
-	( ((((guybrush[x].state & STATE_MOTION) || (guybrush[x].state & STATE_ANIMATED))	\
-	&& (!(guybrush[x].state & STATE_BLOCKED))) && !paused)?								\
+#define get_guybrush_sid(x)												\
+	( (((guybrush[x].state & (STATE_MOTION|STATE_ANIMATED))				\
+	&& (!(guybrush[x].state & STATE_BLOCKED))) && !paused)?				\
 	get_animation_sid(x, true):get_stop_animation_sid(x, true))
 
 #define safe_nb_animations_increment() {	\
@@ -80,12 +80,46 @@ extern "C" {
 	printf("Too many overlays!\n");			}	
 
 
+// A few definitions to make prop handling and status messages more readable
+extern u64  t_status_message_timeout;
+static __inline void set_status_message(void* msg, int priority, u64 timeout_duration)	
+{
+	if (priority >= status_message_priority)
+	{
+		t_status_message_timeout = game_time + timeout_duration;	
+		status_message = (char*)(msg);
+		status_message_priority = priority;
+	}
+}
+
+static __inline void consume_prop()
+{	// we can use an __inline here because we deal with globals
+	if (!opt_keymaster)
+	{	// consume the prop
+		props[current_nation][selected_prop[current_nation]]--;
+		RECORD(R_USE + selected_prop[current_nation]);
+		if (props[current_nation][selected_prop[current_nation]] == 0)
+		// display the empty box if last prop
+			selected_prop[current_nation] = 0;
+	}
+}
+
+#define update_props_message(prop_id)												\
+	nb_props_message[1] = (props[current_nation][prop_id] / 10) + 0x30;				\
+	nb_props_message[2] = (props[current_nation][prop_id] % 10) + 0x30;				\
+	strcpy(nb_props_message+6, (char*) fbuffer[LOADER] + readlong(fbuffer[LOADER],	\
+		PROPS_MESSAGE_BASE + 4*(prop_id-1)) + 1);									
+
+#define show_prop_count()															\
+	update_props_message(selected_prop[current_nation]);							\
+	set_status_message(nb_props_message, 1, PROPS_MESSAGE_TIMEOUT)
+
+
+
+
 // Public prototypes
 //
 //////////////////////////////////////////////////////////////////////
-#if defined(ANTI_TAMPERING_ENABLED)
-bool integrity_check(u16 i);
-#endif
 void load_all_files();
 void reload_files();
 void newgame_init();
@@ -111,6 +145,8 @@ void cmp_set_overlays();
 void removable_walls();
 void add_guybrushes();
 void sort_overlays(u8 a[], u8 n);
+void create_record();
+void record(u16 data);
 	
 #ifdef	__cplusplus
 }

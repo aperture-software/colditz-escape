@@ -32,7 +32,6 @@ extern "C" {
 #define CHEATMODE_ENABLED
 #define ANTI_TAMPERING_ENABLED
 #define DEBUG_KEYS_ENABLED
-//#define ENHANCED_GUARD_POSITIONING
 
 // Stupid VC++ doesn't know the basic GL formats it can actually use!
 #if !defined(GL_UNSIGNED_SHORT_4_4_4_4_REV)
@@ -115,37 +114,6 @@ extern "C" {
 #define APERTURE_VIDEO			"aperture.pmp"
 #else
 #define APERTURE_VIDEO			"aperture.avi"
-#endif
-
-
-/*
-#define FMD5HASHES				{ { 0x0c, 0x4f, 0xeb, 0x19, 0xfc, 0x53, 0xaf, 0xa9, 0x03, 0x83, 0x24, 0xc1, 0xad, 0xa2, 0x1c, 0xe9 }, \
-								  { 0xd8, 0x23, 0x9a, 0x3e, 0x68, 0xe4, 0x6f, 0x36, 0x5f, 0xf2, 0x4d, 0xca, 0x5d, 0x12, 0xfb, 0x52 }, \
-								  { 0x15, 0xdc, 0x6b, 0xa1, 0x39, 0x2c, 0x9a, 0x31, 0x66, 0x1a, 0xd3, 0x78, 0xee, 0x98, 0x11, 0x62 }, \
-								  { 0x24, 0x15, 0x8a, 0xe9, 0x52, 0x7d, 0x92, 0x15, 0xab, 0x4e, 0x00, 0x00, 0x32, 0x1c, 0x53, 0x75 }, \
-								  { 0x10, 0xd9, 0x97, 0xad, 0x03, 0x5a, 0x4c, 0xde, 0x46, 0x5a, 0x82, 0xd9, 0x99, 0x46, 0xbe, 0x81 }, \
-								  { 0x8c, 0x3f, 0x01, 0xde, 0x56, 0xf9, 0x9d, 0x1c, 0x3c, 0x09, 0x05, 0x84, 0x8e, 0x96, 0x66, 0xa8 }, \
-								  { 0x0a, 0x57, 0x16, 0x00, 0x7c, 0x53, 0x2f, 0x59, 0xf4, 0x1f, 0x1c, 0xd9, 0xf3, 0x5b, 0x79, 0xd1 }, \
-								  { 0x5c, 0xd4, 0xa6, 0x75, 0x8b, 0xe9, 0xf9, 0xc2, 0xff, 0xee, 0xa6, 0x72, 0xbc, 0xd6, 0x05, 0x61 }, \
-								  { 0x35, 0x22, 0x3d, 0x00, 0x68, 0x2f, 0x2d, 0x3a, 0x8f, 0x8a, 0x77, 0xa7, 0xa1, 0xa9, 0x71, 0x06 }, \
-								  { 0xcb, 0xe0, 0x09, 0xbe, 0x17, 0x15, 0xae, 0x03, 0xbf, 0xd6, 0x03, 0x91, 0x7f, 0x78, 0xe5, 0x67 }, \
-								  { 0xb7, 0x8d, 0xbf, 0x3c, 0xdd, 0xa7, 0xfc, 0x92, 0x9a, 0x55, 0x56, 0xd2, 0x4f, 0x8f, 0x82, 0xb3 } }
-*/
-
-#if defined(ANTI_TAMPERING_ENABLED)
-// Slighltly obfuscated MD5 hashes of the files (don't want to make file tampering & cheating too easy for the first prized release)
-#define FMDXHASHES				{ { 0xf3, 0x5e, 0x11, 0xb3, 0x30 }, \
-								  { 0x6c, 0x31, 0x12, 0x00, 0xf2 }, \
-								  { 0x6b, 0x85, 0x59, 0xc1, 0xdb }, \
-								  { 0x4f, 0x7d, 0x68, 0x74, 0x3a }, \
-								  { 0x84, 0x1d, 0xc4, 0x82, 0xd8 }, \
-								  { 0x46, 0xc8, 0xf7, 0x61, 0x68 }, \
-								  { 0x03, 0xf0, 0xa7, 0xfc, 0xe3 }, \
-								  { 0x98, 0x24, 0xf0, 0x26, 0xc8 }, \
-								  { 0x60, 0xc1, 0xe3, 0x4a, 0xc0 }, \
-								  { 0x59, 0x26, 0xc6, 0xbe, 0x68 }, \
-								  { 0xc8, 0x87, 0x0a, 0x85, 0xd0 } }
-
 #endif
 
 // Textures that will be used for various images
@@ -477,11 +445,12 @@ extern "C" {
 #define STATE_SHOT				0x0200
 #define STATE_RESUME_ROUTE_WAIT	0x0400
 #define STATE_RESUME_ROUTE		0x0800
-//#define STATE_RESUME_BLOCKED	0x1000
+#define STATE_KNEELING			0x1000
 
 // Useful masks
-#define MOTION_DISALLOWED		(~(STATE_MOTION|STATE_TUNNELING|STATE_IN_PURSUIT|STATE_SHOT|STATE_STOOGING|STATE_IN_PRISON))
-#define KNEEL_DISALLOWED		(~(STATE_MOTION|STATE_IN_PURSUIT|STATE_IN_PRISON))
+#define MOTION_DISALLOWED		(STATE_SLEEPING|STATE_SHOT|STATE_KNEELING)
+//#define MOTION_DISALLOWED		(~(STATE_MOTION|STATE_TUNNELING|STATE_IN_PURSUIT|STATE_SHOT|STATE_STOOGING|STATE_IN_PRISON))
+//#define KNEEL_DISALLOWED		(~(STATE_MOTION|STATE_IN_PURSUIT|STATE_IN_PRISON))
 #define DEVIATED_FROM_ROUTE		(STATE_IN_PURSUIT|STATE_RESUME_ROUTE|STATE_RESUME_ROUTE_WAIT)
 
 // Game states
@@ -493,6 +462,7 @@ extern "C" {
 #define GAME_STATE_GAME_WON		32
 #define GAME_STATE_PICTURE_LOOP	64
 #define GAME_STATE_CUTSCENE		128
+
 
 // Nationalities
 #define BRITISH					0
@@ -537,12 +507,27 @@ extern "C" {
 #define GAME_FADE_IN_START		8
 #define GAME_FADE_IN			9
 #define PICTURE_EXIT			10
-//#define NB_PICTURE_STATES		11
-//#define FADE_INCREMENT			0.05f
 
+// Recording buffer size, in bytes
+#define RBUFFER_SIZE			512
+#define RECORD(data) if(opt_record_data) record((u16)(data))
+// Record commands
+#define R_ROOM					0x0000
+#define R_NATION				0x1100
+#define R_PICK					0x2200
+#define R_DROP					0x2300
+#define R_USE					0x2400
+#define R_HOUR					0x3333
+#define R_CHASE					0x4400
+#define R_CAUGHT				0x5500
+#define R_KILLED				0x6600
+#define R_ESCAPED				0x7700
+#define R_JAIL					0x8800
+#define R_FREE					0x8900
+#define R_EXIT					0xD000
+#define R_EVENT					0xEE00
 
-
-// Define a structure to hold the standard RGBA sprites
+// Structure to hold the standard RGBA sprites
 typedef struct 
 {
     u16 w;
@@ -589,7 +574,7 @@ typedef struct
 	void (*function)(u32);
 } s_event;
 
-// Sound FX
+// Sound FXs
 typedef struct 
 {
 	u32				address;
@@ -604,22 +589,23 @@ typedef struct
 // prisoners or guards
 typedef struct 
 {
-	u16				room;
+	u16				room;					// Room index
 	s16				px;
 	s16				p2y;
-	s16				speed;
+	s16				speed;					// Walk = 1, Run = 2
 	/* For animated overlays, direction is one of:
 	 *    3  2  4
 	 *    0 -1  1 
 	 *    6  5  7   */
 	s16				direction;
-	u16				state;
-	u32				ext_bitmask;
+	u16				state;					// Motion related state (see above)
+	u32				ext_bitmask;			// Removable walls bitmask
 	s_animation		animation;
 	bool			reset_animation;
 	bool			is_dressed_as_guard;
 	bool			is_onscreen;
-	bool			reinstantiate;
+	// Guard activity variables
+	bool			reinstantiate;			
 	bool			resume_motion;
 	bool			blocked_by_prisoner;
 	u32				go_on;
@@ -632,7 +618,7 @@ typedef struct
 	bool			fooled_by[NB_NATIONS];
 } s_guybrush;
 
-// Event related states (apply to prisoners only)
+// Event related states (applies to prisoners only)
 typedef struct 
 {
 	bool require_pass;
@@ -648,52 +634,9 @@ typedef struct
 	u32  solitary_countdown;
 } s_prisoner_event;
 
-
-// Global variables
-extern bool	opt_verbose;
-extern bool	opt_debug;
-extern int	opt_sid;
-extern bool	opt_play_as_the_safe;
-extern bool	opt_keymaster;
-extern bool	opt_thrillerdance;
-extern bool	opt_no_guards;
-extern bool	opt_haunted_castle;
-extern int	nb_escaped;
-extern int	stat;
-extern int  debug_flag;
-extern u8   *mbuffer;
-extern u8   *fbuffer[NB_FILES];
-extern FILE *fd;
-extern u8   *rgbCells;
-extern u8*  static_image_buffer;
-// Removable walls current bitmask
-extern u32  rem_bitmask;
-extern u8	props[NB_NATIONS][NB_PROPS];
-extern u8	selected_prop[NB_NATIONS];
-extern s_prisoner_event p_event[NB_NATIONS];
-extern u8	nb_room_props;
-extern u16	room_props[NB_OBSBIN];
-extern u8	over_prop, over_prop_id;
-extern u8	panel_chars[NB_PANEL_CHARS][8*8*2];
-extern char* status_message;
-extern int	 status_message_priority;
-extern s16 directions[3][3], dir_to_dx[8], dir_to_d2y[8];
-extern u8  hours_digit_h, hours_digit_l, minutes_digit_h, minutes_digit_l;
-extern u8  palette_index;
-extern u16	game_state;
-extern float fade_value;
-extern int current_picture;
-
-
-// Data specific global variables
-extern u16  nb_rooms, nb_cells, nb_objects;
-
-extern char* fname[NB_FILES];
-extern u32   fsize[NB_FILES];
-extern char* mod_name[NB_MODS];
-extern int	gl_width, gl_height;
-extern u8 current_nation;
-extern s_sfx sfx[NB_SFXS];
+/*
+ *	Defines passing as globals
+ */
 #define prisoner_x			guybrush[current_nation].px
 #define prisoner_2y			guybrush[current_nation].p2y
 #define current_room_index	guybrush[current_nation].room
@@ -716,9 +659,53 @@ extern s_sfx sfx[NB_SFXS];
 #define game_over			(game_state & GAME_STATE_GAME_OVER)
 #define intro				(game_state & GAME_STATE_INTRO)
 #define game_won			(game_state & GAME_STATE_GAME_WON)
-extern s16  last_p_x, last_p_y;
-extern s16  dx, d2y;
-extern u8  prisoner_sid;
+
+/*
+ *	Actual global variables
+ */
+// General program options, including cheats
+extern bool	opt_verbose;
+extern bool	opt_debug;
+extern bool opt_onscreen_debug;
+extern int	opt_sid;
+extern bool	opt_play_as_the_safe;
+extern bool	opt_keymaster;
+extern bool	opt_thrillerdance;
+extern bool	opt_no_guards;
+extern bool	opt_haunted_castle;
+extern bool opt_record_data;
+// Global variables
+extern int	stat;
+extern u8   *mbuffer;
+extern u8   *fbuffer[NB_FILES];
+extern u8	*rbuffer;
+extern FILE *fd;		// Generic file descriptor
+extern FILE *rfd;		// Recording file descriptot
+extern u8   *rgbCells;
+extern u8	*static_image_buffer;
+extern u8	props[NB_NATIONS][NB_PROPS];
+extern u8	selected_prop[NB_NATIONS];
+extern s_prisoner_event p_event[NB_NATIONS];
+extern u8	nb_room_props;
+extern u16	room_props[NB_OBSBIN];
+extern u8	over_prop, over_prop_id;
+extern u8	panel_chars[NB_PANEL_CHARS][8*8*2];
+extern char *status_message;
+extern int	status_message_priority;
+extern s16	directions[3][3], dir_to_dx[8], dir_to_d2y[8];
+extern u8	hours_digit_h, hours_digit_l, minutes_digit_h, minutes_digit_l;
+extern u8	palette_index;
+extern u16	game_state;
+extern float fade_value;
+extern int	current_picture;
+extern u16  nb_objects;
+
+extern char	*fname[NB_FILES];
+extern u32  fsize[NB_FILES];
+extern char	*mod_name[NB_MODS];
+extern int	gl_width, gl_height;
+extern u8	current_nation;
+extern s_sfx sfx[NB_SFXS];
 
 extern s_sprite		*sprite;
 extern s_overlay	*overlay; 
@@ -728,9 +715,16 @@ extern bool init_animations;
 extern bool is_fire_pressed;
 extern char nb_props_message[32];
 extern u64	game_time, last_atime, last_ptime, last_ctime, t_last;
-extern u64  t_status_message_timeout;
+extern void record(u16 data);
+extern s_animation	animations[MAX_ANIMATIONS];
+extern u8	nb_animations;
+extern s_guybrush	guybrush[NB_GUYBRUSHES];
+extern s_event		events[NB_EVENTS];
 
+// Prototypes
+void static_screen(u8 iff_id, void (*func)(u32), u32 param);
 
+// Key handling (global, as might be used in the ERR_EXIT macro)
 extern bool key_down[256], key_readonce[256];
 static __inline bool read_key_once(u8 k)
 {	
@@ -743,84 +737,6 @@ static __inline bool read_key_once(u8 k)
 	}
 	return false;
 }
-
-// A few defintions to make prop handling and status messages more readable
-static __inline void set_status_message(void* msg, int priority, u64 timeout_duration)	
-{
-	if (priority >= status_message_priority)
-	{
-		t_status_message_timeout = game_time + timeout_duration;	
-		status_message = (char*)(msg);
-		status_message_priority = priority;
-	}
-}
-
-static __inline void consume_prop()
-{	// we can use an __inline here because we deal with globals
-	if (!opt_keymaster)
-	{	// consume the prop
-		props[current_nation][selected_prop[current_nation]]--;
-		if (props[current_nation][selected_prop[current_nation]] == 0)
-		// display the empty box if last prop
-			selected_prop[current_nation] = 0;
-	}
-}
-
-#define update_props_message(prop_id)												\
-	nb_props_message[1] = (props[current_nation][prop_id] / 10) + 0x30;				\
-	nb_props_message[2] = (props[current_nation][prop_id] % 10) + 0x30;				\
-	strcpy(nb_props_message+6, (char*) fbuffer[LOADER] + readlong(fbuffer[LOADER],	\
-		PROPS_MESSAGE_BASE + 4*(prop_id-1)) + 1);									
-
-#define show_prop_count()															\
-	update_props_message(selected_prop[current_nation]);							\
-	set_status_message(nb_props_message, 1, PROPS_MESSAGE_TIMEOUT)
-
-
-
-
-extern s_animation	animations[MAX_ANIMATIONS];
-extern u8	nb_animations;
-extern s_guybrush	guybrush[NB_GUYBRUSHES];
-extern s_event		events[NB_EVENTS];
-
-
-// Having  a global palette saves a lot of hassle
-extern u8  bPalette[3][16];
-extern u16 aPalette[32];	// This palette is 32 instead of 16, because we also use
-							// it to load 5 bpp IFF images
-
-void static_screen(u8 iff_id, void (*func)(u32), u32 param);
-
-#if defined(ANTI_TAMPERING_ENABLED)
-// This inline performs an obfuscated MD5 check on file i
-// Conveniently used to discreetly check for file tampering anytime during the game
-extern void md5( unsigned char *input, int ilen, unsigned char output[16] );
-extern u8  fmdxhash[NB_FILES][5];
-static __inline bool integrity_check(u16 i)
-{
-	u8 md5hash[16];
-	u8 blah = 0x5A;
-	md5(fbuffer[i]+((i==LOADER)?LOADER_PADDING:0), fsize[i], md5hash);
-//	printf("{ ");
-	blah ^= md5hash[7];
-//	printf("0x%02x, ", blah);
-	if (blah != fmdxhash[i][0]) return false;
-	blah ^= md5hash[12];
-//	printf("0x%02x, ", blah);
-	if (blah != fmdxhash[i][1]) return false;
-	blah ^= md5hash[1];
-//	printf("0x%02x, ", blah);
-	if (blah != fmdxhash[i][2]) return false;
-	blah ^= md5hash[13];
-//	printf("0x%02x, ", blah);
-	if (blah != fmdxhash[i][3]) return false;
-	blah ^= md5hash[9];
-//	printf("0x%02x }, \\\n", blah);
-	if (blah != fmdxhash[i][4]) return false;
-	return true;
-}
-#endif
 
 #ifdef	__cplusplus
 }

@@ -66,4 +66,7 @@ void back_to_kernel (void)
 {
 	sceKernelExitGame();
 }
+
+
+
 #endif

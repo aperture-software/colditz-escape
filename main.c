@@ -77,7 +77,10 @@
 // Flags
 int debug_flag					= 0;
 bool opt_verbose				= false;
+// Console debug
 bool opt_debug					= false;
+// Additional oncreen debug info
+bool opt_onscreen_debug			= true;
 bool opt_ghost					= false;
 bool opt_play_as_the_safe		= false;
 // Who needs keys?
@@ -91,12 +94,12 @@ int opt_sid						= -1;
 bool opt_no_guards				= false;
 // Is the castle haunted by the ghost of shot prisoners
 bool opt_haunted_castle			= true;
-// Number of escaped prisoners
-int nb_escaped					= 0;
+// Record data
+bool opt_record_data			= true;
 // Current static picture to show
 int current_picture				= INTRO_SCREEN_START;
 // Why is this global again?
-bool new_game					= false;
+//bool new_game					= false;
 // Our second local pause variable, to help with the transition
 bool display_paused				= false;
 // we might need to suspend the game for videos, debug, etc
@@ -115,19 +118,17 @@ float fade_value = 1.0f;
 bool fade_out = false;
 
 
-
-
-/// DEBUG
-u64 t1;
-
 // We'll need this to retrieve our glutIdle function after a suspended state
-#define glutIdleFunc_save(f) {glutIdleFunc(f); restore_idle = f;}
+// (but make sure we don't change idle if already suspended, which can happen on PSP printf)
+#define glutIdleFunc_save(f) {if (!game_suspended) glutIdleFunc(f); restore_idle = f;}
 
 // File stuff
 FILE* fd					= NULL;
+FILE* rfd					= NULL;
 char* fname[NB_FILES]		= FNAMES;			// file name(s)
 u32   fsize[NB_FILES]		= FSIZES;
 u8*   fbuffer[NB_FILES];
+u8*	  rbuffer;
 u8*   mbuffer				= NULL;
 u8*	  rgbCells				= NULL;
 u8*   static_image_buffer   = NULL;
@@ -144,8 +145,9 @@ s16 jdx, jd2y;
 // Key modifiers for glut
 int glut_mod;
 
-// Could use a set of flags, but more explicit this way
+// Key handling
 bool key_down[256], key_readonce[256];
+
 
 #if defined (CHEATMODE_ENABLED)
 // We don't want to pollute the key_readonce table for cheat keys, yet
@@ -222,12 +224,12 @@ void (*work_around_stupid_linkers_glutIdleFunc)(void (*func)(void)) = glutIdleFu
 #endif
 u32  static_screen_param;
 
-u16  nb_rooms, nb_cells, nb_objects;
+u16  nb_objects;
 u8	 palette_index = INITIAL_PALETTE_INDEX;
 s_sprite*	sprite;
 s_overlay*	overlay;
 u8   overlay_index;
-u16  aPalette[32];	
+
 char nb_props_message[32] = "\499 * ";
 
 // static picture
@@ -387,7 +389,7 @@ void process_motion(void)
 			// in all other cases, we need to stop (even on sucessful exit)
 			if (exit>0)
 			{
-//				printf("exit[%d], from room[%X]\n", exit-1, current_room_index);
+				printb("exit[%d], from room[%X]\n", exit-1, current_room_index);
 				switch_room(exit-1, false);
 				// keep_message_on = false;	// we could do without this
 			}
@@ -406,7 +408,6 @@ void process_motion(void)
 
 	if (new_direction != DIRECTION_STOPPED)
 	{	// We're moving => animate sprite
-
 		if (!(prisoner_state & STATE_MOTION))
 		// we were stopped => make sure we start with the proper ani frame
 			prisoner_ani.framecount = 0;
@@ -436,7 +437,7 @@ void process_motion(void)
 	}
 	else if (prisoner_state & STATE_MOTION)
 	{	// We just stopped
-			prisoner_state ^= STATE_MOTION;
+		prisoner_state ^= STATE_MOTION;
 	}
 	else if (prisoner_state & STATE_SLEEPING)
 	{	// Decrease fatigue
@@ -460,7 +461,7 @@ void restore_params(u32 param)
 	guybrush[brush].animation.framecount = 0;
 	guybrush[brush].animation.end_of_ani_function = NULL;
 	// we always end up in stopped state after a one shot animation
-	guybrush[brush].state &= ~(STATE_MOTION|STATE_ANIMATED);
+	guybrush[brush].state &= ~(STATE_MOTION|STATE_ANIMATED|STATE_KNEELING);
 	// This is necessary for the tunnel opening animations
 	prisoner_reset_ani = true;
 }
@@ -476,12 +477,8 @@ void user_input()
 	// Return to intro screen
 	if (key_down[KEY_ESCAPE])
 	{
-#if defined(PSP)
-		back_to_kernel();
-#else
-		//game_state = GAME_STATE_INTRO | GAME_STATE_STATIC_PIC;
-		exit(0);
-#endif
+		RECORD(0);
+		LEAVE;
 	}
 
 	// Handle the pausing of the game 
@@ -569,7 +566,11 @@ void user_input()
 	}
 
 	if (read_key_once(KEY_DEBUG_CATCH_HIM))
+	{
 		prisoner_state ^= STATE_IN_PURSUIT;
+		printf("FATAL ERROR\n");
+		ERR_EXIT;
+	}
 #endif
 
 	// Above are all the keys allowed if the prisoner has not already escaped or died, thus...
@@ -715,7 +716,7 @@ void user_input()
 			   (read_key_once(KEY_INVENTORY_DROP)) ) &&
 			   (!(prisoner_state & STATE_TUNNELING)) )
 		{
-			prisoner_state |= STATE_ANIMATED;
+			prisoner_state |= STATE_ANIMATED|STATE_KNEELING;
 			// enqueue our 2 u8 parameters
 			prisoner_ani.end_of_ani_parameter = (current_nation & 0xFF) | 
 				((prisoner_ani.index << 8) & 0xFF00);
@@ -735,6 +736,7 @@ void user_input()
 					props[current_nation][over_prop_id]++;
 					selected_prop[current_nation] = over_prop_id;
 					show_prop_count();
+					RECORD(R_PICK + over_prop_id);
 				}
 			}
 			else
@@ -767,6 +769,8 @@ void user_input()
 					if (!found)		// Somebody's cheating!
 						printf("Could not find any free prop variable => discarding prop.\n");
 
+					RECORD(R_DROP + over_prop_id);
+
 					props[current_nation][over_prop_id]--;
 					if (props[current_nation][over_prop_id] == 0)
 					// display the empty box if last prop
@@ -777,6 +781,7 @@ void user_input()
 					over_prop_id = 0;
 				}
 			}
+			return;
 		}
 
 		// Sleep
@@ -803,6 +808,7 @@ void user_input()
 		dx = -1;
 	else if (key_down[KEY_DIRECTION_RIGHT])
 		dx = +1;
+
 	if (key_down[KEY_DIRECTION_UP])
 		d2y = -1;
 	else if (key_down[KEY_DIRECTION_DOWN])
@@ -888,6 +894,7 @@ static void glut_idle_game(void)
 					for (i=0; i<NB_NATIONS; i++)
 						if (!(guy(i).state & STATE_SLEEPING) && (!p_event[i].killed))
 							p_event[i].fatigue += HOURLY_FATIGUE_INCREASE;
+					RECORD(R_HOUR);
 				}
 			}
 
@@ -958,7 +965,10 @@ static void glut_idle_static_pic(void)
 	update_timers();
 
 	if (key_down[KEY_ESCAPE])
-		exit(0);
+	{
+		RECORD(0);
+		LEAVE;
+	}
 
 	if ((intro) && read_key_once(last_key_used))
 	{	// Exit intro => start new game
@@ -980,7 +990,7 @@ static void glut_idle_static_pic(void)
 	if ( (picture_state%2) && (picture_state != PICTURE_WAIT) )
 	{	// All the non "START" states (odd) need to slide the fade value, except for "PICTURE_WAIT"
 		if (transition_start == 0)
-			printf("glut_idle_static_pic(): should never see me!\n");
+			printf("glut_idle_static_pic: should never see me!\n");
 		fade_value = (float)(program_time-transition_start)/TRANSITION_DURATION;
 		if (fade_out)
 			fade_value = 1.0f - fade_value;
@@ -1171,16 +1181,20 @@ static bool video_initialized = false;
 	// If we didn't get out, wait for any key
 	if ((!game_suspended) || read_key_once(last_key_used))
 	{
-		// Prevents unwanted transitions to transparent!
-		fade_value = 0.0f;
-		glClear(GL_COLOR_BUFFER_BIT);
-		glutSwapBuffers();
-
+/*		if (game_state & GAME_STATE_CUTSCENE)
+		{
+		}
+*/
 		t_last = mtime();
 		glutIdleFunc(restore_idle);
 		game_suspended = false;
 		if (game_state & GAME_STATE_CUTSCENE)
 		{
+			// Prevents unwanted transitions to transparent!
+			fade_value = 0.0f;
+			glClear(GL_COLOR_BUFFER_BIT);
+			glutSwapBuffers();
+
 			video_stop();
 			video_initialized = false;
 			game_state &= ~GAME_STATE_CUTSCENE;
@@ -1195,6 +1209,9 @@ static bool video_initialized = false;
 // the middle of a static picture
 void static_screen(u8 picture_id, void (*func)(u32), u32 param)
 {
+	if (game_suspended)
+		return;
+
 	// We need to store the current picture for idle_static_pic()
 	current_picture = picture_id;
 
@@ -1351,18 +1368,6 @@ int main (int argc, char *argv[])
 	// Need to have a working GL before we proceed. This is our own init() function
 	glut_init();
 
-	printf("# sizeof(unsigned long)=%u\n", (unsigned)sizeof(unsigned long));
-	printf("# 10000=%#02x\n", *(unsigned char*)0x10000);
-	printf("# 10001=%.3s\n", (char*)0x10001);
-
-	/* output of %p can either be hex or decimal, so comment it out */
-	printf("# addr_main_p=%p\n\n", main);
-
-	/* suffix "_x" is required by post-processing (etc/calc.pl) */
-	printf("addr_main_x=%lx\n", (unsigned long)main);
-	printf("ofs_main_x=%lx\n", (unsigned long)main - 0x10000);
-	printf("ofs_main=%lx\n", (unsigned long)main - 0x10000);
-
 	// Let's clean up our buffers
 	fflush(stdin);
 	mbuffer    = NULL;
@@ -1402,7 +1407,6 @@ int main (int argc, char *argv[])
 		printf("usage: %s [TO_DO]\n\n", argv[0]);
 		exit (1);
 	}
-//	opt_verbose = -1;
 
 	init_xml();
 	read_xml("config.xml");
@@ -1441,8 +1445,6 @@ int main (int argc, char *argv[])
 	if (!audio_init())
 		printf("Could not Initialize audio\n");
 
-
-		
 	// We're going to convert the cells array, from 2 pixels per byte (paletted)
 	// to on RGB(A) word per pixel
 	rgbCells = (u8*) aligned_malloc(fsize[CELLS]*2*RGBA_SIZE, 16);

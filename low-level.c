@@ -296,47 +296,47 @@ void *aligned_malloc(size_t bytes, size_t alignment)
 	void *new_ptr;
 	void *aligned_ptr;
 
-        /* Check if alignment is a power of 2
-         * as promised by the caller.
-         */
-        if ( alignment & (alignment-1)) /* If not a power of 2 */
-                return NULL;
-        
-        /* Determine how much more to allocate
-         * to make room for the alignment:
-         * 
-         * We need (alignment - 1) extra locations 
-         * in the worst case - i.e., malloc returns an
-         * address off by 1 byte from an aligned
-         * address.
-         */
-        size = bytes + alignment - 1; 
+	/* Check if alignment is a power of 2
+	 * as promised by the caller.
+	 */
+	if ( alignment & (alignment-1)) /* If not a power of 2 */
+		return NULL;
 
-        /* Additional storage space for storing a delta. */
-        size += sizeof(size_t);
+	/* Determine how much more to allocate
+	 * to make room for the alignment:
+	 * 
+	 * We need (alignment - 1) extra locations 
+	 * in the worst case - i.e., malloc returns an
+	 * address off by 1 byte from an aligned
+	 * address.
+	 */
+	size = bytes + alignment - 1; 
 
-        /* Allocate memory using malloc() */
-        malloc_ptr = calloc(size, 1);
+	/* Additional storage space for storing a delta. */
+	size += sizeof(size_t);
 
-        if (NULL == malloc_ptr)
-                return NULL;
+	/* Allocate memory using malloc() */
+	malloc_ptr = calloc(size, 1);
 
-        /* Move pointer to account for storage of delta */
-        new_ptr = (void *) ((char *)malloc_ptr + sizeof(size_t));
+	if (NULL == malloc_ptr)
+		return NULL;
 
-        /* Make ptr a multiple of alignment,
-         * using the standard trick. This is
-         * used everywhere in the Linux kernel
-         * for example.
-         */
-        aligned_ptr = (void *) (((size_t)new_ptr + alignment - 1) & ~(alignment -1));
+	/* Move pointer to account for storage of delta */
+	new_ptr = (void *) ((char *)malloc_ptr + sizeof(size_t));
 
-        delta = (size_t)aligned_ptr - (size_t)malloc_ptr;
+	/* Make ptr a multiple of alignment,
+	 * using the standard trick. This is
+	 * used everywhere in the Linux kernel
+	 * for example.
+	 */
+	aligned_ptr = (void *) (((size_t)new_ptr + alignment - 1) & ~(alignment -1));
 
-        /* write the delta just before the place we return to user */
-        *((size_t *)aligned_ptr - 1) = delta;
+	delta = (size_t)aligned_ptr - (size_t)malloc_ptr;
 
-        return aligned_ptr;
+	/* write the delta just before the place we return to user */
+	*((size_t *)aligned_ptr - 1) = delta;
+
+	return aligned_ptr;
 }
 
 
@@ -346,16 +346,16 @@ void aligned_free(void *ptr)
 	size_t delta;
 	void *malloc_ptr;
 
-        if (NULL == ptr)
-                return;
+	if (NULL == ptr)
+		return;
 
-        /* Retrieve delta */
-        delta = *( (size_t *)ptr - 1);
+	/* Retrieve delta */
+	delta = *( (size_t *)ptr - 1);
 
-        /* Calculate the original ptr returned by malloc() */
-        malloc_ptr = (void *) ( (size_t)ptr - delta);
+	/* Calculate the original ptr returned by malloc() */
+	malloc_ptr = (void *) ( (size_t)ptr - delta);
 
-        free(malloc_ptr);
+	free(malloc_ptr);
 }
 
 u32 get_bits(u32 n)

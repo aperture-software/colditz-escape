@@ -25,6 +25,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #if defined(WIN32)
 #include <windows.h>
@@ -43,11 +44,10 @@
 #include "game.h"
 #include "eschew.h"
 #include "conf.h"
-#if defined(ANTI_TAMPERING_ENABLED)
-#include "md5.h"
-#endif
+#include "anti-tampering.h"
 
 extern s16	gl_off_x, gl_off_y;
+extern s16  last_p_x, last_p_y;
 
 /* Some more globals */
 u8  obs_to_sprite[NB_OBS_TO_SPRITE];
@@ -58,13 +58,9 @@ bool game_restart			= false;
 
 int	currently_animated[MAX_ANIMATIONS];
 u32 exit_flags_offset;
-//bool use_tunnel_io;
 // Pointer to the message ID list of the currently allowed rooms
 u32 authorized_ptr;
-//s16	gl_off_x = 0, gl_off_y  = 0;
-//char panel_message[256];
 u32 next_timed_event_ptr = TIMED_EVENTS_INIT;
-//u8* background_buffer;
 // We end up using these variables all the time
 // making them global allows for more elegant code
 u16 room_x, room_y;
@@ -77,7 +73,6 @@ u32 mask_offset[4];		// tile boundary
 u32 exit_offset[4];		// exit boundary
 u8  tunexit_tool[4];	// tunnel tool
 s16 exit_dx[2];
-
 #if defined(ANTI_TAMPERING_ENABLED)
 u8  fmdxhash[NB_FILES][5]= FMDXHASHES;
 #endif
@@ -143,7 +138,7 @@ void depack_loadtune()
 		return;
 	}
 
-	if ( (ppbuffer = (u8*) malloc(PP_LOADTUNE_SIZE)) == NULL)
+	if ( (ppbuffer = (u8*) calloc(PP_LOADTUNE_SIZE, 1)) == NULL)
 	{
 		printf("  Could not allocate source buffer for ppunpack\n");
 		fclose(fd);
@@ -171,7 +166,7 @@ void depack_loadtune()
 	// The uncompressed length is given at the end of the file
 	length = read24(ppbuffer, PP_LOADTUNE_SIZE-4);
 
-	if ( (buffer = (u8*) malloc(length)) == NULL)
+	if ( (buffer = (u8*) calloc(length,1)) == NULL)
 	{
 		printf("  Could not allocate destination buffer for ppunpack\n");
 		free(ppbuffer); return;
@@ -284,8 +279,7 @@ void load_all_files()
 		// Read file (except in the case of a compressed loader)
 		if (!((i == LOADER) && (compressed_loader)))
 		{
-			if (opt_verbose)
-				printf("Reading file '%s'...\n", fname[i]);
+			printv("Reading file '%s'...\n", fname[i]);
 			read = fread (fbuffer[i], 1, fsize[i], fd);
 			if (read != fsize[i])
 			{
@@ -300,8 +294,76 @@ void load_all_files()
 
 	// OK, now we can reset our LOADER's start address
 	fbuffer[LOADER] -= LOADER_PADDING;
+
+	if (opt_record_data)
+	{
+		rbuffer = calloc(RBUFFER_SIZE,1);
+		if (rbuffer == NULL)
+		{
+			printf("  Could not allocate record buffer. Recording disabled.\n");
+			opt_record_data = false;
+		}
+		else
+			create_record();
+	}
 }
 
+void create_record()
+{
+	time_t timer;
+	struct tm* t;
+	char rec_name[] = "YYYYMMDD_HHMMSS.rec";
+
+	// Create a filename from the current (UTC) time
+	time(&timer);
+	t = gmtime(&timer);
+	sprintf(rec_name, "%04d%02d%02d_%02d%02d%02d.rec", t->tm_year+1900, t->tm_mon+1, t->tm_mday,
+		t->tm_hour, t->tm_min, t->tm_sec);
+
+	if (rfd != NULL)
+	{
+		record(0);
+		fclose(rfd);
+	}
+
+	if ((rfd = fopen(rec_name, "wb")) == NULL)
+	{
+		printf("  Couldn't create recording file '%s'\n", rec_name);
+		printf("  Recording disabled\n");
+		opt_record_data = false;
+		free(rbuffer); return;
+	}
+
+}
+
+// Record a word of data. If data is null, close the record file
+void record(u16 data)
+{
+	static int rpos = 0;
+
+	if (rfd == NULL)
+		return;
+
+	if (data != 0)
+	{
+		writeword(rbuffer, rpos, data);
+		rpos+=2;
+		printf("RECORD: %04X\n", data);
+	}
+
+	if ((data == 0) || (rpos >= RBUFFER_SIZE))
+	{
+		fwrite(rbuffer, 1, rpos, rfd);
+		fflush(rfd);
+		rpos = 0;
+	}
+
+	if (data == 0)
+	{
+		fclose(rfd);
+		rfd = NULL;
+	}
+}
 
 // Reload the files for a game restart
 void reload_files()
@@ -313,18 +375,15 @@ void reload_files()
 	{
 		if ((fd = fopen (fname[i], "rb")) == NULL)
 		{
-			if (opt_verbose)
-				perror ("fopen()");
+			perrv ("fopen()");
 			printf("Can't find file '%s'\n", fname[i]);
 		}
 		// Read file
-		if (opt_verbose)
-			printf("Reloading file '%s'...\n", fname[i]);
+		printv("Reloading file '%s'...\n", fname[i]);
 		read = fread (fbuffer[i], 1, fsize[i], fd);
 		if (read != fsize[i])
 		{
-			if (opt_verbose)
-				perror ("fread()");
+			perrv ("fread()");
 			printf("'%s': Unexpected file size or read error\n", fname[i]);
 			ERR_EXIT;
 		}
@@ -332,6 +391,9 @@ void reload_files()
 		fclose (fd);
 		fd = NULL;
 	}
+
+	if (opt_record_data)
+		create_record();
 }
 
 // Reset the variables relevant to a new game
@@ -649,8 +711,7 @@ void crm_set_overlays(s16 x, s16 y, u16 current_tile)
 		}
 
 		sx = readword(fbuffer[LOADER], SPECIAL_TILES_START+i+8);
-		if (opt_debug)
-			printf("  match: %04X, direction: %04X\n", current_tile, sx);
+		printb("  match: %04X, direction: %04X\n", current_tile, sx);
 		if (i >= (12*(NB_SPECIAL_TILES-4)))
 		// The four last special tiles are exits. We need to check is they are open
 		{
@@ -678,8 +739,7 @@ void crm_set_overlays(s16 x, s16 y, u16 current_tile)
 			// if the tile is an exit and the exit is open
 			if (tile2_data & 0x0010)
 			{	// door open
-				if (opt_debug)
-					printf("    exit open: ignoring overlay\n");
+				printb("    exit open: ignoring overlay\n");
 				// The second check on exits is always an FA00, thus we can safely
 				break;
 			}
@@ -692,8 +752,7 @@ void crm_set_overlays(s16 x, s16 y, u16 current_tile)
 		// ignore if special tile that follows is matched
 		if (readword(fbuffer[LOADER], SPECIAL_TILES_START+i+2) == tile2_data)
 		{
-			if (opt_debug)
-				printf("    ignored as %04X matches\n", tile2_data);
+			printb("    ignored as %04X matches\n", tile2_data);
 			continue;
 		}
 
@@ -704,12 +763,10 @@ void crm_set_overlays(s16 x, s16 y, u16 current_tile)
 		sid = (animated_sid)?animated_sid:readword(fbuffer[LOADER], SPECIAL_TILES_START+i+4);
 		overlay[overlay_index].sid = (u8)sid;
 
-		if (opt_debug)
-			printf("    overlay as %04X != %04X => %X\n", tile2_data, 
-				readword(fbuffer[LOADER], SPECIAL_TILES_START+i+2), sid);
+		printb("    overlay as %04X != %04X => %X\n", tile2_data, 
+			readword(fbuffer[LOADER], SPECIAL_TILES_START+i+2), sid);
 		sy = readword(fbuffer[LOADER], SPECIAL_TILES_START+i+6);
-		if (opt_debug)
-			printf("    sx: %04X, sy: %04X\n", sx, sy);
+		printb("    sx: %04X, sy: %04X\n", sx, sy);
 
 		overlay[overlay_index].x = x + sx - sprite[sid].w + sprite[sid].x_offset;
 		overlay[overlay_index].y = y + sy - sprite[sid].h + 1;
@@ -727,7 +784,6 @@ void crm_set_overlays(s16 x, s16 y, u16 current_tile)
 			// PSP_SCR_HEIGHT/2 is our actual prisoner position on screen
 			overlay[overlay_index].z = overlay[overlay_index].y - sprite[sid].z_offset 
 				- PSP_SCR_HEIGHT/2 + NORTHWARD_HO - 2; 
-//		printf("z[%x] = %d\n", sid, overlay[overlay_index].z); 
 		safe_overlay_index_increment();
 		// No point in looking for overlays any further if we met our match 
 		// UNLESS this is a double bed overlay, in which case the same tile
@@ -1046,13 +1102,44 @@ void removable_walls()
 }
 
 
+// Display the 8 bit debug index n at overlay pos (x,y,z), using the clock's digits
+void debug_index(s16 x, s16 y, s16 z, u8 n)
+{	// Display guard numbers, using the clock's digits
+
+	// units
+	overlay[overlay_index].x = x;
+	overlay[overlay_index].y = y;
+	overlay[overlay_index].z = z;
+	overlay[overlay_index].sid = PANEL_CLOCK_DIGITS_BASE + n%10;
+	safe_overlay_index_increment();
+
+	if (n > 10)
+	{
+		overlay[overlay_index].x = x - 8;
+		overlay[overlay_index].y = y;
+		overlay[overlay_index].z = z;
+		overlay[overlay_index].sid = PANEL_CLOCK_DIGITS_BASE + (n%100)/10;
+		safe_overlay_index_increment();
+	}
+
+	if (n > 100)
+	{
+		overlay[overlay_index].x = x - 16;
+		overlay[overlay_index].y = y;
+		overlay[overlay_index].z = z;
+		overlay[overlay_index].sid = PANEL_CLOCK_DIGITS_BASE + (n%1000)/100;
+		safe_overlay_index_increment();
+	}
+}
+
+
 // Places individuals on the map
 void add_guybrushes()
 {
 u8 i, sid;
 
-	// Add our current prisoner's animation
-	if (prisoner_reset_ani)
+	// Add our current prisoner's animation (DO NOT RESET if kneeling!)
+	if (prisoner_reset_ani && !(prisoner_state & STATE_KNEELING))
 	{	// Set the animation for our prisoner
 		if (in_tunnel)
 		{
@@ -1186,8 +1273,14 @@ u8 i, sid;
 			overlay[overlay_index].sid = FOOLED_BY_SPRITE;
 			safe_overlay_index_increment();
 		}
-		// Guard number
-//		if (
+
+		// DEBUG: Display guard numbers, using the clock's digits
+		if ((opt_onscreen_debug) && (i > NB_NATIONS))
+		{	
+			debug_index(overlay[overlay_index-1].x - (guy(i).fooled_by[current_nation]?20:8),
+				overlay[overlay_index-1].y - (guy(i).fooled_by[current_nation]?0:10),
+				overlay[overlay_index-1].z, i-NB_NATIONS);
+		}
 			 
 	}
 
@@ -1201,6 +1294,7 @@ u8 i, sid;
 	overlay[overlay_index].z = 0;
 	overlay_index++;
 */
+/*
 	if (opt_play_as_the_safe)
 	{
 		overlay[overlay_index].sid = 0x91;	
@@ -1209,6 +1303,7 @@ u8 i, sid;
 		overlay[overlay_index].z = 0;
 		safe_overlay_index_increment();
 	}
+*/
 }
 
 // Called after the shot animation has finished playing
@@ -1217,6 +1312,7 @@ void prisoner_killed(u32 p)
 	p_event[p].display_shot = true;
 	// Prevent the sprite from being animated
 	guy(p).state = STATE_SHOT;
+	RECORD(R_KILLED + p);
 }
 
 
@@ -1246,7 +1342,7 @@ void reinstantiate_guard_delayed(u32 g)
 	guard(g).reinstantiate = true;
 	guard(g).wait = RESET_GUARD_MAX_TIMEOUT;
 	guard(g).target = NO_TARGET;
-	printf("reinstantiate_single_delayed %d\n", g);	
+	printb("reinstantiate_single_delayed %d\n", g);	
 }
 
 
@@ -1263,7 +1359,7 @@ void reset_guard_delayed(u32 g)
 void reset_guards_in_pursuit(u32 p)
 {
 	int g;
-	printf("reset_guards_in_pursuit() called\n");
+	printb("reset_guards_in_pursuit() called\n");
 	for (g=0; g<NB_GUARDS; g++)
 		if (guard(g).target == p)
 			reset_guard_delayed(g);
@@ -1323,9 +1419,7 @@ void route_guard(int i)
 	u32 route_pos;
 	u16 route_data;
 	u16 g_px, g_py, g_room;
-
-bool blop = false;
-
+	bool blop;
 
 	if (guard(i).reinstantiate)
 	{	// Attempt to reset to first pos of route
@@ -1407,7 +1501,7 @@ bool blop = false;
 		route_data = readword(fbuffer[ROUTES], route_pos);
 
 		if (blop)
-			printf("route: reset for guard %d\n", i);
+			printb("route: reset for guard %d\n", i);
 	}
 
 	if (route_data & 0x8000)
@@ -1469,7 +1563,8 @@ bool guard_in_pursuit(int i, int p)
 	if ((!(guard(i).state & STATE_IN_PURSUIT)) || p_event[p].thrown_stone)
 	{	// Start walking towards prisoner
 		// Indicate that we deviate from the normal flight path
-		printf("guard %d walk starts\n", i);
+		printb("guard %d walk starts\n", i);
+		RECORD(R_CHASE + i);
 		// save the start of pursuit position (if blank)
 		if (opt_enhanced_guard_handling && (guard(i).resume_px == GET_LOST_X))
 		{
@@ -1477,7 +1572,7 @@ bool guard_in_pursuit(int i, int p)
 			guard(i).resume_p2y = guard(i).p2y;
 			guard(i).resume_motion = guard(i).state & STATE_MOTION;
 			guard(i).resume_direction = guard(i).direction;
-			printf("%d left route at (%d,%d), go_on = %d, direction = %d, motion = %d\n", i,
+			printb("%d left route at (%d,%d), go_on = %d, direction = %d, motion = %d\n", i,
 				guard(i).px, guard(i).p2y, guard(i).go_on, guard(i).direction, guard(i).resume_motion);
 		}
 		guard(i).state = STATE_IN_PURSUIT|STATE_MOTION;
@@ -1493,7 +1588,7 @@ bool guard_in_pursuit(int i, int p)
 	// 2. Running pursuit
 	else if ((guard(i).state & STATE_MOTION) && (guard(i).speed == 1) && (guard(i).wait == 0))
 	{	// Start running towards prisoner
-		printf("guard %d run starts\n", i);
+		printb("guard %d run starts\n", i);
 		guard(i).speed = 2;
 		guard(i).wait = RUNNING_PURSUIT_TIMEOUT;
 		guard(i).reset_animation = true;
@@ -1507,7 +1602,7 @@ bool guard_in_pursuit(int i, int p)
 		{
 			if ((guard(j).target == p) && (!(guard(j).state & STATE_AIMING)))
 			{
-				printf("guard %d aiming\n", j);
+				printb("guard %d aiming\n", j);
 				guard(j).state &= ~STATE_MOTION;
 				guard(j).state |= STATE_AIMING|STATE_ANIMATED;
 				guard(j).wait = SHOOTING_GUARD_TIMEOUT;
@@ -1521,7 +1616,7 @@ bool guard_in_pursuit(int i, int p)
 	{	// End of the pause for aiming => Unless you stopped, you're dead man
 		if (guy(p).state & STATE_MOTION)
 		{	// Moving prisoners make good targets
-			printf("guard %d shoots\n", i);
+			printb("guard %d shoots\n", i);
 			// Stop the prisoner and set shot animation
 			guy(p).state = STATE_SHOT|STATE_ANIMATED; 
 			guy(p).animation.end_of_ani_parameter = p;
@@ -1538,7 +1633,7 @@ bool guard_in_pursuit(int i, int p)
 		else
 		{	// The prisoner has stopped => give him another chance
 			// Restart the run counter
-			printf("new chance from %d\n", i);
+			printb("new chance from %d\n", i);
 			guard(i).wait = RUNNING_PURSUIT_TIMEOUT;
 		}
 	}
@@ -1546,7 +1641,8 @@ bool guard_in_pursuit(int i, int p)
 	// 5. Check catching up and update motion
 	if (guard_collision(i, guy(p).px, guy(p).p2y))
 	{
-		printf("gotcha! from %d\n", i);
+		RECORD(R_CAUGHT + i);
+		printb("gotcha! from %d\n", i);
 		if (guy(p).is_dressed_as_guard)
 		// Ask for a pass
 			p_event[p].require_pass = true;
@@ -1617,7 +1713,8 @@ bool move_guards()
 		//    and kill our motion as a result... 
 		if ((guard(i).room == current_room_index) && guard_collision(i, prisoner_x, prisoner_2y) &&
 			// ...unless we're trying to get out
-			guard_collision(i, prisoner_x+2*dx, prisoner_2y+2*d2y) )
+			(prisoner_dir != DIRECTION_STOPPED) &&
+			guard_collision(i, prisoner_x+2*dir_to_dx[prisoner_dir], prisoner_2y+2*dir_to_d2y[prisoner_dir]) )
 				kill_motion = true;
 
 		// 2. Deal with guards that are currently being blocked by a prisoner
@@ -1627,7 +1724,7 @@ bool move_guards()
 			if (guard(i).wait == 0)
 			{
 				// Is our prisoner blocked but still trying to get out at the end of the guard's pause?
-				if ((kill_motion) && (dx || d2y))
+				if ((kill_motion) && (prisoner_dir != DIRECTION_STOPPED))
 				{	
 					// Prevent blocking (butter guard!)
 					kill_motion = false;
@@ -1682,8 +1779,8 @@ bool move_guards()
 					 (!do_i_know_you)
 				   )
 				{
-					printf("in pursuit set for prisoner %d by %d\n", p, i);
-					printf("by the way, %d's state is %X\n", i, guy(i).state);
+					printb("in pursuit set for prisoner %d by %d\n", p, i);
+					printb("by the way, %d's state is %X\n", i, guy(i).state);
 					guy(p).state |= STATE_IN_PURSUIT;
 				}
 
@@ -1719,10 +1816,10 @@ bool move_guards()
 			{	// Did we just lose track of our prisoner?
 				if ((guard(i).state & STATE_IN_PURSUIT) && (guard(i).target == p))
 				{
-					printf("LOS on %d\n", i);
+					printb("LOS on %d\n", i);
 					if (opt_enhanced_guard_handling)
 					{
-						printf("delayed pursuit reset from %d for %d\n", i, p);
+						printb("delayed pursuit reset from %d for %d\n", i, p);
 						// Clear the in pursuit flag if our prisoner behaved in the next minute
 						enqueue_event(clear_pursuit, p, 60000);
 						reset_guard_delayed(i);
@@ -1747,7 +1844,7 @@ bool move_guards()
 				{
 					guard(i).state = STATE_RESUME_ROUTE|STATE_MOTION;
 					guard(i).reset_animation = true;
-					printf("resume route wait end for %d\n", i);
+					printb("resume route wait end for %d\n", i);
 				}
 				continue;
 			}
@@ -1763,7 +1860,7 @@ bool move_guards()
 						guard(i).state = STATE_MOTION;
 					guard(i).reset_animation = true;
 					guard(i).direction = guard(i).resume_direction;
-					printf("%d resumed route at (%d,%d), go_on = %d, direction = %d, motion = %d\n", i,
+					printb("%d resumed route at (%d,%d), go_on = %d, direction = %d, motion = %d\n", i,
 						guard(i).px, guard(i).p2y, guard(i).go_on, guard(i).direction, guard(i).resume_motion);
 				}
 				else
@@ -1798,7 +1895,7 @@ bool move_guards()
 				}
 				else
 				{	// roadblock
-					printf("guard %d blocked\n", i);
+					printb("guard %d blocked\n", i);
 					guard(i).state |= STATE_BLOCKED;
 					// Indicate that we're blocked by a non-prisoner obstacle
 					guard(i).blocked_by_prisoner = false;
@@ -1868,6 +1965,8 @@ void timed_events(u16 hours, u16 minutes_high, u16 minutes_low)
 	}
 	else
 	{	// Rollcall, etc.
+		RECORD(R_EVENT + hours); 
+		RECORD(event_data);
 ///		printf("got event %04X\n", event_data);
 		// Each event changes the list of authorized rooms
 		authorized_ptr = readlong(fbuffer[LOADER],AUTHORIZED_BASE+4*event_data);
@@ -1902,6 +2001,11 @@ void toggle_exit(u32 exit_nr)
 	bool found;
 	u8	exit_flags;
 	u16 target_room_index;
+	// Don't use the globals here, or exit handling will go screwie!!!
+	u16 room_x, room_y;
+	s16 tile_x, tile_y;
+	u32 offset;
+
 
 	// On the compressed map, we use either the ROOMS or TUNNEL_IO file 
 	// depending on the exit type. 
@@ -2052,6 +2156,7 @@ s16 check_footprint(s16 dx, s16 d2y)
 	s16 px, p2y;
 	u8	exit_flags;
 	u8	exit_nr;
+	char* debug_message = "WHY DO I HAVE TO INITIALIZE THIS CRAP?";
 
 	// Initialize a few values
 	if (in_tunnel)
@@ -2142,6 +2247,13 @@ s16 check_footprint(s16 dx, s16 d2y)
 				// We need to spare the exit offset value
 				exit_flags_offset = get_exit_offset(tile_x+exit_dx[0],tile_y-2);
 				exit_flags = readbyte(fbuffer[ROOMS], exit_flags_offset);
+
+				if (opt_onscreen_debug)
+				{	// Override the message
+					exit_nr = (u8) readexit(tile_x+exit_dx[0],tile_y-2) & 0x1F;
+					sprintf(debug_message, "EXIT #%d (GRADE %d)", exit_nr & (is_inside?0x0F:0xFF), ((exit_flags & 0x60) >> 5) - 1);
+					set_status_message(debug_message, 3, 3000); //NO_MESSAGE_TIMEOUT);
+				}
 
 				// Is the exit open?
 				if ((!(exit_flags & 0x10)) && (exit_flags & 0x60))
@@ -2408,6 +2520,7 @@ void switch_nation(u8 new_nation)
 	// Clear flags for old nation
 	prisoner_state &= ~(STATE_MOTION|STATE_ANIMATED);
 	current_nation = new_nation;
+	RECORD(R_NATION+current_nation);
 	// Clear the stooge flag for the new nation
 	prisoner_state &= ~(STATE_MOTION|STATE_ANIMATED|STATE_STOOGING);
 	prisoner_reset_ani = true;
@@ -2420,7 +2533,7 @@ void switch_nation(u8 new_nation)
 void switch_room(s16 exit_nr, bool tunnel_io)
 {
 	u16 exit_index;	// exit index in destination room
-	u16 tile_data;
+	u16 tile_data = 0;
 	u32 u;
 	bool found;
 	s16 pixel_x, pixel_y;
@@ -2433,6 +2546,7 @@ void switch_room(s16 exit_nr, bool tunnel_io)
 		offset = exit_nr << 3;	// skip 8 bytes
 		current_room_index = readword((u8*)fbuffer[tunnel_io?TUNNEL_IO:ROOMS], offset) & 0x7FF;
 		exit_index = readword((u8*)fbuffer[tunnel_io?TUNNEL_IO:ROOMS], offset+2);
+		RECORD(R_EXIT+exit_nr);
 	}
 	else
 	{	// indoors => read from the ROOMS_EXIT_BASE data
@@ -2443,13 +2557,14 @@ void switch_room(s16 exit_nr, bool tunnel_io)
 		// Thus, we know where we should get positioned on entering the room
 		current_room_index = readword((u8*)fbuffer[ROOMS], ROOMS_EXITS_BASE + offset 
 			+ 2*exit_index);
+		RECORD(R_EXIT+(exit_nr&0x0F));
 	}
 
 	// Since we're changing room, reset all animations
 	init_animations = true;
 	
 	exit_index++;	// zero based to one based
-//	printf("          to room[%X] (exit_index = %d)\n", current_room_index, exit_index);
+	printb("          to room[%X] (exit_index = %d)\n", current_room_index, exit_index);
 
 	// OK, we have now officially changed room, but we still need to position our guy
 	if (current_room_index & 0x8000)	// MSb from ROOMS_EXIT_BASE data means going out
@@ -2528,6 +2643,8 @@ void switch_room(s16 exit_nr, bool tunnel_io)
 		}
 	}
 
+	RECORD(current_room_index);
+
 	// Read the pixel adjustment
 	if (!tunnel_io)
 	{
@@ -2562,9 +2679,9 @@ void go_to_jail(u32 p)
 
 	guy(p).state &= ~STATE_IN_PURSUIT;
 	guy(p).state |= STATE_IN_PRISON;
-	printf("go_to_jail\n");
-///	// This to make sure that if we break loose, we'll be caught
 	p_event[p].unauthorized = false;
+
+	RECORD(R_JAIL + p);
 
 	// Make sure the jail doors are closed when we leave the prisoner in!
 	writebyte(fbuffer[ROOMS], solitary_cells_door_offset[p][0], 
@@ -2601,6 +2718,8 @@ void out_of_jail(u32 p)
 {
 	guy(p).state &= ~STATE_IN_PRISON;
 
+	RECORD(R_FREE + p);
+
 	guy(p).px = readword(fbuffer[LOADER],INITIAL_POSITION_BASE+10*p+2);
 	guy(p).p2y = 2*readword(fbuffer[LOADER],INITIAL_POSITION_BASE+10*p);
 	guy(p).room = readword(fbuffer[LOADER],INITIAL_POSITION_BASE+10*p+4);
@@ -2624,6 +2743,7 @@ void require_pass(u32 p)
 //		selected_prop[p] = ITEM_PASS;		// Doing this is bothersome if
 		props[p][ITEM_PASS]--;				// we have to re-cycle in a hurry
 //		show_prop_count();					// => let's comment these lines out
+		RECORD(R_USE + ITEM_PASS);
 		// Reset all the guards that were in pursuit
 		if (opt_enhanced_guard_handling)
 		{
@@ -2657,6 +2777,7 @@ void require_pass(u32 p)
 // Have a look at what our prisoner are doing
 void check_on_prisoners()
 {
+	static int nb_escaped = 0;
 	int p;
 	u16 i;
 	bool authorized_id;
@@ -2670,6 +2791,7 @@ void check_on_prisoners()
 	{
 		if (props[current_nation][ITEM_PAPERS])
 		{
+			RECORD(R_ESCAPED + current_nation);
 			nb_escaped++;
 			if (nb_escaped >= NB_NATIONS)
 			{
@@ -2703,12 +2825,14 @@ void check_on_prisoners()
 	{
 		game_state = GAME_STATE_GAME_OVER;
 		static_screen(GAME_OVER_TEXT, NULL, 0);
+		RECORD(0);
 		return;
 	}
 	if (game_won_count == 1) //NB_NATIONS)
 	{
 		game_state = GAME_STATE_GAME_WON;
 		static_screen(PRISONER_FREE_ALL_TEXT, NULL, 0);
+		RECORD(0);
 		return;
 	}
 
@@ -2751,8 +2875,10 @@ void check_on_prisoners()
 			if (guy(p).room == readword(fbuffer[LOADER],SOLITARY_POSITION_BASE+8*p))
 			{	// Still in his cell?
 				if (p_event[p].solitary_countdown == 0)
-				// "Freeeeeeeedom!"
+				{	// "Freeeeeeeedom!"
 					static_screen(FROM_SOLITARY, out_of_jail, p);
+					RECORD(R_FREE + p);
+				}
 			}
 			else
 			{	// Jailbreak!

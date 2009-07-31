@@ -370,7 +370,7 @@ static void XMLCALL start(void *userData, const char *name, const char **attr)
     Parseinfo *inf = (Parseinfo *) userData;
 	xml_node node;
 	int i;
-	inf->stack[inf->depth].name = malloc(strlen(name)+1);
+	inf->stack[inf->depth].name = calloc(strlen(name)+1,1);
 	// Whitespace, until proven otherwise
 	inf->white_space_value = -1;
 	strcpy(inf->stack[inf->depth].name, name);

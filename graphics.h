@@ -37,49 +37,17 @@ typedef struct
 	unsigned int texid;
 	u8* buffer;
 } s_tex;
-
-// load_iff() stuff
-//
-//////////////////////////////////////////////////////////////////////
-#define IFF_FORM        0x464F524D    // 'FORM' - IFF FORM structure  
-#define IFF_ILBM        0x494C424D    // 'ILBM' - interleaved bitmap
-#define IFF_BMHD        0x424D4844    // 'BMHD' - bitmap header
-#define IFF_CMAP        0x434D4150    // 'CMAP' - color map (palette)
-#define IFF_BODY        0x424F4459    // 'BODY' - bitmap data
-
-static __inline u32 freadl(FILE* f)
-{
-	u8	b,i;
-	u32 r = 0;
-	for (i=0; i<4; i++)
-	{
-		fread(&b,1,1,f);
-		r <<= 8;
-		r |= b;
-	}
-	return r;
-}
-static __inline u16 freadw(FILE* f)
-{
-	u8	b,i;
-	u16 r = 0;
-	for (i=0; i<2; i++)
-	{
-		fread(&b,1,1,f);
-		r <<= 8;
-		r |= b;
-	}
-	return r;
-}
-static __inline u8 freadc(FILE* f)
-{
-	u8	b = 0;
-	fread(&b,1,1,f);
-	return b;
-}
-
 extern s_tex texture[NB_TEXTURES];
 
+// IFF tags & compression methods definitions
+#define MAKE_ID(a,b,c,d) ((u32) ((a)<<24 | (b)<<16 | (c)<<8 | (d)))
+#define IFF_ILBM	MAKE_ID('I','L','B','M')
+#define IFF_FORM	MAKE_ID('F','O','R','M')
+#define IFF_BMHD	MAKE_ID('B','M','H','D')
+#define IFF_BODY	MAKE_ID('B','O','D','Y')
+#define IFF_CMAP	MAKE_ID('C','M','A','P')
+#define IFF_CMP_NODE			0
+#define IFF_CMP_BYTERUN1		1
 
 // Public prototypes
 //

@@ -18,8 +18,6 @@
  *
  *  ---------------------------------------------------------------------------
  *  graphics.c: Game runtime display functions
- *  IFF loader & texturizer modified from LBMVIEW V1.0b:
- *      http://www.programmersheaven.com/download/6394/download.aspx
  *  ---------------------------------------------------------------------------
  */
 
@@ -51,20 +49,15 @@
 #include "conf.h"
 #include "graphics.h"
 #include "game.h"
-#if defined(ANTI_TAMPERING_ENABLED)
-#include "md5.h"
-#endif
+#include "anti-tampering.h"
 
-// varibles common to game & graphics
+// variables common to game & graphics
 extern u8	remove_props[CMP_MAP_WIDTH][CMP_MAP_HEIGHT];
 extern u8  overlay_order[MAX_OVERLAYS];
 extern int	currently_animated[MAX_ANIMATIONS];
 extern u16 room_x, room_y;
 extern s16 tile_x, tile_y;
 extern u32 offset;
-#if defined(ANTI_TAMPERING_ENABLED)
-extern u8  fmdxhash[NB_FILES][5];
-#endif
 
 // Whatever you do, you don't want local variables holding textures
 GLuint* cell_texid;
@@ -73,13 +66,14 @@ GLuint* chars_texid;
 GLuint render_texid;
 GLuint paused_texid[4];
 
+u16  nb_cells; 
 s16	gl_off_x = 0, gl_off_y  = 0;	// GL display offsets
+s16  last_p_x, last_p_y;			// Stored positions
 u8* background_buffer;				// (re)used for static pictures
 u8  pause_rgb[3];					// colour for the pause screen borders
+u16  aPalette[32];					// Global palette (32 instead of 16, because 
+									// we also use it to load 5 bpp IFF images
 
-// Fatigue bar base sprite colours (4_4_4_4 GRAB)
-u16 fatigue_colour[8] = {0x29F0, 0x4BF0, 0x29F0, 0x06F0, 
-	0x16F1, GRAB_TRANSPARENT_COLOUR, GRAB_TRANSPARENT_COLOUR, GRAB_TRANSPARENT_COLOUR};
 
 // For the outside map, because of the removable sections and the fact that
 // having a removable section set for the tile does not guarantee that the 
@@ -94,7 +88,7 @@ u16 fatigue_colour[8] = {0x29F0, 0x4BF0, 0x29F0, 0x06F0,
 // props handling, as if you dropped a prop in front of the chapel there
 // it would simply vanish!
 
-u16 props_tile [0x213] = {
+static const u16 props_tile [0x213] = {
 // Well, C doesn't have binary constants, so, for maintainability reasons, 
 // we'll use fake "decimal binary", which we're gonna convert to proper 
 // bitmasks at init time. That is, if we're ever gonna use the actual masks...
@@ -153,19 +147,6 @@ u16 props_tile [0x213] = {
 	1111,1111,1111,1111,1111,1111,1111,1111,1111,1111,	// tunnels, line 5
 	1111 };
 
-// We'll use this 4x8 GRAB sprite as an indicator for guards fooled by a pass
-// Can't use it directly as it needs to be 16 bit aligned on PSP
-// Also padded to 8x8 because goddam PSP can't use anything less
-u16 fooled_by_sprite[8][8] = {
-	{0xbdf7,0xbdf7,0xbdf7,0xbdf7,0xff0f,0xff0f,0xff0f,0xff0f},
-	{0xbdf7,0xbdf7,0x09f0,0xbdf7,0xff0f,0xff0f,0xff0f,0xff0f},
-	{0xbdf7,0xbdf7,0xbdf7,0xbdf7,0xff0f,0xff0f,0xff0f,0xff0f},
-	{0xbdf7,0x9bf5,0xbdf7,0xbdf7,0xff0f,0xff0f,0xff0f,0xff0f},
-	{0xbdf7,0x9bf5,0xbdf7,0xbdf7,0xff0f,0xff0f,0xff0f,0xff0f},
-	{0xbdf7,0x9bf5,0xbdf7,0xbdf7,0xff0f,0xff0f,0xff0f,0xff0f},
-	{0xbdf7,0xbdf7,0xbdf7,0xbdf7,0xff0f,0xff0f,0xff0f,0xff0f},
-	{0xff0f,0xff0f,0xff0f,0xff0f,0xff0f,0xff0f,0xff0f,0xff0f}
-};	
 
 // Set the gloabl textures properties
 void set_textures()
@@ -198,7 +179,7 @@ void set_textures()
 	// Setup the backdrop cells
 	// A backdrop cell is exactly 256 bytes (32*16*4bits)
 	nb_cells = fsize[CELLS] / 0x100;
-	cell_texid = malloc(sizeof(GLuint) * nb_cells);
+	cell_texid = calloc(sizeof(GLuint) * nb_cells, 1);
 	glGenTextures(nb_cells, cell_texid);
 
 	if (readword(fbuffer[SPRITES],0) != (NB_STANDARD_SPRITES-1))
@@ -207,10 +188,10 @@ void set_textures()
 		ERR_EXIT;
 	}
 
-	sprite_texid = malloc(sizeof(GLuint) * NB_SPRITES);
+	sprite_texid = calloc(sizeof(GLuint) * NB_SPRITES, 1);
 	glGenTextures(NB_SPRITES, sprite_texid);
 
-	chars_texid = malloc(sizeof(GLuint) * NB_PANEL_CHARS);
+	chars_texid = calloc(sizeof(GLuint) * NB_PANEL_CHARS, 1);
 	glGenTextures(NB_PANEL_CHARS, chars_texid);
 
 	// Setup textures for the zoom and paused function 
@@ -234,19 +215,15 @@ void to_16bit_palette(u8 palette_index, u8 transparent_index, u8 io_file)
 	int palette_start = palette_index * 0x20;
 
 	// Read the palette
-	if (opt_verbose)
-		printf("Using Amiga Palette index: %d\n", palette_index);
+	printv("Using Amiga Palette index: %d\n", palette_index);
 
 
 	for (i=0; i<16; i++)		// 16 colours
 	{
 		rgb = readword(fbuffer[io_file], palette_start + 2*i);
-		if (opt_verbose)
-		{
-			printf(" %03X", rgb); 
-			if (i==7)
-				printf("\n");
-		}
+		printv(" %03X", rgb); 
+		if (i==7)
+			printv("\n");
 		// OK, we need to convert our rgb to grab
 		// 1) Leave the R&B values as they are
 		grab = rgb & 0x0F0F;
@@ -258,8 +235,7 @@ void to_16bit_palette(u8 palette_index, u8 transparent_index, u8 io_file)
 		// 4) Write in the palette
 		aPalette[i] = grab;
 	}
-	if (opt_verbose)
-		printf("\n\n");
+	printv("\n\n");
 }
 
 
@@ -556,11 +532,30 @@ void init_sprites()
 // Converts the sprites to 16 bit GRAB data we can handle
 void sprites_to_wGRAB()
 {
+	// Fatigue bar base sprite colours (4_4_4_4 GRAB)
+	static const u16 fatigue_colour[8] = {0x29F0, 0x4BF0, 0x29F0, 0x06F0, 
+		0x16F1, GRAB_TRANSPARENT_COLOUR, GRAB_TRANSPARENT_COLOUR, GRAB_TRANSPARENT_COLOUR};
+
+	// We'll use this 4x8 GRAB sprite as an indicator for guards fooled by a pass
+	// Can't use it directly as it needs to be 16 bit aligned on PSP
+	// Also padded to 8x8 because goddam PSP can't use anything less
+	static const u16 fooled_by_sprite[8][8] = {
+		{0xbdf7,0xbdf7,0xbdf7,0xbdf7,0xff0f,0xff0f,0xff0f,0xff0f},
+		{0xbdf7,0xbdf7,0x09f0,0xbdf7,0xff0f,0xff0f,0xff0f,0xff0f},
+		{0xbdf7,0xbdf7,0xbdf7,0xbdf7,0xff0f,0xff0f,0xff0f,0xff0f},
+		{0xbdf7,0x9bf5,0xbdf7,0xbdf7,0xff0f,0xff0f,0xff0f,0xff0f},
+		{0xbdf7,0x9bf5,0xbdf7,0xbdf7,0xff0f,0xff0f,0xff0f,0xff0f},
+		{0xbdf7,0x9bf5,0xbdf7,0xbdf7,0xff0f,0xff0f,0xff0f,0xff0f},
+		{0xbdf7,0xbdf7,0xbdf7,0xbdf7,0xff0f,0xff0f,0xff0f,0xff0f},
+		{0xff0f,0xff0f,0xff0f,0xff0f,0xff0f,0xff0f,0xff0f,0xff0f}
+	};	
+
 	u16 sprite_index;
 	u32 sprite_address;
 	u8* sbuffer;
 	int no_mask = 0;
 	int x,y;
+
 
 	for (sprite_index=0; sprite_index<NB_SPRITES-NB_EXTRA_SPRITES; sprite_index++)
 	{
@@ -727,13 +722,6 @@ void display_overlays()
 	// Recursive "merge" sort
 	sort_overlays(overlay_order, overlay_index);
 
-/*
-	for (j=0; j<overlay_index; j++)
-	{
-		i = overlay_order[j];
-		printf("overlay[%d].sid =%x, z = %d (order: %d)\n", i, overlay[i].sid, overlay[i].z, j);
-	}
-*/
 	for (j=0; j<overlay_index; j++)
 	{
 		i = overlay_order[j];
@@ -1227,7 +1215,8 @@ void display_panel()
 
 
 // Here is the long sought after "zooming the ****ing 2D colour buffer" function.
-// What a £$%^&*&^ing bore!!! And none of this crap works on PSP anyway!
+// What a £$%^&*&^ing bore!!! And none of this crap works on PSP anyway unless you
+// waste space in power of two sizes
 void rescale_buffer()
 {
 // using the buffer as a texture, is the ONLY WAY I COULD FIND TO GET A ZOOM
@@ -1372,17 +1361,18 @@ void display_pause_screen()
 }
 
 
-// Open and texturize an IFF image file. Modified from LBMVIEW V1.0b 
+// Open and texturize an IFF image file. 
 bool load_iff(s_tex* tex)
 {
-	int i, y, bpl, bit_plane;
-	char ch, cmp_type, color_depth;
-	u8 uc, check_flags;
-	u16	w, h, powerized_w;
-	u32 id, len, l;
-	u8  line_buf[8][512/8];	// bytes line buffers (8 bitplanes max, 512 pixels wide max)
+	bool got_cmap		= false;
+	bool got_body		= false;
+	u16  i, w, h, y, powerized_w, bytes_per_line, plane;
+	u8	 nplanes, masking, compression, bytecount, bytedup;
+	u32  iff_tag, len;
+	u8   lbuffer[5][512/8];	// line buffer (5 bitplanes max, 512 pixels wide max)
 
 	powerized_w = powerize(tex->w);	// Should be 512 always, but let's be generic here
+
 	if (powerized_w > 512)
 	{	// Because of line_buf above
 		printf("Texture width must be lower than 512\n");
@@ -1395,160 +1385,155 @@ bool load_iff(s_tex* tex)
 		return false;
 	}
 
-	// Check for 'FORM' tag
-	if (freadl(fd) != IFF_FORM)
+	// Check the header
+	if (freadlong(fd) != IFF_FORM)
 	{
 		fclose(fd);
-		printf("IFF_FORM not found\n");
+		printf("loadIFF: 'FORM' tag not found.\n");
 		return false;
 	}
-
-	// Skip IFF Form length
-	freadl(fd);						
-
-	// Check for InterLeaved BitMap tag
-	if (freadl(fd) != IFF_ILBM)
+	freadlong(fd);	// Skip length
+	if (freadlong(fd) != IFF_ILBM)
 	{
 		fclose(fd);
-		printf("IFF_ILBM not found\n");
+		printf("loadIFF: 'ILBM' tag not found.\n");
 		return false;
 	}
-
-	// Check for BitMap Header
-	if (freadl(fd) != IFF_BMHD)
+	if (freadlong(fd) != IFF_BMHD)
 	{
 		fclose(fd);
-		printf("IFF_BMHD not found\n");
+		printf("loadIFF: 'BMHD' tag not found.\n");
 		return false;
 	}
-
-	// Check header length
-	if (freadl(fd) != 20)
+	if (freadlong(fd) != 0x14)
 	{
 		fclose(fd);
-		printf("Bad IFF header length\n");
+		printf("loadIFF: Bad header length.\n");
 		return false;
 	}
 
 	// Read width and height
-	w = freadw(fd);
+	w = freadword(fd);
 	if (w > 512)
 	{
 		fclose(fd);
-		printf("IFF width must be lower than 512\n");
+		printf("loadIFF: IFF width must be lower than 512\n");
 		return false;
 	}
 	if (w & 0x7)
 	{
 		fclose(fd);
-		printf("IFF width must be a multiple of 8\n");
+		printf("loadIFF: IFF width must be a multiple of 8\n");
 		return false;
 	}
-	h = freadw(fd);
+	h = freadword(fd);
 	if (h > PSP_SCR_HEIGHT)
 	{
 		fclose(fd);
-		printf("IFF height must be lower than %d\n", PSP_SCR_HEIGHT);
+		printf("loadIFF: IFF height must be lower than %d\n", PSP_SCR_HEIGHT);
 		return false;
 	}
 
-	// Discard initial x and y pos
-	freadw(fd);
-	freadw(fd);
+	// Discard offsets
+	freadword(fd);	// x offset
+	freadword(fd);	// y offset
 
-	// Read colour depth
-	color_depth = freadc(fd);
-	if (color_depth > 5)
+	// Check number of planes (colour depth)
+	nplanes = freadbyte(fd);
+	if (nplanes > 5)
 	{
 		fclose(fd);
-		printf("IFF: Colour depth must be lower than 5\n");
+		printf("loadIFF: Color depth must be lower than 5\n");
 		return false;
 	}
 
-	// Skip masking type
-	freadc(fd);
+	// Check masking
+	masking = freadbyte(fd);
+	if (masking != 0)
+	{
+		fclose(fd);
+		printf("loadIFF: Can't handle IFF masking\n");
+		return false;
+	}
 
 	// Get compression type
-	cmp_type = freadc(fd);
-	if ((cmp_type != 0) && (cmp_type != 1))
+	compression = freadbyte(fd);
+	if (compression > IFF_CMP_BYTERUN1)
 	{
 		fclose(fd);
-		printf("Unknown IFF compression method\n");
+		printf("loadIFF: Unknown IFF compression method\n");
 		return false;
 	}
 
-	// Skip the bytes we're not interested in
-	freadc(fd);				// skip unused field
-	freadw(fd);				// skip transparent color
-	freadc(fd);				// skip x aspect ratio
-	freadc(fd);				// skip y aspect ratio
-	freadw(fd);				// skip default page width
-	freadw(fd);				// skip default page height
+	// Discard some more stuff
+	freadbyte(fd);	// Padding
+	freadword(fd);	// Transparent colour
+	freadbyte(fd);	// X aspect ratio
+	freadbyte(fd);	// Y aspect ratio
+	freadword(fd);	// Page width
+	freadword(fd);	// Page height
 
-	check_flags = 0;
-
-	do  // We'll use cycle to skip possible junk      
-	{   //  chunks: ANNO, CAMG, GRAB, DEST, TEXT etc.
-		id = freadl(fd);
-		switch(id)
+	// Read CMAP (palette) and BODY
+	while (((!got_body) || (!got_cmap)) && (feof(fd) == 0))
+	{
+		iff_tag = freadlong(fd);
+		switch(iff_tag)
 		{
 		case IFF_CMAP:
-			len = freadl(fd) / 3;
-			for (l=0; l<len; l++)
+			len = freadlong(fd)/3;
+			for (i=0; i<len; i++)
 			{
-				aPalette[l]  = ((u16)freadc(fd) & 0xF0) << 4;	// Red
-				aPalette[l] |= ((u16)freadc(fd) & 0xF0) << 8;	// Green
-				aPalette[l] |= ((u16)freadc(fd) & 0xF0) >> 4;	// Blue
-				aPalette[l] |= 0x00F0;							// Alpha
+				aPalette[i]  = ((u16)freadbyte(fd) & 0xF0) << 4;	// Red
+				aPalette[i] |= ((u16)freadbyte(fd) & 0xF0) << 8;	// Green
+				aPalette[i] |= ((u16)freadbyte(fd) & 0xF0) >> 4;	// Blue
+				aPalette[i] |= 0x00F0;								// Alpha
 			}
-			check_flags |= 1;				// flag "palette read" 
+			got_cmap = true;
 			break;
 
 		case IFF_BODY:
-			freadl(fd);						// skip BODY size 
+			freadlong(fd);	// Ignore BODY size
 
-			// Calculate bytes per line. As our width is always a multiple of 8
-			// no special cases are needed
-			bpl = w >> 3;  
+			// Calculate bytes per line. (NB: our width is always a multiple of 8)
+			bytes_per_line = w >> 3;  
 
 			for (y = 0; y < h; y++)
 			{
-				for (bit_plane = 0; bit_plane < color_depth; bit_plane++)
+				for (plane = 0; plane < nplanes; plane++)
 				{
-					if (cmp_type)
-					{	// Compressed
+					if (compression == IFF_CMP_BYTERUN1)
+					{	// RunByte1 Compressed
 						i = 0;
-						while (i < bpl)
+						while (i < bytes_per_line)
 						{
-							uc = freadc(fd);
-							if (uc < 128)
+							bytecount = freadbyte(fd);
+							if (bytecount < 128)
 							{
-								uc++;
-								fread(&line_buf[bit_plane][i], 1, uc, fd);
-								i += uc;
-							} else
-								if (uc > 128)
-								{
-									uc = 257 - uc;
-									ch = freadc(fd);
-									memset(&line_buf[bit_plane][i], ch, uc);
-									i += uc;
-								}
-								// 128 (0x80) means NOP - no operation  
+								bytecount++;
+								fread(&lbuffer[plane][i], 1, bytecount, fd);
+								i += bytecount;
+							} 
+							else if (bytecount > 128)
+							{
+								bytecount = -bytecount + 1;
+								bytedup = freadbyte(fd);
+								memset(&lbuffer[plane][i], bytedup, bytecount);
+								i += bytecount;
+							}
+							// bytecount 0x80 = NOOP
 						}
 						// Set our image extra bytes to colour index 0
-						memset(&line_buf[bit_plane][i], 0, (powerized_w/8)-i);
+						memset(&lbuffer[plane][i], 0, (powerized_w/8)-i);
 					}
 					else
 						// Uncompressed
-						fread(&line_buf[bit_plane][0], 1, bpl, fd);
+						fread(&lbuffer[plane][0], 1, bytes_per_line, fd);
 				}
 
-				// OK, now we have our <color_depth> line buffers
+				// OK, now we have our <nplanes> line buffers
 				// Let's recombine those bits, and convert to GRAB from our palette
-				line_interleaved_to_wGRAB((u8*)line_buf, 
-					tex->buffer+powerized_w*y*2, powerized_w, 1, color_depth);
-
+				line_interleaved_to_wGRAB((u8*)lbuffer, 
+					tex->buffer+powerized_w*y*2, powerized_w, 1, nplanes);
 			}
 
 			// We need to blank the extra padding we have, at least for
@@ -1556,23 +1541,20 @@ bool load_iff(s_tex* tex)
 			if (h < PSP_SCR_HEIGHT)
 				memset(tex->buffer+powerized_w*h*2, 0, (PSP_SCR_HEIGHT-h)*powerized_w*2);
 
-			check_flags |= 2;       // flag "bitmap read" 
+			got_body = true;
 			break;
 
-		default:					// Skip unused chunks  
-			len = freadl(fd);		// nb of bytes to skip
-			for (l=0; l<len; l++)
-				freadc(fd);
+		default:	// Skip Unused sections
+			len = freadlong(fd);
+			for (i=0; i<len; i++)
+				freadbyte(fd);
 		}
-
-	// Exit from loop if we are at the end of file, 
-	// or if both palette and bitmap have been loaded
-	} while ((check_flags != 3) && (!feof(fd)));
+	} 
 
 	fclose(fd);
 	fd = NULL;
 
-	if (check_flags != 3)
+	if (!(got_body && got_cmap))
 		return false;
 
 	// The iff is good => we can set our texture
@@ -1667,7 +1649,7 @@ u16  powerized_w;
 	}
 
 	// Check if the file's an IFF
-	if (freadl(fd) == IFF_FORM)
+	if (freadlong(fd) == IFF_FORM)
 	{	// IFF file
 		iff_file = true;
 	}
