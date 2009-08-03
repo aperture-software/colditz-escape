@@ -1,5 +1,5 @@
 TARGET = colditz
-OBJS = psp/psp-setup.o low-level.o soundplayer.o videoplayer.o md5.o game.o graphics.o eschew.o conf.o main.o
+OBJS = psp/psp-setup.o low-level.o soundplayer.o videoplayer.o md5.o game.o graphics.o eschew/utf8.o eschew/eschew.o conf.o main.o
 
 INCDIR = 
 ;CFLAGS = -O2 -G0 -Wall

@@ -42,7 +42,7 @@
 #include "colditz.h"
 #include "graphics.h"
 #include "game.h"
-#include "eschew.h"
+#include "eschew/eschew.h"
 #include "conf.h"
 #include "anti-tampering.h"
 

@@ -17,9 +17,7 @@
  *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  *
  *  ---------------------------------------------------------------------------
- * 	UTF-8 to UTF-16 conversion adapted from unicode.org
- *  See http://unicode.org/Public/PROGRAMS/CVTUTF/ConvertUTF.c and
- *      http://unicode.org/Public/PROGRAMS/CVTUTF/ConvertUTF.h
+ * 	eschew.c: Parsing of XML files and write back functions
  *  ---------------------------------------------------------------------------
  */
 
@@ -27,6 +25,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "expat.h"
+#include "utf8.h"
 #include "eschew.h"
 
 /*
@@ -37,12 +36,54 @@
 #define atoll _atoi64
 #endif
 
+
+/*
+	We'll use these cast macros to either assign a table value to a variable or
+	assign a variable to a table value. Thus the recursive part (REC) will be
+	defined before the macros are set to be used (see further down)
+*/
+#define XML_CAST_TO_BOOLEAN(tab, idx, val, typ)									\
+REC(tab, idx, val, typ, xml_boolean, printf("illegal cast to boolean\n"))
+
+#define XML_CAST_TO_STRING(tab, idx, val, typ)									\
+REC(tab, idx, val, typ, xml_string, printf("illegal cast to string\n"))
+
+#define XML_CAST_TO_BYTE(tab, idx, val, typ)									\
+REC(tab, idx, val, typ, xml_unsigned_char,										\
+ REC(tab, idx, val, typ, xml_char, printf("illegal cast to byte"))				\
+)
+
+// Parentheses - always a great fun (See also: "Reasons why NOBODY uses Lisp")
+#define XML_CAST_TO_INTEGER(tab, idx, val, typ)									\
+REC(tab, idx, val, typ, xml_unsigned_short,										\
+ REC(tab, idx, val, typ, xml_short,												\
+  REC(tab, idx, val, typ, xml_unsigned_int,										\
+   REC(tab, idx, val, typ, xml_int,												\
+    REC(tab, idx, val, typ, xml_unsigned_long,									\
+     REC(tab, idx, val, typ, xml_long,											\
+      REC(tab, idx, val, typ, xml_unsigned_long_long,							\
+       REC(tab, idx, val, typ, xml_long_long, printf("illegal cast to integer\n"))\
+	  )																			\
+	 )																			\
+	)																			\
+   )																			\
+  )																				\
+ )																				\
+)
+
+#define XML_CAST_TO_FLOATING(tab, idx, val, typ)								\
+REC(tab, idx, val, typ, xml_float,												\
+ REC(tab, idx, val, typ, xml_double, printf("illegal cast to floating point\n"))\
+)
+
+
 // The root is defined in another source
 extern xnode xml_root;
 
 // Our stack structure
 typedef struct {
 	char*		name;
+	char*		comment;
 	xml_node	node;
 } stack_el;
 
@@ -64,125 +105,6 @@ static const char* xml_true_values[NB_XML_BOOL_VALUES] = { "true", "enabled", "o
 static const char* xml_false_values[NB_XML_BOOL_VALUES] = { "false", "disabled", "off" };
 
 /*
-	UTF-8 conversion
-*/
-static const char trailingBytesForUTF8[256] = {
-    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-    1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
-    2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2, 3,3,3,3,3,3,3,3,4,4,4,4,5,5,5,5
-};
-
-static const unsigned long offsetsFromUTF8[6] = { 0x00000000, 0x00003080, 
-	0x000E2080, 0x03C82080, 0xFA082080, 0x82082080 };
-
-
-// Checks UTF8 validity. Returns -1 if valid, 0 otherwise
-static int isLegalUTF8(const char *source, int length) 
-{
-    unsigned char a;
-	// Make sure we deal with UNSIGNED chars at all time
-	const unsigned char *src = (unsigned char*)source;
-    const unsigned char *srcptr = src+length;
-    switch (length) {
-    default: return 0;
-	// Everything else falls through when "true"...
-    case 4: if ((a = (*--srcptr)) < 0x80 || a > 0xBF) return 0;
-    case 3: if ((a = (*--srcptr)) < 0x80 || a > 0xBF) return 0;
-    case 2: if ((a = (*--srcptr)) > 0xBF) return 0;
-
-	switch (*src) {
-	    // no fall-through in this inner switch
-	    case 0xE0: if (a < 0xA0) return 0; break;
-	    case 0xED: if (a > 0x9F) return 0; break;
-	    case 0xF0: if (a < 0x90) return 0; break;
-	    case 0xF4: if (a > 0x8F) return 0; break;
-	    default:   if (a < 0x80) return 0;
-	}
-
-    case 1: if (*src >= 0x80 && *src < 0xC2) return 0;
-    }
-    if (*src > 0xF4) return 0;
-    return -1;
-}
-
-
-/*
-	Convert a single UTF8 sequence to a 16 bit UTF16, for a non zero 
-	terminated string 'source' of length 'len'. Fill a 16 bit UTF16 in
-	'*target' and returns the number of bytes consumed.
-	If the target glyph is not valid Unicode, FFFF is returned
-	If the target glyph is valid but falls outside our scope, FFFD is returned
-
-	Note that this is NOT a true UTF8 to UTF16 conversion function, as it 
-	only returns UTF16 chars in the range [0000-FFFF], whereas true UTF16
-	is [0000-10FFFF]
-*/
-int utf8_to_u16_nz(const char* source, unsigned short* target, size_t len) 
-{
-	unsigned long ch = 0;
-	int extraBytesToRead;
-	int pos = 0;
-	// To make sure we deal with UNSIGNED chars at all time 
-	const unsigned char *src = (unsigned char*)source;
-
-	if (source == NULL)
-	{
-		*target = 0;
-		return 0;
-	}
-
-	// Reading a \0 character here is fine
-	extraBytesToRead = trailingBytesForUTF8[src[pos]];
-
-	// Make sure we don't run out of stream...
-	if (len < (size_t) extraBytesToRead)
-	{
-		*target = 0xFFFF;	// NOT a Unicode character
-		return extraBytesToRead+1;
-	}
-
-	// Do this check whether lenient or strict 
-	if (!isLegalUTF8(source, extraBytesToRead+1)) 
-	{
-		*target = 0xFFFF;	// NOT a Unicode character
-	    return 1;			// only discard the first UTF-8 byte
-	}
-
-	switch (extraBytesToRead) {
-	    case 5: ch += src[pos++]; ch <<= 6; // remember, illegal UTF-8 
-	    case 4: ch += src[pos++]; ch <<= 6; // remember, illegal UTF-8 
-	    case 3: ch += src[pos++]; ch <<= 6;
-	    case 2: ch += src[pos++]; ch <<= 6;
-	    case 1: ch += src[pos++]; ch <<= 6;
-	    case 0: ch += src[pos++];
-	}
-	ch -= offsetsFromUTF8[extraBytesToRead];
-
-	if (ch < 0xFFFC) 
-		*target = (unsigned short)ch;
-	else
-		*target = 0xFFFD;	// replacement character
-
-	return extraBytesToRead + 1;
-}
-
-
-// Same as above, for NULL terminated strings
-int utf8_to_u16(const char* source, unsigned short* target) 
-{
-	return utf8_to_u16_nz(source, target, strlen(source));
-}
-
-
-/*
-	XML parser section
-
-
 	Convert string 'str' to boolean '*val'
 	Returns 0 if string is not a boolean true or false value, 0 otherwise
 */
@@ -194,7 +116,7 @@ int xml_to_bool(const char* str, xml_boolean* val)
 	for (i=0; i<NB_XML_BOOL_VALUES; i++)
 		if (strcmp(xml_true_values[i], str) == 0)
 		{
-			*val = -1;
+			*val = ~0;
 			return -1;
 		}
 	for (i=0; i<NB_XML_BOOL_VALUES; i++)
@@ -215,10 +137,17 @@ static __inline int get_node_index(const char* name, xml_node parent)
 }
 
 // Init the  parsing user structure
-void init_info(Parseinfo *info) {
+void init_info(Parseinfo *info) 
+{
+	int i;
     info->skip = 0;
     info->depth = 1;	// Must start at 1
 	info->index = 0;
+	for (i=0; i<XML_STACK_SIZE; i++)
+	{	// Thought it'd be zeroed by VC++? Think again!
+		info->stack[i].comment = NULL;
+		info->stack[i].name = NULL;
+	}
 }
 
 /*
@@ -363,6 +292,12 @@ static void XMLCALL characterData(void *userData, const char *s, int len)
 		}
 }
 
+// Copy comments to our current stack for later processing (in assign)
+static void XMLCALL copy_comments(void *userData, const char *s)
+{
+    Parseinfo *inf = (Parseinfo *) userData;
+	inf->stack[inf->depth].comment = strdup(s);
+}
 
 // Parsing of a node name: start
 static void XMLCALL start(void *userData, const char *name, const char **attr)
@@ -401,9 +336,15 @@ static void XMLCALL start(void *userData, const char *name, const char **attr)
 		}
 	}
 	inf->index = 0;
-	inf->value[0] = 0;	// reinit for smart whitespace detection
-}
+	inf->value[0] = 0;	// reinit for smart whitespace detections
+} 
 
+// Define the XML cast recursive to assign a table element from a variable
+#ifdef	REC
+#undef	REC
+#endif
+#define REC(tab, idx, val, typ, def, rem)										\
+	if (typ == t_##def) ((def*)tab)[idx] = (def)(val); else rem
 
 // Parsing of a node name: end (this is where we fill our table with the node value)
 static void XMLCALL assign(void *userData, const char *name)
@@ -413,9 +354,24 @@ static void XMLCALL assign(void *userData, const char *name)
     Parseinfo *inf = (Parseinfo *) userData;
 	xml_boolean tmp_bool;
 
+	// Handle comments
+	if (inf->stack[inf->depth].comment != NULL)
+	{
+		// Get the index
+		i = get_node_index(name, STACK_NODE(inf->depth-1));
+		if (i != -1)
+			STACK_NODE(inf->depth-1)->comment[i] = inf->stack[inf->depth].comment;
+		else	// If the comment wasn't assigned, we need to free its dup'd string
+			free(inf->stack[inf->depth].comment);
+		inf->stack[inf->depth].comment = NULL;
+	}
+
+	// Handle values
 	if (inf->index != 0)
 	{	// We have a regular value
+
 		inf->value[inf->index] = 0;		// Null terminate the string if needed
+
 		// Get the index
 		i = get_node_index(name, STACK_NODE(inf->depth-1));
 		if (i == -1)
@@ -501,6 +457,7 @@ static void XMLCALL assign(void *userData, const char *name)
 void rawstart(void *userData, const char *name, const char **attr) 
 {
     Parseinfo *inf = (Parseinfo *) userData;
+
 //	printf("rawstart[%d].name = %s\n",  inf->depth, name);
 //	if ((attr != NULL) && (attr[0] != NULL) && (attr[1] != NULL))
 //		printf("attr: %s=%s\n", attr[0], attr[1]);
@@ -542,6 +499,9 @@ int read_xml(const char* filename)
 	FILE* fd;
 	Parseinfo info;
 
+	if ((fd = fopen(filename, "rb")) == NULL)
+		return 0;
+
 	parser = XML_ParserCreate(NULL);
     if (parser == NULL) {
 		fprintf(stderr, "eschew.read_xml: Could not allocate memory for parser\n");
@@ -550,14 +510,9 @@ int read_xml(const char* filename)
     init_info(&info);
 	XML_SetUserData(parser, &info);
     XML_SetElementHandler(parser, rawstart, rawend);
+	XML_SetCommentHandler(parser, copy_comments);
 
 	XML_SetCharacterDataHandler(parser, characterData);
-
-	if ((fd = fopen(filename, "rb")) == NULL)
-	{
-		fprintf(stderr, "eschew.read_xml: can't find '%s' - Aborting.\n", filename);
-		return 0;
-	}
 
 	do 
 	{
@@ -573,6 +528,119 @@ int read_xml(const char* filename)
 	} 
 	while (!done);
 	XML_ParserFree(parser);
+	fclose(fd);
+
+	return -1;
+}
+
+// Define the XML cast recursive to assign a variable from a table element
+#ifdef	REC
+#undef	REC
+#endif
+#define REC(tab, idx, val, typ, def, rem)										\
+	if (typ == t_##def) val = ((def*)tab)[idx]; else rem
+
+// For human readibility
+#define XML_NB_INDENT_SPACES	2
+#define XML_INDENT				for(i=0;i<current_indentation;i++) fputc(' ', fd)
+
+// Recursive function that writes XML nodes into a file
+void write_node(FILE* fd, xml_node xn)
+{
+	int i, n;
+	static int current_indentation = 0;
+	xml_unsigned_long_long	lval;
+	xml_boolean				bval;
+	xml_unsigned_char		cval;
+	xml_double				fval;
+	xml_string				sval;
+
+	if (xn == NULL)
+		return;
+
+	XML_INDENT;	fprintf(fd, "<%s", xn->id);
+	if (xn->attr.name != NULL)
+		fprintf(fd, " %s=\"%s\"", xn->attr.name, xn->attr.value);
+	fprintf(fd, ">\n");
+	current_indentation += XML_NB_INDENT_SPACES;
+	for (n=0; n<xn->node_count; n++)
+	{
+		if (xn->comment[n] != NULL)
+		{
+			XML_INDENT; 
+			fprintf(fd, "<!--%s-->\n", xn->comment[n]);
+		}
+		switch(xn->node_type)
+		{
+		case t_xml_node:
+			write_node(fd, xn->value[n]);
+			break;
+		case t_xml_boolean:
+			XML_CAST_TO_BOOLEAN(xn->value, n, bval, xn->node_type);
+			XML_INDENT; 
+			fprintf(fd, "<%s>%s</%s>\n", xn->name[n], 
+				(bval?xml_true_values[0]:xml_false_values[0]), xn->name[n]);
+			break;
+		case t_xml_unsigned_char:
+		case t_xml_char:
+			XML_CAST_TO_BYTE(xn->value, n, cval, xn->node_type);
+			XML_INDENT; 
+			fprintf(fd, "<%s>", xn->name[n]);
+			if ((cval < 0x20) || (cval >= 0x7F))
+				fprintf(fd, "&#x%02X;", cval);
+			else
+				fprintf(fd, "%c", cval);
+			fprintf(fd, "</%s>\n", xn->name[n]);
+			break;
+		case t_xml_unsigned_short:
+		case t_xml_short:
+		case t_xml_unsigned_int:
+		case t_xml_int:
+		case t_xml_unsigned_long:
+		case t_xml_long:
+		case t_xml_unsigned_long_long:
+		case t_xml_long_long:
+			XML_CAST_TO_INTEGER(xn->value, n, lval, xn->node_type);
+			XML_INDENT; 
+			fprintf(fd, "<%s>%lld</%s>\n", xn->name[n], lval, xn->name[n]);
+			break;
+		case t_xml_float:
+		case t_xml_double:
+			XML_CAST_TO_FLOATING(xn->value, n, fval, xn->node_type);
+			XML_INDENT; 
+			fprintf(fd, "<%s>%f</%s>\n", xn->name[n], fval, xn->name[n]);
+			break;
+		case t_xml_string:
+			XML_CAST_TO_STRING(xn->value, n, sval, xn->node_type);
+			XML_INDENT; 
+			fprintf(fd, "<%s>%s</%s>\n", xn->name[n], sval, xn->name[n]);
+			break;
+		default:
+			fprintf(stderr, "eschew.write_node: Conversion to xml type %d not yet implemented\n", xn->node_type);
+			// Let's write a blank value nonetheless
+			XML_INDENT; 
+			fprintf(fd, "<%s>undefined</%s>\n", xn->name[n], xn->name[n]);
+			break;
+		}
+	}
+	current_indentation -= XML_NB_INDENT_SPACES;
+	XML_INDENT;	fprintf(fd, "</%s>\n", xn->id);
+}
+
+/*
+	Writes the XML file "filename" according to the current XML tables structure
+	Returns -1 on success, 0 otherwise
+*/
+int write_xml(const char* filename)
+{
+	FILE* fd;
+
+	if ((fd = fopen(filename, "wb")) == NULL)
+		return 0;
+
+	fprintf(fd, "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n");
+	fprintf(fd, "<!--Generated by Eschew XML Expat Wrapper v1.0-->\n");
+	write_node(fd, xml_root.value[0]);
 	fclose(fd);
 
 	return -1;

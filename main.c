@@ -69,7 +69,7 @@
 #include "game.h"
 #include "soundplayer.h"
 #include "videoplayer.h"
-#include "eschew.h"
+#include "eschew/eschew.h"
 #include "conf.h"
 
 // Global variables
@@ -566,11 +566,7 @@ void user_input()
 	}
 
 	if (read_key_once(KEY_DEBUG_CATCH_HIM))
-	{
 		prisoner_state ^= STATE_IN_PURSUIT;
-		printf("FATAL ERROR\n");
-		ERR_EXIT;
-	}
 #endif
 
 	// Above are all the keys allowed if the prisoner has not already escaped or died, thus...
@@ -1226,6 +1222,8 @@ void static_screen(u8 picture_id, void (*func)(u32), u32 param)
 			static_screen_func(static_screen_param);
 			static_screen_func = NULL;
 		}
+		if (intro)
+			ERR_EXIT;
 		return;
 	}
 
@@ -1409,7 +1407,14 @@ int main (int argc, char *argv[])
 	}
 
 	init_xml();
-	read_xml("config.xml");
+	if (!read_xml("config.xml"))
+	{	// config.xml not found => try to create one
+		set_xml_defaults();
+		printf("Creating XML config file...\n");
+		if (!write_xml("config.xml"))
+			perr("Could not create configuration file\n");
+	}
+	exit(0);
 
 #if !defined(PSP)
 	if (opt_fullscreen)
@@ -1443,7 +1448,7 @@ int main (int argc, char *argv[])
 
 	// We might want some sound
 	if (!audio_init())
-		printf("Could not Initialize audio\n");
+		perr("Could not Initialize audio\n");
 
 	// We're going to convert the cells array, from 2 pixels per byte (paletted)
 	// to on RGB(A) word per pixel

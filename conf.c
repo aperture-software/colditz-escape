@@ -41,7 +41,7 @@
 	*IN* the source where you will do the runtime initialization
 */
 #define INIT_XML_ACTUAL_INIT
-#include "eschew.h"
+#include "eschew/eschew.h"
 #include "conf.h"
 
 
@@ -55,11 +55,44 @@ void init_xml()
 #else
 	INIT_XML_TABLE(controls_target_windows);
 #endif
+}
+
+void set_xml_defaults()
+{
+	SET_XML_NODE_COMMENT(config, controls, " About our key mappings:\n"
+"       Standard key = regular (lowercase) ASCII code\n"
+"       0x7F         = Del\n"
+"       [0x80-0x8B]  = [F1-F12]\n"
+"       [0x8C-0x8F]  = [Left, Up, Right, Down]\n"
+"       [0x90-0x94]  = [PgUp, PgDn, Home, End, Insert]\n"
+"       [0x95-0x97]  = [Shift, Ctrl, Alt] (*)\n"
+"       [0x98-0x9A]  = [Mouse Left, Mouse Middle, Mouse Right]\n"
+"       (*) Because of GLUT's limitations, these key events are ONLY detected\n"
+"       in conjuction with other keypresses, and cannot be used as standalone\n"
+"       see http://www.nabble.com/Re%3A-Status-of-modifier-keys-(shift-ctrl-alt)-p6983221.html\n\n"
+"       Now with regards to the PSP GLUT key mappings conversions\n"
+"       [X] = 'x'\n"
+"       [O] = 'o'\n"
+"       [Square] = 'q'\n"
+"       [Triangle] = 'd'\n"
+"       [Select] = 's'\n"
+"       [Start] = 'a'\n"
+"       [Left, Up, Right, Down] = same as above\n"
+"       [Left Trigger] = Mouse Left (see above for the actual code)\n"
+"       [Right Trigger] = Mouse Right (see above for the actual code)\n   ")
 
 	// Set defaults values. Can be skipped if relying on the external XML
 	SET_XML_NODE_DEFAULT(options, skip_intro, false);
+	SET_XML_NODE_DEFAULT(options, fullscreen, true);
 	SET_XML_NODE_DEFAULT(options, enhanced_guard_handling, true);
+	SET_XML_NODE_COMMENT(options, enhanced_guard_handling, 
+		" have guards remember when they've seen a pass ");
 	SET_XML_NODE_DEFAULT(options, picture_corners, true);
+	SET_XML_NODE_COMMENT(options, picture_corners, 
+		" display texturized picture corners, rather than black triangles ");
+	SET_XML_NODE_DEFAULT(options, gl_linear, true);
+    SET_XML_NODE_COMMENT(options, gl_linear,
+		" use linear interpolation for rescale (rather than nearest, Windows only) ");
 
 #if defined(PSP)
 #define SET_CONTROLS_DEFAULT(key, val1, val2) 							\

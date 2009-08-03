@@ -45,7 +45,7 @@
 #include "data-types.h"
 #include "low-level.h"
 #include "colditz.h"
-#include "eschew.h"
+#include "eschew/eschew.h"
 #include "conf.h"
 #include "graphics.h"
 #include "game.h"
@@ -1389,14 +1389,14 @@ bool load_iff(s_tex* tex)
 	if (freadlong(fd) != IFF_FORM)
 	{
 		fclose(fd);
-		printf("loadIFF: 'FORM' tag not found.\n");
+		printf("load_iff: 'FORM' tag not found.\n");
 		return false;
 	}
 	freadlong(fd);	// Skip length
 	if (freadlong(fd) != IFF_ILBM)
 	{
 		fclose(fd);
-		printf("loadIFF: 'ILBM' tag not found.\n");
+		printf("load_iff: 'ILBM' tag not found.\n");
 		return false;
 	}
 	if (freadlong(fd) != IFF_BMHD)
@@ -1408,7 +1408,7 @@ bool load_iff(s_tex* tex)
 	if (freadlong(fd) != 0x14)
 	{
 		fclose(fd);
-		printf("loadIFF: Bad header length.\n");
+		printf("load_iff: Bad header length.\n");
 		return false;
 	}
 
@@ -1423,14 +1423,14 @@ bool load_iff(s_tex* tex)
 	if (w & 0x7)
 	{
 		fclose(fd);
-		printf("loadIFF: IFF width must be a multiple of 8\n");
+		printf("load_iff: IFF width must be a multiple of 8\n");
 		return false;
 	}
 	h = freadword(fd);
 	if (h > PSP_SCR_HEIGHT)
 	{
 		fclose(fd);
-		printf("loadIFF: IFF height must be lower than %d\n", PSP_SCR_HEIGHT);
+		printf("load_iff: IFF height must be lower than %d\n", PSP_SCR_HEIGHT);
 		return false;
 	}
 
@@ -1443,7 +1443,7 @@ bool load_iff(s_tex* tex)
 	if (nplanes > 5)
 	{
 		fclose(fd);
-		printf("loadIFF: Color depth must be lower than 5\n");
+		printf("load_iff: Color depth must be lower than 5\n");
 		return false;
 	}
 
@@ -1461,7 +1461,7 @@ bool load_iff(s_tex* tex)
 	if (compression > IFF_CMP_BYTERUN1)
 	{
 		fclose(fd);
-		printf("loadIFF: Unknown IFF compression method\n");
+		printf("load_iff: Unknown IFF compression method\n");
 		return false;
 	}
 

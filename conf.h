@@ -201,6 +201,7 @@ CREATE_XML_TABLE(controls_target_windows, controls_nodes, xml_unsigned_char)
 #endif
 
 void init_xml(); 
+void set_xml_defaults();
 
 #ifdef	__cplusplus
 }

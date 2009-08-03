@@ -109,16 +109,20 @@ extern "C" {
 #define ALT_LOADER				"SKR_COLD"
 #define ALT_LOADER_SIZE			28820
 
-// Our little intro
-#if defined(PSP)
-#define APERTURE_VIDEO			"aperture.pmp"
-#else
-#define APERTURE_VIDEO			"aperture.avi"
-#endif
-
 // Textures that will be used for various images
 #define NB_TEXTURES				23
 #define NB_IFFS					19
+// The PSP has a special (but larger) screen for controls
+// Same applies for our little intro video formats
+#if defined(PSP)
+#define S2_NAME					"STARTSCREEN2-PSP"
+#define S2_WIDTH				386
+#define APERTURE_VIDEO			"aperture.pmp"
+#else
+#define S2_NAME					"STARTSCREEN2"
+#define S2_WIDTH				320
+#define APERTURE_VIDEO			"aperture.avi"
+#endif
 #define TEXTURES				{	{ "PIC.1(SOLITARY)", 320, 192, 0, NULL },					\
 									{ "PIC.1(SOLITARY)FREE", 320, 192, 0, NULL },				\
 									{ "PIC.2(APPELL)", 320, 192, 0, NULL },						\
@@ -133,7 +137,7 @@ extern "C" {
 									{ "PIC.B(GAME-OVER)TEXT", 295, 192, 0, NULL },				\
 									{ "STARTSCREEN0", 320, 200, 0, NULL },						\
 									{ "STARTSCREEN1", 320, 200, 0, NULL },						\
-									{ "STARTSCREEN2", 320, 200, 0, NULL },						\
+									{ S2_NAME, S2_WIDTH, 200, 0, NULL },						\
 									{ "STARTSCREEN3", 320, 200, 0, NULL },						\
 									{ "STARTSCREEN4", 320, 200, 0, NULL },						\
 									{ "PIC.8(PASS)", 320, 192, 0, NULL },						\
