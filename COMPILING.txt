@@ -8,7 +8,11 @@
 	The libs and header can be had from http://www.opengl.org/resources/libraries/glut/glutdlls37beta.zip
 
 	For expat, you need libexpatMT.lib (WIN)/libexpat.a (PSP) and on Windows, you must add XML_STATIC in 
-	the C/C++ PreProcessor Definitions
+	the C/C++ PreProcessor Definitions. You will also need to set the Multi-threaded (/MT) static flag 
+	instead of Multi-threaded DLL (/MD) in Configuration Properties -> C/C++ -> Code Generation ->
+	Runtime Library
+	
+	Conf
 	I believe I downloaded my Expat from http://nds.cmamod.com/psp/Expat.2.01.win32_msys_bin.zip
 	For PSP recompilation, use the expat_config.h in extras/
 

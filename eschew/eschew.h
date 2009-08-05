@@ -27,9 +27,10 @@
 extern "C" {
 #endif
 
-// User configurable options for XML maximu depth and attribute handling
-#define XML_STACK_SIZE 16
+// User configurable options 
+#define XML_STACK_SIZE			16
 #define XML_ATTRIBUTE_SEPARATOR	"_"
+#define XML_MAX_STRING_LENGTH	256
 
 /*
 	We need the following *SINGLE WORD* types to be defined, so that we can
@@ -70,18 +71,12 @@ enum XML_TYPE {
 	t_xml_node,
 	t_xml_illegal_type };
 
-// XML attributes
-typedef struct {
-	char* name;
-	char* value;
-} s_xml_attr;
-
 // The main XML node
 typedef struct _xnode { 
 	enum XML_TYPE node_type; 
 	int node_count; 
-	s_xml_attr attr;	
-	char** _tokens;
+	char*  attr[2];	
+	char*  _tokens;
 	char*  id; 
 	char** name;
 	char** comment;
@@ -107,13 +102,13 @@ typedef struct _xnode {
 
 
 /*
-	XML Node tables definitions
-
-	We'll use the trick, of using a single "init" define, documented at
-	http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.faqs/ka10134.html
-	to ensure that the tables are declared as extern by default, and instantiated
-	only once, in eschew.c 
-*/
+ *	XML Node tables definitions
+ *
+ *	We'll use the trick, of using a single "init" define, documented at
+ *	http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.faqs/ka10134.html
+ *	to ensure that the tables are declared as extern by default, and instantiated
+ *	only once, in eschew.c 
+ */
 
 #if defined(INIT_XML_ACTUAL_INIT)
 
@@ -124,30 +119,31 @@ static int i;
 #define DEFINE_XML_NODES(nodid, ...)											\
 	enum { __VA_ARGS__, _xml_##nodid##_end };									\
 	static char* _xml_##nodid##_names[_xml_##nodid##_end];						\
-	static char* _xml_##nodid##_tokens = #__VA_ARGS__;		
+	static char _xml_##nodid##_tokens[] = #__VA_ARGS__;		
 
 // Creates the xml_tabid[] with the nodes previously defined. 
 #define CREATE_XML_TABLE(tabid, nodid, type)									\
 	static type _xml_##tabid##_values[_xml_##nodid##_end];						\
 	static char* _xml_##tabid##_comments[_xml_##nodid##_end];					\
-	typedef struct {enum XML_TYPE node_type; int node_count; s_xml_attr attr;	\
-		char** _tokens; char* id; char** name; char** comment;					\
+	static char  _xml_##tabid##_id[] = #tabid;									\
+	typedef struct {enum XML_TYPE node_type; int node_count; char* attr[2];	\
+		char* _tokens; char* id; char** name; char** comment;					\
 		type* value; xml_node next;} s_xml_##tabid;								\
 	s_xml_##tabid xml_##tabid = {t_##type, _xml_##nodid##_end, { NULL, NULL},	\
-	&_xml_##nodid##_tokens, #tabid, _xml_##nodid##_names,						\
+	_xml_##nodid##_tokens, _xml_##tabid##_id, _xml_##nodid##_names,				\
 		_xml_##tabid##_comments, _xml_##tabid##_values, NULL };
 
 // NB: No need to touch .id
 #define SET_ATTRIBUTE(tabid)													\
 	if (strtok(xml_##tabid.id, XML_ATTRIBUTE_SEPARATOR) != NULL) {				\
-		xml_##tabid.attr.name = strtok(NULL, XML_ATTRIBUTE_SEPARATOR);			\
-		xml_##tabid.attr.value = strtok(NULL, XML_ATTRIBUTE_SEPARATOR);	}
+		xml_##tabid.attr[0] = strtok(NULL, XML_ATTRIBUTE_SEPARATOR);			\
+		xml_##tabid.attr[1] = strtok(NULL, XML_ATTRIBUTE_SEPARATOR);	}
 
 // A runtime initialization is necessary for the tokenization of the node names
 // and their copying into the table
 #define INIT_XML_TABLE(tabid) {													\
 	if (xml_##tabid.name[0] == NULL) {											\
-		xml_##tabid.name[i=0] = strtok(*(xml_##tabid._tokens), " ,\t");			\
+		xml_##tabid.name[i=0] = strtok(xml_##tabid._tokens, " ,\t");			\
 		while (xml_##tabid.name[i++] != NULL)									\
 			xml_##tabid.name[i] = strtok (NULL, " ,\t"); }						\
 	SET_ATTRIBUTE(tabid) if (!link_table((xml_node)&xml_##tabid, &xml_root))	\
@@ -166,7 +162,7 @@ static int i;
 	enum { __VA_ARGS__, _xml_##nodid##_end };	
 
 #define CREATE_XML_TABLE(tabid, nodid, type)									\
-	typedef struct {enum XML_TYPE node_type; int node_count; s_xml_attr attr;	\
+	typedef struct {enum XML_TYPE node_type; int node_count; char* attr[2];		\
 		char** _tokens; char* id; char** name; char** comment; type* value;		\
 		xml_node next;}	s_xml_##tabid;	extern s_xml_##tabid xml_##tabid; 
 

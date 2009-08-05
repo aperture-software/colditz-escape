@@ -1414,6 +1414,7 @@ int main (int argc, char *argv[])
 		if (!write_xml("config.xml"))
 			perr("Could not create configuration file\n");
 	}
+	write_xml(NULL);
 	exit(0);
 
 #if !defined(PSP)

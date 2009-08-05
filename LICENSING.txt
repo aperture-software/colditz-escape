@@ -12,12 +12,16 @@ Uses: Expat XML Parser library by James Clark
 Uses: Eschew Expat Wrapper by Aperture Software
       http://code.google.com/[TBD]
       GPL v3.0. See LICENSE.txt in extras/GPL
+Uses: UTF-8 conversion functions by Mark E. Davis (unicode.org)
+      http://unicode.org/Public/PROGRAMS/CVTUTF/ConvertUTF.c and
+      http://unicode.org/Public/PROGRAMS/CVTUTF/ConvertUTF.h
+      Unicode free usage license: See License.txt in extras/Unicode
 Uses: MD5 hash functions, from PolarSSL by Paul Bakker
       based on XySSL by Christophe Devine
       http://polarssl.org/?page=show_source&type=source&file=md5
       GPL v2.0 or later. See LICENSE.txt in extras/GPL
 Uses: Aligned malloc code, from Satya Kiran Popuri
-      http://www.cs.uic.edu/~spopuri/amalloc.html (link is dead)
+      http://www.cs.uic.edu/~spopuri/amalloc.html (dead link)
       Free license
 Uses: PowerPacker decrunch code, from amigadepacker by Heikki Orsila:
       http://zakalwe.fi/~shd/foss/amigadepacker/

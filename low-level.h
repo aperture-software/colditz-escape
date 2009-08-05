@@ -194,6 +194,16 @@ static __inline void writebyte(u8* buffer, u32 addr, u8 value)
 	buffer[addr] = value;
 }
 
+// The well known K&R method to count bits
+static __inline int count_bits(u32 n) 
+{     
+  int c; 
+  for (c = 0; n; c++) 
+    n &= n - 1; // clear the least significant bit set
+  return c;
+}
+
+
 // Prototypes
 u16 powerize(u16 n);
 int uncompress(u32 expected_size);
