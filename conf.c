@@ -79,11 +79,13 @@ void set_xml_defaults()
 "       [Start] = 'a'\n"
 "       [Left, Up, Right, Down] = same as above\n"
 "       [Left Trigger] = Mouse Left (see above for the actual code)\n"
-"       [Right Trigger] = Mouse Right (see above for the actual code)\n   ")
+"       [Right Trigger] = Mouse Right (see above for the actual code) ")
 
 	// Set defaults values. Can be skipped if relying on the external XML
 	SET_XML_NODE_DEFAULT(options, skip_intro, false);
-	SET_XML_NODE_DEFAULT(options, fullscreen, true);
+	SET_XML_NODE_DEFAULT(options, fullscreen, false);
+    SET_XML_NODE_COMMENT(options, fullscreen,
+		" resize to fullscreen (Windows only) ");
 	SET_XML_NODE_DEFAULT(options, enhanced_guard_handling, true);
 	SET_XML_NODE_COMMENT(options, enhanced_guard_handling, 
 		" have guards remember when they've seen a pass ");
@@ -92,7 +94,10 @@ void set_xml_defaults()
 		" display texturized picture corners, rather than black triangles ");
 	SET_XML_NODE_DEFAULT(options, gl_linear, true);
     SET_XML_NODE_COMMENT(options, gl_linear,
-		" use linear interpolation for rescale (rather than nearest, Windows only) ");
+		" use linear interpolation for rescale rather than nearest (Windows only) ");
+	SET_XML_NODE_DEFAULT(options, joy_deadzone, 450);
+    SET_XML_NODE_COMMENT(options, joy_deadzone,
+		" joystick deadzone");
 
 #if defined(PSP)
 #define SET_CONTROLS_DEFAULT(key, val1, val2) 							\
@@ -112,13 +117,13 @@ void set_xml_defaults()
     SET_CONTROLS_DEFAULT(key_direction_right, 0, '6');
     SET_CONTROLS_DEFAULT(key_direction_up, 0, '8');
     SET_CONTROLS_DEFAULT(key_direction_down, 0, '2');
-    SET_CONTROLS_DEFAULT(key_inventory_cycle_left, SPECIAL_KEY_LEFT, SPECIAL_KEY_LEFT);
-    SET_CONTROLS_DEFAULT(key_inventory_cycle_right, SPECIAL_KEY_RIGHT, SPECIAL_KEY_RIGHT);
+    SET_CONTROLS_DEFAULT(key_inventory_cycle_left, SPECIAL_LEFT_MOUSE_BUTTON, SPECIAL_KEY_LEFT);
+    SET_CONTROLS_DEFAULT(key_inventory_cycle_right, SPECIAL_RIGHT_MOUSE_BUTTON, SPECIAL_KEY_RIGHT);
     SET_CONTROLS_DEFAULT(key_pickup, SPECIAL_KEY_UP, SPECIAL_KEY_UP);
     SET_CONTROLS_DEFAULT(key_dropdown, SPECIAL_KEY_DOWN, SPECIAL_KEY_DOWN);
     SET_CONTROLS_DEFAULT(key_escape, 'a', 0x1b);
-    SET_CONTROLS_DEFAULT(key_prisoners_cycle_left, SPECIAL_LEFT_MOUSE_BUTTON, 0);
-    SET_CONTROLS_DEFAULT(key_prisoners_cycle_right, SPECIAL_RIGHT_MOUSE_BUTTON, 0);
+    SET_CONTROLS_DEFAULT(key_prisoners_cycle_left, SPECIAL_KEY_LEFT, 0);
+    SET_CONTROLS_DEFAULT(key_prisoners_cycle_right, SPECIAL_KEY_RIGHT, 0);
     SET_CONTROLS_DEFAULT(key_select_british, 0, SPECIAL_KEY_F1);
     SET_CONTROLS_DEFAULT(key_select_french, 0, SPECIAL_KEY_F2);
     SET_CONTROLS_DEFAULT(key_select_american, 0, SPECIAL_KEY_F3);

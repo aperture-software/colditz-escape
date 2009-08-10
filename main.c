@@ -74,6 +74,14 @@
 
 // Global variables
 
+#if defined(PSP_ONSCREEN_STDOUT)
+// What the bleep is so hard about flattening ALL known global names from ALL objects
+// & libs into a big happy pool before linking and figuring out where to pick it up?!?
+void glut_idle_suspended(void);		// Needs a proto for init below
+void (*work_around_stupid_linkers_glut_idle_suspended)(void) = glut_idle_suspended;
+void (*work_around_stupid_linkers_glutIdleFunc)(void (*func)(void)) = glutIdleFunc;
+#endif
+
 // Flags
 int debug_flag					= 0;
 bool opt_verbose				= false;
@@ -98,25 +106,17 @@ bool opt_haunted_castle			= true;
 bool opt_record_data			= true;
 // Current static picture to show
 int current_picture				= INTRO_SCREEN_START;
-// Why is this global again?
-//bool new_game					= false;
 // Our second local pause variable, to help with the transition
 bool display_paused				= false;
 // we might need to suspend the game for videos, debug, etc
 bool game_suspended				= false;
-// Some people don't like picture corners
-//bool opt_picture_corners		= true;
-// Skip intro stuff
-//bool opt_skip_intro				= true;
-// Use the new guard repositioning engine
-//bool opt_enhanced_guard_handling = true;
+// We need to share these between game & gfx
 bool init_animations			= true;
 bool is_fire_pressed			= false;
 // Used for fade in/fade out of static images
-float fade_value = 1.0f;
+float fade_value				= 1.0f;
 // false for fade in, true for fade out
-bool fade_out = false;
-
+bool fade_out					= false;
 
 // We'll need this to retrieve our glutIdle function after a suspended state
 // (but make sure we don't change idle if already suspended, which can happen on PSP printf)
@@ -128,25 +128,35 @@ FILE* rfd					= NULL;
 char* fname[NB_FILES]		= FNAMES;			// file name(s)
 u32   fsize[NB_FILES]		= FSIZES;
 u8*   fbuffer[NB_FILES];
-u8*	  rbuffer;
+u8*	  rbuffer				= NULL;
 u8*   mbuffer				= NULL;
 u8*	  rgbCells				= NULL;
 u8*   static_image_buffer   = NULL;
 s_tex texture[NB_TEXTURES]	= TEXTURES;
 char* mod_name[NB_MODS]		= MOD_NAMES;
-s_sfx sfx[NB_SFXS];
 
 
 // OpenGL window size
-int	gl_width, gl_height;
-s16 last_p_x = 0, last_p_y = 0;
-s16 dx = 0, d2y = 0;
-s16 jdx, jd2y;
+int		gl_width, gl_height;
+s16		last_p_x = 0, last_p_y = 0;
+s16		dx = 0, d2y = 0;
+s16		jdx, jd2y;
 // Key modifiers for glut
-int glut_mod;
+int		glut_mod;
 
 // Key handling
-bool key_down[256], key_readonce[256];
+bool	key_down[256], key_readonce[256];
+static	__inline bool read_key_once(u8 k)
+{	
+	if (key_down[k])
+	{
+		if (key_readonce[k])
+			return false;
+		key_readonce[k] = true;
+		return true;
+	}
+	return false;
+}
 
 
 #if defined (CHEATMODE_ENABLED)
@@ -190,61 +200,45 @@ s_cheat_sequence cheat_sequence[] = {
 #define NO_CAKE_FOR_YOU		3
 #endif
 
-s_animation	animations[MAX_ANIMATIONS];
-u8	nb_animations = 0;
-// last time for Animations and rePosition of the guards
-// NB: atime = animation time, ptime = position time, ctime = ???
-u64 game_time, program_time, last_atime, last_ptime, last_ctime;
-u64 t_last, t_status_message_timeout, transition_start;
-int	 status_message_priority;
-s_guybrush guybrush[NB_GUYBRUSHES];
-s_event	events[NB_EVENTS];
-u8	props[NB_NATIONS][NB_PROPS];
-u8	selected_prop[NB_NATIONS];
+bool		found;
+u64			game_time, program_time, last_atime, last_ptime, last_ctime;
+u64			t_last, t_status_message_timeout, transition_start;
+u64			picture_t;
+char*		status_message;
+int			status_message_priority;
+s_event		events[NB_EVENTS];
 s_prisoner_event p_event[NB_NATIONS];
-u8	nb_room_props = 0;
-u16	room_props[NB_OBSBIN];
-u8	over_prop = 0, over_prop_id = 0;
-u8  current_nation = 0;
-u8	panel_chars[NB_PANEL_CHARS][8*8*2];
-char* status_message;
-u16 game_state;
-u8  hours_digit_h, hours_digit_l, minutes_digit_h, minutes_digit_l;
-u8  tunexit_nr, tunexit_flags, tunnel_tool;
-u8*	iff_image;
-bool found;
-void (*static_screen_func)(u32) = NULL;
-void (*restore_idle)(void) = NULL;
-#if defined(PSP_ONSCREEN_STDOUT)
-// What the bleep is so hard about flattening ALL known global names from ALL objects
-// & libs into a big happy pool before linking and figuring out where to pick it up?!?
-void glut_idle_suspended(void);		// Needs a proto for init below
-void (*work_around_stupid_linkers_glut_idle_suspended)(void) = glut_idle_suspended;
-void (*work_around_stupid_linkers_glutIdleFunc)(void (*func)(void)) = glutIdleFunc;
-#endif
-u32  static_screen_param;
-
-u16  nb_objects;
-u8	 palette_index = INITIAL_PALETTE_INDEX;
-s_sprite*	sprite;
-s_overlay*	overlay;
-u8   overlay_index;
-
-char nb_props_message[32] = "\499 * ";
-
-// static picture
-u64 picture_t;
-u8 picture_state;
+u8			nb_room_props = 0;
+u8			props[NB_NATIONS][NB_PROPS];
+u8			selected_prop[NB_NATIONS];
+u16			room_props[NB_OBSBIN];
+u8			over_prop = 0, over_prop_id = 0;
+char		nb_props_message[32] = "\499 * ";
+u8			current_nation = 0;
+u16			game_state;
+u8			hours_digit_h, hours_digit_l, minutes_digit_h, minutes_digit_l;
+u8			tunexit_nr, tunexit_flags, tunnel_tool;
+u8*			iff_image;
+void		(*static_screen_func)(u32) = NULL;
+void		(*restore_idle)(void) = NULL;
+u32			static_screen_param;
+u16			nb_objects;
+u8			palette_index = INITIAL_PALETTE_INDEX;
+u8			picture_state;
 // offsets to sprites according to joystick direction (dx,dy)
-s16 directions[3][3] = { {3,2,4}, {0,DIRECTION_STOPPED,1}, {6,5,7} };
+s16			directions[3][3] = { {3,2,4}, {0,DIRECTION_STOPPED,1}, {6,5,7} };
 // reverse table for dx and dy
-s16 dir_to_dx[8] = {-1, 1, 0, -1, 1, 0, -1, 1};
-s16 dir_to_d2y[8] = {0, 0, -1, -1, -1, 1, 1, 1};
+s16			dir_to_dx[8] = {-1, 1, 0, -1, 1, 0, -1, 1};
+s16			dir_to_d2y[8] = {0, 0, -1, -1, -1, 1, 1, 1};
 // The direct nation keys might not be sequencial on custom key mapping
-u8 key_nation[NB_NATIONS+2];
+u8			key_nation[NB_NATIONS+2];
 
-// Prototypes
+
+/* 
+ *	Internal Prototypes
+ */
 static void glut_idle_static_pic(void);
+
 
 // Update the game and program timers
 void update_timers()
@@ -270,9 +264,9 @@ void update_timers()
 }
 
 
-//
-// GLUT event handlers
-//////////////////////
+/*
+ *	GLUT event handlers
+ */
 static void glut_init()
 {
 	// Use Glut to create a window
@@ -327,7 +321,7 @@ static void glut_display(void)
 	glClear(GL_COLOR_BUFFER_BIT);
 
 	// Display either the current game frame or a static picture
-	if (game_state & GAME_STATE_STATIC_PIC)
+	if ((game_state & GAME_STATE_STATIC_PIC) && (!menu))
 	{
 		if (paused)
 			display_pause_screen();
@@ -338,8 +332,12 @@ static void glut_display(void)
 	{	// In game => update room content and panel
 		display_room();
 		display_panel();
+		// Should we display the game menu?
+		if ((menu) && (picture_state != GAME_FADE_IN) )
+			display_menu_screen();
 	} 
-#if !defined (PSP)
+
+#if defined (WIN32)
 	// Rescale the screen on Windows
 	rescale_buffer();
 #endif
@@ -446,9 +444,11 @@ void process_motion(void)
 	}
 }
 
-// restore guybrush & animation parameters after a one shot ani
-// this function expects the guybrush index as well as the previous ani_index
-// to be concatenated in the lower 2 bytes of the parameter
+/*
+ *	restore guybrush & animation parameters after a one shot ani
+ *	this function expects the guybrush index as well as the previous ani_index
+ *	to be concatenated in the lower 2 bytes of the parameter
+ */
 void restore_params(u32 param)
 {
 	u8 brush, previous_index;
@@ -473,12 +473,22 @@ void user_input()
 	u16 prop_offset;
 	u8	prop_id, direction, i, j;
 	s16 exit_nr;
+	u8	cur_prop;
 
 	// Return to intro screen
-	if (key_down[KEY_ESCAPE])
-	{
+	if (read_key_once(KEY_ESCAPE))
+/*	{
 		RECORD(0);
 		LEAVE;
+	}
+
+	if (key_down['m'])
+*/	{
+		game_state |= GAME_STATE_MENU;
+		selected_menu = 1;
+		picture_state = GAME_FADE_OUT_START;
+		// Switch to a different idle function
+		glutIdleFunc_save(glut_idle_static_pic);
 	}
 
 	// Handle the pausing of the game 
@@ -629,36 +639,23 @@ void user_input()
 		}
 		else
 		{	// Are we trying to use some non tunnel I/O related prop?
-			switch(selected_prop[current_nation])
+			switch(cur_prop = selected_prop[current_nation])
 			{
 			case ITEM_GUARDS_UNIFORM:
-				if ((!prisoner_as_guard) && (!in_tunnel))
-				{	// Only makes sense if we're not already dressed as guard
-					prisoner_as_guard = true;
+			case ITEM_PRISONERS_UNIFORM:
+				if ( (!in_tunnel) &&
+					 ( ((cur_prop == ITEM_GUARDS_UNIFORM) && (!prisoner_as_guard)) ||
+					   ((cur_prop == ITEM_PRISONERS_UNIFORM) && (prisoner_as_guard) ) ) )
+				{	
+					prisoner_as_guard = (cur_prop == ITEM_GUARDS_UNIFORM);
 					consume_prop();
 					show_prop_count();
 					// Set the animation for changing into guard's clothes
 					prisoner_state |= STATE_ANIMATED;
 					prisoner_ani.end_of_ani_parameter = (current_nation & 0xFF) | 
 						((prisoner_ani.index << 8) & 0xFF00);
-					prisoner_ani.index = INTO_GUARDS_UNI_ANI;
-					prisoner_ani.framecount = 0;
-					prisoner_ani.end_of_ani_function = restore_params;
-					// The original game leaves us turned away at the end of the animation
-					prisoner_dir = 2;
-				}
-				break;
-			case ITEM_PRISONERS_UNIFORM:
-				if ((prisoner_as_guard) && (!in_tunnel))
-				{	// Only makes sense if we're dressed as guard
-					prisoner_as_guard = false;
-					consume_prop();
-					show_prop_count();
-					// Set the animation for changing into prisoner's clothes
-					prisoner_state |= STATE_ANIMATED;
-					prisoner_ani.end_of_ani_parameter = (current_nation & 0xFF) | 
-						((prisoner_ani.index << 8) & 0xFF00);
-					prisoner_ani.index = INTO_PRISONERS_UNI_ANI;
+					prisoner_ani.index = (cur_prop == ITEM_GUARDS_UNIFORM)?
+						INTO_GUARDS_UNI_ANI:INTO_PRISONERS_UNI_ANI;
 					prisoner_ani.framecount = 0;
 					prisoner_ani.end_of_ani_function = restore_params;
 					// The original game leaves us turned away at the end of the animation
@@ -957,15 +954,50 @@ static void glut_idle_game(void)
 // We'll use a different idle function for static picture
 static void glut_idle_static_pic(void)
 {
+	float min_fade;
+
+	min_fade = (menu)?MIN_MENU_FADE:0.0f;
 	// As usual, we'll need the current time value for a bunch of stuff
 	update_timers();
 
+	if (menu)
+	{
+		if (read_key_once(SPECIAL_KEY_UP))
+			selected_menu = (selected_menu+NB_MENU_SELECTIONS-2)%NB_MENU_SELECTIONS + 1;
+
+		if (read_key_once(SPECIAL_KEY_DOWN))
+			selected_menu = (selected_menu%NB_MENU_SELECTIONS)+1;
+
+		if (read_key_once(KEY_FIRE))
+		{
+			switch(selected_menu)
+			{
+			case MENU_RESTART:
+				break;
+			case MENU_LOAD:	
+				break;
+			case MENU_SAVE:	
+				break;
+			case MENU_RECORD:
+				if (opt_record_data)
+					opt_record_data = false;
+				else
+					opt_record_data = true;
+				break;
+			case MENU_EXIT:
+				RECORD(0);
+				LEAVE;
+				break;
+			}
+		}
+	}
+/*
 	if (key_down[KEY_ESCAPE])
 	{
 		RECORD(0);
 		LEAVE;
 	}
-
+*/
 	if ((intro) && read_key_once(last_key_used))
 	{	// Exit intro => start new game
 		mod_release();
@@ -990,9 +1022,11 @@ static void glut_idle_static_pic(void)
 		fade_value = (float)(program_time-transition_start)/TRANSITION_DURATION;
 		if (fade_out)
 			fade_value = 1.0f - fade_value;
-		if ((fade_value > 1.0f) || (fade_value < 0.0f))
+		else
+			fade_value += min_fade;
+		if ((fade_value >= 1.0f) || (fade_value <= min_fade))
 		{
-			fade_value = (fade_value < 0.0f)?0.0f:1.0f;	
+			fade_value = (fade_value <= min_fade)?min_fade:1.0f;	
 			picture_state++;
 			transition_start = 0;
 		}
@@ -1011,9 +1045,11 @@ static void glut_idle_static_pic(void)
 		break;
 	case PICTURE_FADE_IN_START:
 		game_state |= GAME_STATE_STATIC_PIC;
-		if paused
+		if (paused)
 			// We use the picture fade in to create the pause screen if paused
 			create_pause_screen();
+		else if (menu)
+			picture_state++;	// Skip picture fade 
 		else
 		{
 			// Load a new MOD if needed...
@@ -1049,7 +1085,7 @@ static void glut_idle_static_pic(void)
 	case PICTURE_FADE_IN:
 		break;
 	case PICTURE_WAIT_START:
-		if (!paused)
+		if ((!paused) && (!menu))
 		{
 			// Set the timeout start for pictures
 			picture_t = program_time;
@@ -1066,10 +1102,14 @@ static void glut_idle_static_pic(void)
 		picture_state++;
 		break;
 	case PICTURE_WAIT:
-		// Press any key
-		if (read_key_once(last_key_used) || 
+		if (menu)
+		{ 
+			if (read_key_once(KEY_ESCAPE))
+				picture_state+=3;
+		}
+		else if (read_key_once(last_key_used) || 
 			( (!game_over) && (!paused) && (program_time-picture_t > PICTURE_TIMEOUT)))
-		{
+		{	// Any key or timeout
 			picture_state++;
 			last_key_used = 0;
 		}
@@ -1125,6 +1165,8 @@ static void glut_idle_static_pic(void)
 		game_state |= GAME_STATE_ACTION;
 		if (paused)
 			game_state &= ~GAME_STATE_PAUSED;
+		if (menu)
+			game_state &= ~GAME_STATE_MENU;
 		// Set glut_idle to our main game loop
 		glutIdleFunc_save(glut_idle_game);
 		break;
@@ -1177,10 +1219,6 @@ static bool video_initialized = false;
 	// If we didn't get out, wait for any key
 	if ((!game_suspended) || read_key_once(last_key_used))
 	{
-/*		if (game_state & GAME_STATE_CUTSCENE)
-		{
-		}
-*/
 		t_last = mtime();
 		glutIdleFunc(restore_idle);
 		game_suspended = false;
@@ -1200,9 +1238,11 @@ static bool video_initialized = false;
 	msleep(PAUSE_DELAY);
 }
 
-// This function handles the displaying of static screens
-// The last 2 parameters are for a function callback while we are in
-// the middle of a static picture
+/*
+ *	This function handles the displaying of static screens
+ *	The last 2 parameters are for a function callback while we are in
+ *	the middle of a static picture
+ */
 void static_screen(u8 picture_id, void (*func)(u32), u32 param)
 {
 	if (game_suspended)
@@ -1350,6 +1390,8 @@ int main (int argc, char *argv[])
 	int opt_sfx				= 0;
 	// General purpose
 	u32  i;
+	const char confname[] = "config.xml";
+
 
 #if defined(PSP)
 	setup_callbacks();
@@ -1366,9 +1408,8 @@ int main (int argc, char *argv[])
 	// Need to have a working GL before we proceed. This is our own init() function
 	glut_init();
 
-	// Let's clean up our buffers
+	// A little cleanup
 	fflush(stdin);
-	mbuffer    = NULL;
 	for (i=0; i<NB_FILES; i++)
 		fbuffer[i] = NULL;
 
@@ -1406,16 +1447,16 @@ int main (int argc, char *argv[])
 		exit (1);
 	}
 
+//	remove(confname);
 	init_xml();
-	if (!read_xml("config.xml"))
+	if (!read_xml(confname))
 	{	// config.xml not found => try to create one
+		printf("Could not open '%s' config file. Creating a new one...\n", confname);
+		fflush(stdout);
 		set_xml_defaults();
-		printf("Creating XML config file...\n");
-		if (!write_xml("config.xml"))
-			perr("Could not create configuration file\n");
+		if (!write_xml(confname))
+			perr("  ERROR.\n");
 	}
-	write_xml(NULL);
-	exit(0);
 
 #if !defined(PSP)
 	if (opt_fullscreen)
@@ -1473,10 +1514,10 @@ int main (int argc, char *argv[])
 	if (opt_skip_intro)
 	{
 		fade_value = 1.0f;
-		newgame_init();
+		glColor3f(fade_value, fade_value, fade_value);
 		game_state = GAME_STATE_ACTION;
 		glutIdleFunc_save(glut_idle_game);
-		glColor3f(fade_value, fade_value, fade_value);
+		newgame_init();
 	}
 	else
 	{

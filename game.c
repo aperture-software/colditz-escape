@@ -46,8 +46,6 @@
 #include "conf.h"
 #include "anti-tampering.h"
 
-extern s16	gl_off_x, gl_off_y;
-extern s16  last_p_x, last_p_y;
 
 /* Some more globals */
 u8  obs_to_sprite[NB_OBS_TO_SPRITE];
@@ -55,6 +53,10 @@ u8	remove_props[CMP_MAP_WIDTH][CMP_MAP_HEIGHT];
 u8  overlay_order[MAX_OVERLAYS]; 
 // Do we need to reload the files on newgame?
 bool game_restart			= false;
+u8	nb_animations = 0;
+s_animation	animations[MAX_ANIMATIONS];
+s_guybrush guybrush[NB_GUYBRUSHES];
+
 
 int	currently_animated[MAX_ANIMATIONS];
 u32 exit_flags_offset;
@@ -76,6 +78,8 @@ s16 exit_dx[2];
 #if defined(ANTI_TAMPERING_ENABLED)
 u8  fmdxhash[NB_FILES][5]= FMDXHASHES;
 #endif
+s_sfx sfx[NB_SFXS];
+
 
 // These are the offsets to the solitary cells doors for each prisoner
 // We use them to make sure the doors are closed after leaving a prisoner in
@@ -348,7 +352,6 @@ void record(u16 data)
 	{
 		writeword(rbuffer, rpos, data);
 		rpos+=2;
-		printf("RECORD: %04X\n", data);
 	}
 
 	if ((data == 0) || (rpos >= RBUFFER_SIZE))

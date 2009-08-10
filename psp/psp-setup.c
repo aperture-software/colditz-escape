@@ -23,6 +23,7 @@
 #if defined(PSP)
 #include <pspkerneltypes.h>
 #include <pspuser.h>
+#include <stdio.h>
 #include "psp-setup.h"
 #include "psp-printf.h"
 
@@ -62,8 +63,17 @@ void setup_callbacks (void)
 }
 
 
+// We need these for our record feature
+extern FILE* rfd;
+extern void record(unsigned short data);
+extern int opt_record_data;
 void back_to_kernel (void)
 {
+	if ((opt_record_data) && (rfd != NULL))
+	{	
+		record(0xC5ED);
+		record(0);
+	}
 	sceKernelExitGame();
 }
 

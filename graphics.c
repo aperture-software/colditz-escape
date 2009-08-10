@@ -51,6 +51,15 @@
 #include "game.h"
 #include "anti-tampering.h"
 
+/////
+typedef struct
+{
+	char*	string;
+	u16		x;
+	u16		y;
+} menu_item;
+
+
 // variables common to game & graphics
 extern u8	remove_props[CMP_MAP_WIDTH][CMP_MAP_HEIGHT];
 extern u8  overlay_order[MAX_OVERLAYS];
@@ -73,6 +82,12 @@ u8* background_buffer;				// (re)used for static pictures
 u8  pause_rgb[3];					// colour for the pause screen borders
 u16  aPalette[32];					// Global palette (32 instead of 16, because 
 									// we also use it to load 5 bpp IFF images
+s_sprite*	sprite;
+s_overlay*	overlay;
+u8			overlay_index;
+int			selected_menu;
+
+
 
 
 // For the outside map, because of the removable sections and the fact that
@@ -351,9 +366,23 @@ void cells_to_wGRAB(u8* source, u8* dest)
 void init_panel_chars()
 {
 	u8 c, y, x, m, b;
+	static u8 panel_chars[NB_PANEL_CHARS][8*8*2];
+
+	// Take care of the menu marker character
+	for (y = 0; y < PANEL_CHARS_H+1; y++)
+		for (x=0; x<PANEL_CHARS_W; x++)
+			writeword((u8*)panel_chars[MENU_MARKER], y*16 + 2*x, 0xFFFF);
+	glBindTexture(GL_TEXTURE_2D, chars_texid[MENU_MARKER]);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, PANEL_CHARS_W, 8, 0, GL_RGBA, 
+		GL_UNSIGNED_SHORT_4_4_4_4_REV, (u8*)panel_chars[MENU_MARKER]);
+
 
 	for (c = 0; c < NB_PANEL_CHARS; c++)
 	{
+		// We use the arobase for menu marker
+		if (c == MENU_MARKER)
+			continue;
+
 		// first line is transparent
 		for (x=0; x<PANEL_CHARS_W; x++)
 			writeword((u8*)panel_chars[c],2*x,GRAB_TRANSPARENT_COLOUR);
@@ -1231,6 +1260,9 @@ void rescale_buffer()
 	{	
 		glDisable(GL_BLEND);	// Better than having to use glClear()
 
+		// If we don't set full luminosity, our menu will fade too
+		glColor3f(1.0f, 1.0f, 1.0f);
+
 		// First, we copy the whole buffer into a texture
 		glBindTexture(GL_TEXTURE_2D, render_texid);
 		glCopyTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 0, 0, PSP_SCR_WIDTH, PSP_SCR_HEIGHT, 0);
@@ -1255,9 +1287,59 @@ void rescale_buffer()
 		glOrtho(0, PSP_SCR_WIDTH, PSP_SCR_HEIGHT, 0, -1, 1);
 		glViewport(0, 0, PSP_SCR_WIDTH, PSP_SCR_HEIGHT);
 
+		// Restore colour
+		glColor3f(fade_value, fade_value, fade_value);
+
 		glEnable(GL_BLEND);	// We'll need blending for the sprites, etc.
 
 	}
+}
+
+menu_item menus[] = {
+	{ "GAME MENU", 180, 16 },
+	{ "RESTART", 196, 70},
+	{ "LOAD", 196, 96},
+	{ "SAVE", 196, 122},
+	{ "RECORD:O", 196, 148}, 
+	{ "EXIT", 196, 174},
+};
+#define NB_MENU_ITEMS	SIZE_A(menus)
+
+void display_menu_screen()
+{
+	char c;
+	int pos = 0, i = 0;
+	int line;
+	
+	glColor4f(1.0f, 1.0f, 1.0f, 1.0f-fade_value+MIN_MENU_FADE);
+
+	// Show each menu line
+	for (line = 0; line < NB_MENU_ITEMS; line++)
+	{
+		pos = 0; i = 0;
+		while ((c = menus[line].string[i++]))
+		{
+			display_sprite(menus[line].x+16*pos, menus[line].y,
+				2*PANEL_CHARS_W, 2*PANEL_CHARS_CORRECTED_H, chars_texid[c-0x20]);
+			pos++;
+		}
+		if (line == MENU_RECORD)
+		{
+			if (opt_record_data)
+				display_sprite(menus[line].x+16*pos, menus[line].y,
+					2*PANEL_CHARS_W, 2*PANEL_CHARS_CORRECTED_H, chars_texid['N'-0x20]);
+			else for(i=0; i<2; i++)
+				display_sprite(menus[line].x+16*(pos+i), menus[line].y,
+					2*PANEL_CHARS_W, 2*PANEL_CHARS_CORRECTED_H, chars_texid['F'-0x20]);
+		}
+	}
+
+	// Selection cursor
+	display_sprite(180, menus[selected_menu].y,
+		2*PANEL_CHARS_W, 2*PANEL_CHARS_CORRECTED_H, chars_texid[MENU_MARKER]);
+
+	glColor4f(fade_value, fade_value, fade_value, 0);
+
 }
 
 

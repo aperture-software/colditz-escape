@@ -59,6 +59,8 @@ static __inline u64 mtime(void)
 #define NULL_FD fopen("/dev/null", "w")
 #endif
 
+
+
 // Handy macro for exiting. xbuffer or fd = NULL is no problemo 
 // (except for lousy Visual C++, that will CRASH on fd = NULL!!!!)
 //#define FREE_BUFFERS	{int _buf; for (_buf=0;_buf<NB_FILES;_buf++) aligned_free(fbuffer[_buf]); aligned_free(mbuffer);}
@@ -73,6 +75,7 @@ static __inline u64 mtime(void)
 #if defined(PSP_ONSCREEN_STDOUT)
 // No immediate exit on PSP as we might want to display the error
 extern void back_to_kernel (void);
+
 // Wait for a (new) keypress (can't use idle_supended as we can't continue on error)
 static __inline void psp_any_key() 
 {
@@ -92,7 +95,7 @@ static __inline void psp_any_key()
 #define FATAL_MSG		"\n\n\t\tFATAL ERROR: Press any key to exit the program\n"
 #define FATAL			{ printf(FATAL_MSG); psp_any_key(); back_to_kernel(); }
 #else
-// so screen stdout => immediate exit
+// no screen stdout => immediate exit
 #define FATAL			back_to_kernel()
 #endif
 #endif

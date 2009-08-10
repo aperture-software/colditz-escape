@@ -1,151 +1,140 @@
-                             
-                           ESCHEW - Even Simpler C-Heuristics Expat Wrapper
-                           
-                           USAGE NOTES
+                     
+               ESCHEW - Even Simpler C-Heuristics Expat Wrapper
+                  
+                             USAGE NOTES
 
 
-	* GOAL:
-	This is a XML simple DOM tables constructor + runtime parser wrapper
-	The goal here is to create XML node tables that are available at compilation 
-	time (so that they can be referenced statically in the program) and provide
-	the helper classes to populate these nodes from an XML file at runtime.
-	Eschew is typically used to set application options from an XML conf file.
+* OVERVIEW:
+Eschew is a simple tables constructor + runtime XML parser wrapper based on
+Expat. The typical usage of Eschew is to read/write application options from an
+XML configuration.
+ 
+The primary goal of Eschew, and what differentiates it from other XML wrappers,
+is its ability to instantiate arrays for holding XML values that are readily
+available at compilation time, just like any other standard C array.
+This unique feature makes the use of Eschew both extremely efficient and very
+straightforward. 
 
-	* ESCHEW vs SCEW, or why not use SCEW (Simple C Expat Wrapper) instead?
-	1. Scew's node values are string only, whereas Eschew can define and populate 
-	   any type
-	2. Scew's nodes are only available at runtime => massive overhead everytime you
-	   access a simple value. If you define user input controls in the XML, this is
-	   not a viable option. In Eschew on the other hand, table values are *directly*
-	   accessible at compilation time, in their declared type, whilst still being 
-	   populated from the XML at runtime
-	3. Scew provide writing to XML, mutliple attribute handling and other features
-	   which are not really required for a simple xml options readout operation
-	3. As the nodes you define are automatically added as enums, you must make sure
-	   that your node names don't conflict with keywords or variable names
+* ESCHEW vs SCEW, or why not use SCEW (Simple C Expat Wrapper) instead?
+1. Scew's node values are string only, whereas Eschew can define and populate 
+   any type (from booleans to floating point, including any type of signed or 
+   unsigned integers)
+2. Scew's nodes are only available at runtime which results in massive overhead
+   everytime accessing a value is required. If for instance you define user 
+   input controls in your configuration XML, this is not a viable option. 
+   Eschew on the other hand, provides typed table values that are *directly* 
+   accessible at compilation time, whilst still being populated from the XML at
+   runtime
+3. Scew provides a number of features that aren't really useful for simple xml
+   configuration I/O. Eschew does away with these features to keep as efficient
+   as possible
 
-	Once again, the main advantage of Eschew is that, after the XML file has been 
-	read, NO string	or cycle consuming resolution intervenes to access the table 
-	values. They are available like any other regular C array of values (with the
-	node names defined as enum for you to facilitate access). 
-	For instance, if you use the Eschew macros to create the xml_keys_player_1 
-	XML table (which includes the node "dir_up"), you can directly use in your 
-	source:
+Once again, the main advantage of Eschew is that, after the XML file has been 
+read, NO time consuming resolution need to occur to access an XML value. They 
+are available like any other regular C array of values (with the node names 
+having automatically defined as enums by Eschew, to facilitate access). 
 
-		if (current_key = xml_keys_player_1.value[dir_up])
-			move_player_forward();
+For instance, if you use the Eschew macros to create the keys table for player_1 
+(which includes the node "dir_up"), you will be able to use directly in your 
+source:
 
-	* FEATURES
-	- Read and write XML configuration files (Re-write of XML conf possible)
-	- Preservation/Creation of comments
+  if (current_key = xml_keys_player_1.value[dir_up])
+  {
+    // Perform direction up action
+    ...
+  }
 
-	* LIMITATIONS
-	The following limitations are in effect when using this XML wrapper:
-	- Only one atribute can be declared per node, which is used to differentiate 
-	  between nodes of the same name. See example below for the "keys" node
-	- Child nodes of a specific branch must all be of the same type (because they
-	  all belong to the same C table, which of course can only have one type in C)
-	  However, if you declare an integer xml tablein Eschew, boolean values like
-	  "true", "enabled", "on", "false", "disable", "off" will be detected and set 
-	  accordingly (i.e. false -> 0, true -> non zero)
-	- Node definitions must follow the logical order, i.e. parent nodes must be 
-	  instantiated before of their children, for the macros to work.
-	- You cannot use underscores in your base table names, as underscores are used
-	  to separate attributes properties (but if you feel this is too much of a 
-	  limitation, you can change the XML_ATTRIBUTE_SEPARATOR definition to set the
-	  attribute separator to something else). You are free to use underscore in
-	  node names.
-	- You must use one of the xml_#### types when defining your table. If you look
-	  at the .h, you will see that there are just a redefinition for what you'd 
-	  expect (eg: xml_unsigned_char is a redefintion of "unsigned char"). The 
-	  reason is that any type used for your defintions must be a single word.
+* FEATURES
+- Read and write XML configuration files (Re-write of XML conf possible)
+- Preservation/Creation of comments
+- Support of (single) attributes
 
-	* EXAMPLE
-	Suppose you want to make the following configuration options available to your 
-	program:
+* LIMITATIONS
+  The following limitations are in effect when using Eschew:
+- Only one attribute can be declared per node, which is used to differentiate 
+  between nodes of the same name. For more information, see the example below 
+  for the "keys" node
+- Child nodes of a specific branch must be of the same type (because they all 
+  belong to the same C array). A small exception for this is for boolean values
+  that will be automatically interpreted for any integer table that is being 
+  read. This means that value like "true", "enabled", "on", "false", "disable", 
+  "off" will be detected and set accordingly (i.e. false -> 0, true -> non zero)
+- The names you provide for XML nodes must not conflict with C keywords or other
+  variables defined in your source. This is because node names are automatically
+  added as enums
+- Node definitions must follow the logical order, i.e. parent nodes must be 
+  instantiated before of their children.
+- You cannot use underscores in your base table names, as underscores are used
+  to separate attributes properties (Note that this can be changed by setting 
+  the XML_ATTRIBUTE_SEPARATOR to something other than "_" in eschew.h)
+- Maximum depth for XML nodes is 16 (again, can be changed in eschew.h)
+- You must use one of the xml_#### types as a type when defining your arrays 
+  (eg: "xml_unsigned_long" instead of "unsigned long"). These are just redefini-
+  tions of the stantard C types, required as the array instantiation macros can
+  only work with a single word type
+ 
+* EXAMPLE
+Suppose you want to make the following configuration options available to your 
+program:
 
-	<?xml version="1.0" encoding="utf-8"?>
-	<config>
-	  <resolution>
-	    <scr_width>1280</scr_width>
-		<scr_height>1024</scr_height>
-		<fullscreen>disabled</fullscreen>
-	  </resolution>
-	  <keys player="1">
-	    <dir_left>&#x8C;</dir_left>
-		<dir_right>&#x8E;</dir_right>
-		<dir_up>&#x8D;</dir_up>
-		<dir_down>&#x8F;</dir_down>
-	  </keys>
-	  <keys player="2">
-	    <left>a</left>
-		<right>d</right>
-		<up>w</up>
-		<down>s</down>
-	  </keys>
-	  <messages>
-	    <msg1>ha ha! pwnd!</msg1>
-	    <msg2>%s has left the game</msg2>
-	  </messages>
-	</config>
+<?xml version="1.0" encoding="utf-8"?>
+<config>
+  <resolution>
+    <scr_width>1280</scr_width>
+	<scr_height>1024</scr_height>
+	<fullscreen>disabled</fullscreen>
+  </resolution>
+  <keys player="1">
+    <dir_left>&#x8C;</dir_left>
+	<dir_right>&#x8E;</dir_right>
+	<dir_up>&#x8D;</dir_up>
+	<dir_down>&#x8F;</dir_down>
+  </keys>
+  <keys player="2">
+    <left>a</left>
+	<right>d</right>
+	<up>w</up>
+	<down>s</down>
+  </keys>
+  <messages>
+    <msg1>ha ha! pwnd!</msg1>
+    <msg2>%s has left the game</msg2>
+  </messages>
+</config>
 
-	With Eschew, you simply need to create a header with the following:
+With Eschew, you just need to create a header with the following:
 
-	DEFINE_XML_NODES(config_nodes, resolution, keys, messages)
-	// Table ot tables => xml_node type
-	CREATE_XML_TABLE(config, config_nodes, xml_node) 
-	// config is the root node => declare it as such
-	SET_XML_ROOT(config)
+DEFINE_XML_NODES(config_nodes, resolution, keys, messages)
+CREATE_XML_TABLE(config, config_nodes, xml_node) 
+SET_XML_ROOT(config)
+DEFINE_XML_NODES(res_nodes, scr_width, scr_height, fullscreen)
+CREATE_XML_TABLE(resolution, res_nodes, xml_int)
+DEFINE_XML_NODES(keys_nodes, dir_left, dir_right, dir_up, dir_down)
+CREATE_XML_TABLE(keys_player_1, keys_nodes, xml_unsigned_char)
+CREATE_XML_TABLE(keys_player_2, keys_nodes, xml_unsigned_char)
+DEFINE_XML_NODES(msg_nodes, msg1, msg2)
+CREATE_XML_TABLE(messages, msg_nodes, xml_string)
 
-	DEFINE_XML_NODES(res_nodes, scr_width, scr_height, fullscreen)
-	// Integers or booleans => xml_int
-	CREATE_XML_TABLE(resolution, res_nodes, xml_int)
+This results in the creation of the following tables which you can
+use right away (with the content initialized at runtime)
 
-	DEFINE_XML_NODES(keys_nodes, dir_left, dir_right, dir_up, dir_down)
-	// Single character values => xml_unsigned_char
-	CREATE_XML_TABLE(keys_player_1, keys_nodes, xml_unsigned_char)
-	CREATE_XML_TABLE(keys_player_2, keys_nodes, xml_unsigned_char)
+int		xml_resolution.value[3]
+unsigned char	xml_keys_player_1.value[4]
+unsigned char	xml_keys_player_2.value[4]
+char*		xml_messages.values[2]
 
-	DEFINE_XML_NODES(msg_nodes, msg1, msg2)
-	// Strings => xml_string
-	CREATE_XML_TABLE(messages, msg_nodes, xml_string)
+The following enums are also automatically set:
 
+enum { resolution, keys_player_1, keys_player_2, messages };
+enum { scr_width, scr_height, fullscreen };
+enum { dir_left, dir_right, dir_up, dir_down };
+enum { msg1, msg2 };
 
-	This results in the creation of the following tables which you can
-	use	straight away (with the content initialized at runtime)
+If needed, the names and comments for the nodes are also available in 
+xml_<table_name>.name[i] and xml_<table_name>.comment[i] respectively
 
-	int				resolution.value[3] = {1280, 1024, 0};
-	unsigned char	keys_player_1.value[4] = {0x8C, 0x8E, 0x8D, 0x8F};
-	unsigned char	keys_player_2.value[4] = {'a', 'd', 'w', 's'};
-	char*			messages.values[2] = { "ha ha! pwnd!", "%s has left the game"};
+Then at runtime, you would call INIT_XML_TABLE() for each one of the tables
+above, read_xml() to populate them from the relevant XML file and write_xml(),
+if needed, to save the configuration values back.
 
-	The following enums are also automatically set
-
-	enum { resolution, keys_player_1, keys_player_2, messages };
-	enum { dir_left, dir_right, dir_up, dir_down };
-	enum { msg1, msg2 };
-
-	If needed, the names for the nodes are also available in 
-	xml_<table_name>.name[i], as well as the parent table (xml_config)
-
-
-	Then in the C counterpart:
-
-	#define INIT_XML_ACTUAL_INIT
-	#include "eschew.h"
-	#include "the_header_you_created_above.h"
-
-	void init_xml_config()
-	{
-		INIT_XML_TABLE(config);
-		INIT_XML_TABLE(resolution);
-		INIT_XML_TABLE(keys_player_1);
-		INIT_XML_TABLE(keys_player_2);
-		INIT_XML_TABLE(messages);
-	}
-
-	Call the function above at runtime, call read_xml() with the name of 
-	your XML config file and make sure you include your 2 headers (without
-	the ACTUAL_INIT define) in all the source you plan to use your tables,
-	That's it!
-
+For an example of use, see the example.c included in the source

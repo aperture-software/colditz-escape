@@ -17,7 +17,7 @@
  *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  *
  *  ---------------------------------------------------------------------------
- *  soundplayer.c: SFX and MOD Player Implementation in C for PSP and Win
+ *  soundplayer.cpp: SFX and MOD Player Implementation in C++ for PSP and Win
  *  Copied almost 100% from PSP SDK's "PSP ModPlayer v1.0" by adresd:
  *     http://svn.pspdev.org/listing.php?repname=pspware&path=%2Ftrunk%2FPSPMediaCenter%2Fcodec%2Fmod%2F&rev=0&sc=0
  *  ---------------------------------------------------------------------------
@@ -147,12 +147,12 @@ bool play_sample(int channel, unsigned int volume, void *address, unsigned int l
 #if defined(PSP)
 	if (frequency != PLAYBACK_FREQ)
 	{
-		printf("play_sfx: frequency must be %d for PSP SFX\n", PLAYBACK_FREQ);
+		fprintf(stderr, "play_sfx: frequency must be %d for PSP SFX\n", PLAYBACK_FREQ);
 		return false;
 	}
 	if (bits_per_sample != 16)
 	{
-		printf("play_sfx: samples must be 16 bit for PSP SFX\n");
+		fprintf(stderr, "play_sfx: samples must be 16 bit for PSP SFX\n");
 		return false;
 	}
 	// Release channel if needed
@@ -227,7 +227,7 @@ static void ModPlayCallback(void *_buf2, unsigned int length, void *pdata)
 bool audio_init()
 {
  if (!audio_release())
-	 printf("audio_release error\n");
+	 fprintf(stderr, "audio_release error\n");
 #if defined(PSP)
 	if (pspAudioInit())
 		return false;

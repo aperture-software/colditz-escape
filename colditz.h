@@ -42,27 +42,45 @@ extern "C" {
 #define GL_CLAMP_TO_EDGE				0x812F
 #endif
 
-// LIST OF ABREVIATIONS:
-// CRM = Colditz Room Maps => data used for inside rooms
-// CMP = CoMPressed map => data used for outisde
+/*	
+ *	LIST OF ABREVIATIONS:
+ *	CRM = Colditz Room Maps => data used for inside rooms
+ *	CMP = CoMPressed map => data used for outisde
+ */
 
-
-//
-// Global defines
-/////////////////////////////////////////////////////////////////
+/*
+ *	Global defines
+ */
 
 #define APPNAME					"colditz"
 #define VERSION					"v0.9.2"
 
+/*
+ * Graphics
+ */
 // The PSP Screen dimensions will be our base def
 #define PSP_SCR_WIDTH			480
 #define PSP_SCR_HEIGHT			272
+// How much should we shift our screen so the seams don't show
+#define NORTHWARD_HO			28
 
+// Color handling
+#define RED						0
+#define GREEN					1
+#define BLUE					2
+#define ALPHA					3
+// Size of our internal RGBA format, in bytes
+#define RGBA_SIZE				2
+#define GRAB_TRANSPARENT_COLOUR	0x0000
+
+/*
+ *	Files
+ */
 // # data files from the original game
 #define NB_FILES				11
-// # files need reload on a new game
+// # files that need reload on a new game
 #define NB_FILES_TO_RELOAD		4
-// Some handy identifier to make code reader friendly
+// Some handy identifier for files to make code reader friendly
 #define ROOMS					0
 #define COMPRESSED_MAP			1
 #define OBJECTS					2
@@ -75,14 +93,7 @@ extern "C" {
 #define SPRITES					9
 #define ROUTES					10
 
-#define RED						0
-#define GREEN					1
-#define BLUE					2
-#define ALPHA					3
-// Size of our internal RGBA format, in bytes
-#define RGBA_SIZE				2
-// Never be too short on filename sizes
-#define NAME_SIZE				128			
+// Files definitions
 #define FNAMES					{ "COLDITZ_ROOM_MAPS",			\
 								  "COMPRESSED_MAP",				\
 								  "OBS.BIN",					\
@@ -105,22 +116,19 @@ extern "C" {
 								  56080,		\
 								  71056,		\
 								  13364 }
-// Most versions of Colditz archived on the net use the Skid Row loader
+// Most of the archive versions from the net use the Skid Row loader
 #define ALT_LOADER				"SKR_COLD"
 #define ALT_LOADER_SIZE			28820
 
-// Textures that will be used for various images
+// Static images
 #define NB_TEXTURES				23
 #define NB_IFFS					19
-// The PSP has a special (but larger) screen for controls
-// Same applies for our little intro video formats
+// Couple differences between Win & PSP
 #if defined(PSP)
 #define S2_NAME					"STARTSCREEN2-PSP"
-#define S2_WIDTH				386
 #define APERTURE_VIDEO			"aperture.pmp"
 #else
 #define S2_NAME					"STARTSCREEN2"
-#define S2_WIDTH				320
 #define APERTURE_VIDEO			"aperture.avi"
 #endif
 #define TEXTURES				{	{ "PIC.1(SOLITARY)", 320, 192, 0, NULL },					\
@@ -137,7 +145,7 @@ extern "C" {
 									{ "PIC.B(GAME-OVER)TEXT", 295, 192, 0, NULL },				\
 									{ "STARTSCREEN0", 320, 200, 0, NULL },						\
 									{ "STARTSCREEN1", 320, 200, 0, NULL },						\
-									{ S2_NAME, S2_WIDTH, 200, 0, NULL },						\
+									{ S2_NAME, 320, 200, 0, NULL },								\
 									{ "STARTSCREEN3", 320, 200, 0, NULL },						\
 									{ "STARTSCREEN4", 320, 200, 0, NULL },						\
 									{ "PIC.8(PASS)", 320, 192, 0, NULL },						\
@@ -146,9 +154,8 @@ extern "C" {
 									{ "panel_base2.raw", 256, 32, 0, NULL},						\
 									{ "corner.raw", 74, 37, 0, NULL},							\
 								}
-															
 
-// handy identifier for images
+// Handy identifier for images
 #define TO_SOLITARY				0
 #define FROM_SOLITARY			1
 #define PRISONER_SHOT			3
@@ -166,44 +173,90 @@ extern "C" {
 #define PICTURE_CORNER			21
 #define NO_PICTURE				-1
 
-
-// Loader table containing the IFF indexes to use for various events
-#define IFF_INDEX_TABLE			0x00007A80
-
 // Music mods
-#define NB_MODS					4
-#define MOD_NAMES				{ "LOADTUNE.MOD", "GAMEOVER.MUS", "WHENWIN.MUS", "aperture-software.mod" }
+#define NB_MODS					3
+#define MOD_NAMES				{ "LOADTUNE.MOD", "GAMEOVER.MUS", "WHENWIN.MUS" }
 #define MOD_LOADTUNE			0
 #define MOD_GAMEOVER			1
 #define MOD_WHENWIN				2
-#define MOD_APERTURE			3
+// Most archives will use the PPacked version of LOADTUNE
 #define PP_LOADTUNE_NAME		"LOADTUNE.MUS"
 #define PP_LOADTUNE_SIZE		66956
+// SFX data
+#define NB_SFXS					5
+#define SFX_TABLE_START			0x0000CA3E
+#define SFX_ADDRESS_START		0x0000CA6A
+#define SFX_DOOR				0
+#define SFX_WTF					1
+#define SFX_SAW					2
+#define SFX_FOOTSTEPS			3
+#define SFX_SHOOT				4
 
-// If we place our loader at address 0x80, we won't have to convert the pointers from the disassembly
+
+// If we place our loader at address 0x80, we won't have to convert the pointers from the disassembly ;)
 #define LOADER_PADDING			0x00000080
-#define NB_NATIONS				4
-#define NB_GUARDS				0x3D
 #define MENDAT_ITEM_SIZE		0x14
+#define INITIAL_PALETTE_INDEX	4
 
+
+// Compressed and indoors maps data
 #define CRM_OFFSETS_START		0x00002684
 #define CRM_ROOMS_START			0x00002FE4
 #define CMP_TILES_START			0x00005E80
+#define CMP_MAP_WIDTH			0x54
+#define CMP_MAP_HEIGHT			0x48
+
+
+
 // tiles that need overlay, from LOADER
 #define SPECIAL_TILES_START		0x00003F3A
 #define NB_SPECIAL_TILES		0x16
 #define FIREPLACE_TILE			0xE080
 #define TUNNEL_TILE_ADDON		0x1E0
-//Sprites
-#define NB_STANDARD_SPRITES		0xD1
 
-// Positions for the PANEL
+
+// Nations & guards
+#define NB_NATIONS				4
+#define NB_GUARDS				0x3D
+#define BRITISH					0
+#define FRENCH					1
+#define AMERICAN				2
+#define POLISH					3
+#define GUARD					4
+
+// Props
+#define NB_PROPS				16
+#define NB_OBSBIN				0xBD
+#define ITEM_NONE				0x00
+#define ITEM_LOCKPICK			0x01
+#define ITEM_KEY_ONE			0x02
+#define ITEM_KEY_TWO			0x03
+#define ITEM_PRISONERS_UNIFORM	0x04
+#define ITEM_GUARDS_UNIFORM		0x05
+#define ITEM_PASS				0x06
+#define ITEM_SHOVEL				0x07
+#define ITEM_PICKAXE			0x08
+#define ITEM_SAW				0x09
+#define ITEM_RIFLE				0x0A
+#define ITEM_STONE				0x0B
+#define ITEM_CANDLE				0x0C
+#define ITEM_PAPERS				0x0D
+#define ITEM_STETHOSCOPE		0x0E
+// Alright, the next item doesn't really exists, but if you add it
+// manually in the original game, you get to drop an "inflatable" 
+// prisoner's dummy ;)
+// In the orginal, the item's identified as "ROUND TOWER"
+#define ITEM_INFLATABLE_DUMMY	0x0F
+
+
+/*
+ *	PANEL related data
+ */
 #define PANEL_BASE1_W			64
 #define PANEL_BASE2_W			256
 #define PANEL_BASE_H			32
 #define PANEL_OFF_X				79
 #define PANEL_OFF_Y				3
-#define INITIAL_PALETTE_INDEX	4
 // Panel sprites 
 #define PANEL_FACES_OFFSET		0x00001482
 #define NB_PANEL_FACES			7
@@ -259,32 +312,46 @@ extern "C" {
 #define	ROOM_DESC_BASE			0x0000BCB4
 #define TUNNEL_MSG_ID			0x35
 #define	COURTYARD_MSG_ID		0x36
+
+/*
+ *	Menu stuff
+ */
+#define MIN_MENU_FADE			0.4f
+#define MENU_MARKER				0x20
+#define NB_MENU_SELECTIONS		5
+#define MENU_RESTART			1
+#define MENU_LOAD				2
+#define MENU_SAVE				3
+#define MENU_RECORD				4
+#define MENU_EXIT				5
+
+
+
 // Boundaries for courtyard authorized access (ROM:00002160)
 #define COURTYARD_MIN_X			0x300
 #define COURTYARD_MAX_X			0x5A0
 #define COURTYARD_MIN_Y			0xD0
 #define COURTYARD_MAX_Y			0x200
+
 // Boundaries for succesful escape! (ROM:00001E6E)
 #define ESCAPE_MIN_X			0x20
 #define ESCAPE_MAX_X			0xA40
 #define ESCAPE_MIN_Y			0x08
 #define ESCAPE_MAX_Y			0x470
-// Where to send someone we don't want to see around us again
+
+// Where to send someone we don't want to see around again
 #define GET_LOST_X				5000
 #define GET_LOST_Y				5000
+
 // This loader section defines the list of authorized rooms (through their 
 // message ID) after certain events (appel, exercise, confined)
 #define AUTHORIZED_BASE			0x000020EE
 #define NB_AUTHORIZED_POINTERS	7
 #define AUTHORIZED_NATION_BASE	0x0000210A
-#define GRAB_TRANSPARENT_COLOUR	0x0000
-#define OBS_TO_SPRITE_START		0x00005D82
+
 #define NB_OBS_TO_SPRITE		15
+#define OBS_TO_SPRITE_START		0x00005D82
 #define LOADER_DATA_START		0x0000010C
-//#define FFs_TO_IGNORE			7
-#define MAX_OVERLAYS			0x80
-#define CMP_MAP_WIDTH			0x54
-#define CMP_MAP_HEIGHT			0x48
 // On compressed map (outside)
 #define ROOM_OUTSIDE			0xFFFF
 // Lower index of tunnels
@@ -293,7 +360,7 @@ extern "C" {
 #define ROOM_NO_PROP			0x0258
 #define REMOVABLES_MASKS_START	0x00008758
 #define REMOVABLES_MASKS_LENGTH	27
-#define JOY_DEADZONE			450
+
 // These are use to check if our footprint is out of bounds
 #define TILE_MASKS_OFFSETS		0x0000A1E8
 #define	TILE_MASKS_START		0x0000AA58
@@ -303,6 +370,7 @@ extern "C" {
 #define SPRITE_FOOTPRINT		0x3FFC0000
 #define TUNNEL_FOOTPRINT		0xFF000000
 #define FOOTPRINT_HEIGHT		4
+
 // Exit checks
 #define EXIT_TILES_LIST			0x000039AE
 #define EXIT_MASKS_OFFSETS		0x000039E4
@@ -325,6 +393,16 @@ extern "C" {
 #define HAT_RABBIT_POS_START	0x00003EF2
 #define INITIAL_POSITION_BASE	0x0000773A
 #define SOLITARY_POSITION_BASE	0x0000292C
+
+// For data file patching
+#define FIXED_CRM_VECTOR		0x50
+
+
+/*
+ *	Time related
+ */
+// Stack for time delayed events. Doubt we'll need more than that
+#define NB_EVENTS				32
 // Time between animation frames, in ms
 // 66 or 67 is about as close as we can get to the original game
 #define ANIMATION_INTERVAL		120
@@ -347,17 +425,11 @@ extern "C" {
 #define	PROPS_MESSAGE_TIMEOUT	2000
 #define CHEAT_MESSAGE_TIMEOUT	2000
 #define NO_MESSAGE_TIMEOUT		0
-// How long does a pass provide immunity
+// How long does a pass provide immunity, in ms
 #define PASS_GRACE_PERIOD		3000
 
-#define NB_SFXS					5
-#define SFX_TABLE_START			0x0000CA3E
-#define SFX_ADDRESS_START		0x0000CA6A
-#define SFX_DOOR				0
-#define SFX_WTF					1
-#define SFX_SAW					2
-#define SFX_FOOTSTEPS			3
-#define SFX_SHOOT				4
+// Loader table containing the IFF indexes to use for various events
+#define IFF_INDEX_TABLE			0x00007A80
 
 // How long should the guard remain blocked (in nb of route steps)
 // default of the game is 0x64
@@ -381,7 +453,18 @@ extern "C" {
 // For pursuit states
 #define NO_TARGET				-1
 
-// Animation data
+/*
+ *	Overlays and animation related
+ */
+#define MAX_OVERLAYS			0x80
+#define NB_STANDARD_SPRITES		0xD1
+// Our minimal z index, for overlays
+// Oh, and don't try to be smart and use 0x8000, because unless you do an
+// explicit cast, you will get strange things line short variables that you
+// explicitely set to MIN_Z never equating MIN_Z in comparisons
+// NB: gcc will issue a "comparison is always false due to limited range of data type"
+#define MIN_Z					-32768
+
 #define ANIMATION_OFFSET_BASE	0x000089EA
 // sids for animation removal or no display
 #define REMOVE_ANIMATION_SID	-1
@@ -415,28 +498,16 @@ extern "C" {
 #define STATE_CRAWL_SID			0xF8
 #define STATE_STOOGE_SID		0xF9
 
-// doubt we'll need more than simultaneously enqueued events in all
-#define NB_EVENTS				32
-
-// How much we need to shift our screen so the seams don't show
-#define NORTHWARD_HO			28
-
-// Our minimal z index, for overlays
-// Oh, and don't try to be smart and use 0x8000, because unless you do an
-// explicit cast, you will get strange things line short variables that you
-// explicitely set to MIN_Z never equating MIN_Z in comparisons
-// NB: gcc will issue a "comparison is always false due to limited range of data type"
-#define MIN_Z					-32768
-// For data file patching
-#define FIXED_CRM_VECTOR		0x50
-
 // For animations that are NOT guybrushes (guybrushes embed their own animation struct)
 #define MAX_ANIMATIONS			0x20
 #define MAX_CURRENTLY_ANIMATED	MAX_ANIMATIONS
 #define NB_ANIMATED_SPRITES		23
 #define NB_GUYBRUSHES			(NB_NATIONS + NB_GUARDS)
 
-// Motion related states
+/*
+ *	Game related states
+ */
+// guybrushes states
 #define STATE_MOTION			0x0001
 #define STATE_ANIMATED			0x0002
 #define STATE_SLEEPING			0x0004
@@ -453,8 +524,6 @@ extern "C" {
 
 // Useful masks
 #define MOTION_DISALLOWED		(STATE_SLEEPING|STATE_SHOT|STATE_KNEELING)
-//#define MOTION_DISALLOWED		(~(STATE_MOTION|STATE_TUNNELING|STATE_IN_PURSUIT|STATE_SHOT|STATE_STOOGING|STATE_IN_PRISON))
-//#define KNEEL_DISALLOWED		(~(STATE_MOTION|STATE_IN_PURSUIT|STATE_IN_PRISON))
 #define DEVIATED_FROM_ROUTE		(STATE_IN_PURSUIT|STATE_RESUME_ROUTE|STATE_RESUME_ROUTE_WAIT)
 
 // Game states
@@ -466,38 +535,7 @@ extern "C" {
 #define GAME_STATE_GAME_WON		32
 #define GAME_STATE_PICTURE_LOOP	64
 #define GAME_STATE_CUTSCENE		128
-
-
-// Nationalities
-#define BRITISH					0
-#define FRENCH					1
-#define AMERICAN				2
-#define POLISH					3
-#define GUARD					4
-
-// Props
-#define NB_PROPS				16
-#define NB_OBSBIN				0xBD
-#define ITEM_NONE				0x00
-#define ITEM_LOCKPICK			0x01
-#define ITEM_KEY_ONE			0x02
-#define ITEM_KEY_TWO			0x03
-#define ITEM_PRISONERS_UNIFORM	0x04
-#define ITEM_GUARDS_UNIFORM		0x05
-#define ITEM_PASS				0x06
-#define ITEM_SHOVEL				0x07
-#define ITEM_PICKAXE			0x08
-#define ITEM_SAW				0x09
-#define ITEM_RIFLE				0x0A
-#define ITEM_STONE				0x0B
-#define ITEM_CANDLE				0x0C
-#define ITEM_PAPERS				0x0D
-#define ITEM_STETHOSCOPE		0x0E
-// Alright, the next item doesn't really exists, but if you add it
-// manually in the original game, you get to drop an "inflatable" 
-// prisoner's dummy ;)
-// In the orginal, the item's identified as "ROUND TOWER"
-#define ITEM_INFLATABLE_DUMMY	0x0F
+#define GAME_STATE_MENU			256
 
 // States for the displaying of static pictures
 #define GAME_FADE_OUT_START		0
@@ -512,9 +550,13 @@ extern "C" {
 #define GAME_FADE_IN			9
 #define PICTURE_EXIT			10
 
-// Recording buffer size, in bytes
+
+/*
+ *	Optional Recording feature
+ */
+// Record buffer, in bytes
 #define RBUFFER_SIZE			512
-#define RECORD(data) if(opt_record_data) record((u16)(data))
+#define RECORD(data)			if(opt_record_data) record((u16)(data))
 // Record commands
 #define R_ROOM					0x0000
 #define R_NATION				0x1100
@@ -530,6 +572,12 @@ extern "C" {
 #define R_FREE					0x8900
 #define R_EXIT					0xD000
 #define R_EVENT					0xEE00
+
+
+
+/*
+ *	Global structs
+ */
 
 // Structure to hold the standard RGBA sprites
 typedef struct 
@@ -590,7 +638,7 @@ typedef struct
 	unsigned long	upconverted_length;
 } s_sfx;
 
-// prisoners or guards
+// Guybrushes (prisoners or guards)
 typedef struct 
 {
 	u16				room;					// Room index
@@ -638,9 +686,11 @@ typedef struct
 	u32  solitary_countdown;
 } s_prisoner_event;
 
+
 /*
- *	Defines passing as globals
+ *	Defines, passing as globals (originally global variables)
  */
+
 #define prisoner_x			guybrush[current_nation].px
 #define prisoner_2y			guybrush[current_nation].p2y
 #define current_room_index	guybrush[current_nation].room
@@ -663,84 +713,65 @@ typedef struct
 #define game_over			(game_state & GAME_STATE_GAME_OVER)
 #define intro				(game_state & GAME_STATE_INTRO)
 #define game_won			(game_state & GAME_STATE_GAME_WON)
+#define menu				(game_state & GAME_STATE_MENU)
+
 
 /*
  *	Actual global variables
  */
+
 // General program options, including cheats
-extern bool	opt_verbose;
-extern bool	opt_debug;
-extern bool opt_onscreen_debug;
-extern int	opt_sid;
-extern bool	opt_play_as_the_safe;
-extern bool	opt_keymaster;
-extern bool	opt_thrillerdance;
-extern bool	opt_no_guards;
-extern bool	opt_haunted_castle;
-extern bool opt_record_data;
+extern bool		opt_verbose;
+extern bool		opt_debug;
+extern bool		opt_onscreen_debug;
+extern int		opt_sid;
+extern bool		opt_play_as_the_safe;
+extern bool		opt_keymaster;
+extern bool		opt_thrillerdance;
+extern bool		opt_no_guards;
+extern bool		opt_haunted_castle;
+extern bool		opt_record_data;
+
 // Global variables
-extern int	stat;
-extern u8   *mbuffer;
-extern u8   *fbuffer[NB_FILES];
-extern u8	*rbuffer;
-extern FILE *fd;		// Generic file descriptor
-extern FILE *rfd;		// Recording file descriptot
-extern u8   *rgbCells;
-extern u8	*static_image_buffer;
-extern u8	props[NB_NATIONS][NB_PROPS];
-extern u8	selected_prop[NB_NATIONS];
+extern bool		init_animations;
+extern bool		is_fire_pressed;
+extern u8		*mbuffer;	// Generic TMP buffer
+extern u8		*fbuffer[NB_FILES];
+extern u8		*rbuffer;
+extern FILE		*fd;		// Generic file descriptor
+extern FILE		*rfd;		// Recording file descriptot
+extern u8		*rgbCells;	// Cells table
+extern u8		*static_image_buffer;
+extern u8		props[NB_NATIONS][NB_PROPS];
+extern u8		selected_prop[NB_NATIONS];
 extern s_prisoner_event p_event[NB_NATIONS];
-extern u8	nb_room_props;
-extern u16	room_props[NB_OBSBIN];
-extern u8	over_prop, over_prop_id;
-extern u8	panel_chars[NB_PANEL_CHARS][8*8*2];
-extern char *status_message;
-extern int	status_message_priority;
-extern s16	directions[3][3], dir_to_dx[8], dir_to_d2y[8];
-extern u8	hours_digit_h, hours_digit_l, minutes_digit_h, minutes_digit_l;
-extern u8	palette_index;
-extern u16	game_state;
-extern float fade_value;
-extern int	current_picture;
-extern u16  nb_objects;
+extern u8		nb_room_props;
+extern u16		room_props[NB_OBSBIN];
+extern u8		over_prop, over_prop_id;
+extern char		*status_message;
+extern int		status_message_priority;
+extern s16		directions[3][3], dir_to_dx[8], dir_to_d2y[8];
+extern u8		hours_digit_h, hours_digit_l, minutes_digit_h, minutes_digit_l;
+extern u8		palette_index;	// Current palette
+extern u16		game_state;
+extern float	fade_value;
+extern int		current_picture;
+extern u16		nb_objects;
+extern char		*fname[NB_FILES];
+extern u32		fsize[NB_FILES];
+extern char		*mod_name[NB_MODS];
+extern int		gl_width, gl_height;
+extern u8		current_nation;
+extern char		nb_props_message[32];
+extern u64		game_time, last_atime, last_ptime, last_ctime, t_last;
+extern s_event	events[NB_EVENTS];
+extern void		record(u16 data);
 
-extern char	*fname[NB_FILES];
-extern u32  fsize[NB_FILES];
-extern char	*mod_name[NB_MODS];
-extern int	gl_width, gl_height;
-extern u8	current_nation;
-extern s_sfx sfx[NB_SFXS];
-
-extern s_sprite		*sprite;
-extern s_overlay	*overlay; 
-extern u8   overlay_index;
-
-extern bool init_animations;
-extern bool is_fire_pressed;
-extern char nb_props_message[32];
-extern u64	game_time, last_atime, last_ptime, last_ctime, t_last;
-extern void record(u16 data);
-extern s_animation	animations[MAX_ANIMATIONS];
-extern u8	nb_animations;
-extern s_guybrush	guybrush[NB_GUYBRUSHES];
-extern s_event		events[NB_EVENTS];
-
-// Prototypes
+/*
+ *	Prototypes
+ */
 void static_screen(u8 iff_id, void (*func)(u32), u32 param);
 
-// Key handling (global, as might be used in the ERR_EXIT macro)
-extern bool key_down[256], key_readonce[256];
-static __inline bool read_key_once(u8 k)
-{	
-	if (key_down[k])
-	{
-		if (key_readonce[k])
-			return false;
-		key_readonce[k] = true;
-		return true;
-	}
-	return false;
-}
 
 #ifdef	__cplusplus
 }

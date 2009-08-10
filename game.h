@@ -27,7 +27,9 @@
 extern "C" {
 #endif
 
-// These macro will come handy later on 
+/*
+ *	These game macro will come handy later on 
+ */
 
 // Reads the tile index at (x,y) from compressed map and rotate
 #define comp_readtile(x,y)			\
@@ -62,11 +64,13 @@ extern "C" {
 #define ignore_offscreen_x(ovl)	{if is_offscreen_x(overlay[ovl].x) continue;}
 #define ignore_offscreen_y(ovl)	{if is_offscreen_y(overlay[ovl].y) continue;}
 
+// Get the current animated SID
 #define get_guybrush_sid(x)												\
 	( (((guybrush[x].state & (STATE_MOTION|STATE_ANIMATED))				\
 	&& (!(guybrush[x].state & STATE_BLOCKED))) && !paused)?				\
 	get_animation_sid(x, true):get_stop_animation_sid(x, true))
 
+// Safe increments for our stacks
 #define safe_nb_animations_increment() {	\
 	if (nb_animations <= (MAX_ANIMATIONS-1))\
 		nb_animations++;					\
@@ -77,7 +81,7 @@ extern "C" {
 	if (overlay_index <= (MAX_OVERLAYS-1))	\
 		overlay_index++;					\
 	else									\
-	printf("Too many overlays!\n");			}	
+		printf("Too many overlays!\n");		}	
 
 
 // A few definitions to make prop handling and status messages more readable
@@ -115,21 +119,27 @@ static __inline void consume_prop()
 	set_status_message(nb_props_message, 1, PROPS_MESSAGE_TIMEOUT)
 
 
+/*
+ *	Global variables
+ */
+extern u8			nb_animations;
+extern s_animation	animations[MAX_ANIMATIONS];
+extern s_guybrush	guybrush[NB_GUYBRUSHES];
 
 
-// Public prototypes
-//
-//////////////////////////////////////////////////////////////////////
+/*
+ *	Public prototypes
+ */
 void load_all_files();
 void reload_files();
 void newgame_init();
 void depack_loadtune();
 void set_room_props();
 void set_sfxs();
-int move_guards();
+int  move_guards();
 void toggle_exit(u32 exit_nr);
-s16 check_footprint(s16 dx, s16 d2y);
-s16 check_tunnel_io();
+s16  check_footprint(s16 dx, s16 d2y);
+s16  check_tunnel_io();
 bool check_guard_footprint(u8 g, s16 dx, s16 d2y);
 void switch_nation(u8 new_nation);
 void switch_room(s16 exit, bool tunnel_io);

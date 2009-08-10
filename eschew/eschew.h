@@ -32,6 +32,9 @@ extern "C" {
 #define XML_ATTRIBUTE_SEPARATOR	"_"
 #define XML_MAX_STRING_LENGTH	256
 
+// General options
+#define ESCHEW_VERSION			"1.0"
+
 /*
 	We need the following *SINGLE WORD* types to be defined, so that we can
 	figure out the type of our XML node tables at runtime
@@ -146,7 +149,8 @@ static int i;
 		xml_##tabid.name[i=0] = strtok(xml_##tabid._tokens, " ,\t");			\
 		while (xml_##tabid.name[i++] != NULL)									\
 			xml_##tabid.name[i] = strtok (NULL, " ,\t"); }						\
-	SET_ATTRIBUTE(tabid) if (!link_table((xml_node)&xml_##tabid, &xml_root))	\
+	SET_ATTRIBUTE(tabid);														\
+	if (!link_table((xml_node)((void*)&xml_##tabid), &xml_root))				\
 		printf("Could not find parent for table %s!!!\n", xml_##tabid.id); }
 
 // At least one table must be defined as root (after it has been created)
