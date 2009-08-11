@@ -133,6 +133,8 @@ extern s_guybrush	guybrush[NB_GUYBRUSHES];
 void load_all_files();
 void reload_files();
 void newgame_init();
+bool save_game(char* save_name);
+bool load_game(char* load_name);
 void depack_loadtune();
 void set_room_props();
 void set_sfxs();

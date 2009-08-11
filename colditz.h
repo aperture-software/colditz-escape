@@ -80,42 +80,44 @@ extern "C" {
 #define NB_FILES				11
 // # files that need reload on a new game
 #define NB_FILES_TO_RELOAD		4
+// # file buffers that go into a savegame
+#define NB_FILES_TO_SAVE		5
 // Some handy identifier for files to make code reader friendly
 #define ROOMS					0
 #define COMPRESSED_MAP			1
 #define OBJECTS					2
 #define TUNNEL_IO				3
-#define SPRITES_PANEL			4
+#define ROUTES					4
 #define GUARDS					5
-#define CELLS					6
-#define PALETTES				7
-#define LOADER					8
-#define SPRITES					9
-#define ROUTES					10
+#define SPRITES_PANEL			6
+#define CELLS					7
+#define PALETTES				8
+#define LOADER					9
+#define SPRITES					10
 
 // Files definitions
-#define FNAMES					{ "COLDITZ_ROOM_MAPS",			\
-								  "COMPRESSED_MAP",				\
-								  "OBS.BIN",					\
-								  "TUNNELIODOORS.BIN",			\
-								  "PANEL.BIN",					\
-								  "MENDAT.BIN",					\
-								  "COLDITZ_CELLS",				\
-								  "PALS.BIN",					\
-								  "COLDITZ-LOADER",				\
-								  "SPRITES.SPR",				\
-								  "ROUTES.BIN" }
-#define FSIZES					{ 58828,		\
-								  33508,		\
-								  2056,			\
-								  120,			\
-								  11720,		\
-								  1288,			\
-								  135944,		\
-								  232,			\
-								  56080,		\
-								  71056,		\
-								  13364 }
+#define FNAMES					{ "COLDITZ_ROOM_MAPS",	\
+								  "COMPRESSED_MAP",		\
+								  "OBS.BIN",			\
+								  "TUNNELIODOORS.BIN",	\
+								  "ROUTES.BIN",			\
+								  "MENDAT.BIN",			\
+								  "PANEL.BIN",			\
+								  "COLDITZ_CELLS",		\
+								  "PALS.BIN",			\
+								  "COLDITZ-LOADER",		\
+								  "SPRITES.SPR"			}
+#define FSIZES					{ 58828,				\
+								  33508,				\
+								  2056,					\
+								  120,					\
+								  13364,				\
+								  1288,					\
+								  11720,				\
+								  135944,				\
+								  232,					\
+								  56080,				\
+								  71056					}
 // Most of the archive versions from the net use the Skid Row loader
 #define ALT_LOADER				"SKR_COLD"
 #define ALT_LOADER_SIZE			28820
@@ -318,14 +320,26 @@ extern "C" {
  */
 #define MIN_MENU_FADE			0.4f
 #define MENU_MARKER				0x20
-#define NB_MENU_SELECTIONS		5
-#define MENU_RESTART			1
-#define MENU_LOAD				2
-#define MENU_SAVE				3
+#define NB_MENUS				2
+#define NB_MENU_ITEMS			10
+#define FIRST_MENU_ITEM			3
+#define MAIN_MENU				0
+#define OPTIONS_MENU			1
+// Items for the main menu
+#define MENU_RETURN				3
+#define MENU_RESTART			4
+#define MENU_LOAD				5
+#define MENU_SAVE				6
+#define MENU_OPTIONS			7
+#define MENU_EXIT				9
+// Items for the options menu
+#define MENU_BACK_TO_MAIN		3
 #define MENU_RECORD				4
-#define MENU_EXIT				5
-
-
+#define MENU_FULLSCREEN			5
+#define MENU_SKIP_INTRO			6
+#define MENU_ENHANCED_GUARDS	7
+#define MENU_SMOOTHING			8
+#define MENU_PICTURE_CORNERS	9
 
 // Boundaries for courtyard authorized access (ROM:00002160)
 #define COURTYARD_MIN_X			0x300

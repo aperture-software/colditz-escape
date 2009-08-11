@@ -51,13 +51,7 @@
 #include "game.h"
 #include "anti-tampering.h"
 
-/////
-typedef struct
-{
-	char*	string;
-	u16		x;
-	u16		y;
-} menu_item;
+
 
 
 // variables common to game & graphics
@@ -85,7 +79,7 @@ u16  aPalette[32];					// Global palette (32 instead of 16, because
 s_sprite*	sprite;
 s_overlay*	overlay;
 u8			overlay_index;
-int			selected_menu;
+int			selected_menu_item, selected_menu;
 
 
 
@@ -1295,47 +1289,87 @@ void rescale_buffer()
 	}
 }
 
-menu_item menus[] = {
-	{ "GAME MENU", 180, 16 },
-	{ "RESTART", 196, 70},
-	{ "LOAD", 196, 96},
-	{ "SAVE", 196, 122},
-	{ "RECORD:O", 196, 148}, 
-	{ "EXIT", 196, 174},
+char* menus[NB_MENUS][NB_MENU_ITEMS] = {	
+	{" MAIN MENU", "", "", "BACK TO GAME", "RESTART", "LOAD", "SAVE", "OPTIONS", "", "EXIT GAME"} ,
+	{" OPTIONS MENU", "", "", "BACK TO MAIN MENU", "RECORD PROGRESS", "FULLSCREEN     ", "SKIP INTRO     ", "ENHANCED GUARDS", "SMOOTHING      ", "PICTURE CORNERS"} };
+char* on_off[3] = { "", ":ON", ":OFF"};
+bool  enabled_menus[NB_MENUS][NB_MENU_ITEMS] = {
+	{ 0, 0, 0, 1, 1, 1, 1, 1, 0, 1 },
+#if defined(PSP)
+	// Options like linear interprolation and fullscreen don't make sense on PSP
+	{ 0, 0, 0, 1, 1, 0, 1, 0, 0, 1 } 
+#else
+	{ 0, 0, 0, 1, 1, 1, 1, 0, 1, 1 }
+#endif
 };
-#define NB_MENU_ITEMS	SIZE_A(menus)
+
 
 void display_menu_screen()
 {
 	char c;
-	int pos = 0, i = 0;
-	int line;
-	
-	glColor4f(1.0f, 1.0f, 1.0f, 1.0f-fade_value+MIN_MENU_FADE);
+	int	i, j, line;
+	u16	line_start;
+	u8	on_off_index;
+
 
 	// Show each menu line
 	for (line = 0; line < NB_MENU_ITEMS; line++)
 	{
-		pos = 0; i = 0;
-		while ((c = menus[line].string[i++]))
-		{
-			display_sprite(menus[line].x+16*pos, menus[line].y,
-				2*PANEL_CHARS_W, 2*PANEL_CHARS_CORRECTED_H, chars_texid[c-0x20]);
-			pos++;
+		if (menus[selected_menu][line][0] == ' ')
+		{	// A menu line starting with a space must be centered
+			line_start = ((PSP_SCR_WIDTH-(strlen(menus[selected_menu][line])-1)*16)/2)&(~0x0F);
 		}
-		if (line == MENU_RECORD)
+		else if (selected_menu == MAIN_MENU)
+			line_start = 176;
+		else
+			line_start = 112;
+
+		// "grey-out" disabled menus
+		if ((line>=FIRST_MENU_ITEM) && (!enabled_menus[selected_menu][line]))
+			glColor4f(0.7f, 0.4f, 0.3f, 1.0f-fade_value+MIN_MENU_FADE);
+		else
+			glColor4f(1.0f, 1.0f, 1.0f, 1.0f-fade_value+MIN_MENU_FADE);
+
+		for (i=0; (c = menus[selected_menu][line][i]); i++)
 		{
-			if (opt_record_data)
-				display_sprite(menus[line].x+16*pos, menus[line].y,
-					2*PANEL_CHARS_W, 2*PANEL_CHARS_CORRECTED_H, chars_texid['N'-0x20]);
-			else for(i=0; i<2; i++)
-				display_sprite(menus[line].x+16*(pos+i), menus[line].y,
-					2*PANEL_CHARS_W, 2*PANEL_CHARS_CORRECTED_H, chars_texid['F'-0x20]);
+			display_sprite(line_start+16*i, 32+16*line,
+				2*PANEL_CHARS_W, 2*PANEL_CHARS_CORRECTED_H, chars_texid[c-0x20]);
+		}
+
+		if (selected_menu == OPTIONS_MENU)
+		{	// Display the ON/OFF status of toggables
+			switch(line)
+			{
+			case MENU_RECORD:
+				on_off_index = opt_record_data?1:2;
+				break;
+			case MENU_SMOOTHING:
+				on_off_index = opt_gl_linear?1:2;
+				break;
+			case MENU_ENHANCED_GUARDS:
+				on_off_index = opt_enhanced_guard_handling?1:2;
+				break;
+			case MENU_SKIP_INTRO:
+				on_off_index = opt_skip_intro?1:2;
+				break;
+			case MENU_FULLSCREEN:
+				on_off_index = opt_fullscreen?1:2;
+				break;
+			case MENU_PICTURE_CORNERS:
+				on_off_index = opt_picture_corners?1:2;
+				break;
+			default:
+				on_off_index = 0;
+				break;
+			}
+			for (j=0; (c = on_off[on_off_index][j]); i++,j++)
+				display_sprite(line_start+16*i, 32+16*line,
+					2*PANEL_CHARS_W, 2*PANEL_CHARS_CORRECTED_H, chars_texid[c-0x20]);
 		}
 	}
-
 	// Selection cursor
-	display_sprite(180, menus[selected_menu].y,
+	glColor4f(1.0f, 1.0f, 1.0f, 1.0f-fade_value+MIN_MENU_FADE);
+	display_sprite(line_start-20, 32+16*selected_menu_item,
 		2*PANEL_CHARS_W, 2*PANEL_CHARS_CORRECTED_H, chars_texid[MENU_MARKER]);
 
 	glColor4f(fade_value, fade_value, fade_value, 0);

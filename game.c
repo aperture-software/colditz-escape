@@ -325,10 +325,8 @@ void create_record()
 		t->tm_hour, t->tm_min, t->tm_sec);
 
 	if (rfd != NULL)
-	{
+	// This will close the file as well
 		record(0);
-		fclose(rfd);
-	}
 
 	if ((rfd = fopen(rec_name, "wb")) == NULL)
 	{
@@ -548,6 +546,92 @@ void newgame_init()
 	game_restart = true;
 }
 
+#define SAVE_SINGLE(el)  if (fwrite(&el, sizeof(el), 1, fd) != 1) return false
+#define SAVE_ARRAY(ar)   if (fwrite(ar, sizeof(ar[0]), SIZE_A(ar), fd) != SIZE_A(ar)) return false;
+#define SAVE_BUFFER(buf) if (fwrite(fbuffer[buf], 1, fsize[buf], fd) !=  fsize[buf]) return false;
+bool save_game(char* save_name)
+{
+	int i;
+
+	if ((fd = fopen(save_name, "wb")) == NULL)
+		return false;
+
+	// Save the current nation
+	SAVE_SINGLE(current_nation);
+	SAVE_SINGLE(palette_index);
+	SAVE_SINGLE(hours_digit_h);
+	SAVE_SINGLE(hours_digit_l);
+	SAVE_SINGLE(minutes_digit_h);
+	SAVE_SINGLE(minutes_digit_l);
+	SAVE_SINGLE(game_time);
+	SAVE_SINGLE(last_ctime);
+	SAVE_SINGLE(last_atime);
+	SAVE_SINGLE(last_ptime);
+
+	SAVE_ARRAY(guybrush);
+	SAVE_ARRAY(p_event);
+	for (i=0; i<NB_FILES_TO_SAVE; i++)
+	{
+		SAVE_BUFFER(i);
+	}
+
+	fclose(fd);
+	return true;
+
+}
+
+#define LOAD_SINGLE(el)  if (fread(&el, sizeof(el), 1 , fd) != 1) return false
+#define LOAD_ARRAY(ar)   if (fread(ar, sizeof(ar[0]), SIZE_A(ar), fd) != SIZE_A(ar)) return false;
+#define LOAD_BUFFER(buf) if (fread(fbuffer[buf], 1, fsize[buf], fd) !=  fsize[buf]) return false;
+bool load_game(char* load_name)
+{
+	int i,j;
+	if ((fd = fopen(load_name, "rb")) == NULL)
+		return false;
+
+	LOAD_SINGLE(current_nation);
+	LOAD_SINGLE(palette_index);
+	LOAD_SINGLE(hours_digit_h);
+	LOAD_SINGLE(hours_digit_l);
+	LOAD_SINGLE(minutes_digit_h);
+	LOAD_SINGLE(minutes_digit_l);
+	LOAD_SINGLE(game_time);
+	LOAD_SINGLE(last_ctime);
+	LOAD_SINGLE(last_atime);
+	LOAD_SINGLE(last_ptime);
+
+	LOAD_ARRAY(guybrush);
+	LOAD_ARRAY(p_event);
+	for (i=0; i<NB_FILES_TO_SAVE; i++)
+	{
+		LOAD_BUFFER(i);
+	}
+
+//TO_DO: check if this works
+
+	// This will be needed to hide the pickable objects on the outside map
+	// if the removable walls are set
+	for (i=0; i<CMP_MAP_WIDTH; i++)
+		for (j=0; j<CMP_MAP_HEIGHT; j++)
+			remove_props[i][j] = 0;
+
+	// Restore the palette
+	to_16bit_palette(palette_index, 0xFF, PALETTES);
+	cells_to_wGRAB(fbuffer[CELLS],rgbCells);
+	sprites_to_wGRAB();
+
+	// Reset the room props & animations  
+	init_animations = true;
+	set_room_props();
+
+	// Update time
+	t_last = mtime();
+
+	fclose(fd);
+
+
+	return true;
+}
 
 
 

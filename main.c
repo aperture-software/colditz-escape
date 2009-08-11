@@ -88,7 +88,7 @@ bool opt_verbose				= false;
 // Console debug
 bool opt_debug					= false;
 // Additional oncreen debug info
-bool opt_onscreen_debug			= true;
+bool opt_onscreen_debug			= false;
 bool opt_ghost					= false;
 bool opt_play_as_the_safe		= false;
 // Who needs keys?
@@ -117,6 +117,9 @@ bool is_fire_pressed			= false;
 float fade_value				= 1.0f;
 // false for fade in, true for fade out
 bool fade_out					= false;
+// Save config.xml?
+bool config_save				= false;	
+
 
 // We'll need this to retrieve our glutIdle function after a suspended state
 // (but make sure we don't change idle if already suspended, which can happen on PSP printf)
@@ -134,6 +137,8 @@ u8*	  rgbCells				= NULL;
 u8*   static_image_buffer   = NULL;
 s_tex texture[NB_TEXTURES]	= TEXTURES;
 char* mod_name[NB_MODS]		= MOD_NAMES;
+const char confname[]		= "config.xml";
+
 
 
 // OpenGL window size
@@ -475,20 +480,16 @@ void user_input()
 	s16 exit_nr;
 	u8	cur_prop;
 
-	// Return to intro screen
+	// Access the menu
 	if (read_key_once(KEY_ESCAPE))
-/*	{
-		RECORD(0);
-		LEAVE;
-	}
-
-	if (key_down['m'])
-*/	{
+	{
 		game_state |= GAME_STATE_MENU;
-		selected_menu = 1;
+		selected_menu = MAIN_MENU;
+		selected_menu_item = FIRST_MENU_ITEM;
 		picture_state = GAME_FADE_OUT_START;
 		// Switch to a different idle function
 		glutIdleFunc_save(glut_idle_static_pic);
+		config_save = false;
 	}
 
 	// Handle the pausing of the game 
@@ -951,10 +952,13 @@ static void glut_idle_game(void)
 }
 
 
+
+#define TOG(option) {option=(option)?0:1; config_save=true;}
 // We'll use a different idle function for static picture
 static void glut_idle_static_pic(void)
 {
 	float min_fade;
+	static int old_w=2*PSP_SCR_WIDTH, old_h=2*PSP_SCR_HEIGHT;
 
 	min_fade = (menu)?MIN_MENU_FADE:0.0f;
 	// As usual, we'll need the current time value for a bunch of stuff
@@ -962,42 +966,95 @@ static void glut_idle_static_pic(void)
 
 	if (menu)
 	{
-		if (read_key_once(SPECIAL_KEY_UP))
-			selected_menu = (selected_menu+NB_MENU_SELECTIONS-2)%NB_MENU_SELECTIONS + 1;
-
-		if (read_key_once(SPECIAL_KEY_DOWN))
-			selected_menu = (selected_menu%NB_MENU_SELECTIONS)+1;
-
-		if (read_key_once(KEY_FIRE))
+		// Menu navigation (up or down)
+		if (read_key_once(SPECIAL_KEY_UP) || read_key_once(KEY_DIRECTION_UP))
 		{
-			switch(selected_menu)
+			do 
+				selected_menu_item = (selected_menu_item+NB_MENU_ITEMS-1)%NB_MENU_ITEMS;
+			while (!enabled_menus[selected_menu][selected_menu_item]);
+		}
+		if (read_key_once(SPECIAL_KEY_DOWN) || read_key_once(KEY_DIRECTION_DOWN))
+		{
+			do 
+				selected_menu_item = (selected_menu_item+1)%NB_MENU_ITEMS;
+			while (!enabled_menus[selected_menu][selected_menu_item]);
+		}
+
+		if (read_key_once(KEY_FIRE) || read_key_once(0x0D) || read_key_once(' ') ||
+			read_key_once(SPECIAL_KEY_LEFT) || read_key_once(SPECIAL_KEY_RIGHT) )
+		{
+			if (selected_menu == OPTIONS_MENU)
 			{
-			case MENU_RESTART:
-				break;
-			case MENU_LOAD:	
-				break;
-			case MENU_SAVE:	
-				break;
-			case MENU_RECORD:
-				if (opt_record_data)
-					opt_record_data = false;
-				else
-					opt_record_data = true;
-				break;
-			case MENU_EXIT:
-				RECORD(0);
-				LEAVE;
-				break;
+				switch(selected_menu_item)
+				{
+				case MENU_BACK_TO_MAIN:
+					selected_menu = MAIN_MENU;
+					selected_menu_item = FIRST_MENU_ITEM;
+					break;
+				case MENU_RECORD:
+					TOG(opt_record_data);
+					break;
+				case MENU_ENHANCED_GUARDS:
+					TOG(opt_enhanced_guard_handling);
+					break;
+				case MENU_SKIP_INTRO:
+					TOG(opt_skip_intro);
+					break;
+// The following only make sense on Windows
+#if !defined(PSP)
+				case MENU_SMOOTHING:
+					TOG(opt_gl_linear);
+					break;
+				case MENU_FULLSCREEN:
+					TOG(opt_fullscreen);
+					if (opt_fullscreen)
+					{
+						old_w = gl_width;
+						old_h = gl_height;
+						glutFullScreen();
+					}
+					else
+						glutReshapeWindow(old_w, old_h);
+					break;
+#endif
+				case MENU_PICTURE_CORNERS:
+					TOG(opt_picture_corners);
+					break;
+				default:
+					break;
+				}
+			}
+			else if (selected_menu == MAIN_MENU)
+			{
+				switch(selected_menu_item)
+				{
+				case MENU_RETURN:
+					picture_state = GAME_FADE_IN_START;
+					break;
+				case MENU_RESTART:
+					newgame_init();
+					break;
+				case MENU_LOAD:
+					load_game("asave.cdz");
+					break;
+				case MENU_SAVE:
+					save_game("asave.cdz");
+					break;
+				case MENU_OPTIONS:
+					selected_menu = OPTIONS_MENU;
+					selected_menu_item = FIRST_MENU_ITEM;
+					break;
+				case MENU_EXIT:
+					RECORD(0);
+					LEAVE;
+					break;
+				default:
+					break;
+				}
 			}
 		}
 	}
-/*
-	if (key_down[KEY_ESCAPE])
-	{
-		RECORD(0);
-		LEAVE;
-	}
-*/
+
 	if ((intro) && read_key_once(last_key_used))
 	{	// Exit intro => start new game
 		mod_release();
@@ -1105,7 +1162,11 @@ static void glut_idle_static_pic(void)
 		if (menu)
 		{ 
 			if (read_key_once(KEY_ESCAPE))
-				picture_state+=3;
+			{
+				if ((config_save) && (!write_xml(confname)))
+					perr("Error rewritting %s.\n", confname);
+				picture_state = GAME_FADE_IN_START;
+			}
 		}
 		else if (read_key_once(last_key_used) || 
 			( (!game_over) && (!paused) && (program_time-picture_t > PICTURE_TIMEOUT)))
@@ -1390,7 +1451,6 @@ int main (int argc, char *argv[])
 	int opt_sfx				= 0;
 	// General purpose
 	u32  i;
-	const char confname[] = "config.xml";
 
 
 #if defined(PSP)
