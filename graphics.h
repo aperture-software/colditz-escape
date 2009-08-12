@@ -62,8 +62,6 @@ extern int			selected_menu_item, selected_menu;
 extern char*		menus[NB_MENUS][NB_MENU_ITEMS];
 extern bool			enabled_menus[NB_MENUS][NB_MENU_ITEMS];
 
-
-
 /*
  *	Public prototypes
  */
@@ -74,6 +72,7 @@ void display_room();
 void display_picture();
 void display_panel();
 void rescale_buffer();
+void create_savegame_list();
 void display_menu_screen();
 void create_pause_screen();
 void display_pause_screen();

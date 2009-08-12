@@ -99,7 +99,7 @@ static __inline void psp_any_key()
 #define FATAL			back_to_kernel()
 #endif
 #endif
-#define ERR_EXIT		{if (fd!=NULL) fclose(fd); RECORD(0xDEAD); RECORD(0); fflush(stdout); FATAL;}
+#define ERR_EXIT		{if (fd!=NULL) fclose(fd); fflush(stdout); FATAL;}
 #define perr(...)		fprintf(stderr, __VA_ARGS__)
 #define print(...)		printf(__VA_ARGS__)
 #define printv(...)		if(opt_verbose) print(__VA_ARGS__)

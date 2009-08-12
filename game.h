@@ -101,7 +101,6 @@ static __inline void consume_prop()
 	if (!opt_keymaster)
 	{	// consume the prop
 		props[current_nation][selected_prop[current_nation]]--;
-		RECORD(R_USE + selected_prop[current_nation]);
 		if (props[current_nation][selected_prop[current_nation]] == 0)
 		// display the empty box if last prop
 			selected_prop[current_nation] = 0;
@@ -157,8 +156,7 @@ void cmp_set_overlays();
 void removable_walls();
 void add_guybrushes();
 void sort_overlays(u8 a[], u8 n);
-void create_record();
-void record(u16 data);
+void play_cluck();
 	
 #ifdef	__cplusplus
 }

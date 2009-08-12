@@ -71,6 +71,7 @@
 #include "videoplayer.h"
 #include "eschew/eschew.h"
 #include "conf.h"
+#include "anti-tampering.h"
 
 // Global variables
 
@@ -102,8 +103,6 @@ int opt_sid						= -1;
 bool opt_no_guards				= false;
 // Is the castle haunted by the ghost of shot prisoners
 bool opt_haunted_castle			= true;
-// Record data
-bool opt_record_data			= true;
 // Current static picture to show
 int current_picture				= INTRO_SCREEN_START;
 // Our second local pause variable, to help with the transition
@@ -127,7 +126,6 @@ bool config_save				= false;
 
 // File stuff
 FILE* fd					= NULL;
-FILE* rfd					= NULL;
 char* fname[NB_FILES]		= FNAMES;			// file name(s)
 u32   fsize[NB_FILES]		= FSIZES;
 u8*   fbuffer[NB_FILES];
@@ -138,7 +136,9 @@ u8*   static_image_buffer   = NULL;
 s_tex texture[NB_TEXTURES]	= TEXTURES;
 char* mod_name[NB_MODS]		= MOD_NAMES;
 const char confname[]		= "config.xml";
-
+#if defined(ANTI_TAMPERING_ENABLED)
+const u8 fmd5hash[NB_FILES][16] = FMD5HASHES;
+#endif
 
 
 // OpenGL window size
@@ -259,7 +259,7 @@ void update_timers()
 		// We probably gone out of a suspended state from the PSP or PC
 		// Don't screw up our game timers then
 		delta_t = 0;
-		printf("update_timers: more than one second elapsed since last time update\n");
+		printv("update_timers: more than one second elapsed since last time update\n");
 	}
 
 	program_time += delta_t;
@@ -730,7 +730,6 @@ void user_input()
 					props[current_nation][over_prop_id]++;
 					selected_prop[current_nation] = over_prop_id;
 					show_prop_count();
-					RECORD(R_PICK + over_prop_id);
 				}
 			}
 			else
@@ -762,8 +761,6 @@ void user_input()
 					}
 					if (!found)		// Somebody's cheating!
 						printf("Could not find any free prop variable => discarding prop.\n");
-
-					RECORD(R_DROP + over_prop_id);
 
 					props[current_nation][over_prop_id]--;
 					if (props[current_nation][over_prop_id] == 0)
@@ -888,7 +885,6 @@ static void glut_idle_game(void)
 					for (i=0; i<NB_NATIONS; i++)
 						if (!(guy(i).state & STATE_SLEEPING) && (!p_event[i].killed))
 							p_event[i].fatigue += HOURLY_FATIGUE_INCREASE;
-					RECORD(R_HOUR);
 				}
 			}
 
@@ -951,109 +947,171 @@ static void glut_idle_game(void)
 //		msleep(REPOSITION_INTERVAL/5);
 }
 
-
-
+// Menu navigation
 #define TOG(option) {option=(option)?0:1; config_save=true;}
+void process_menu()
+{
+	char save_name[] = "colditz_00.sav";
+#if !defined(PSP)
+	static int old_w=2*PSP_SCR_WIDTH, old_h=2*PSP_SCR_HEIGHT;
+#endif
+
+	// Menu navigation (up or down)
+	if (read_key_once(SPECIAL_KEY_UP) || read_key_once(KEY_DIRECTION_UP))
+	{
+		do 
+			selected_menu_item = (selected_menu_item+NB_MENU_ITEMS-1)%NB_MENU_ITEMS;
+		while (!enabled_menus[selected_menu][selected_menu_item]);
+	}
+	if (read_key_once(SPECIAL_KEY_DOWN) || read_key_once(KEY_DIRECTION_DOWN))
+	{
+		do 
+			selected_menu_item = (selected_menu_item+1)%NB_MENU_ITEMS;
+		while (!enabled_menus[selected_menu][selected_menu_item]);
+	}
+
+	if (read_key_once(KEY_FIRE) || read_key_once(0x0D) || read_key_once(' ') ||
+		read_key_once(SPECIAL_KEY_LEFT) || read_key_once(SPECIAL_KEY_RIGHT) )
+	{
+		switch (selected_menu)
+		{
+		case MAIN_MENU:
+			switch(selected_menu_item)
+			{
+			case MENU_RETURN:
+				picture_state = GAME_FADE_IN_START;
+				break;
+			case MENU_RESTART:
+				newgame_init();
+				break;
+			case MENU_LOAD:
+			case MENU_SAVE:
+				create_savegame_list();
+				if (selected_menu_item == MENU_LOAD)
+					selected_menu = LOAD_MENU;
+				else
+					selected_menu = SAVE_MENU;
+				selected_menu_item = FIRST_MENU_ITEM;
+				break;
+			case MENU_OPTIONS:
+				selected_menu = OPTIONS_MENU;
+				selected_menu_item = FIRST_MENU_ITEM;
+				break;
+			case MENU_EXIT:
+				if ((config_save) && (!write_xml(confname)))
+					perr("Error rewritting %s.\n", confname);
+				LEAVE;
+				break;
+			default:
+				break;
+			}
+			break;
+		case OPTIONS_MENU:
+			switch(selected_menu_item)
+			{
+			case MENU_BACK_TO_MAIN:
+				if ((config_save) && (!write_xml(confname)))
+					perr("Error rewritting %s.\n", confname);
+				selected_menu = MAIN_MENU;
+				selected_menu_item = FIRST_MENU_ITEM;
+				break;
+			case MENU_ENHANCED_GUARDS:
+				TOG(opt_enhanced_guard_handling);
+				break;
+			case MENU_SKIP_INTRO:
+				TOG(opt_skip_intro);
+				break;
+// The following only make sense on Windows
+#if defined(WIN32)
+			case MENU_SMOOTHING:
+				TOG(opt_gl_linear);
+				break;
+			case MENU_FULLSCREEN:
+				TOG(opt_fullscreen);
+				if (opt_fullscreen)
+				{
+					old_w = gl_width;
+					old_h = gl_height;
+					glutFullScreen();
+				}
+				else
+					glutReshapeWindow(old_w, old_h);
+				break;
+#endif
+			case MENU_PICTURE_CORNERS:
+				TOG(opt_picture_corners);
+				break;
+			case MENU_ORIGINAL_MODE:
+				TOG(opt_original_mode);
+				if (opt_original_mode)
+				{
+					opt_enhanced_guard_handling = false;
+					enabled_menus[OPTIONS_MENU][MENU_ENHANCED_GUARDS] = 0;
+					enabled_menus[MAIN_MENU][MENU_SAVE] = 0;
+					enabled_menus[MAIN_MENU][MENU_LOAD] = 0;
+				}
+				else
+				{
+					enabled_menus[OPTIONS_MENU][MENU_ENHANCED_GUARDS] = 1;
+					enabled_menus[MAIN_MENU][MENU_SAVE] = 1;
+					enabled_menus[MAIN_MENU][MENU_LOAD] = 1;
+					play_cluck();
+				}
+				break;
+			default:
+				break;
+			}
+			break;
+		case SAVE_MENU:
+		case LOAD_MENU:
+			if (selected_menu_item == MENU_BACK_TO_MAIN)
+			{
+				selected_menu = MAIN_MENU;
+				selected_menu_item = FIRST_MENU_ITEM;
+			}
+			else
+			{
+				sprintf(save_name, "colditz_%02d.sav", selected_menu_item-3);
+				if (selected_menu == LOAD_MENU)
+				{
+					if (!load_game(save_name))
+					{
+						menus[LOAD_MENU][selected_menu_item] = "<LOAD FAILED!>";
+						// If we couldn't load, better reset the whole lot
+						newgame_init();
+					}
+				}
+				else
+				{
+					if(!save_game(save_name))
+					{
+						menus[SAVE_MENU][selected_menu_item] = "<SAVE FAILED!>";
+						// Try to delete the failed file
+						remove(save_name);
+					}
+					else	// Update the saved games display
+						create_savegame_list();
+				}
+			}
+			break;
+		default:
+			break;
+		}
+	}
+}
+
+
 // We'll use a different idle function for static picture
 static void glut_idle_static_pic(void)
 {
 	float min_fade;
-	static int old_w=2*PSP_SCR_WIDTH, old_h=2*PSP_SCR_HEIGHT;
 
 	min_fade = (menu)?MIN_MENU_FADE:0.0f;
 	// As usual, we'll need the current time value for a bunch of stuff
 	update_timers();
 
 	if (menu)
-	{
-		// Menu navigation (up or down)
-		if (read_key_once(SPECIAL_KEY_UP) || read_key_once(KEY_DIRECTION_UP))
-		{
-			do 
-				selected_menu_item = (selected_menu_item+NB_MENU_ITEMS-1)%NB_MENU_ITEMS;
-			while (!enabled_menus[selected_menu][selected_menu_item]);
-		}
-		if (read_key_once(SPECIAL_KEY_DOWN) || read_key_once(KEY_DIRECTION_DOWN))
-		{
-			do 
-				selected_menu_item = (selected_menu_item+1)%NB_MENU_ITEMS;
-			while (!enabled_menus[selected_menu][selected_menu_item]);
-		}
-
-		if (read_key_once(KEY_FIRE) || read_key_once(0x0D) || read_key_once(' ') ||
-			read_key_once(SPECIAL_KEY_LEFT) || read_key_once(SPECIAL_KEY_RIGHT) )
-		{
-			if (selected_menu == OPTIONS_MENU)
-			{
-				switch(selected_menu_item)
-				{
-				case MENU_BACK_TO_MAIN:
-					selected_menu = MAIN_MENU;
-					selected_menu_item = FIRST_MENU_ITEM;
-					break;
-				case MENU_RECORD:
-					TOG(opt_record_data);
-					break;
-				case MENU_ENHANCED_GUARDS:
-					TOG(opt_enhanced_guard_handling);
-					break;
-				case MENU_SKIP_INTRO:
-					TOG(opt_skip_intro);
-					break;
-// The following only make sense on Windows
-#if !defined(PSP)
-				case MENU_SMOOTHING:
-					TOG(opt_gl_linear);
-					break;
-				case MENU_FULLSCREEN:
-					TOG(opt_fullscreen);
-					if (opt_fullscreen)
-					{
-						old_w = gl_width;
-						old_h = gl_height;
-						glutFullScreen();
-					}
-					else
-						glutReshapeWindow(old_w, old_h);
-					break;
-#endif
-				case MENU_PICTURE_CORNERS:
-					TOG(opt_picture_corners);
-					break;
-				default:
-					break;
-				}
-			}
-			else if (selected_menu == MAIN_MENU)
-			{
-				switch(selected_menu_item)
-				{
-				case MENU_RETURN:
-					picture_state = GAME_FADE_IN_START;
-					break;
-				case MENU_RESTART:
-					newgame_init();
-					break;
-				case MENU_LOAD:
-					load_game("asave.cdz");
-					break;
-				case MENU_SAVE:
-					save_game("asave.cdz");
-					break;
-				case MENU_OPTIONS:
-					selected_menu = OPTIONS_MENU;
-					selected_menu_item = FIRST_MENU_ITEM;
-					break;
-				case MENU_EXIT:
-					RECORD(0);
-					LEAVE;
-					break;
-				default:
-					break;
-				}
-			}
-		}
-	}
+		process_menu();
 
 	if ((intro) && read_key_once(last_key_used))
 	{	// Exit intro => start new game
@@ -1452,7 +1510,6 @@ int main (int argc, char *argv[])
 	// General purpose
 	u32  i;
 
-
 #if defined(PSP)
 	setup_callbacks();
 	gl_width = PSP_SCR_WIDTH;
@@ -1517,6 +1574,13 @@ int main (int argc, char *argv[])
 		if (!write_xml(confname))
 			perr("  ERROR.\n");
 	}
+	if (opt_original_mode)
+	{
+		opt_enhanced_guard_handling = false;
+		enabled_menus[OPTIONS_MENU][MENU_ENHANCED_GUARDS] = 0;
+		enabled_menus[MAIN_MENU][MENU_SAVE] = 0;
+		enabled_menus[MAIN_MENU][MENU_LOAD] = 0;
+	}
 
 #if !defined(PSP)
 	if (opt_fullscreen)
@@ -1534,6 +1598,14 @@ int main (int argc, char *argv[])
 	// Load the data. If it's the first time the game is ran, we might have
 	// to uncompress LOADTUNE.MUS (PowerPack) and SKR_COLD (custom compression)
 	load_all_files();
+#if defined(ANTI_TAMPERING_ENABLED)
+	for (i=0; i<NB_FILES; i++)
+		if (!integrity_check(i))
+		{
+			perr("Integrity check failure on file '%s'\n", fname[i]);
+			ERR_EXIT;
+		}
+#endif
 	depack_loadtune();
 
 	// Some of the files need patching (this was done too in the original game!)
@@ -1551,6 +1623,8 @@ int main (int argc, char *argv[])
 	// We might want some sound
 	if (!audio_init())
 		perr("Could not Initialize audio\n");
+
+	
 
 	// We're going to convert the cells array, from 2 pixels per byte (paletted)
 	// to on RGB(A) word per pixel

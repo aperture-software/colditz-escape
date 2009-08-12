@@ -38,7 +38,7 @@
 #include "data-types.h"
 /*
 	This constant *MUST* be defined before including eschew.h,
-	*IN* the source where you will do the runtime initialization
+	*IN* the source where you do the runtime initialization
 */
 #define INIT_XML_ACTUAL_INIT
 #include "eschew/eschew.h"
@@ -98,6 +98,10 @@ void set_xml_defaults()
 	SET_XML_NODE_DEFAULT(options, joy_deadzone, 450);
     SET_XML_NODE_COMMENT(options, joy_deadzone,
 		" joystick deadzone");
+	SET_XML_NODE_DEFAULT(options, original_mode, true);
+    SET_XML_NODE_COMMENT(options, original_mode,
+		" Bwak! Bwaaak! Chicken!!! ");
+
 
 #if defined(PSP)
 #define SET_CONTROLS_DEFAULT(key, val1, val2) 							\

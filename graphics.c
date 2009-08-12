@@ -24,6 +24,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 
 #if defined(WIN32)
 #include <windows.h>
@@ -49,10 +52,10 @@
 #include "conf.h"
 #include "graphics.h"
 #include "game.h"
-#include "anti-tampering.h"
 
-
-
+#if defined(WIN32)
+#define stat _stat
+#endif
 
 // variables common to game & graphics
 extern u8	remove_props[CMP_MAP_WIDTH][CMP_MAP_HEIGHT];
@@ -79,8 +82,31 @@ u16  aPalette[32];					// Global palette (32 instead of 16, because
 s_sprite*	sprite;
 s_overlay*	overlay;
 u8			overlay_index;
-int			selected_menu_item, selected_menu;
 
+/*
+ *	Menu variables & consts
+ */
+int	  selected_menu_item, selected_menu;
+char save_list[NB_SAVEGAMES][20];
+char* menus[NB_MENUS][NB_MENU_ITEMS] = {	
+	{" MAIN MENU", "", "", "BACK TO GAME", "RESET GAME", "SAVE", "LOAD", "OPTIONS", "", "EXIT GAME"} ,
+	{" OPTIONS MENU", "", "", "BACK TO MAIN MENU", "SKIP INTRO     ", "PICTURE CORNERS", 
+	 "SMOOTHING      ", "FULLSCREEN     ", "ENHANCED GUARDS", "ORIGINAL MODE  " },
+	{" SAVE MENU", "", "", "BACK TO MAIN MENU", NULL, NULL, NULL, NULL, NULL, NULL},
+	{" LOAD MENU", "", "", "BACK TO MAIN MENU", NULL, NULL, NULL, NULL, NULL, NULL} };
+char* on_off[3] = { "", ":ON", ":OFF"};
+
+bool  enabled_menus[NB_MENUS][NB_MENU_ITEMS] = {
+	{ 0, 0, 0, 1, 1, 1, 1, 1, 0, 1 },
+#if defined(PSP)
+	// Options like linear interprolation and fullscreen don't make sense on PSP
+	{ 0, 0, 0, 1, 1, 1, 0, 0, 1, 1 }, 
+#else
+	{ 0, 0, 0, 1, 1, 1, 1, 1, 1, 1 },
+#endif
+	{ 0, 0, 0, 1, 1, 1, 1, 1, 1, 1 },	// Save: all slots enabled by default
+	{ 0, 0, 0, 1, 0, 0, 0, 0, 0, 0 }	// Load: no slots available by default
+};
 
 
 
@@ -176,7 +202,7 @@ void set_textures()
 	// 
 	// If you're really unhappy about this kind of practice, just allocate 512x512x3
 	background_buffer = (u8*) aligned_malloc(512*PSP_SCR_HEIGHT*3,16);
-//	static_image_buffer = (u8*) aligned_malloc(512*512*3,16);	
+//	background_buffer = (u8*) aligned_malloc(512*512*3,16);	
 	if (background_buffer == NULL)
 		printf("Could not allocate buffer for static images display\n");
 
@@ -463,7 +489,6 @@ void init_sprites()
 	u16 sprite_w;	// width, in words
 	u32 sprite_address;
 
-
 	// Allocate the sprites and overlay arrays
 	sprite = aligned_malloc(NB_SPRITES * sizeof(s_sprite), 16);
 	overlay = aligned_malloc(MAX_OVERLAYS * sizeof(s_overlay), 16);
@@ -507,14 +532,6 @@ void init_sprites()
 	sprite[0xac].x_offset = -16;
 	sprite[0xaf].x_offset = -16;
 	sprite[0xb0].x_offset = -16;
-
-#if defined(ANTI_TAMPERING_ENABLED)
-	if (!integrity_check(OBJECTS))
-	{
-		printf("Program failure\n");
-		exit(1);
-	}
-#endif
 
 	// We add the panel (nonstandard) sprites at the end of our exitsing sprite array
 	for (sprite_index=NB_STANDARD_SPRITES; sprite_index<NB_SPRITES-NB_EXTRA_SPRITES; sprite_index++)
@@ -863,10 +880,11 @@ void display_room()
 
 		// These are the min/max tile boundary computation for PSP screen
 		// according to our cropped section
-		min_y = prisoner_2y/32 - 8;
+		min_y = prisoner_2y/32 - 7;
 		if (min_y < 0)
 			min_y = 0;
 
+		// +12 if you remove the bottom crop
 		max_y = prisoner_2y/32 + 10;
 		if (max_y > room_y)
 			max_y = room_y;
@@ -1077,6 +1095,30 @@ void display_panel()
 	// We either use textured picture corners for that, or black triangles
 	if (opt_picture_corners)
 	{	// Picture corners
+#if defined(CROP_PICTURE)
+		glDisable(GL_TEXTURE_2D);
+		glColor3f(0.0f, 0.0f, 0.0f);	
+		glBegin(GL_LINES);
+			// left handside
+			glVertex2f(0, 1);
+			glVertex2f(0, PSP_SCR_HEIGHT-1);
+//			glVertex2f(1, 1);
+//			glVertex2f(1, PSP_SCR_HEIGHT-1);
+			// right handside
+			glVertex2f(PSP_SCR_WIDTH-1, 1);
+			glVertex2f(PSP_SCR_WIDTH-1, PSP_SCR_HEIGHT-1);
+//			glVertex2f(PSP_SCR_WIDTH-2, 1);
+//			glVertex2f(PSP_SCR_WIDTH-2, PSP_SCR_HEIGHT-1);
+			// top
+			glVertex2f(0, 1);
+			glVertex2f(PSP_SCR_WIDTH-1, 1);
+//			glVertex2f(0, 2);
+//			glVertex2f(PSP_SCR_WIDTH-1, 2);
+		glEnd();
+		glColor3f(fade_value, fade_value, fade_value);
+		glEnable(GL_TEXTURE_2D);
+#endif
+
 		// Note that if you don't want to slow the game on PSP, the corner.raw
 		// file that contains the texture MUST be 4 bit RGBA. If using standard
 		// 8 bit RGBA, the blending will slow us down big time!
@@ -1118,21 +1160,21 @@ void display_panel()
 			glTexCoord2f(1, 0);
 			glVertex2f(PSP_SCR_WIDTH-w, PSP_SCR_HEIGHT-0);
 			glTexCoord2f(1, 1);
-			glVertex2f(PSP_SCR_WIDTH-w, PSP_SCR_HEIGHT-h);
+			glVertex2f(PSP_SCR_WIDTH-w, PSP_SCR_HEIGHT-0-h);
 			glTexCoord2f(0, 1);
-			glVertex2f(PSP_SCR_WIDTH-0, PSP_SCR_HEIGHT-h);
+			glVertex2f(PSP_SCR_WIDTH-0, PSP_SCR_HEIGHT-0-h);
 		glEnd();
 
 		// bottom left
 		glBegin(GL_TRIANGLE_FAN);
 			glTexCoord2f(0, 0);
-			glVertex2f(0, PSP_SCR_HEIGHT-0);
+			glVertex2f(0, PSP_SCR_HEIGHT-0-0);
 			glTexCoord2f(1, 0);
-			glVertex2f(w, PSP_SCR_HEIGHT-0);
+			glVertex2f(w, PSP_SCR_HEIGHT-0-0);
 			glTexCoord2f(1, 1);
-			glVertex2f(w, PSP_SCR_HEIGHT-h);
+			glVertex2f(w, PSP_SCR_HEIGHT-h-0);
 			glTexCoord2f(0, 1);
-			glVertex2f(0, PSP_SCR_HEIGHT-h);
+			glVertex2f(0, PSP_SCR_HEIGHT-h-0);
 		glEnd();
 	}
 	else
@@ -1289,19 +1331,34 @@ void rescale_buffer()
 	}
 }
 
-char* menus[NB_MENUS][NB_MENU_ITEMS] = {	
-	{" MAIN MENU", "", "", "BACK TO GAME", "RESTART", "LOAD", "SAVE", "OPTIONS", "", "EXIT GAME"} ,
-	{" OPTIONS MENU", "", "", "BACK TO MAIN MENU", "RECORD PROGRESS", "FULLSCREEN     ", "SKIP INTRO     ", "ENHANCED GUARDS", "SMOOTHING      ", "PICTURE CORNERS"} };
-char* on_off[3] = { "", ":ON", ":OFF"};
-bool  enabled_menus[NB_MENUS][NB_MENU_ITEMS] = {
-	{ 0, 0, 0, 1, 1, 1, 1, 1, 0, 1 },
-#if defined(PSP)
-	// Options like linear interprolation and fullscreen don't make sense on PSP
-	{ 0, 0, 0, 1, 1, 0, 1, 0, 0, 1 } 
-#else
-	{ 0, 0, 0, 1, 1, 1, 1, 0, 1, 1 }
-#endif
-};
+
+// Savegame lists used by menus
+void create_savegame_list()
+{
+	int i;
+	char save_name[] = "colditz_00.sav";
+	struct stat buffer;
+	struct tm* t;
+
+	for (i=0; i<NB_SAVEGAMES; i++)
+	{
+		sprintf(save_name, "colditz_%02d.sav", i+1);
+		if (stat(save_name, &buffer))
+		{
+			sprintf(save_list[i], "<EMPTY SLOT>");
+			enabled_menus[LOAD_MENU][i+4] = 0;
+		}
+		else
+		{
+			t = localtime(&buffer.st_mtime);
+			sprintf(save_list[i], "%04d.%02d.%02d %02d:%02d:%02d", t->tm_year+1900, t->tm_mon+1, t->tm_mday,
+				t->tm_hour, t->tm_min, t->tm_sec);
+			enabled_menus[LOAD_MENU][i+4] = 1;
+		}
+		menus[LOAD_MENU][i+4] = save_list[i];
+		menus[SAVE_MENU][i+4] = save_list[i];
+	}
+}
 
 
 void display_menu_screen()
@@ -1340,9 +1397,6 @@ void display_menu_screen()
 		{	// Display the ON/OFF status of toggables
 			switch(line)
 			{
-			case MENU_RECORD:
-				on_off_index = opt_record_data?1:2;
-				break;
 			case MENU_SMOOTHING:
 				on_off_index = opt_gl_linear?1:2;
 				break;
@@ -1357,6 +1411,9 @@ void display_menu_screen()
 				break;
 			case MENU_PICTURE_CORNERS:
 				on_off_index = opt_picture_corners?1:2;
+				break;
+			case MENU_ORIGINAL_MODE:
+				on_off_index = opt_original_mode?1:2;
 				break;
 			default:
 				on_off_index = 0;

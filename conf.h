@@ -151,6 +151,7 @@ extern "C" {
 #define opt_gl_linear				XML_VALUE(options, gl_linear)
 #define opt_fullscreen				XML_VALUE(options, fullscreen)
 #define JOY_DEADZONE				XML_VALUE(options, joy_deadzone)
+#define opt_original_mode			XML_VALUE(options, original_mode)
 
 /////////////////////////////////////////////////////////////////////////////////
 // XML tables definitions
@@ -171,7 +172,8 @@ DEFINE_XML_NODES(options_nodes,
 				 picture_corners,
 				 gl_linear,
 				 fullscreen,
-				 joy_deadzone)
+				 joy_deadzone,
+				 original_mode)
 CREATE_XML_TABLE(options, options_nodes, xml_int)
 
 // User input mappings

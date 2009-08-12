@@ -42,9 +42,9 @@
 #include "colditz.h"
 #include "graphics.h"
 #include "game.h"
+#include "cluck.h"
 #include "eschew/eschew.h"
 #include "conf.h"
-#include "anti-tampering.h"
 
 
 /* Some more globals */
@@ -75,10 +75,10 @@ u32 mask_offset[4];		// tile boundary
 u32 exit_offset[4];		// exit boundary
 u8  tunexit_tool[4];	// tunnel tool
 s16 exit_dx[2];
-#if defined(ANTI_TAMPERING_ENABLED)
-u8  fmdxhash[NB_FILES][5]= FMDXHASHES;
-#endif
 s_sfx sfx[NB_SFXS];
+short*			upcluck;
+unsigned long	upcluck_len;
+
 
 
 // These are the offsets to the solitary cells doors for each prisoner
@@ -298,73 +298,8 @@ void load_all_files()
 
 	// OK, now we can reset our LOADER's start address
 	fbuffer[LOADER] -= LOADER_PADDING;
-
-	if (opt_record_data)
-	{
-		rbuffer = calloc(RBUFFER_SIZE,1);
-		if (rbuffer == NULL)
-		{
-			printf("  Could not allocate record buffer. Recording disabled.\n");
-			opt_record_data = false;
-		}
-		else
-			create_record();
-	}
 }
 
-void create_record()
-{
-	time_t timer;
-	struct tm* t;
-	char rec_name[] = "YYYYMMDD_HHMMSS.rec";
-
-	// Create a filename from the current (UTC) time
-	time(&timer);
-	t = gmtime(&timer);
-	sprintf(rec_name, "%04d%02d%02d_%02d%02d%02d.rec", t->tm_year+1900, t->tm_mon+1, t->tm_mday,
-		t->tm_hour, t->tm_min, t->tm_sec);
-
-	if (rfd != NULL)
-	// This will close the file as well
-		record(0);
-
-	if ((rfd = fopen(rec_name, "wb")) == NULL)
-	{
-		printf("  Couldn't create recording file '%s'\n", rec_name);
-		printf("  Recording disabled\n");
-		opt_record_data = false;
-		free(rbuffer); return;
-	}
-
-}
-
-// Record a word of data. If data is null, close the record file
-void record(u16 data)
-{
-	static int rpos = 0;
-
-	if (rfd == NULL)
-		return;
-
-	if (data != 0)
-	{
-		writeword(rbuffer, rpos, data);
-		rpos+=2;
-	}
-
-	if ((data == 0) || (rpos >= RBUFFER_SIZE))
-	{
-		fwrite(rbuffer, 1, rpos, rfd);
-		fflush(rfd);
-		rpos = 0;
-	}
-
-	if (data == 0)
-	{
-		fclose(rfd);
-		rfd = NULL;
-	}
-}
 
 // Reload the files for a game restart
 void reload_files()
@@ -392,9 +327,6 @@ void reload_files()
 		fclose (fd);
 		fd = NULL;
 	}
-
-	if (opt_record_data)
-		create_record();
 }
 
 // Reset the variables relevant to a new game
@@ -563,6 +495,8 @@ bool save_game(char* save_name)
 	SAVE_SINGLE(hours_digit_l);
 	SAVE_SINGLE(minutes_digit_h);
 	SAVE_SINGLE(minutes_digit_l);
+	SAVE_SINGLE(next_timed_event_ptr);
+	SAVE_SINGLE(authorized_ptr);
 	SAVE_SINGLE(game_time);
 	SAVE_SINGLE(last_ctime);
 	SAVE_SINGLE(last_atime);
@@ -570,10 +504,11 @@ bool save_game(char* save_name)
 
 	SAVE_ARRAY(guybrush);
 	SAVE_ARRAY(p_event);
+	SAVE_ARRAY(selected_prop);
+	for (i=0; i<NB_NATIONS; i++)
+		SAVE_ARRAY(props[i])
 	for (i=0; i<NB_FILES_TO_SAVE; i++)
-	{
 		SAVE_BUFFER(i);
-	}
 
 	fclose(fd);
 	return true;
@@ -595,6 +530,8 @@ bool load_game(char* load_name)
 	LOAD_SINGLE(hours_digit_l);
 	LOAD_SINGLE(minutes_digit_h);
 	LOAD_SINGLE(minutes_digit_l);
+	LOAD_SINGLE(next_timed_event_ptr);
+	LOAD_SINGLE(authorized_ptr);
 	LOAD_SINGLE(game_time);
 	LOAD_SINGLE(last_ctime);
 	LOAD_SINGLE(last_atime);
@@ -602,12 +539,17 @@ bool load_game(char* load_name)
 
 	LOAD_ARRAY(guybrush);
 	LOAD_ARRAY(p_event);
+	LOAD_ARRAY(selected_prop);
+	for (i=0; i<NB_NATIONS; i++)
+		LOAD_ARRAY(props[i])
 	for (i=0; i<NB_FILES_TO_SAVE; i++)
-	{
 		LOAD_BUFFER(i);
-	}
 
 //TO_DO: check if this works
+
+	// clear the events array
+	for (i=0; i< NB_EVENTS; i++)
+		events[i].function = NULL;
 
 	// This will be needed to hide the pickable objects on the outside map
 	// if the removable walls are set
@@ -628,7 +570,6 @@ bool load_game(char* load_name)
 	t_last = mtime();
 
 	fclose(fd);
-
 
 	return true;
 }
@@ -1399,7 +1340,6 @@ void prisoner_killed(u32 p)
 	p_event[p].display_shot = true;
 	// Prevent the sprite from being animated
 	guy(p).state = STATE_SHOT;
-	RECORD(R_KILLED + p);
 }
 
 
@@ -1419,7 +1359,7 @@ void reinstantiate_guards_in_pursuit(u32 p)
 		if (guard(g).target == p)
 		{
 			init_guard(g);
-			printf("reinstantiate_guards_in_pursuit %d\n", g);	
+			printb("reinstantiate_guards_in_pursuit %d\n", g);	
 		}
 }
 
@@ -1456,18 +1396,18 @@ void reset_guards_in_pursuit(u32 p)
 void clear_pursuit(u32 p)
 {
 	int j;
-	printf("in clear_pursuit for prisoner %d\n", p);
+	printb("in clear_pursuit for prisoner %d\n", p);
 
 	if (!(guy(p).state & STATE_IN_PURSUIT))
 		return;
 	for (j=0; j<NB_GUARDS; j++)
 		if ((guard(j).target == p))
 		{
-			printf("clear_pursuit: guard %d still in chase\n", j);
+			printb("clear_pursuit: guard %d still in chase\n", j);
 			return;
 		}
 	guy(p).state &= ~STATE_IN_PURSUIT;
-	printf("clear_pursuit: cleared!\n");
+	printb("clear_pursuit: cleared!\n");
 }
 
 
@@ -1506,7 +1446,7 @@ void route_guard(int i)
 	u32 route_pos;
 	u16 route_data;
 	u16 g_px, g_py, g_room;
-	bool blop;
+	bool route_reset;
 
 	if (guard(i).reinstantiate)
 	{	// Attempt to reset to first pos of route
@@ -1526,7 +1466,7 @@ void route_guard(int i)
 		if (guard(i).wait == 0)
 		{	// Reset route
 			route_data = 0xFFFF;
-			blop = true;
+			route_reset = true;
 		}
 		else
 			return;	// Don't do anything for now
@@ -1545,7 +1485,6 @@ void route_guard(int i)
 		{	
 			dir_x = guard(i).speed * dir_to_dx[guard(i).direction];
 			dir_y = guard(i).speed * dir_to_d2y[guard(i).direction];
-//			guard(i).state &= ~STATE_BLOCKED;
 			guard(i).px += dir_x;
 			guard(i).p2y += dir_y;
 
@@ -1587,7 +1526,7 @@ void route_guard(int i)
 		route_pos = readlong(fbuffer[GUARDS], i*MENDAT_ITEM_SIZE + 0x06);
 		route_data = readword(fbuffer[ROUTES], route_pos);
 
-		if (blop)
+		if (route_reset)
 			printb("route: reset for guard %d\n", i);
 	}
 
@@ -1651,7 +1590,6 @@ bool guard_in_pursuit(int i, int p)
 	{	// Start walking towards prisoner
 		// Indicate that we deviate from the normal flight path
 		printb("guard %d walk starts\n", i);
-		RECORD(R_CHASE + i);
 		// save the start of pursuit position (if blank)
 		if (opt_enhanced_guard_handling && (guard(i).resume_px == GET_LOST_X))
 		{
@@ -1728,7 +1666,6 @@ bool guard_in_pursuit(int i, int p)
 	// 5. Check catching up and update motion
 	if (guard_collision(i, guy(p).px, guy(p).p2y))
 	{
-		RECORD(R_CAUGHT + i);
 		printb("gotcha! from %d\n", i);
 		if (guy(p).is_dressed_as_guard)
 		// Ask for a pass
@@ -2052,8 +1989,6 @@ void timed_events(u16 hours, u16 minutes_high, u16 minutes_low)
 	}
 	else
 	{	// Rollcall, etc.
-		RECORD(R_EVENT + hours); 
-		RECORD(event_data);
 ///		printf("got event %04X\n", event_data);
 		// Each event changes the list of authorized rooms
 		authorized_ptr = readlong(fbuffer[LOADER],AUTHORIZED_BASE+4*event_data);
@@ -2607,7 +2542,6 @@ void switch_nation(u8 new_nation)
 	// Clear flags for old nation
 	prisoner_state &= ~(STATE_MOTION|STATE_ANIMATED);
 	current_nation = new_nation;
-	RECORD(R_NATION+current_nation);
 	// Clear the stooge flag for the new nation
 	prisoner_state &= ~(STATE_MOTION|STATE_ANIMATED|STATE_STOOGING);
 	prisoner_reset_ani = true;
@@ -2633,7 +2567,6 @@ void switch_room(s16 exit_nr, bool tunnel_io)
 		offset = exit_nr << 3;	// skip 8 bytes
 		current_room_index = readword((u8*)fbuffer[tunnel_io?TUNNEL_IO:ROOMS], offset) & 0x7FF;
 		exit_index = readword((u8*)fbuffer[tunnel_io?TUNNEL_IO:ROOMS], offset+2);
-		RECORD(R_EXIT+exit_nr);
 	}
 	else
 	{	// indoors => read from the ROOMS_EXIT_BASE data
@@ -2644,7 +2577,6 @@ void switch_room(s16 exit_nr, bool tunnel_io)
 		// Thus, we know where we should get positioned on entering the room
 		current_room_index = readword((u8*)fbuffer[ROOMS], ROOMS_EXITS_BASE + offset 
 			+ 2*exit_index);
-		RECORD(R_EXIT+(exit_nr&0x0F));
 	}
 
 	// Since we're changing room, reset all animations
@@ -2730,8 +2662,6 @@ void switch_room(s16 exit_nr, bool tunnel_io)
 		}
 	}
 
-	RECORD(current_room_index);
-
 	// Read the pixel adjustment
 	if (!tunnel_io)
 	{
@@ -2768,8 +2698,6 @@ void go_to_jail(u32 p)
 	guy(p).state |= STATE_IN_PRISON;
 	p_event[p].unauthorized = false;
 
-	RECORD(R_JAIL + p);
-
 	// Make sure the jail doors are closed when we leave the prisoner in!
 	writebyte(fbuffer[ROOMS], solitary_cells_door_offset[p][0], 
 		readbyte(fbuffer[ROOMS], solitary_cells_door_offset[p][0]) & 0xEF);
@@ -2805,8 +2733,6 @@ void out_of_jail(u32 p)
 {
 	guy(p).state &= ~STATE_IN_PRISON;
 
-	RECORD(R_FREE + p);
-
 	guy(p).px = readword(fbuffer[LOADER],INITIAL_POSITION_BASE+10*p+2);
 	guy(p).p2y = 2*readword(fbuffer[LOADER],INITIAL_POSITION_BASE+10*p);
 	guy(p).room = readword(fbuffer[LOADER],INITIAL_POSITION_BASE+10*p+4);
@@ -2830,7 +2756,7 @@ void require_pass(u32 p)
 //		selected_prop[p] = ITEM_PASS;		// Doing this is bothersome if
 		props[p][ITEM_PASS]--;				// we have to re-cycle in a hurry
 //		show_prop_count();					// => let's comment these lines out
-		RECORD(R_USE + ITEM_PASS);
+
 		// Reset all the guards that were in pursuit
 		if (opt_enhanced_guard_handling)
 		{
@@ -2878,7 +2804,6 @@ void check_on_prisoners()
 	{
 		if (props[current_nation][ITEM_PAPERS])
 		{
-			RECORD(R_ESCAPED + current_nation);
 			nb_escaped++;
 			if (nb_escaped >= NB_NATIONS)
 			{
@@ -2912,14 +2837,12 @@ void check_on_prisoners()
 	{
 		game_state = GAME_STATE_GAME_OVER;
 		static_screen(GAME_OVER_TEXT, NULL, 0);
-		RECORD(0);
 		return;
 	}
 	if (game_won_count == 1) //NB_NATIONS)
 	{
 		game_state = GAME_STATE_GAME_WON;
 		static_screen(PRISONER_FREE_ALL_TEXT, NULL, 0);
-		RECORD(0);
 		return;
 	}
 
@@ -2964,7 +2887,6 @@ void check_on_prisoners()
 				if (p_event[p].solitary_countdown == 0)
 				{	// "Freeeeeeeedom!"
 					static_screen(FROM_SOLITARY, out_of_jail, p);
-					RECORD(R_FREE + p);
 				}
 			}
 			else
@@ -3018,43 +2940,29 @@ void fix_files(bool reload)
 	u8 i;
 	u32 mask;
 
+	//
+	// Original game patch
+	//
+	//////////////////////////////////////////////////////////////////
+	//00001C10                 move.b  #$30,(fixed_crm_vector).l ; '0'
+	writebyte(fbuffer[ROOMS],FIXED_CRM_VECTOR,0x30);
+	//00001C18                 move.w  #$73,(exits_base).l ; 's' ; fix room #0's exits
+	writeword(fbuffer[ROOMS],ROOMS_EXITS_BASE,0x0073);
+	//00001C20                 move.w  #1,(exits_base+2).l
+	writeword(fbuffer[ROOMS],ROOMS_EXITS_BASE+2,0x0001);
+	//00001C28                 move.w  #$114,(r116_exits+$E).l ; fix room #116's last exit (0 -> $114)
+	writeword(fbuffer[ROOMS],ROOMS_EXITS_BASE+(0x116<<4)+0xE,0x0114);
+/*
 #if defined(ANTI_TAMPERING_ENABLED)
-	if (integrity_check(ROOMS))
-	{
-#endif
-		//
-		// Original game patch
-		//
-		//////////////////////////////////////////////////////////////////
-		//00001C10                 move.b  #$30,(fixed_crm_vector).l ; '0'
-		writebyte(fbuffer[ROOMS],FIXED_CRM_VECTOR,0x30);
-		//00001C18                 move.w  #$73,(exits_base).l ; 's' ; fix room #0's exits
-		writeword(fbuffer[ROOMS],ROOMS_EXITS_BASE,0x0073);
-		//00001C20                 move.w  #1,(exits_base+2).l
-		writeword(fbuffer[ROOMS],ROOMS_EXITS_BASE+2,0x0001);
-		//00001C28                 move.w  #$114,(r116_exits+$E).l ; fix room #116's last exit (0 -> $114)
-		writeword(fbuffer[ROOMS],ROOMS_EXITS_BASE+(0x116<<4)+0xE,0x0114);
-#if defined(ANTI_TAMPERING_ENABLED)
-	}
-	else
-	{
-		// TO_DO: remove message and mess up the files beyond repair
-		printf("integrity check failure\n");
-		return;
+	// TO_DO: remove message and mess up the files beyond repair
+	printf("integrity check failure\n");
+	return;
 	}
 #endif
-
+*/
 	if (reload)
 	// On a reload, no need to fix the other files again
 		return;
-#if defined(ANTI_TAMPERING_ENABLED)
-	if (!integrity_check(LOADER))
-	{	// TO_DO: something else
-		printf("LOADER integrity check\n");
-		return;
-	}
-#endif
-
 
 	// I've always wanted to have the stethoscope!
 //	writeword(fbuffer[OBJECTS],32,0x000E);
@@ -3093,10 +3001,7 @@ void fix_files(bool reload)
 // Initalize the SFXs
 void set_sfxs()
 {
-	u16	i;
-#if defined(WIN32)
-	u16	j;
-#endif
+	u16	i,j;
 
 	// Initialize SFXs
 	for (i=0; i<NB_SFXS; i++)
@@ -3122,9 +3027,18 @@ void set_sfxs()
 #endif
 	}
 
+#if defined(PSP)
+		// Let's upconvert us some chicken
+		for (j=0; j<sizeof(cluck_sfx); j++)
+			cluck_sfx[j] += 0x80;
+		psp_upsample(&upcluck, &upcluck_len, (char*)cluck_sfx, sizeof(cluck_sfx), 8000);
+#endif
+
 	// The footstep's SFX volume is a bit too high for my taste
 	sfx[SFX_FOOTSTEPS].volume /= 3;
 }
+
+
 
 
 // Play one of the 5 game SFXs
@@ -3137,5 +3051,16 @@ void play_sfx(int sfx_id)
 #else
 #error No SFX playout for this platform
 #endif
-
 }
+
+// Play one of the non game SFX
+void play_cluck()
+{
+	msleep(120);
+#if defined(WIN32)
+	play_sample(-1, 60, cluck_sfx, sizeof(cluck_sfx), 8000, 8);
+#elif defined(PSP)
+	play_sample(-1, 60, upcluck, upcluck_len, PLAYBACK_FREQ, 16);
+#endif
+}
+

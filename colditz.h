@@ -87,8 +87,8 @@ extern "C" {
 #define COMPRESSED_MAP			1
 #define OBJECTS					2
 #define TUNNEL_IO				3
-#define ROUTES					4
-#define GUARDS					5
+#define GUARDS					4
+#define ROUTES					5
 #define SPRITES_PANEL			6
 #define CELLS					7
 #define PALETTES				8
@@ -100,8 +100,8 @@ extern "C" {
 								  "COMPRESSED_MAP",		\
 								  "OBS.BIN",			\
 								  "TUNNELIODOORS.BIN",	\
-								  "ROUTES.BIN",			\
 								  "MENDAT.BIN",			\
+								  "ROUTES.BIN",			\
 								  "PANEL.BIN",			\
 								  "COLDITZ_CELLS",		\
 								  "PALS.BIN",			\
@@ -111,8 +111,8 @@ extern "C" {
 								  33508,				\
 								  2056,					\
 								  120,					\
-								  13364,				\
 								  1288,					\
+								  13364,				\
 								  11720,				\
 								  135944,				\
 								  232,					\
@@ -320,26 +320,31 @@ extern "C" {
  */
 #define MIN_MENU_FADE			0.4f
 #define MENU_MARKER				0x20
-#define NB_MENUS				2
+#define NB_MENUS				4
 #define NB_MENU_ITEMS			10
 #define FIRST_MENU_ITEM			3
 #define MAIN_MENU				0
 #define OPTIONS_MENU			1
+#define SAVE_MENU				2
+#define LOAD_MENU				3
+#define ABOUT_MENU				4
+#define NB_SAVEGAMES			6
 // Items for the main menu
 #define MENU_RETURN				3
 #define MENU_RESTART			4
-#define MENU_LOAD				5
-#define MENU_SAVE				6
+#define MENU_SAVE				5
+#define MENU_LOAD				6
 #define MENU_OPTIONS			7
 #define MENU_EXIT				9
 // Items for the options menu
 #define MENU_BACK_TO_MAIN		3
-#define MENU_RECORD				4
-#define MENU_FULLSCREEN			5
-#define MENU_SKIP_INTRO			6
-#define MENU_ENHANCED_GUARDS	7
-#define MENU_SMOOTHING			8
-#define MENU_PICTURE_CORNERS	9
+#define MENU_SKIP_INTRO			4
+#define MENU_PICTURE_CORNERS	5
+#define MENU_SMOOTHING			6
+#define MENU_FULLSCREEN			7
+#define MENU_ENHANCED_GUARDS	8
+#define MENU_ORIGINAL_MODE		9
+
 
 // Boundaries for courtyard authorized access (ROM:00002160)
 #define COURTYARD_MIN_X			0x300
@@ -566,30 +571,6 @@ extern "C" {
 
 
 /*
- *	Optional Recording feature
- */
-// Record buffer, in bytes
-#define RBUFFER_SIZE			512
-#define RECORD(data)			if(opt_record_data) record((u16)(data))
-// Record commands
-#define R_ROOM					0x0000
-#define R_NATION				0x1100
-#define R_PICK					0x2200
-#define R_DROP					0x2300
-#define R_USE					0x2400
-#define R_HOUR					0x3333
-#define R_CHASE					0x4400
-#define R_CAUGHT				0x5500
-#define R_KILLED				0x6600
-#define R_ESCAPED				0x7700
-#define R_JAIL					0x8800
-#define R_FREE					0x8900
-#define R_EXIT					0xD000
-#define R_EVENT					0xEE00
-
-
-
-/*
  *	Global structs
  */
 
@@ -744,7 +725,6 @@ extern bool		opt_keymaster;
 extern bool		opt_thrillerdance;
 extern bool		opt_no_guards;
 extern bool		opt_haunted_castle;
-extern bool		opt_record_data;
 
 // Global variables
 extern bool		init_animations;
@@ -753,7 +733,6 @@ extern u8		*mbuffer;	// Generic TMP buffer
 extern u8		*fbuffer[NB_FILES];
 extern u8		*rbuffer;
 extern FILE		*fd;		// Generic file descriptor
-extern FILE		*rfd;		// Recording file descriptot
 extern u8		*rgbCells;	// Cells table
 extern u8		*static_image_buffer;
 extern u8		props[NB_NATIONS][NB_PROPS];
@@ -779,7 +758,6 @@ extern u8		current_nation;
 extern char		nb_props_message[32];
 extern u64		game_time, last_atime, last_ptime, last_ctime, t_last;
 extern s_event	events[NB_EVENTS];
-extern void		record(u16 data);
 
 /*
  *	Prototypes
