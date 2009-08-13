@@ -43,6 +43,7 @@
 #include <GL/glu.h>
 #include <GL/glut.h>
 #include <psp/psp-printf.h>
+#include <pspiofilemgr.h>
 #endif
 
 #include "data-types.h"
@@ -53,8 +54,15 @@
 #include "graphics.h"
 #include "game.h"
 
+// For the savefile modification times
 #if defined(WIN32)
-#define stat _stat
+#define stat	_stat
+#define getstat	_stat
+// The timestamps returned in the stat structure are WRONG! on PSP
+// so we'll have to use the direct SCE functions
+#elif defined(PSP)
+#define stat	SceIoStat
+#define getstat	sceIoGetstat
 #endif
 
 // variables common to game & graphics
@@ -92,6 +100,7 @@ char* menus[NB_MENUS][NB_MENU_ITEMS] = {
 	{" MAIN MENU", "", "", "BACK TO GAME", "RESET GAME", "SAVE", "LOAD", "OPTIONS", "", "EXIT GAME"} ,
 	{" OPTIONS MENU", "", "", "BACK TO MAIN MENU", "SKIP INTRO     ", "PICTURE CORNERS", 
 	 "SMOOTHING      ", "FULLSCREEN     ", "ENHANCED GUARDS", "ORIGINAL MODE  " },
+	 // The save slots of the following menus will be filled at runtime
 	{" SAVE MENU", "", "", "BACK TO MAIN MENU", NULL, NULL, NULL, NULL, NULL, NULL},
 	{" LOAD MENU", "", "", "BACK TO MAIN MENU", NULL, NULL, NULL, NULL, NULL, NULL} };
 char* on_off[3] = { "", ":ON", ":OFF"};
@@ -1338,21 +1347,29 @@ void create_savegame_list()
 	int i;
 	char save_name[] = "colditz_00.sav";
 	struct stat buffer;
+#if !defined(PSP)
 	struct tm* t;
+#endif
 
 	for (i=0; i<NB_SAVEGAMES; i++)
 	{
 		sprintf(save_name, "colditz_%02d.sav", i+1);
-		if (stat(save_name, &buffer))
+		if (getstat(save_name, &buffer))
 		{
 			sprintf(save_list[i], "<EMPTY SLOT>");
 			enabled_menus[LOAD_MENU][i+4] = 0;
 		}
 		else
 		{
+// Timestamps returned in the stat struct on PSP are plain wrong => use the ScePspDateTime struct directly
+#if defined(PSP)
+			sprintf(save_list[i], "%04d.%02d.%02d %02d:%02d:%02d", buffer.st_mtime.year, buffer.st_mtime.month,
+				buffer.st_mtime.day, buffer.st_mtime.hour, buffer.st_mtime.minute, buffer.st_mtime.second);
+#else
 			t = localtime(&buffer.st_mtime);
 			sprintf(save_list[i], "%04d.%02d.%02d %02d:%02d:%02d", t->tm_year+1900, t->tm_mon+1, t->tm_mday,
 				t->tm_hour, t->tm_min, t->tm_sec);
+#endif
 			enabled_menus[LOAD_MENU][i+4] = 1;
 		}
 		menus[LOAD_MENU][i+4] = save_list[i];
@@ -1367,6 +1384,7 @@ void display_menu_screen()
 	int	i, j, line;
 	u16	line_start;
 	u8	on_off_index;
+	const char* aperblurb[2] = { " COLDITZ ESCAPE! " VERSION , " (C) APERTURE SOFTWARE 2009"};
 
 
 	// Show each menu line
@@ -1374,7 +1392,7 @@ void display_menu_screen()
 	{
 		if (menus[selected_menu][line][0] == ' ')
 		{	// A menu line starting with a space must be centered
-			line_start = ((PSP_SCR_WIDTH-(strlen(menus[selected_menu][line])-1)*16)/2)&(~0x0F);
+			line_start = ((PSP_SCR_WIDTH-(strlen(menus[selected_menu][line])-0)*16)/2)&(~0x0F);
 		}
 		else if (selected_menu == MAIN_MENU)
 			line_start = 176;
@@ -1429,8 +1447,22 @@ void display_menu_screen()
 	display_sprite(line_start-20, 32+16*selected_menu_item,
 		2*PANEL_CHARS_W, 2*PANEL_CHARS_CORRECTED_H, chars_texid[MENU_MARKER]);
 
-	glColor4f(fade_value, fade_value, fade_value, 0);
+	glColor4f(0.3f, 0.4f, 1.0f, 1.0f-fade_value+MIN_MENU_FADE-0.2f);
+	for (line = 0; line < 2; line++)
+	{
+		if (aperblurb[line][0] == ' ')
+		{	// A menu line starting with a space must be centered
+			line_start = ((PSP_SCR_WIDTH-(strlen(aperblurb[line])+1)*12)/2);
+		}
+		for (i=0; (c = aperblurb[line][i]); i++)
+		{
+			display_sprite(line_start+12*i, 220+11*line,
+				PANEL_CHARS_W, PANEL_CHARS_CORRECTED_H, chars_texid[c-0x20]);
+		}
+	}
 
+
+	glColor4f(fade_value, fade_value, fade_value, 0);
 }
 
 

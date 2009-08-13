@@ -92,7 +92,7 @@ void set_xml_defaults()
 	SET_XML_NODE_DEFAULT(options, picture_corners, true);
 	SET_XML_NODE_COMMENT(options, picture_corners, 
 		" display texturized picture corners, rather than black triangles ");
-	SET_XML_NODE_DEFAULT(options, gl_linear, true);
+	SET_XML_NODE_DEFAULT(options, gl_linear, false);
     SET_XML_NODE_COMMENT(options, gl_linear,
 		" use linear interpolation for rescale rather than nearest (Windows only) ");
 	SET_XML_NODE_DEFAULT(options, joy_deadzone, 450);

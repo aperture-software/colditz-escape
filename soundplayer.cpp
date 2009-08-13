@@ -86,7 +86,7 @@ static void UpdateRow();
 static bool MixChunk(int numsamples, short *buffer);
 static bool MixSubChunk(short *buffer, int numsamples);
 static void ModPlayCallback(void *_buf2, unsigned int length, void *pdata);
-
+static void LoopCallback(void *_buf2, unsigned int length, void *pdata);
 
 //////////////////////////////////////////////////////////////////////
 // Global local variables
@@ -131,9 +131,16 @@ int size = 0;
 // This could be used to set a different channel/voice for mod playout
 static int mod_channel = 0;
 static int sfx_channel = 0;
+// for loops
+static int				loop_channel = -1;
+static unsigned long	loop_pos;
+static unsigned long	loop_len;
+static void*			loop_addr;
 
-// Play a MONO sound sample. channel = -1 => autoallocated 
-bool play_sample(int channel, unsigned int volume, void *address, unsigned int length, unsigned int frequency, unsigned int bits_per_sample)
+// Play a MONO, possibly looping, sound sample. channel = -1 => autoallocated 
+// NB: the PSP is limited to 64 KB for non looping samples
+bool play_sample(int channel, unsigned int volume, void *address, unsigned int length, 
+				 unsigned int frequency, unsigned int bits_per_sample, bool loop)
 {
 	int play_channel;
 	if (channel == -1)
@@ -143,6 +150,18 @@ bool play_sample(int channel, unsigned int volume, void *address, unsigned int l
 	}
 	else
 		play_channel = channel;
+
+	// We might have a loop currently playing on that channel
+	if (play_channel == loop_channel)
+		stop_loop();
+
+	if (loop)
+	{	// Play a looping sample
+		loop_pos = 0;
+		loop_len = length;
+		loop_addr = address;
+		loop_channel = play_channel;
+	}
 
 #if defined(PSP)
 	if (frequency != PLAYBACK_FREQ)
@@ -155,36 +174,73 @@ bool play_sample(int channel, unsigned int volume, void *address, unsigned int l
 		fprintf(stderr, "play_sfx: samples must be 16 bit for PSP SFX\n");
 		return false;
 	}
+	if ((!loop) && (length >= PSP_AUDIO_SAMPLE_MAX))
+	{
+		fprintf(stderr, "play_sfx: Cannot play samples of more than %d bytes\n", PSP_AUDIO_SAMPLE_MAX);
+		return false;
+	}
 	// Release channel if needed
 	sceAudioChRelease(play_channel);
-	sceAudioChReserve(play_channel, length, PSP_AUDIO_FORMAT_MONO);
-	sceAudioOutput(play_channel, PSP_AUDIO_VOLUME_MAX, address);
+	if (loop)
+		pspAudioSetChannelCallback(loop_channel, LoopCallback, NULL);
+	else
+	{
+		sceAudioChReserve(play_channel, length, PSP_AUDIO_FORMAT_MONO);
+		sceAudioOutput(play_channel, PSP_AUDIO_VOLUME_MAX, address);
+	}
 	sceAudioChangeChannelVolume(play_channel, volume * PSP_VOLUME_MAX/AMIGA_VOLUME_MAX, volume * PSP_VOLUME_MAX/AMIGA_VOLUME_MAX);
-
-#endif
-#if defined(WIN32)
+#elif defined(WIN32)
 	winXAudio2ReleaseVoice(play_channel);
 	// Our SFXs are always mono
-	winXAudio2SetVoice(play_channel, (BYTE*) address, length, frequency, bits_per_sample, false);
+	if (loop)
+	{
+		if (!winXAudio2SetVoiceCallback(loop_channel, LoopCallback, NULL, frequency, bits_per_sample, false))
+			return false;
+	}
+	else	
+	{
+		if (!winXAudio2SetVoice(play_channel, (BYTE*) address, length, frequency, bits_per_sample, false))
+			return false;
+	}
 	winXAudio2SetVoiceVolume(play_channel, (float) volume/AMIGA_VOLUME_MAX);
 	winXAudio2StartVoice(play_channel);
 #endif
 	return true;
 }
 
+// Someone might get tired of looping SFXs
+void stop_loop()
+{
+	if (loop_channel == -1)
+		return;
+
+#if defined(PSP)
+    pspAudioSetChannelCallback(loop_channel, 0, 0);
+#elif defined(WIN32)
+	winXAudio2StopVoice(loop_channel);
+	winXAudio2ReleaseVoice(loop_channel);
+#endif
+	loop_channel = -1;
+}
 
 #if defined(PSP)
 // This upconverts an 8 bit PCM file @ any frequency to 16 bit/PLAYBACK_FREQ  
-void psp_upsample(short **upconverted_address, unsigned long *upconverted_length, char *src_sample, 
+bool psp_upsample(short **upconverted_address, unsigned long *upconverted_length, char *src_sample, 
 				  unsigned long src_numsamples, unsigned short src_frequency)
 {
-	int src_fracpos = 0;
-	int dst_pos = 0;
-	int delta_pos = (int) (src_frequency * (1 << FRAC_BITS) / PLAYBACK_FREQ);
-	int src_fraclength = src_numsamples << FRAC_BITS;
-	int dst_length = (src_fraclength - 1) / delta_pos + 1;
-	int dst_length_aligned = PSP_AUDIO_SAMPLE_ALIGN(dst_length);
+	unsigned long src_fracpos = 0;
+	unsigned long dst_pos = 0;
+	unsigned long delta_pos = (int) (src_frequency * (1 << FRAC_BITS) / PLAYBACK_FREQ);
+	unsigned long src_fraclength = src_numsamples << FRAC_BITS;
+	unsigned long dst_length = (src_fraclength - 1) / delta_pos + 1;
+	unsigned long dst_length_aligned = PSP_AUDIO_SAMPLE_ALIGN(dst_length);
 	short* dst_sample = (short*) aligned_malloc(2*dst_length_aligned, 64);
+
+	if (dst_sample == NULL)
+	{
+		fprintf(stderr, "psp_upsample: malloc error\n");
+		return false;
+	}
 
 	for (dst_pos = 0; dst_pos < dst_length; dst_pos++) 
 	{
@@ -203,11 +259,12 @@ void psp_upsample(short **upconverted_address, unsigned long *upconverted_length
 
 	*upconverted_address = dst_sample;
 	*upconverted_length = dst_length_aligned;
+
+	return true;
 }
 #endif
 
 
-//fillOutputBuffer(void* buffer, unsigned int samplesToWrite, void* userData)
 static void ModPlayCallback(void *_buf2, unsigned int length, void *pdata)
 {
 	short *_buf = (short *)_buf2;
@@ -220,6 +277,32 @@ static void ModPlayCallback(void *_buf2, unsigned int length, void *pdata)
 				*(_buf + count) = 0;
 		}
 	}
+}
+
+
+static void LoopCallback(void *_buf2, unsigned int length, void *pdata)
+{
+#if defined(WIN32)
+	// 8 bit mono is fine
+	unsigned char* _addr = (unsigned char*)loop_addr;
+	unsigned char* _buf = (unsigned char*)_buf2;
+	for (register unsigned int i=0; i<length; i++)
+	{
+		_buf[i] = _addr[loop_pos];
+		loop_pos = (loop_pos+1)%loop_len;
+	}
+#elif defined(PSP)
+	// 16 bit Stereo only
+	short* _addr = (short*)loop_addr;
+	short* _buf  = (short*)_buf2;
+	for (register unsigned int i=0; i<length; i++)
+	{
+		// 16 bit Mono -> 16 bit Stereo
+		_buf[2*i] = _addr[loop_pos];
+		_buf[2*i+1] = _addr[loop_pos];
+		loop_pos = (loop_pos+1)%loop_len;
+	}
+#endif
 }
 
 
@@ -331,8 +414,7 @@ bool mod_init(char *filename)
 
 #if defined(PSP)
     pspAudioSetChannelCallback(mod_channel, ModPlayCallback, NULL);
-#endif
-#if defined(WIN32)
+#elif defined(WIN32)
 	// Release the voice first
 	winXAudio2ReleaseVoice(0);
 	if (!winXAudio2SetVoiceCallback(mod_channel, ModPlayCallback, NULL, PLAYBACK_FREQ, 16, true))

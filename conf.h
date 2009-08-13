@@ -111,8 +111,8 @@ extern "C" {
 
 // Non official debug keys
 #define KEY_DEBUG_PRINT_POS		'p'
-#define KEY_DEBUG_BONANZA		'#'
-#define KEY_DEBUG_CATCH_HIM		'c'
+#define KEY_OSD					'#'
+#define KEY_SOUND				'/'
 
 //#define opt_skip_intro			options.node[skip_intro].value
 //#define opt_enhanced_guards		options.node[enhanced_guards].value

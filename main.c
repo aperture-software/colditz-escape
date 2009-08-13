@@ -90,8 +90,12 @@ bool opt_verbose				= false;
 bool opt_debug					= false;
 // Additional oncreen debug info
 bool opt_onscreen_debug			= false;
+// Player can still move after being killed
 bool opt_ghost					= false;
-bool opt_play_as_the_safe		= false;
+bool opt_play_as_the_safe[NB_NATIONS] 
+								= {false, false, false, false};
+// And the guards just go "meh..."
+bool opt_meh					= true;
 // Who needs keys?
 bool opt_keymaster				= false;
 // "'coz this is triller..."
@@ -188,21 +192,33 @@ typedef struct
 } s_cheat_sequence;
 
 // Cheat definitions
-static u8 sequence0[4]  = {SPECIAL_KEY_LEFT, SPECIAL_KEY_LEFT, SPECIAL_KEY_RIGHT, SPECIAL_KEY_RIGHT};
+static u8 konami[]		= {SPECIAL_KEY_UP, SPECIAL_KEY_UP, SPECIAL_KEY_DOWN, SPECIAL_KEY_DOWN,
+						   SPECIAL_KEY_LEFT, SPECIAL_KEY_RIGHT, SPECIAL_KEY_LEFT, SPECIAL_KEY_RIGHT};
+// NB: I have seen NO EVIDENCE WHATSOEVER in the disassembly that the first 3 cheats below were
+// ever implemented in the original game. But just for the sake of it...
+static u8 want_it_all[]	= "i want everything";
 static u8 keymaster[]	= "keymaster";
 static u8 die_die[]		= "die die die";
 static u8 no_cake[]		= "the cake is a lie";
+static u8 as_safe[]		= "safecracker";
+static u8 thriller[]	= "thrillerdance";
 s_cheat_sequence cheat_sequence[] = {
-	{4, 0, sequence0}, 
+	{SIZE_A(konami), 0, konami}, 
+	{SIZE_A(want_it_all)-1, 0, want_it_all}, 
 	{SIZE_A(keymaster)-1, 0, keymaster},
 	{SIZE_A(die_die)-1, 0, die_die}, 
-	{SIZE_A(no_cake)-1, 0, no_cake}
+	{SIZE_A(no_cake)-1, 0, no_cake},
+	{SIZE_A(as_safe)-1, 0, as_safe},
+	{SIZE_A(thriller)-1, 0, thriller}
 };
 #define NB_CHEAT_SEQUENCES	SIZE_A(cheat_sequence)
-#define CHEAT_PROP_BONANZA	0
-#define CHEAT_KEYMASTER		1
-#define CHEAT_NOGUARDS		2
-#define NO_CAKE_FOR_YOU		3
+#define CHEAT_KONAMI		0
+#define CHEAT_PROP_BONANZA	1
+#define CHEAT_KEYMASTER		2
+#define CHEAT_NOGUARDS		3
+#define NO_CAKE_FOR_YOU		4
+#define CHEAT_SAFECRACKER	5
+#define THRILLERDANCE		6
 #endif
 
 bool		found;
@@ -231,10 +247,11 @@ u16			nb_objects;
 u8			palette_index = INITIAL_PALETTE_INDEX;
 u8			picture_state;
 // offsets to sprites according to joystick direction (dx,dy)
-s16			directions[3][3] = { {3,2,4}, {0,DIRECTION_STOPPED,1}, {6,5,7} };
+const s16	directions[3][3] = { {3,2,4}, {0,8,1}, {6,5,7} };
 // reverse table for dx and dy
-s16			dir_to_dx[8] = {-1, 1, 0, -1, 1, 0, -1, 1};
-s16			dir_to_d2y[8] = {0, 0, -1, -1, -1, 1, 1, 1};
+const s16	dir_to_dx[9]  = {-1, 1, 0, -1, 1, 0, -1, 1, 0};
+const s16	dir_to_d2y[9] = {0, 0, -1, -1, -1, 1, 1, 1, 0};
+const s16	invert_dir[9] = {1, 0, 5, 7, 6, 2, 4, 3, 8}; 
 // The direct nation keys might not be sequencial on custom key mapping
 u8			key_nation[NB_NATIONS+2];
 
@@ -503,7 +520,7 @@ void user_input()
 
 #if defined (CHEATMODE_ENABLED)
 	// Check cheat sequences
-	if (read_cheat_key_once(last_key_used))
+	if ((!opt_original_mode) && read_cheat_key_once(last_key_used))
 	{
 		for (i=0; i<NB_CHEAT_SEQUENCES; i++)
 		{
@@ -515,23 +532,37 @@ void user_input()
 				{
 					switch(i)
 					{
-					case NO_CAKE_FOR_YOU:
-						set_status_message("  NO: >YOU< ARE THE LIE!!!  ", 3, CHEAT_MESSAGE_TIMEOUT);
+					case CHEAT_KONAMI:
+						set_status_message("     NICE TRY... BUT NO     ", 3, CHEAT_MESSAGE_TIMEOUT);
 						break;
 					case CHEAT_PROP_BONANZA:
 						for (j=1; j<NB_PROPS-1; j++)
 							props[current_nation][j] += 10;
-//						status_message = "1234567890123456789012345678";
-						set_status_message("    ENJOY YOUR PROPS ;)     ", 3, CHEAT_MESSAGE_TIMEOUT);
+//						set_status_message("    ENJOY YOUR PROPS ;)     ", 3, CHEAT_MESSAGE_TIMEOUT);
+						break;
+					case NO_CAKE_FOR_YOU:
+						set_status_message("  NO: >YOU< ARE THE LIE!!!  ", 3, CHEAT_MESSAGE_TIMEOUT);
+						break;
+					case THRILLERDANCE:
+						if (!opt_thrillerdance)
+							set_status_message(" 'COZ THIS IS THRILLER!...  ", 3, CHEAT_MESSAGE_TIMEOUT);
+						opt_thrillerdance = ~opt_thrillerdance; 
+						thriller_toggle();
 						break;
 					case CHEAT_KEYMASTER:
 						opt_keymaster = ~opt_keymaster;
 						break;
+					case CHEAT_NOGUARDS:
+						opt_no_guards = ~opt_no_guards;
+						break;
+					case CHEAT_SAFECRACKER:
+						opt_play_as_the_safe[current_nation] = ~opt_play_as_the_safe[current_nation];
+						break;
 					default:
-						set_status_message("        DIE DIE DIE         ", 3, CHEAT_MESSAGE_TIMEOUT);
 						break;
 					}
-					printf("CHEAT[%d] activated!\n", i);
+					play_cluck();
+					printv("CHEAT[%d] activated!\n", i);
 					cheat_sequence[i].cur_pos = 0;
 				}
 			}
@@ -569,15 +600,11 @@ void user_input()
 		printf("game_time = %lld, program_time = %lld\n", game_time, program_time);
 	}
 
-	// Gimme some props!!!
-	if (read_key_once(KEY_DEBUG_BONANZA))
-	{
-		for (i=1; i<NB_PROPS-1; i++)
-			props[current_nation][i] += 10;
-	}
+	if (read_key_once(KEY_OSD))
+		opt_onscreen_debug = ~opt_onscreen_debug;
 
-	if (read_key_once(KEY_DEBUG_CATCH_HIM))
-		prisoner_state ^= STATE_IN_PURSUIT;
+	if (read_key_once(KEY_SOUND))
+		thriller_toggle();
 #endif
 
 	// Above are all the keys allowed if the prisoner has not already escaped or died, thus...
@@ -996,6 +1023,7 @@ void process_menu()
 			case MENU_OPTIONS:
 				selected_menu = OPTIONS_MENU;
 				selected_menu_item = FIRST_MENU_ITEM;
+//				play_thrill();
 				break;
 			case MENU_EXIT:
 				if ((config_save) && (!write_xml(confname)))
@@ -1623,8 +1651,6 @@ int main (int argc, char *argv[])
 	// We might want some sound
 	if (!audio_init())
 		perr("Could not Initialize audio\n");
-
-	
 
 	// We're going to convert the cells array, from 2 pixels per byte (paletted)
 	// to on RGB(A) word per pixel

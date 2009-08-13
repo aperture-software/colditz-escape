@@ -53,7 +53,7 @@ extern "C" {
  */
 
 #define APPNAME					"colditz"
-#define VERSION					"v0.9.2"
+#define VERSION					"V0.9.2"
 
 /*
  * Graphics
@@ -468,7 +468,7 @@ extern "C" {
 #define TIMED_EVENT_PALETTE		0xFFFF	
 // Rollcall check
 #define TIMED_EVENT_ROLLCALL_CHECK	1
-#define DIRECTION_STOPPED		-1
+#define DIRECTION_STOPPED		8
 // For pursuit states
 #define NO_TARGET				-1
 
@@ -720,10 +720,11 @@ extern bool		opt_verbose;
 extern bool		opt_debug;
 extern bool		opt_onscreen_debug;
 extern int		opt_sid;
-extern bool		opt_play_as_the_safe;
+extern bool		opt_play_as_the_safe[NB_NATIONS];
 extern bool		opt_keymaster;
 extern bool		opt_thrillerdance;
 extern bool		opt_no_guards;
+extern bool		opt_meh;
 extern bool		opt_haunted_castle;
 
 // Global variables
@@ -743,7 +744,7 @@ extern u16		room_props[NB_OBSBIN];
 extern u8		over_prop, over_prop_id;
 extern char		*status_message;
 extern int		status_message_priority;
-extern s16		directions[3][3], dir_to_dx[8], dir_to_d2y[8];
+extern const s16 directions[3][3], dir_to_dx[9], dir_to_d2y[9], invert_dir[9];
 extern u8		hours_digit_h, hours_digit_l, minutes_digit_h, minutes_digit_l;
 extern u8		palette_index;	// Current palette
 extern u16		game_state;

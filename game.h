@@ -157,7 +157,8 @@ void removable_walls();
 void add_guybrushes();
 void sort_overlays(u8 a[], u8 n);
 void play_cluck();
-	
+void thriller_toggle();
+
 #ifdef	__cplusplus
 }
 #endif

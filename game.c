@@ -52,7 +52,7 @@ u8  obs_to_sprite[NB_OBS_TO_SPRITE];
 u8	remove_props[CMP_MAP_WIDTH][CMP_MAP_HEIGHT];
 u8  overlay_order[MAX_OVERLAYS]; 
 // Do we need to reload the files on newgame?
-bool game_restart			= false;
+bool game_restart = false;
 u8	nb_animations = 0;
 s_animation	animations[MAX_ANIMATIONS];
 s_guybrush guybrush[NB_GUYBRUSHES];
@@ -76,9 +76,11 @@ u32 exit_offset[4];		// exit boundary
 u8  tunexit_tool[4];	// tunnel tool
 s16 exit_dx[2];
 s_sfx sfx[NB_SFXS];
+// Additional SFX
 short*			upcluck;
 unsigned long	upcluck_len;
-
+short*			upthrill;
+unsigned long	upthrill_len;
 
 
 // These are the offsets to the solitary cells doors for each prisoner
@@ -1164,7 +1166,8 @@ void debug_index(s16 x, s16 y, s16 z, u8 n)
 // Places individuals on the map
 void add_guybrushes()
 {
-u8 i, sid;
+u8 i, sid, psid=0, gsid=0;
+bool was_guard;
 
 	// Add our current prisoner's animation (DO NOT RESET if kneeling!)
 	if (prisoner_reset_ani && !(prisoner_state & STATE_KNEELING))
@@ -1189,7 +1192,21 @@ u8 i, sid;
 	}
 
 	// Always display our main guy
-	sid = get_guybrush_sid(current_nation);
+	if (!opt_thrillerdance)
+		sid = get_guybrush_sid(current_nation);
+	else
+	{
+		was_guard = prisoner_as_guard;
+		prisoner_dir = invert_dir[prisoner_dir];
+		prisoner_as_guard = true;
+		gsid = get_guybrush_sid(current_nation);
+		prisoner_as_guard = false;
+		psid = get_guybrush_sid(current_nation);
+		prisoner_as_guard = was_guard;
+		prisoner_dir = invert_dir[prisoner_dir];
+		sid = prisoner_as_guard?gsid:psid;
+	}
+
 	overlay[overlay_index].sid = (opt_sid == -1)?sid:opt_sid;	
 
 	// If you uncomment the lines below, you'll get confirmation that our position 
@@ -1256,9 +1273,6 @@ u8 i, sid;
 		// First we check if the relevant guy's animation was ever initialized
 		if (guy(i).reset_animation)
 		{	// We need to initialize that guy's animation
-			// TO_DO: better thriller dance keeping the german's uniforms
-//			guy(i).ani_index = (opt_thrillerdance)?prisoner_ani:nb_animations;
-
 			if ((i<NB_NATIONS) && (guy(i).state & STATE_SHOT))
 				// Might have a stiff guy to display
 				guy(i).animation.index = ((guy(i).is_dressed_as_guard)?GUARD_SHOT_ANI:SHOT_ANI);
@@ -1276,7 +1290,10 @@ u8 i, sid;
 		}
 
 		// OK, now we're good to add the overlay sprite
-		sid = get_guybrush_sid(i);
+		if (opt_thrillerdance)
+			sid = guy(i).is_dressed_as_guard?gsid:psid;
+		else
+			sid = get_guybrush_sid(i);
 		overlay[overlay_index].sid = sid;
 
 		// And now that we have the sprite attributes, we can add the final position adjustments
@@ -1312,26 +1329,15 @@ u8 i, sid;
 			 
 	}
 
-// Let's add our guy
-/*	// TO_DO: REMOVE THIS DEBUG FEATURE
-	overlay[overlay_index].sid = (opt_sid == -1)?prisoner_sid:opt_sid;	
-	// 0x85 = tunnel board, 0x91 = safe
-	overlay[overlay_index].x = PSP_SCR_WIDTH/2;  
-	overlay[overlay_index].y = PSP_SCR_HEIGHT/2 - NORTHWARD_HO - 32; 
-	// Our guy's always at the center of our z-buffer
-	overlay[overlay_index].z = 0;
-	overlay_index++;
-*/
-/*
-	if (opt_play_as_the_safe)
+	if (opt_play_as_the_safe[current_nation])
 	{
 		overlay[overlay_index].sid = 0x91;	
-		overlay[overlay_index].x = PSP_SCR_WIDTH/2 - 10;  
-		overlay[overlay_index].y = PSP_SCR_HEIGHT/2 - NORTHWARD_HO - 32 - (((dx==0)&&(d2y==0))?8:12); 
+		overlay[overlay_index].x = PSP_SCR_WIDTH/2 - 9;  
+		overlay[overlay_index].y = PSP_SCR_HEIGHT/2 - NORTHWARD_HO - 32 - ((prisoner_state&STATE_MOTION)?10:6); 
 		overlay[overlay_index].z = 0;
 		safe_overlay_index_increment();
 	}
-*/
+
 }
 
 // Called after the shot animation has finished playing
@@ -1639,7 +1645,7 @@ bool guard_in_pursuit(int i, int p)
 	// 4. Shooting (prisoner still moving) or repeat aiming (prisoner motionless)
 	else if ((guard(i).state & STATE_AIMING) && (guard(i).wait == 0))
 	{	// End of the pause for aiming => Unless you stopped, you're dead man
-		if (guy(p).state & STATE_MOTION)
+		if (guy(p).state & STATE_MOTION && !opt_play_as_the_safe[p])
 		{	// Moving prisoners make good targets
 			printb("guard %d shoots\n", i);
 			// Stop the prisoner and set shot animation
@@ -1721,6 +1727,18 @@ bool move_guards()
 	kill_motion = false;
 	for (i=0; i<NB_GUARDS; i++)
 	{
+		if (opt_thrillerdance && guard(i).is_onscreen)
+		{
+			dir_x = (prisoner_state & STATE_MOTION)?dir_to_dx[prisoner_dir]:0;
+			dir_y = (prisoner_state & STATE_MOTION)?dir_to_d2y[prisoner_dir]:0;
+			if (check_guard_footprint(i, dir_x, dir_y))
+			{	// true means there's no obstacle in the way
+				guard(i).px += dir_x;
+				guard(i).p2y += dir_y;
+			}
+			continue;
+		}
+
 		// We'll use this variable to break this loop from a child loop if needed
 		continue_parent = false;
 
@@ -1815,7 +1833,7 @@ bool move_guards()
 					guy(p).state |= STATE_IN_PURSUIT;
 				}
 */
-				if ((guy(p).state & STATE_IN_PURSUIT) && (!do_i_know_you))
+				if ((guy(p).state & STATE_IN_PURSUIT) && (!do_i_know_you) && !(opt_meh))
 					// Act on pursuit 
 					guard_in_pursuit(i, p);
 				else
@@ -1928,11 +1946,11 @@ bool move_guards()
 					if (guard(i).state & STATE_RESUME_ROUTE)
 					{
 						reinstantiate_guard_delayed(i);
-						// We take this ooportunity to switch the direction we're facing to the opposite of 
+						// We take this opportunity to switch the direction we're facing to the opposite of 
 						// where we were headed, so that we don't look too out of place until reinstantiation
-						dir_x = 1 - dir_to_dx[guard(i).direction];	
-						dir_y = 1 - dir_to_d2y[guard(i).direction];
-						guard(i).direction = directions[dir_y][dir_x];
+//						dir_x = 1 - dir_to_dx[guard(i).direction];	
+//						dir_y = 1 - dir_to_d2y[guard(i).direction];
+						guard(i).direction = invert_dir[guard(i).direction]; //directions[dir_y][dir_x];
 					}
 				}
 			}
@@ -3027,15 +3045,19 @@ void set_sfxs()
 #endif
 	}
 
-#if defined(PSP)
-		// Let's upconvert us some chicken
-		for (j=0; j<sizeof(cluck_sfx); j++)
-			cluck_sfx[j] += 0x80;
-		psp_upsample(&upcluck, &upcluck_len, (char*)cluck_sfx, sizeof(cluck_sfx), 8000);
-#endif
-
 	// The footstep's SFX volume is a bit too high for my taste
 	sfx[SFX_FOOTSTEPS].volume /= 3;
+
+#if defined(PSP)
+	// Let's upconvert us some chicken
+	for (j=0; j<sizeof(cluck_sfx); j++)
+		cluck_sfx[j] += 0x80;
+	psp_upsample(&upcluck, &upcluck_len, (char*)cluck_sfx, sizeof(cluck_sfx), 8000);
+	// "'coz this is thriller!..."
+	for (j=0; j<sizeof(thriller_sfx); j++)
+		thriller_sfx[j] += 0x80;
+	psp_upsample(&upthrill, &upthrill_len, (char*)thriller_sfx, sizeof(thriller_sfx), 8000);
+#endif
 }
 
 
@@ -3044,10 +3066,14 @@ void set_sfxs()
 // Play one of the 5 game SFXs
 void play_sfx(int sfx_id)
 {
+	if (opt_thrillerdance)
+		return;
 #if defined(WIN32)
-	play_sample(-1, sfx[sfx_id].volume, fbuffer[LOADER] + sfx[sfx_id].address, sfx[sfx_id].length, sfx[sfx_id].frequency, 8);
+	play_sample(-1, sfx[sfx_id].volume, fbuffer[LOADER] + sfx[sfx_id].address, 
+		sfx[sfx_id].length, sfx[sfx_id].frequency, 8, false);
 #elif defined(PSP)
-	play_sample(-1, sfx[sfx_id].volume, sfx[sfx_id].upconverted_address, sfx[sfx_id].upconverted_length, PLAYBACK_FREQ, 16);
+	play_sample(-1, sfx[sfx_id].volume, sfx[sfx_id].upconverted_address, 
+		sfx[sfx_id].upconverted_length, PLAYBACK_FREQ, 16, false);
 #else
 #error No SFX playout for this platform
 #endif
@@ -3056,11 +3082,34 @@ void play_sfx(int sfx_id)
 // Play one of the non game SFX
 void play_cluck()
 {
+	if (opt_thrillerdance)
+		return;
 	msleep(120);
 #if defined(WIN32)
-	play_sample(-1, 60, cluck_sfx, sizeof(cluck_sfx), 8000, 8);
+	play_sample(-1, 60, cluck_sfx, sizeof(cluck_sfx), 8000, 8, false);
 #elif defined(PSP)
-	play_sample(-1, 60, upcluck, upcluck_len, PLAYBACK_FREQ, 16);
+	play_sample(-1, 60, upcluck, upcluck_len, PLAYBACK_FREQ, 16, false);
+#else
+#error No SFX playout for this platform
 #endif
 }
 
+// Play one of the non game SFX
+void thriller_toggle()
+{
+static bool is_playing = false;
+
+	if (is_playing)
+		stop_loop();
+	else
+	{
+#if defined(WIN32)
+		play_sample(-1, 60, thriller_sfx, sizeof(thriller_sfx), 8000, 8, true);
+#elif defined(PSP)
+		play_sample(-1, 60, upthrill, upthrill_len, PLAYBACK_FREQ, 16, true);
+#else
+#error No SFX playout for this platform
+#endif
+	}
+	is_playing = ~is_playing;
+}

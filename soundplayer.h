@@ -49,9 +49,12 @@ extern "C" {
     void mod_pause();
     bool mod_stop();
 	bool play_sample(int channel, unsigned int volume, void *address, unsigned int length, 
+		unsigned int frequency, unsigned int bits_per_sample, bool loop);
+	bool play_loop(unsigned int volume, void *address, unsigned int length, 
 		unsigned int frequency, unsigned int bits_per_sample);
+	void stop_loop();
 #if defined(PSP)
-	void psp_upsample(short **dst_address, unsigned long *dst_length, char *src_sample, 
+	bool psp_upsample(short **dst_address, unsigned long *dst_length, char *src_sample, 
 					  unsigned long src_numsamples, unsigned short src_frequency);
 #endif
 #ifdef __cplusplus
