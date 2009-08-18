@@ -40,22 +40,22 @@ extern "C" {
 #endif
 
 
-	bool audio_init();
-	bool audio_release();
+    bool audio_init();
+    bool audio_release();
     bool mod_init(char *filename);
-	void mod_release();
-	bool mod_play();
-	bool is_mod_playing();
+    void mod_release();
+    bool mod_play();
+    bool is_mod_playing();
     void mod_pause();
     bool mod_stop();
-	bool play_sample(int channel, unsigned int volume, void *address, unsigned int length, 
-		unsigned int frequency, unsigned int bits_per_sample, bool loop);
-	bool play_loop(unsigned int volume, void *address, unsigned int length, 
-		unsigned int frequency, unsigned int bits_per_sample);
-	void stop_loop();
+    bool play_sample(int channel, unsigned int volume, void *address, unsigned int length, 
+        unsigned int frequency, unsigned int bits_per_sample, bool loop);
+    bool play_loop(unsigned int volume, void *address, unsigned int length, 
+        unsigned int frequency, unsigned int bits_per_sample);
+    void stop_loop();
 #if defined(PSP)
-	bool psp_upsample(short **dst_address, unsigned long *dst_length, char *src_sample, 
-					  unsigned long src_numsamples, unsigned short src_frequency);
+    bool psp_upsample(short **dst_address, unsigned long *dst_length, char *src_sample, 
+                      unsigned long src_numsamples, unsigned short src_frequency);
 #endif
 #ifdef __cplusplus
 }

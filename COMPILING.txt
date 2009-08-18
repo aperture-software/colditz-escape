@@ -1,28 +1,117 @@
   Colditz Escape! - Rewritten Engine for "Escape From Colditz"
 
-	For glut, you need the dll in the exec location or system32
-	and to compile, you need:
-	- glut32.lib in C:\Program Files\Microsoft SDKs\Windows\v6.0A\Lib
-	- glut.h in C:\Program Files\Microsoft SDKs\Windows\v6.0A\Include\gl 
-	
-	The libs and header can be had from http://www.opengl.org/resources/libraries/glut/glutdlls37beta.zip
 
-	For expat, you need libexpatMT.lib (WIN)/libexpat.a (PSP) and on Windows, you must add XML_STATIC in 
-	the C/C++ PreProcessor Definitions. You will also need to set the Multi-threaded (/MT) static flag 
-	instead of Multi-threaded DLL (/MD) in Configuration Properties -> C/C++ -> Code Generation ->
-	Runtime Library
-	
-	Conf
-	I believe I downloaded my Expat from http://nds.cmamod.com/psp/Expat.2.01.win32_msys_bin.zip
-	For PSP recompilation, use the expat_config.h in extras/
+WINDOWS:
 
-	Important note: Because I'll be darned before I agree with the XML comitee's extreme shortsightedness 
-	that some chars in [00-7F] should be illegal, especially when we want to define our input keys in the
-	XML conf file, the libexpat we use was *TWEAKED* to accept ANY [00-7F] char without barfing.
-	To do that, the asciitab.h file of libexpat had all its BT_NONXML changed to BT_OTHER before compiling.
-	
-	If you don't want to have to tweak expat, you can modifie eschew.c to convert integer strings to 
-	unsigned char rather than simply read the value, and modify the config.xml
+For glut, you need the dll in the exec location or system32
+and to compile, you need:
+- glut32.lib in C:\Program Files\Microsoft SDKs\Windows\v6.0A\Lib
+- glut.h in C:\Program Files\Microsoft SDKs\Windows\v6.0A\Include\gl 
+The libs and header can be had from:
+  http://www.opengl.org/resources/libraries/glut/glutdlls37beta.zip
 
-  For PSP you will need
-  pmplib
+You will also need the following DirectX libraries, as highlighted at the 
+beginning of main.c:
+- X2Audio libs: X3DAudio.lib
+- DirectShow movie player lib: strmiids.lib
+
+
+PSP:
+
+For PSP you will need the following libraries:
+- pmplib 
+- pspgl (which includes glut)
+
+Please be mindful that If you try to use a PSPGL that relies on VFPU (i.e. need 
+to add -lpspvfpu in your Makefile), the game will be SUPER-SLOW!!!
+Don't know what the heck has changed in the VFPU based versions of PSPGL, but it
+sure didn't improve 2D performance!
+To get *proper* GL speed, you MUST use the 2005.12.10 version of the PSPGL, 
+which can be obtained from:
+# http://hg.goop.org/pspgl/jsgf?cmd=archive;node=working;type=zip or the one 
+included with this source in extras/pspgl
+
+
+EXPAT:
+
+For expat, you need libexpatMT.lib (WIN)/libexpat.a (PSP) and on Windows, you 
+must add XML_STATIC in the C/C++ PreProcessor Definitions. You will also need to
+set the Multi-threaded (/MT) static flag instead of Multi-threaded DLL (/MD) in 
+Configuration Properties -> C/C++ -> Code Generation -> Runtime Library
+Prcompiled versions of thse libraries are provided in the libs/ directory
+
+Important note: Because I'll be darned before I agree with the XML comitee's 
+extreme shortsightedness that some chars in [00-7F] should be illegal, 
+especially when we want to define our input keys in the XML conf file, the 
+libexpat we use was *TWEAKED* to accept ANY [00-7F] char without barfing.
+To do that, the asciitab.h file of libexpat had all its BT_NONXML changed to 
+BT_OTHER before compiling.
+
+If you don't want to have to tweak expat, you can modifie eschew.c to convert 
+integer strings to unsigned char rather than simply read the value, and modify 
+the config.xml
+
+If you want to recompile Expat, you can find it at: 
+http://nds.cmamod.com/psp/Expat.2.01.win32_msys_bin.zip
+For PSP recompilation, use the expat_config.h in extras/
+
+
+DIRECTORY STRUCTURE AND FILE DESCRIPTION:
+
+src/
+  +--- bin/                      [Additional binaries required at runtime]
+        +--- aperture.avi        Aperture Software Intro movie - Windows version
+        +--- aperture.pmp        Aperture Software Intro movie - PSP version
+        +--- corner.raw          16 bit GRAB raw image for the picture corner
+        +--- panel_base1.raw     16 bit GRAB raw image for the panel, part 1
+        +--- panel_base2.raw     16 bit GRAB raw image for the panel, part 2
+        +--- STARTSCREEN2-PSP    IFF detailing the controls for the PSP
+        +--- tunnel-vision.raw   16 bit GRAB raw image for the tunnel shadows
+  +--- eschew/                   [See http://code.google.com/p/eschew/]
+  +--- extras/                   [Additional licenses and files]
+  +--- libs/                     [Additional libraries required for compilation]
+        +--- libexpat.a          Slightly modified Expat library for the PSP
+        +--- libexpatMT.a        Slightly modified Expat library for Windows
+        +--- libpmp.a            PMP (Video playout) library for the PSP
+  +--- psp/                      [PSP specific sourcefiles]
+        +--- pmp.h               PMP header file
+        +--- psp-printf.h        Custom onscreen printf for the PSP
+        +--- psp-setup.c         Standard PSP callbacks initialization
+        +--- psp-setup.h             "           "           "
+  +--- win32/                    [Windows specific sourcefiles]
+        +--- winXAudio2.cpp      XAudio2 engine wrapper, with double buffered
+        +--- winXAudio2.h         streaming capabilities through Voice Callbacks
+        +--- wmp.cpp             Simple Windows directShow Movie Player
+        +--- wmp.h                   "           "           "
+  +--- anti-tampering.h          MD5sums and inline checking of the data files
+  +--- CHANGELOG.txt             Change Log
+  +--- cluck.h                   Additional (non ORG) SFXs
+  +--- colditz.h                 Main constants and structures definition
+  +--- colditz.vcproj            Visual Studio 2008 Project File
+  +--- COMPILING.txt             This file
+  +--- conf.c                    Eschew wrapper for the config.xml ini file with
+  +--- conf.h                     declarations for options and key mappings
+  +--- data-types.h              Type definitions for u8 -> u64, bool, etc.
+  +--- game.c                    Game runtime subroutines
+  +--- game.h                    Game runtime header, with some inline functions
+  +--- getopt.c                  GNU Getopt for commandline options processing
+  +--- getopt.h                      "           "           "
+  +--- getopt_int.h                  "           "           "
+  +--- gettext.h                     "           "           "
+  +--- graphics.c                Game Graphics runtime subroutines
+  +--- graphics.h                Game Graphics runtime header
+  +--- icon1.png                 PSP EBOOT icon
+  +--- IPHONE.txt                Notes about Apple Appstore port
+  +--- LICENSING.txt             Licensing notes
+  +--- low-level.c               Low level functions, with files decompression
+  +--- low-level.h                and bit/byte manipulations
+  +--- main.c                    Top level program, including GLUT functions
+  +--- Makefile                  PSP Makefile
+  +--- md5.c                     MD5 checksum functions
+  +--- md5.h                         "           "   
+  +--- modplayeri.h              PSP (and now Windows) Amiga MOD player header
+  +--- modtables.h                   "           "           "
+  +--- soundplayer.cpp           MOD + SFX wrapper & player
+  +--- soundplayer.h                 "           "
+  +--- videoplayer.c             Video player wrapper
+  +--- videoplayer.h                 "           "

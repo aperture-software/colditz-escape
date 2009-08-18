@@ -31,7 +31,7 @@ extern "C" {
 #if defined(ANTI_TAMPERING_ENABLED)
 #include "md5.h"
 
-// Slighltly obfuscated MD5 hashes of the files (don't want to make file tampering & cheating too easy for the first release)
+// MD5 hashes of the game data files
 
 #define FMD5HASHES	{																					\
 	{ 0x0c, 0x4f, 0xeb, 0x19, 0xfc, 0x53, 0xaf, 0xa9, 0x03, 0x83, 0x24, 0xc1, 0xad, 0xa2, 0x1c, 0xe9 }, \
@@ -47,8 +47,7 @@ extern "C" {
 	{ 0xcb, 0xe0, 0x09, 0xbe, 0x17, 0x15, 0xae, 0x03, 0xbf, 0xd6, 0x03, 0x91, 0x7f, 0x78, 0xe5, 0x67 }	}
 
 
-// This inline performs an obfuscated MD5 check on file i
-// Conveniently used to discreetly check for file tampering anytime during the game
+// This inline performs an MD5 check on file i
 extern void md5( unsigned char *input, int ilen, unsigned char output[16] );
 extern const u8  fmd5hash[NB_FILES][16];
 static __inline bool integrity_check(u16 i)

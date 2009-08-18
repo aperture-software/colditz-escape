@@ -34,44 +34,44 @@
 
 bool video_init() 
 {
-	return wmp_init(APPNAME);
+    return wmp_init(APPNAME);
 }
 
 bool video_play(char* filename)
 {
-	return wmp_play(filename);
+    return wmp_play(filename);
 }
 
 void video_stop()
 {
-	wmp_stop();
+    wmp_stop();
 }
 
 bool video_isplaying()
 {
-	return wmp_isplaying();
+    return wmp_isplaying();
 }
 #elif defined(PSP)
 #include "psp/pmp.h"
 
 bool video_init() 
 {
-	return (pmp_init() == NULL);
+    return (pmp_init() == NULL);
 }
 
 bool video_play(char* filename)
 {
-	return (pmp_play(filename, 1, -1) == NULL);
+    return (pmp_play(filename, 1, -1) == NULL);
 }
 
 void video_stop()
 {
-	pmp_stop();
+    pmp_stop();
 }
 
 // Check if playback is still running
 bool video_isplaying()
 {
-	return pmp_isplaying();
+    return pmp_isplaying();
 }
 #endif

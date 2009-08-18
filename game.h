@@ -75,13 +75,13 @@ extern "C" {
 	if (nb_animations <= (MAX_ANIMATIONS-1))\
 		nb_animations++;					\
 	else									\
-		printf("Too many animations!\n");	}
+		perr("Too many animations!\n");	}
 
 #define safe_overlay_index_increment() {	\
 	if (overlay_index <= (MAX_OVERLAYS-1))	\
 		overlay_index++;					\
 	else									\
-		printf("Too many overlays!\n");		}	
+		perr("Too many overlays!\n");		}	
 
 
 // A few definitions to make prop handling and status messages more readable

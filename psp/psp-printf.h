@@ -29,20 +29,20 @@ extern int game_suspended;
 extern unsigned char last_key_used;
 extern void (*work_around_stupid_linkers_glut_idle_suspended)(void);
 extern void (*work_around_stupid_linkers_glutIdleFunc)(void (*func)(void));
-extern void (*restore_idle)(void);
+
 #define EXIT_STRING "####################################################################" \
 					"#                                                                  #" \
-					"#           PROGRAM NOTIFICATION - PRESS ANY KEY TO EXIT           #" \
+					"#      PROGRAM NOTIFICATION - PRESS ANY KEY TO RETURN TO GAME      #" \
 					"#                                                                  #" \
 					"####################################################################\n"
 #define printf(...) {												\
 	if (game_suspended == 0) {										\
 		game_suspended = -1; last_key_used = 0;						\
-		if (restore_idle != NULL)									\
-			work_around_stupid_linkers_glutIdleFunc(work_around_stupid_linkers_glut_idle_suspended);\
+		work_around_stupid_linkers_glutIdleFunc(work_around_stupid_linkers_glut_idle_suspended);\
 		pspDebugScreenInit();										\
 		pspDebugScreenPrintf(EXIT_STRING);}							\
 	pspDebugScreenPrintf(__VA_ARGS__);								\
-	if (restore_idle == NULL) { psp_any_key(); game_suspended = 0; }\
- }
+}
+// NB: the default behaviour is to continue adding non-fatal messages until 
+// the idle_suspended loop kicks in
 #endif

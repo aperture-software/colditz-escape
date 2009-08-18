@@ -86,9 +86,12 @@ void set_xml_defaults()
 	SET_XML_NODE_DEFAULT(options, fullscreen, false);
     SET_XML_NODE_COMMENT(options, fullscreen,
 		" resize to fullscreen (Windows only) ");
-	SET_XML_NODE_DEFAULT(options, enhanced_guard_handling, true);
-	SET_XML_NODE_COMMENT(options, enhanced_guard_handling, 
+	SET_XML_NODE_DEFAULT(options, enhanced_guards, false);
+	SET_XML_NODE_COMMENT(options, enhanced_guards, 
 		" have guards remember when they've seen a pass ");
+	SET_XML_NODE_DEFAULT(options, enhanced_tunnels, false);
+	SET_XML_NODE_COMMENT(options, enhanced_tunnels, 
+		" limited field of vision in tunnels ");
 	SET_XML_NODE_DEFAULT(options, picture_corners, true);
 	SET_XML_NODE_COMMENT(options, picture_corners, 
 		" display texturized picture corners, rather than black triangles ");

@@ -100,7 +100,11 @@ static __inline void psp_any_key()
 #endif
 #endif
 #define ERR_EXIT		{if (fd!=NULL) fclose(fd); fflush(stdout); FATAL;}
+#if defined(PSP_ONSCREEN_STDOUT)
+#define perr(...)		printf(__VA_ARGS__)
+#else
 #define perr(...)		fprintf(stderr, __VA_ARGS__)
+#endif
 #define print(...)		printf(__VA_ARGS__)
 #define printv(...)		if(opt_verbose) print(__VA_ARGS__)
 #define perrv(...)		if(opt_verbose) perr(__VA_ARGS__)

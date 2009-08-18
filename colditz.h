@@ -31,7 +31,7 @@ extern "C" {
 // General compilation options for the program
 #define CHEATMODE_ENABLED
 #define ANTI_TAMPERING_ENABLED
-#define DEBUG_KEYS_ENABLED
+//#define DEBUG_ENABLED
 
 // Stupid VC++ doesn't know the basic GL formats it can actually use!
 #if !defined(GL_UNSIGNED_SHORT_4_4_4_4_REV)
@@ -53,7 +53,10 @@ extern "C" {
  */
 
 #define APPNAME					"colditz"
+// NB: Make sure you use capital V for version as we don't have lowercase
+// in our menu font (where we display this version as well)
 #define VERSION					"V0.9.2"
+#define COLDITZ_URL				"HTTP://SITES.GOOGLE.COM/SITE/COLDITZESCAPE"
 
 /*
  * Graphics
@@ -121,9 +124,10 @@ extern "C" {
 // Most of the archive versions from the net use the Skid Row loader
 #define ALT_LOADER				"SKR_COLD"
 #define ALT_LOADER_SIZE			28820
+#define ALT_LOADER_SIZE2        27940
 
 // Static images
-#define NB_TEXTURES				23
+#define NB_TEXTURES				24
 #define NB_IFFS					19
 // Couple differences between Win & PSP
 #if defined(PSP)
@@ -155,6 +159,7 @@ extern "C" {
 									{ "panel_base1.raw", 64, 32, 0, NULL},						\
 									{ "panel_base2.raw", 256, 32, 0, NULL},						\
 									{ "corner.raw", 74, 37, 0, NULL},							\
+									{ "tunnel-vision.raw", 128, 128, 0, NULL},					\
 								}
 
 // Handy identifier for images
@@ -173,6 +178,7 @@ extern "C" {
 #define PANEL_BASE1				19
 #define PANEL_BASE2				20
 #define PICTURE_CORNER			21
+#define TUNNEL_VISION			22
 #define NO_PICTURE				-1
 
 // Music mods
@@ -198,7 +204,7 @@ extern "C" {
 // If we place our loader at address 0x80, we won't have to convert the pointers from the disassembly ;)
 #define LOADER_PADDING			0x00000080
 #define MENDAT_ITEM_SIZE		0x14
-#define INITIAL_PALETTE_INDEX	4
+#define INITIAL_PALETTE_INDEX	2
 
 
 // Compressed and indoors maps data
@@ -207,7 +213,6 @@ extern "C" {
 #define CMP_TILES_START			0x00005E80
 #define CMP_MAP_WIDTH			0x54
 #define CMP_MAP_HEIGHT			0x48
-
 
 
 // tiles that need overlay, from LOADER
@@ -315,6 +320,7 @@ extern "C" {
 #define TUNNEL_MSG_ID			0x35
 #define	COURTYARD_MSG_ID		0x36
 
+
 /*
  *	Menu stuff
  */
@@ -342,7 +348,7 @@ extern "C" {
 #define MENU_PICTURE_CORNERS	5
 #define MENU_SMOOTHING			6
 #define MENU_FULLSCREEN			7
-#define MENU_ENHANCED_GUARDS	8
+#define MENU_ENHANCEMENTS		8
 #define MENU_ORIGINAL_MODE		9
 
 
@@ -416,6 +422,10 @@ extern "C" {
 // For data file patching
 #define FIXED_CRM_VECTOR		0x50
 
+// Joystick center position
+#define DIRECTION_STOPPED		8
+
+
 
 /*
  *	Time related
@@ -434,10 +444,9 @@ extern "C" {
 // Minimum amount of sleep we are entitling ourselves to, in ms
 #define QUANTUM_OF_SOLACE		2
 // Muhahahahahaha!!! Fear not, mere mortals, for I'll...
-//#define TIME_MARKER				20000
 #define TIME_MARKER				10000
 // NB: This is the duration of a game minute, in ms
-#define SOLITARY_DURATION		100000
+#define SOLITARY_DURATION		300000
 // How long should we keep a static picture on, in ms
 #define PICTURE_TIMEOUT			12000
 // Time we should keep our inventory messages, in ms
@@ -468,7 +477,6 @@ extern "C" {
 #define TIMED_EVENT_PALETTE		0xFFFF	
 // Rollcall check
 #define TIMED_EVENT_ROLLCALL_CHECK	1
-#define DIRECTION_STOPPED		8
 // For pursuit states
 #define NO_TARGET				-1
 
@@ -583,6 +591,7 @@ typedef struct
 	u16 corrected_w;
 	u16 corrected_h;
 	s16 x_offset;
+	s16 y_offset;
 	s16 z_offset;
 	u8* data;
 } s_sprite;
@@ -642,7 +651,7 @@ typedef struct
 	s16				speed;					// Walk = 1, Run = 2
 	/* For animated overlays, direction is one of:
 	 *    3  2  4
-	 *    0 -1  1 
+	 *    0  8  1 
 	 *    6  5  7   */
 	s16				direction;
 	u16				state;					// Motion related state (see above)
@@ -678,14 +687,13 @@ typedef struct
 	bool thrown_stone;
 	u64	 pass_grace_period_expires;
 	u32  fatigue;
-	u32  solitary_countdown;
+	u64  solitary_release;
 } s_prisoner_event;
 
 
 /*
  *	Defines, passing as globals (originally global variables)
  */
-
 #define prisoner_x			guybrush[current_nation].px
 #define prisoner_2y			guybrush[current_nation].p2y
 #define current_room_index	guybrush[current_nation].room

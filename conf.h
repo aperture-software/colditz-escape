@@ -76,77 +76,70 @@ extern "C" {
 // 
 
 // We'll use the [0x80-0x9F] section of ASCII for our special codes
-#define SPECIAL_KEY_OFFSET1		0x80
+#define SPECIAL_KEY_OFFSET1			0x80
 // Follows the order in which they are defined in the glut headers
-#define SPECIAL_KEY_F1          (GLUT_KEY_F1 - GLUT_KEY_F1 + SPECIAL_KEY_OFFSET1)
-#define SPECIAL_KEY_F2          (GLUT_KEY_F2 - GLUT_KEY_F1 + SPECIAL_KEY_OFFSET1)
-#define SPECIAL_KEY_F3          (GLUT_KEY_F3 - GLUT_KEY_F1 + SPECIAL_KEY_OFFSET1)
-#define SPECIAL_KEY_F4          (GLUT_KEY_F4 - GLUT_KEY_F1 + SPECIAL_KEY_OFFSET1)
-#define SPECIAL_KEY_F5          (GLUT_KEY_F5 - GLUT_KEY_F1 + SPECIAL_KEY_OFFSET1)
-#define SPECIAL_KEY_F6          (GLUT_KEY_F6 - GLUT_KEY_F1 + SPECIAL_KEY_OFFSET1)
-#define SPECIAL_KEY_F7          (GLUT_KEY_F7 - GLUT_KEY_F1 + SPECIAL_KEY_OFFSET1)
-#define SPECIAL_KEY_F8          (GLUT_KEY_F8 - GLUT_KEY_F1 + SPECIAL_KEY_OFFSET1)
-#define SPECIAL_KEY_F9          (GLUT_KEY_F9 - GLUT_KEY_F1 + SPECIAL_KEY_OFFSET1)
-#define SPECIAL_KEY_F10         (GLUT_KEY_F10 - GLUT_KEY_F1 + SPECIAL_KEY_OFFSET1)
-#define SPECIAL_KEY_F11         (GLUT_KEY_F11 - GLUT_KEY_F1 + SPECIAL_KEY_OFFSET1)
-#define SPECIAL_KEY_F12         (GLUT_KEY_F12 - GLUT_KEY_F1 + SPECIAL_KEY_OFFSET1)
-#define SPECIAL_KEY_OFFSET2		(SPECIAL_KEY_F12 + 1)
-#define SPECIAL_KEY_LEFT        (GLUT_KEY_LEFT - GLUT_KEY_LEFT + SPECIAL_KEY_OFFSET2)
-#define SPECIAL_KEY_UP          (GLUT_KEY_UP - GLUT_KEY_LEFT + SPECIAL_KEY_OFFSET2)
-#define SPECIAL_KEY_RIGHT       (GLUT_KEY_RIGHT - GLUT_KEY_LEFT + SPECIAL_KEY_OFFSET2)
-#define SPECIAL_KEY_DOWN        (GLUT_KEY_DOWN - GLUT_KEY_LEFT + SPECIAL_KEY_OFFSET2)
-#define SPECIAL_KEY_PAGE_UP     (GLUT_KEY_PAGE_UP - GLUT_KEY_LEFT + SPECIAL_KEY_OFFSET2)
-#define SPECIAL_KEY_PAGE_DOWN   (GLUT_KEY_PAGE_DOWN - GLUT_KEY_LEFT + SPECIAL_KEY_OFFSET2)
-#define SPECIAL_KEY_HOME        (GLUT_KEY_HOME - GLUT_KEY_LEFT + SPECIAL_KEY_OFFSET2)
-#define SPECIAL_KEY_END	        (GLUT_KEY_END - GLUT_KEY_LEFT + SPECIAL_KEY_OFFSET2)
-#define SPECIAL_KEY_INSERT      (GLUT_KEY_INSERT - GLUT_KEY_LEFT + SPECIAL_KEY_OFFSET2)
-#define SPECIAL_KEY_SHIFT		(SPECIAL_KEY_INSERT + 1)
-#define SPECIAL_KEY_CTRL		(SPECIAL_KEY_INSERT + 2)
-#define SPECIAL_KEY_ALT			(SPECIAL_KEY_INSERT + 3)
+#define SPECIAL_KEY_F1				(GLUT_KEY_F1 - GLUT_KEY_F1 + SPECIAL_KEY_OFFSET1)
+#define SPECIAL_KEY_F2				(GLUT_KEY_F2 - GLUT_KEY_F1 + SPECIAL_KEY_OFFSET1)
+#define SPECIAL_KEY_F3				(GLUT_KEY_F3 - GLUT_KEY_F1 + SPECIAL_KEY_OFFSET1)
+#define SPECIAL_KEY_F4				(GLUT_KEY_F4 - GLUT_KEY_F1 + SPECIAL_KEY_OFFSET1)
+#define SPECIAL_KEY_F5				(GLUT_KEY_F5 - GLUT_KEY_F1 + SPECIAL_KEY_OFFSET1)
+#define SPECIAL_KEY_F6				(GLUT_KEY_F6 - GLUT_KEY_F1 + SPECIAL_KEY_OFFSET1)
+#define SPECIAL_KEY_F7				(GLUT_KEY_F7 - GLUT_KEY_F1 + SPECIAL_KEY_OFFSET1)
+#define SPECIAL_KEY_F8				(GLUT_KEY_F8 - GLUT_KEY_F1 + SPECIAL_KEY_OFFSET1)
+#define SPECIAL_KEY_F9				(GLUT_KEY_F9 - GLUT_KEY_F1 + SPECIAL_KEY_OFFSET1)
+#define SPECIAL_KEY_F10				(GLUT_KEY_F10 - GLUT_KEY_F1 + SPECIAL_KEY_OFFSET1)
+#define SPECIAL_KEY_F11				(GLUT_KEY_F11 - GLUT_KEY_F1 + SPECIAL_KEY_OFFSET1)
+#define SPECIAL_KEY_F12				(GLUT_KEY_F12 - GLUT_KEY_F1 + SPECIAL_KEY_OFFSET1)
+#define SPECIAL_KEY_OFFSET2			(SPECIAL_KEY_F12 + 1)
+#define SPECIAL_KEY_LEFT			(GLUT_KEY_LEFT - GLUT_KEY_LEFT + SPECIAL_KEY_OFFSET2)
+#define SPECIAL_KEY_UP				(GLUT_KEY_UP - GLUT_KEY_LEFT + SPECIAL_KEY_OFFSET2)
+#define SPECIAL_KEY_RIGHT			(GLUT_KEY_RIGHT - GLUT_KEY_LEFT + SPECIAL_KEY_OFFSET2)
+#define SPECIAL_KEY_DOWN			(GLUT_KEY_DOWN - GLUT_KEY_LEFT + SPECIAL_KEY_OFFSET2)
+#define SPECIAL_KEY_PAGE_UP			(GLUT_KEY_PAGE_UP - GLUT_KEY_LEFT + SPECIAL_KEY_OFFSET2)
+#define SPECIAL_KEY_PAGE_DOWN		(GLUT_KEY_PAGE_DOWN - GLUT_KEY_LEFT + SPECIAL_KEY_OFFSET2)
+#define SPECIAL_KEY_HOME			(GLUT_KEY_HOME - GLUT_KEY_LEFT + SPECIAL_KEY_OFFSET2)
+#define SPECIAL_KEY_END				(GLUT_KEY_END - GLUT_KEY_LEFT + SPECIAL_KEY_OFFSET2)
+#define SPECIAL_KEY_INSERT			(GLUT_KEY_INSERT - GLUT_KEY_LEFT + SPECIAL_KEY_OFFSET2)
+#define SPECIAL_KEY_SHIFT			(SPECIAL_KEY_INSERT + 1)
+#define SPECIAL_KEY_CTRL			(SPECIAL_KEY_INSERT + 2)
+#define SPECIAL_KEY_ALT				(SPECIAL_KEY_INSERT + 3)
 // Same for mouse buttons (PSP L&R triggers are mapped to mouse buttons in GLUT)
 #define SPECIAL_MOUSE_BUTTON_BASE	(SPECIAL_KEY_ALT + 1)
 #define SPECIAL_LEFT_MOUSE_BUTTON	(GLUT_LEFT_BUTTON - GLUT_LEFT_BUTTON + SPECIAL_MOUSE_BUTTON_BASE)
 #define SPECIAL_MIDDLE_MOUSE_BUTTON	(GLUT_MIDDLE_BUTTON - GLUT_LEFT_BUTTON + SPECIAL_MOUSE_BUTTON_BASE)
 #define SPECIAL_RIGHT_MOUSE_BUTTON	(GLUT_RIGHT_BUTTON - GLUT_LEFT_BUTTON + SPECIAL_MOUSE_BUTTON_BASE)
 
-// Non official debug keys
-#define KEY_DEBUG_PRINT_POS		'p'
-#define KEY_OSD					'#'
-#define KEY_SOUND				'/'
-
-//#define opt_skip_intro			options.node[skip_intro].value
-//#define opt_enhanced_guards		options.node[enhanced_guards].value
-//#define opt_picture_corners		options.node[picture_corners].value
 #if defined(PSP)
-#define KEYVAL(key)		XML_VALUE(controls_target_psp, key)
+#define KEYVAL(key)					XML_VALUE(controls_target_psp, key)
 #else
-#define KEYVAL(key)		XML_VALUE(controls_target_windows, key)		
+#define KEYVAL(key)					XML_VALUE(controls_target_windows, key)		
 #endif
 
 // Short(?)cut defines for the main program
-#define KEY_FIRE				KEYVAL(key_fire)
-#define KEY_TOGGLE_WALK_RUN		KEYVAL(key_toggle_walk_run)
-#define KEY_PAUSE				KEYVAL(key_pause)
-#define KEY_INVENTORY_LEFT		KEYVAL(key_inventory_cycle_left)
-#define KEY_INVENTORY_RIGHT		KEYVAL(key_inventory_cycle_right)
-#define KEY_INVENTORY_PICKUP	KEYVAL(key_pickup)
-#define KEY_INVENTORY_DROP		KEYVAL(key_dropdown)
-#define KEY_SLEEP				KEYVAL(key_sleep)
-#define KEY_STOOGE				KEYVAL(key_stooge)
-#define KEY_ESCAPE				KEYVAL(key_escape)
-#define KEY_PRISONERS_LEFT		KEYVAL(key_prisoners_cycle_left)
-#define KEY_PRISONERS_RIGHT		KEYVAL(key_prisoners_cycle_right)
-#define KEY_BRITISH				KEYVAL(key_select_british)
-#define KEY_FRENCH				KEYVAL(key_select_french)
-#define KEY_AMERICAN			KEYVAL(key_select_american)
-#define KEY_POLISH				KEYVAL(key_select_polish)
-#define KEY_DIRECTION_LEFT		KEYVAL(key_direction_left)
-#define KEY_DIRECTION_RIGHT		KEYVAL(key_direction_right)
-#define KEY_DIRECTION_UP		KEYVAL(key_direction_up)
-#define KEY_DIRECTION_DOWN		KEYVAL(key_direction_down)
+#define KEY_FIRE					KEYVAL(key_fire)
+#define KEY_TOGGLE_WALK_RUN			KEYVAL(key_toggle_walk_run)
+#define KEY_PAUSE					KEYVAL(key_pause)
+#define KEY_INVENTORY_LEFT			KEYVAL(key_inventory_cycle_left)
+#define KEY_INVENTORY_RIGHT			KEYVAL(key_inventory_cycle_right)
+#define KEY_INVENTORY_PICKUP		KEYVAL(key_pickup)
+#define KEY_INVENTORY_DROP			KEYVAL(key_dropdown)
+#define KEY_SLEEP					KEYVAL(key_sleep)
+#define KEY_STOOGE					KEYVAL(key_stooge)
+#define KEY_ESCAPE					KEYVAL(key_escape)
+#define KEY_PRISONERS_LEFT			KEYVAL(key_prisoners_cycle_left)
+#define KEY_PRISONERS_RIGHT			KEYVAL(key_prisoners_cycle_right)
+#define KEY_BRITISH					KEYVAL(key_select_british)
+#define KEY_FRENCH					KEYVAL(key_select_french)
+#define KEY_AMERICAN				KEYVAL(key_select_american)
+#define KEY_POLISH					KEYVAL(key_select_polish)
+#define KEY_DIRECTION_LEFT			KEYVAL(key_direction_left)
+#define KEY_DIRECTION_RIGHT			KEYVAL(key_direction_right)
+#define KEY_DIRECTION_UP			KEYVAL(key_direction_up)
+#define KEY_DIRECTION_DOWN			KEYVAL(key_direction_down)
 
 #define opt_picture_corners			XML_VALUE(options, picture_corners)	
-#define opt_enhanced_guard_handling	XML_VALUE(options, enhanced_guard_handling)	
+#define opt_enhanced_guards			XML_VALUE(options, enhanced_guards)	
+#define opt_enhanced_tunnels		XML_VALUE(options, enhanced_tunnels)	
 #define opt_skip_intro				XML_VALUE(options, skip_intro)
 #define opt_gl_linear				XML_VALUE(options, gl_linear)
 #define opt_fullscreen				XML_VALUE(options, fullscreen)
@@ -168,7 +161,8 @@ SET_XML_ROOT(config)
 // General program options
 DEFINE_XML_NODES(options_nodes, 
 				 skip_intro,	
-				 enhanced_guard_handling,	
+				 enhanced_guards,
+				 enhanced_tunnels,
 				 picture_corners,
 				 gl_linear,
 				 fullscreen,

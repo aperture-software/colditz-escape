@@ -48,9 +48,9 @@ typedef void(* winXAudio2Callback_t)(void *buf, unsigned int reqn, void *pdata);
 // Public functions
 bool winXAudio2Init();
 bool winXAudio2SetVoice(int voice, BYTE* audioData, int audioSize, unsigned int frequency, 
-						unsigned int bits_per_sample, bool stereo);
+                        unsigned int bits_per_sample, bool stereo);
 bool winXAudio2SetVoiceCallback(int channel, winXAudio2Callback_t callback, void* pdata, 
-						unsigned int frequency, unsigned int bits_per_sample, bool stereo);
+                        unsigned int frequency, unsigned int bits_per_sample, bool stereo);
 bool winXAudio2Release();
 bool winXAudio2StartVoice(int voice);
 bool winXAudio2StopVoice(int voice);

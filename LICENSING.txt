@@ -1,25 +1,32 @@
 ORIGINAL SOURCECODE LICENSING:
 
       Copyright (C) Aperture Software 2009
-      http://code.google.com/[TBD]
-      GPL v3.0. See LICENSE.txt in extras/GPL
+      http://sites.google.com/site/colditzescape/
+      http://code.google.com/p/colditzescape/
+      GPL v3.0. See LICENSE.txt in src extras/GPL
+
+
+FULL SOURCECODE AVAILABLE AT:
+
+      http://code.google.com/p/colditzescape/source/browse/#svn/trunk      
+
 
 COMMON SOURCE & LIBRARIES LICENSING:
 
 Uses: Expat XML Parser library by James Clark 
       http://expat.sourceforge.net/
-      See LICENSE.txt file in extras/expat/
+      See LICENSE.txt file in src extras/expat/
 Uses: Eschew Expat Wrapper by Aperture Software
-      http://code.google.com/[TBD]
-      GPL v3.0. See LICENSE.txt in extras/GPL
+      http://code.google.com/p/eschew
+      GPL v3.0. See LICENSE.txt in src extras/GPL
 Uses: UTF-8 conversion functions by Mark E. Davis (unicode.org)
       http://unicode.org/Public/PROGRAMS/CVTUTF/ConvertUTF.c and
       http://unicode.org/Public/PROGRAMS/CVTUTF/ConvertUTF.h
-      Unicode free usage license: See License.txt in extras/Unicode
+      Unicode free usage license: See License.txt in src extras/Unicode
 Uses: MD5 hash functions, from PolarSSL by Paul Bakker
       based on XySSL by Christophe Devine
       http://polarssl.org/?page=show_source&type=source&file=md5
-      GPL v2.0 or later. See LICENSE.txt in extras/GPL
+      GPL v2.0 or later. See LICENSE.txt in src extras/GPL
 Uses: Aligned malloc code, from Satya Kiran Popuri
       http://www.cs.uic.edu/~spopuri/amalloc.html (dead link)
       Free license
@@ -31,6 +38,7 @@ Uses: IFF loader code, modified from IFF C samples by Jerry Morrison and Steve S
       http://www.martinreddy.net/gfx/2d/IFF.txt
       Public domain
       
+
 PSP SOURCE & LIBRARIES LICENSING:
 
 Uses: PSP ModPlayer v1.0, from PSPMediaCenter by adresd
@@ -38,13 +46,13 @@ Uses: PSP ModPlayer v1.0, from PSPMediaCenter by adresd
       Free license
 Uses: PMP Mod mini library, from openTRI by Jonny and Raphael
       http://trac2.assembla.com/openTRI (trunk/src/pmp/)
-      GPL v2.0 or later. See LICENSE.txt in extras/GPL
+      GPL v2.0 or later. See LICENSE.txt in src extras/GPL
 Uses: PSPGL libraries by Jeremy Fitzhardinge and Holger Waechtler
       http://www.goop.org/psp/gl/
-      See LICENSE.txt in extras/pspgl
+      See LICENSE.txt in src extras/pspgl
 Uses: PSPSDK libraries by adresd, Marcus R. Brown, James Forshaw, John Kelley, Jesper Svennevid
       http://svn.ps2dev.org/listing.php?repname=psp&path=%2Ftrunk%2Fpspsdk%2F&rev=0&sc=0
-      See LICENSE.txt in extras/pspsdk
+      See LICENSE.txt in src extras/pspsdk
       
 WINDOWS SOURCE & LIBRARIES LICENSING:
 
@@ -56,4 +64,4 @@ Uses: Directshow (DirectX) and XAudio2 for Windows, by Microsoft Corporation
       http://www.microsoft.com/downloads/details.aspx?familyid=8b5cd64e-b4be-4135-95f8-ecfcf9182431&displaylang=en
       Direct X Libraries subject to the Microsoft DirectX EULA
       
-      
+

@@ -80,7 +80,8 @@ void set_textures();
 void init_sprites();
 void sprites_to_wGRAB();
 bool load_texture(s_tex *tex);
-
+void display_tunnel_area();
+void display_fps(u64 frames_duration, u64 nb_frames);
 
 #ifdef	__cplusplus
 }
