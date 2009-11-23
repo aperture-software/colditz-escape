@@ -201,7 +201,7 @@ static const u16 props_tile [0x213] = {
 
 
 /*
- * Win32 OpenGL Shader functions (hq2x "lite" 2x zoom)
+ * Win32 OpenGL 2.0 Shader functions (hq2x "lite" 2x zoom)
  */
 #if defined(WIN32)
 // Print GLSL compilation log errors
@@ -261,8 +261,9 @@ bool compile_shader(u8 zoomfactor)
 	char *fsSource;
 	char shadername[20];
 
-	GLuint vs, // Vertex Shader 
-		   fs; // Fragment Shader
+	GLuint vs,				// Vertex Shader 
+		   fs,				// Fragment Shader
+	       status;
 
 	if (zoomfactor <= 1 || zoomfactor >= 4)
 	// 2x, 3x, 4x only
@@ -274,15 +275,28 @@ bool compile_shader(u8 zoomfactor)
 	sprintf(shadername, "shader-hq%dx.frag", zoomfactor);
 	if ((fsSource = file2string(shadername)) == NULL)
 		return false;
+
 	vs = glCreateShader(GL_VERTEX_SHADER);
 	glShaderSource(vs, 1, &vsSource, NULL);
 	glCompileShader(vs);
-	printLog(vs);
+	glGetShaderiv(vs, GL_COMPILE_STATUS, &status);
+	if (status != GL_TRUE)
+	{	// Compilation error
+		perr("Error compiling Vertex shader:\n");
+		printLog(vs);
+		return false;
+	}
  
 	fs = glCreateShader(GL_FRAGMENT_SHADER);
 	glShaderSource(fs, 1, &fsSource, NULL);
 	glCompileShader(fs);
-	printLog(fs);
+	glGetShaderiv(fs, GL_COMPILE_STATUS, &status);
+	if (status != GL_TRUE)
+	{	// Compilation error
+		perr("Error compiling Fragment shader:\n");
+		printLog(fs);
+		return false;
+	}
  
 	free(vsSource);
 	free(fsSource);
@@ -291,7 +305,14 @@ bool compile_shader(u8 zoomfactor)
 	glAttachShader(sp, vs);
 	glAttachShader(sp, fs);
 	glLinkProgram(sp);
-	printLog(sp);
+	glGetProgramiv(sp, GL_LINK_STATUS, &status);
+	if (status != GL_TRUE)
+	{	// Compilation error
+		perr("Error linking shader program:\n");
+		printLog(sp);
+		return false;
+	}
+
 	return true;
 }
 
@@ -1486,7 +1507,7 @@ void rescale_buffer()
 // if you think, with all the GPU acceleration, there should be an easy way to
 // achieve that crap, you couldn't be more wrong! And if you want anything elaborate, you
 // have to write your own shader (coz even with PCI-X, tranferring image data back and
-// forth for software HQ2X for instance is WAY TOO DARN SLOW!!!!)
+// forth with OpenGL for software HQ2X for instance is WAY TOO DARN SLOW!!!!)
 
 #if defined(WIN32)
 	GLint shaderSizeLocation;
@@ -1627,7 +1648,7 @@ void display_menu_screen()
         else if (selected_menu == MAIN_MENU)
             line_start = 176;
         else
-            line_start = 112;
+            line_start = 96;
 
         // "grey-out" disabled menus
         if ((line>=FIRST_MENU_ITEM) && (!enabled_menus[selected_menu][line]))

@@ -32,12 +32,16 @@
 #include <gl/gl.h>
 #include <gl/glu.h>
 #include <gl/glut.h>
+
+
 // Tell VC++ to include the GL libs
 #pragma comment(lib, "opengl32.lib")
 #pragma comment(lib, "glu32.lib")
 #pragma comment(lib, "glut32.lib")
-// Glew is only required for HQnX shaders
+// Glew is only required for the GLSL HQnX shaders
 #pragma comment(lib, "glew32s.lib")
+// Prevents a potential "LINK : fatal error LNK1104: cannot open file 'libc.lib'" error with Glew
+#pragma comment(linker, "/NODEFAULTLIB:libc.lib")
 // X2Audio libs -> win32/winXAudio2.cpp
 #pragma comment(lib, "X3DAudio.lib")
 // DirectShow movie player -> win32/wmp.cpp

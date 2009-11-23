@@ -54,7 +54,7 @@
 				RuntimeLibrary="1"
 				UsePrecompiledHeader="0"
 				WarningLevel="3"
-				DebugInformationFormat="4"
+				DebugInformationFormat="3"
 			/>
 			<Tool
 				Name="VCManagedResourceCompilerTool"
@@ -69,6 +69,7 @@
 				Name="VCLinkerTool"
 				LinkIncremental="1"
 				AdditionalLibraryDirectories="libs;&quot;C:\Program Files\Microsoft SDKs\Windows\v6.0A\Lib&quot;;&quot;E:\Program Files\Microsoft SDKs\Windows\v6.0\Lib\x86&quot;;&quot;E:\Program Files\Microsoft SDKs\Windows\v6.0\Lib\x64&quot;;&quot;E:\Program Files (x86)\Microsoft DirectX SDK (March 2009)\Lib\x64&quot;;&quot;E:\Program Files (x86)\Microsoft DirectX SDK (March 2009)\Lib\x86&quot;"
+				IgnoreDefaultLibraryNames=""
 				GenerateDebugInformation="true"
 				SubSystem="1"
 				TargetMachine="1"

@@ -174,6 +174,9 @@ Colditz Escape! - Activity Log
 -m can shoot guards with rifle?
 -m provide the rgb4 source [DROPPED: will do on request]
 -M add hq2x for magnification on PC (http://web.archive.org/web/20070624082212/www.hiend3d.com/hq2x.html) [DONE 2009.11.23 01:04:53]
+-m make "chicken-enhanced" the default game version [DONE]
+-m better compilation error reports for GLSL shaders [DONE 2009.11.23 11:08:23]
+-m recenter options menu [DONE 2009.11.23 11:09:04]
 SANITY CHECKS:
 -m provide a debug FPS so that we can find out if we're slow. [DONE 2009.08.16 19:22:30]
 -m provide windows controls![DONE]
