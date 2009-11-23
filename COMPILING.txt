@@ -10,6 +10,9 @@ and to compile, you need:
 The libs and header can be had from:
   http://www.opengl.org/resources/libraries/glut/glutdlls37beta.zip
 
+For the GLSL zoom shader(s), you will also need the static version of the
+Glew library (http://glew.sourceforge.net/)
+
 You will also need the following DirectX libraries, as highlighted at the 
 beginning of main.c:
 - X2Audio libs: X3DAudio.lib
@@ -65,11 +68,14 @@ src/
         +--- corner.raw          16 bit GRAB raw image for the picture corner
         +--- panel_base1.raw     16 bit GRAB raw image for the panel, part 1
         +--- panel_base2.raw     16 bit GRAB raw image for the panel, part 2
+        +--- shader-hq2x.frag    Fragment and Vertex GLSL OpenGL 2.0 shaders for
+        +--- shader-hq2x.vert    the HQ2X "lite" zooming function by guest(r)
         +--- STARTSCREEN2-PSP    IFF detailing the controls for the PSP
         +--- tunnel-vision.raw   16 bit GRAB raw image for the tunnel shadows
   +--- eschew/                   [See http://code.google.com/p/eschew/]
   +--- extras/                   [Additional licenses and files]
   +--- libs/                     [Additional libraries required for compilation]
+        +--- glew32s.lib         Static win32 version of the Glew library (v1.5.1)
         +--- libexpat.a          Slightly modified Expat library for the PSP
         +--- libexpatMT.a        Slightly modified Expat library for Windows
         +--- libpmp.a            PMP (Video playout) library for the PSP
@@ -79,6 +85,8 @@ src/
         +--- psp-setup.c         Standard PSP callbacks initialization
         +--- psp-setup.h             "           "           "
   +--- win32/                    [Windows specific sourcefiles]
+        +--- glew.h              Glew (OpenGL Extension Wrangler Library) header
+        +--- wglew.h             files (v1.5.1)
         +--- winXAudio2.cpp      XAudio2 engine wrapper, with double buffered
         +--- winXAudio2.h         streaming capabilities through Voice Callbacks
         +--- wmp.cpp             Simple Windows directShow Movie Player
