@@ -38,6 +38,11 @@ extern "C" {
 #define IFF_CMP_NODE			0
 #define IFF_CMP_BYTERUN1		1
 
+// GFX Smoothing options for OpenGL
+#define SMOOTH_NONE		0
+#define SMOOTH_LINEAR	1
+#define SMOOTH_HQ2X		2
+
 // textures for static images, panel base, etc.
 typedef struct
 {
@@ -82,6 +87,7 @@ void sprites_to_wGRAB();
 bool load_texture(s_tex *tex);
 void display_tunnel_area();
 void display_fps(u64 frames_duration, u64 nb_frames);
+bool init_shader();
 
 #ifdef	__cplusplus
 }

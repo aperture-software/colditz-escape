@@ -63,5 +63,9 @@ Uses: OpenGL for Windows, by Silicon Graphics, Inc. & Microsoft Corporation
 Uses: Directshow (DirectX) and XAudio2 for Windows, by Microsoft Corporation
       http://www.microsoft.com/downloads/details.aspx?familyid=8b5cd64e-b4be-4135-95f8-ecfcf9182431&displaylang=en
       Direct X Libraries subject to the Microsoft DirectX EULA
-      
-
+Uses: OpenGL Extension Wrangler Library (GLEW)
+      http://glew.sourceforge.net/
+      See LICENSE.txt in src extras/glew      
+Uses: 2xGLSL HqFilter shader, by guest(r)
+      http://www.pbernert.com/html/gpu.htm#SHADER => guest(r)'s shader collection
+      GPL v2.0 or later. See LICENSE.txt in src extras/GPL

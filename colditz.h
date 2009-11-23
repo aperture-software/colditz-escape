@@ -33,15 +33,6 @@ extern "C" {
 #define ANTI_TAMPERING_ENABLED
 //#define DEBUG_ENABLED
 
-// Stupid VC++ doesn't know the basic GL formats it can actually use!
-#if !defined(GL_UNSIGNED_SHORT_4_4_4_4_REV)
-// NB: the _REV below is GRAB format, which is selected for 1:1 mapping on PSP
-#define GL_UNSIGNED_SHORT_4_4_4_4_REV	0x8365
-#endif
-#if !defined(GL_CLAMP_TO_EDGE)
-#define GL_CLAMP_TO_EDGE				0x812F
-#endif
-
 /*	
  *	LIST OF ABREVIATIONS:
  *	CRM = Colditz Room Maps => data used for inside rooms
@@ -55,7 +46,7 @@ extern "C" {
 #define APPNAME					"colditz"
 // NB: Make sure you use capital V for version as we don't have lowercase
 // in our menu font (where we display this version as well)
-#define VERSION					"V0.9.2"
+#define VERSION					"V0.9.3"
 #define COLDITZ_URL				"HTTP://SITES.GOOGLE.COM/SITE/COLDITZESCAPE"
 
 /*
@@ -734,10 +725,12 @@ extern bool		opt_thrillerdance;
 extern bool		opt_no_guards;
 extern bool		opt_meh;
 extern bool		opt_haunted_castle;
+extern bool		opt_glsl_enabled;
 
 // Global variables
 extern bool		init_animations;
 extern bool		is_fire_pressed;
+extern bool		can_consume_key;
 extern u8		*mbuffer;	// Generic TMP buffer
 extern u8		*fbuffer[NB_FILES];
 extern u8		*rbuffer;

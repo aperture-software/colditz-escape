@@ -86,22 +86,22 @@ void set_xml_defaults()
 	SET_XML_NODE_DEFAULT(options, fullscreen, false);
     SET_XML_NODE_COMMENT(options, fullscreen,
 		" resize to fullscreen (Windows only) ");
-	SET_XML_NODE_DEFAULT(options, enhanced_guards, false);
+	SET_XML_NODE_DEFAULT(options, enhanced_guards, true);
 	SET_XML_NODE_COMMENT(options, enhanced_guards, 
 		" have guards remember when they've seen a pass ");
-	SET_XML_NODE_DEFAULT(options, enhanced_tunnels, false);
+	SET_XML_NODE_DEFAULT(options, enhanced_tunnels, true);
 	SET_XML_NODE_COMMENT(options, enhanced_tunnels, 
 		" limited field of vision in tunnels ");
 	SET_XML_NODE_DEFAULT(options, picture_corners, true);
 	SET_XML_NODE_COMMENT(options, picture_corners, 
 		" display texturized picture corners, rather than black triangles ");
-	SET_XML_NODE_DEFAULT(options, gl_linear, false);
-    SET_XML_NODE_COMMENT(options, gl_linear,
-		" use linear interpolation for rescale rather than nearest (Windows only) ");
+	SET_XML_NODE_DEFAULT(options, gl_smoothing, 0);
+    SET_XML_NODE_COMMENT(options, gl_smoothing,
+		" type of graphic smoothing: none, linear, hq2x (Windows only) ");
 	SET_XML_NODE_DEFAULT(options, joy_deadzone, 450);
     SET_XML_NODE_COMMENT(options, joy_deadzone,
 		" joystick deadzone");
-	SET_XML_NODE_DEFAULT(options, original_mode, true);
+	SET_XML_NODE_DEFAULT(options, original_mode, false);
     SET_XML_NODE_COMMENT(options, original_mode,
 		" Bwak! Bwaaak! Chicken!!! ");
 

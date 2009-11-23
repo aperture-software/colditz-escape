@@ -141,7 +141,7 @@ extern "C" {
 #define opt_enhanced_guards			XML_VALUE(options, enhanced_guards)	
 #define opt_enhanced_tunnels		XML_VALUE(options, enhanced_tunnels)	
 #define opt_skip_intro				XML_VALUE(options, skip_intro)
-#define opt_gl_linear				XML_VALUE(options, gl_linear)
+#define opt_gl_smoothing			XML_VALUE(options, gl_smoothing)
 #define opt_fullscreen				XML_VALUE(options, fullscreen)
 #define JOY_DEADZONE				XML_VALUE(options, joy_deadzone)
 #define opt_original_mode			XML_VALUE(options, original_mode)
@@ -164,7 +164,7 @@ DEFINE_XML_NODES(options_nodes,
 				 enhanced_guards,
 				 enhanced_tunnels,
 				 picture_corners,
-				 gl_linear,
+				 gl_smoothing,
 				 fullscreen,
 				 joy_deadzone,
 				 original_mode)

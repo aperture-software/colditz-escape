@@ -14,6 +14,9 @@
 		/>
 	</Platforms>
 	<ToolFiles>
+		<DefaultToolFile
+			FileName="masm.rules"
+		/>
 	</ToolFiles>
 	<Configurations>
 		<Configuration
@@ -28,6 +31,9 @@
 			/>
 			<Tool
 				Name="VCCustomBuildTool"
+			/>
+			<Tool
+				Name="MASM"
 			/>
 			<Tool
 				Name="VCXMLDataGeneratorTool"
@@ -104,6 +110,9 @@
 				Name="VCCustomBuildTool"
 			/>
 			<Tool
+				Name="MASM"
+			/>
+			<Tool
 				Name="VCXMLDataGeneratorTool"
 			/>
 			<Tool
@@ -142,6 +151,7 @@
 				Name="VCLinkerTool"
 				LinkIncremental="1"
 				AdditionalLibraryDirectories="libs;&quot;C:\Program Files\Microsoft SDKs\Windows\v6.0A\Lib&quot;;&quot;E:\Program Files\Microsoft SDKs\Windows\v6.0\Lib\x86&quot;;&quot;E:\Program Files\Microsoft SDKs\Windows\v6.0\Lib\x64&quot;;&quot;E:\Program Files (x86)\Microsoft DirectX SDK (March 2009)\Lib\x64&quot;;&quot;E:\Program Files (x86)\Microsoft DirectX SDK (March 2009)\Lib\x86&quot;"
+				IgnoreDefaultLibraryNames="libc.lib"
 				GenerateDebugInformation="false"
 				SubSystem="1"
 				OptimizeReferences="2"
@@ -286,6 +296,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\glew.h"
+				>
+			</File>
+			<File
 				RelativePath=".\graphics.h"
 				>
 			</File>
@@ -323,6 +337,10 @@
 			</File>
 			<File
 				RelativePath=".\videoplayer.h"
+				>
+			</File>
+			<File
+				RelativePath=".\wglew.h"
 				>
 			</File>
 			<File

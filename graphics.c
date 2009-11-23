@@ -30,6 +30,10 @@
 
 #if defined(WIN32)
 #include <windows.h>
+// Well, since Microsoft PURPOSEFULLY refuse to update their '96 gl.h file...
+#define GLEW_STATIC
+#include "win32/glew.h"		// ...we'll use Glew for the OpenGL shader extension 
+#include "win32/wglew.h"	
 #include <gl/gl.h>
 #include <gl/glu.h>
 #include <gl/glut.h>
@@ -90,6 +94,9 @@ u16  aPalette[32];					// Global palette (32 instead of 16, because
 s_sprite*	sprite;
 s_overlay*	overlay;
 u8			overlay_index;
+#if defined(WIN32)
+GLuint sp;							// Shader Program for zoom
+#endif
 
 /*
  *	Menu variables & consts
@@ -99,11 +106,12 @@ char save_list[NB_SAVEGAMES][20];
 char* menus[NB_MENUS][NB_MENU_ITEMS] = {	
     {" MAIN MENU", "", "", "BACK TO GAME", "RESET GAME", "SAVE", "LOAD", "OPTIONS", "", "EXIT GAME"} ,
     {" OPTIONS MENU", "", "", "BACK TO MAIN MENU", "SKIP INTRO     ", "PICTURE CORNERS", 
-     "SMOOTHING      ", "FULLSCREEN     ", "ENHANCEMENTS   ", "ORIGINAL MODE  " },
+     "GFX SMOOTHING  ", "FULLSCREEN     ", "ENHANCEMENTS   ", "ORIGINAL MODE  " },
      // The save slots of the following menus will be filled at runtime
     {" SAVE MENU", "", "", "BACK TO MAIN MENU", NULL, NULL, NULL, NULL, NULL, NULL},
     {" LOAD MENU", "", "", "BACK TO MAIN MENU", NULL, NULL, NULL, NULL, NULL, NULL} };
 char* on_off[3] = { "", ":ON", ":OFF"};
+char* smoothing[4] = { ":NONE", ":LINEAR", ":HQ2X"};
 
 bool  enabled_menus[NB_MENUS][NB_MENU_ITEMS] = {
     { 0, 0, 0, 1, 1, 1, 1, 1, 0, 1 },
@@ -190,6 +198,132 @@ static const u16 props_tile [0x213] = {
     1111,1111,1111,1111,1111,1111,1111,1111,1111,1111,	// tunnels, line 5
     1111 };
 
+
+
+/*
+ * Win32 OpenGL Shader functions (hq2x "lite" 2x zoom)
+ */
+#if defined(WIN32)
+// Print GLSL compilation log errors
+void printLog(GLuint obj)
+{
+    int infologLength = 0;
+    char infoLog[1024];
+ 
+	if (glIsShader(obj))
+		glGetShaderInfoLog(obj, 1024, &infologLength, infoLog);
+	else
+		glGetProgramInfoLog(obj, 1024, &infologLength, infoLog);
+ 
+    if (infologLength > 0)
+		printf("%s\n", infoLog);
+}
+
+// Convert a shader file to text
+char *file2string(const char *path)
+{
+	FILE *fd;
+	long len,
+		 r;
+	char *str;
+ 
+	if (!(fd = fopen(path, "rb")))
+	{
+		fprintf(stderr, "Can't open shader file '%s' for reading\n", path);
+		return NULL;
+	}
+ 
+	fseek(fd, 0, SEEK_END);
+	len = ftell(fd);
+ 
+	fseek(fd, 0, SEEK_SET);
+ 
+	if (!(str = malloc((len+2) * sizeof(char))))
+	{
+		fprintf(stderr, "Can't malloc space for shader '%s'\n", path);
+		return NULL;
+	}
+ 
+	r = fread(str, sizeof(char), len, fd);
+	// Files without an ending CR will produce compilation errors
+	str[r] = 0x0A; 
+	str[r+1] = '\0'; 
+ 	fclose(fd);
+
+	return str;
+}
+
+// Load and compile the HQnX shader
+bool compile_shader(u8 zoomfactor)
+{
+	// The vertex shader
+	char *vsSource;
+	char *fsSource;
+	char shadername[20];
+
+	GLuint vs, // Vertex Shader 
+		   fs; // Fragment Shader
+
+	if (zoomfactor <= 1 || zoomfactor >= 4)
+	// 2x, 3x, 4x only
+		return false;
+
+	sprintf(shadername, "shader-hq%dx.vert", zoomfactor);
+	if ((vsSource = file2string(shadername)) == NULL)
+		return false;
+	sprintf(shadername, "shader-hq%dx.frag", zoomfactor);
+	if ((fsSource = file2string(shadername)) == NULL)
+		return false;
+	vs = glCreateShader(GL_VERTEX_SHADER);
+	glShaderSource(vs, 1, &vsSource, NULL);
+	glCompileShader(vs);
+	printLog(vs);
+ 
+	fs = glCreateShader(GL_FRAGMENT_SHADER);
+	glShaderSource(fs, 1, &fsSource, NULL);
+	glCompileShader(fs);
+	printLog(fs);
+ 
+	free(vsSource);
+	free(fsSource);
+ 
+	sp = glCreateProgram();
+	glAttachShader(sp, vs);
+	glAttachShader(sp, fs);
+	glLinkProgram(sp);
+	printLog(sp);
+	return true;
+}
+
+// Init the shader. Returns false if an issue was encountered
+bool init_shader()
+{
+	GLenum gl_err;
+
+	// Needs to intervene after glut_init
+	gl_err = glewInit();
+	if (GLEW_OK != gl_err)
+	{
+		perr("Error: %s\n", glewGetErrorString(gl_err));
+		ERR_EXIT;
+	}
+	if (!GLEW_VERSION_2_0)
+		return false;
+
+	// For now, only HQ2X **LITE** is available as HQnX GLSL shader,
+	// (and it's not doing as good a job as the **FULL** CPU HQ2X
+	// version -- which is too slow for our use) so 2x factor only.
+	// When someone actually bothers writing proper GLSL versions of
+	// **BOTH** HQ3X and HQ4X, we'll see about adding them
+	if (compile_shader(2))
+	{
+		opt_glsl_enabled = true;
+		return true;
+	}
+	else
+		return false;
+}
+#endif
 
 // Set the gloabl textures properties
 void set_textures()
@@ -1350,21 +1484,33 @@ void rescale_buffer()
 // Seriously guys, if you're doing 2D with sprites, you'll waste DAYS trying
 // to figure out a bloody solution to zoom the lousy colour buffer, because 
 // if you think, with all the GPU acceleration, there should be an easy way to
-// achieve that crap, you couldn't be more wrong!
+// achieve that crap, you couldn't be more wrong! And if you want anything elaborate, you
+// have to write your own shader (coz even with PCI-X, tranferring image data back and
+// forth for software HQ2X for instance is WAY TOO DARN SLOW!!!!)
 
+#if defined(WIN32)
+	GLint shaderSizeLocation;
+#endif
 
     if ((gl_width != PSP_SCR_WIDTH) && (gl_height != PSP_SCR_HEIGHT))
     {	
-        glDisable(GL_BLEND);	// Better than having to use glClear()
+		glDisable(GL_BLEND);	// Better than having to use glClear()
 
         // If we don't set full luminosity, our menu will fade too
         glColor3f(1.0f, 1.0f, 1.0f);
+#if defined(WIN32)
+		if (opt_gl_smoothing >= 2)
+		{	// Use one of the HQ2X-HQ4X GLSL shaders
+			glUseProgram(sp);	// Apply GLSL shader
+			shaderSizeLocation = glGetUniformLocation(sp, "OGL2Size");
+			glUniform4f(shaderSizeLocation, PSP_SCR_WIDTH, PSP_SCR_HEIGHT, 0.0, 0.0);
+		}
+#endif
 
-        // First, we copy the whole buffer into a texture
-        glBindTexture(GL_TEXTURE_2D, render_texid);
-        glCopyTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 0, 0, PSP_SCR_WIDTH, PSP_SCR_HEIGHT, 0);
+		glBindTexture(GL_TEXTURE_2D, render_texid);
+		glCopyTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 0, 0, PSP_SCR_WIDTH, PSP_SCR_HEIGHT, 0);
 
-        // Then we change our viewport to the actual screen size
+		// Then we change our viewport to the actual screen size
         glViewport(0, 0, gl_width, gl_height);
 
         // Now we change the projection, to the new dimensions
@@ -1373,10 +1519,15 @@ void rescale_buffer()
         glOrtho(0, gl_width, gl_height, 0, -1, 1);
 
         // OK, now we can display the whole texture
-        if (opt_gl_linear)
+        if (opt_gl_smoothing == 1)
             display_sprite_linear(0, gl_height, gl_width, -gl_height, render_texid);
         else
             display_sprite(0, gl_height, gl_width, -gl_height, render_texid);
+
+#if defined(WIN32)
+		if (opt_gl_smoothing >= 2)
+			glUseProgram(0);	// Stop applying shader
+#endif
 
         // Finally, we restore the parameters
         glMatrixMode(GL_PROJECTION);
@@ -1457,8 +1608,6 @@ void create_savegame_list()
 }
 
 
-
-
 void display_menu_screen()
 {
     char c;
@@ -1493,36 +1642,43 @@ void display_menu_screen()
         }
 
         if (selected_menu == OPTIONS_MENU)
-        {	// Display the ON/OFF status of toggables
-            switch(line)
-            {
-            case MENU_SMOOTHING:
-                on_off_index = opt_gl_linear?1:2;
-                break;
-            case MENU_ENHANCEMENTS:
-                on_off_index = opt_enhanced_guards?1:2;
-                break;
-            case MENU_SKIP_INTRO:
-                on_off_index = opt_skip_intro?1:2;
-                break;
-            case MENU_FULLSCREEN:
-                on_off_index = opt_fullscreen?1:2;
-                break;
-            case MENU_PICTURE_CORNERS:
-                on_off_index = opt_picture_corners?1:2;
-                break;
-            case MENU_ORIGINAL_MODE:
-                on_off_index = opt_original_mode?1:2;
-                break;
-            default:
-                on_off_index = 0;
-                break;
-            }
-            for (j=0; (c = on_off[on_off_index][j]); i++,j++)
-                display_sprite(line_start+16*i, 32+16*line,
-                    2*PANEL_CHARS_W, 2*PANEL_CHARS_CORRECTED_H, chars_texid[c-0x20]);
-        }
-    }
+        {	
+			if (line == MENU_SMOOTHING)
+			{	// This one has multiple values
+				for (j=0; (c = smoothing[opt_gl_smoothing][j]); i++,j++)
+					display_sprite(line_start+16*i, 32+16*line,
+						2*PANEL_CHARS_W, 2*PANEL_CHARS_CORRECTED_H, chars_texid[c-0x20]);
+			}
+			else
+			{
+				// Display the ON/OFF status of toggables
+				switch(line)
+				{
+				case MENU_ENHANCEMENTS:
+					on_off_index = opt_enhanced_guards?1:2;
+					break;
+				case MENU_SKIP_INTRO:
+					on_off_index = opt_skip_intro?1:2;
+					break;
+				case MENU_FULLSCREEN:
+					on_off_index = opt_fullscreen?1:2;
+					break;
+				case MENU_PICTURE_CORNERS:
+					on_off_index = opt_picture_corners?1:2;
+					break;
+				case MENU_ORIGINAL_MODE:
+					on_off_index = opt_original_mode?1:2;
+					break;
+				default:
+					on_off_index = 0;
+					break;
+				}
+				for (j=0; (c = on_off[on_off_index][j]); i++,j++)
+					display_sprite(line_start+16*i, 32+16*line,
+						2*PANEL_CHARS_W, 2*PANEL_CHARS_CORRECTED_H, chars_texid[c-0x20]);
+			}
+		}
+	}
     // Selection cursor
     glColor4f(1.0f, 1.0f, 1.0f, 1.0f-fade_value+MIN_MENU_FADE);
     display_sprite(line_start-20, 32+16*selected_menu_item,

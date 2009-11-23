@@ -2010,6 +2010,8 @@ void toggle_exit(u32 exit_nr)
     s16 tile_x, tile_y;
     u32 offset;
 
+	// Restore the ability to consume a key (prevents double key consumption issue)
+	can_consume_key = true;
 
     // On the compressed map, we use either the ROOMS or TUNNEL_IO file 
     // depending on the exit type. 
@@ -2262,7 +2264,7 @@ s16 check_footprint(s16 dx, s16 d2y)
                 // Is the exit open?
                 if ((!(exit_flags & 0x10)) && (exit_flags & 0x60))
                 {	// exit is closed
-                    if (is_fire_pressed)
+                    if (is_fire_pressed && can_consume_key)
                     {
                         if ((opt_keymaster) || 
                             // do we have the right key selected
@@ -2290,11 +2292,13 @@ s16 check_footprint(s16 dx, s16 d2y)
                                 animations[nb_animations].framecount = 0;
                                 animations[nb_animations].end_of_ani_function = &toggle_exit;
                                 animations[nb_animations].end_of_ani_parameter = exit_nr;
+								can_consume_key = false;	// Don't consume any more keys till door opened
                                 safe_nb_animations_increment();
                                 break;
                             default:	// not an exit we should animate
                                 // just enqueue the toggle exit event
                                 enqueue_event(&toggle_exit, exit_nr, 3*ANIMATION_INTERVAL);
+								can_consume_key = false;	// Don't consume any more keys till door opened
                                 break;
                             }
                             consume_prop();
@@ -2561,8 +2565,10 @@ void switch_room(s16 exit_nr, bool tunnel_io)
             + 2*exit_index);
     }
 
-    // Since we're changing room, reset all animations
+    // Since we're changing room, reset all animations...
     init_animations = true;
+	// and to be safe, make sure we can use keys
+	can_consume_key = true;
     
     exit_index++;	// zero based to one based
 //	printb("          to room[%X] (exit_index = %d)\n", current_room_index, exit_index);

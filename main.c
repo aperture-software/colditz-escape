@@ -22,7 +22,6 @@
  */
 
 
-
 #include <stdio.h>
 #include <stdlib.h>	
 #include <string.h>
@@ -37,6 +36,8 @@
 #pragma comment(lib, "opengl32.lib")
 #pragma comment(lib, "glu32.lib")
 #pragma comment(lib, "glut32.lib")
+// Glew is only required for HQnX shaders
+#pragma comment(lib, "glew32s.lib")
 // X2Audio libs -> win32/winXAudio2.cpp
 #pragma comment(lib, "X3DAudio.lib")
 // DirectShow movie player -> win32/wmp.cpp
@@ -123,6 +124,10 @@ float fade_value				= 1.0f;
 bool fade_out					= false;
 // Save config.xml?
 bool config_save				= false;	
+// Is the GPU recent enough to support GLSL shaders (for HQ2X)
+bool opt_glsl_enabled			= false;
+// Prevents double consumption of keys while opening a door
+bool can_consume_key			= true;
 
 
 // We'll need this to retrieve our glutIdle function after a suspended state
@@ -423,8 +428,6 @@ static void glut_reshape (int w, int h)
 }
 
 
-
-
 // As its names indicates
 void process_motion(void)
 {
@@ -628,7 +631,6 @@ void user_input()
         }
     }
 #endif
-
 
     if (read_key_once('#'))
         opt_display_fps = !opt_display_fps;
@@ -1017,6 +1019,7 @@ static void glut_idle_game(void)
 
 // Menu navigation
 #define TOG(option) {option=(option)?0:1; config_save=true;}
+#define ROT(option, nb_values) {option=(option+(key_down[SPECIAL_KEY_LEFT]?nb_values-1:1))%nb_values, config_save=true;}
 void process_menu()
 {
     char save_name[] = "colditz_00.sav";
@@ -1093,7 +1096,7 @@ void process_menu()
 // The following only make sense on Windows
 #if defined(WIN32)
             case MENU_SMOOTHING:
-                TOG(opt_gl_linear);
+				ROT(opt_gl_smoothing, (opt_glsl_enabled?3:2));
                 break;
             case MENU_FULLSCREEN:
                 TOG(opt_fullscreen);
@@ -1392,10 +1395,8 @@ static bool video_initialized = false;
             glutSwapBuffers();
 
             if ((!video_init()) || (!video_play(APERTURE_VIDEO)))
-            {
+                // Don't bother the world if our video doesn't play
                 game_suspended = false;
-                perr("Could not play %s video\n", APERTURE_VIDEO);
-            }
             else
                 video_initialized = true;
         }
@@ -1577,7 +1578,6 @@ int main (int argc, char *argv[])
     setup_callbacks();
 #endif
 
-
     // A little cleanup
     fflush(stdin);
     for (i=0; i<NB_FILES; i++)
@@ -1629,6 +1629,9 @@ int main (int argc, char *argv[])
     // Need to have a working GL before we proceed. This is our own init() function
     glut_init();
 
+#if defined(WIN32)
+	init_shader();
+#endif
 
 //	remove(confname);
     init_xml();
