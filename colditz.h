@@ -771,4 +771,3 @@ void static_screen(u8 iff_id, void (*func)(u32), u32 param);
 }
 #endif
 
-

@@ -1,6 +1,6 @@
 /*
  *  Colditz Escape! - Rewritten Engine for "Escape From Colditz"
- *  copyright (C) 2008-2009 Aperture Software 
+ *  copyright (C) 2008-2009 Aperture Software
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -32,7 +32,7 @@
 #include "colditz.h"
 #include "win32/wmp.h"
 
-bool video_init() 
+bool video_init()
 {
     return wmp_init(APPNAME);
 }
@@ -54,7 +54,7 @@ bool video_isplaying()
 #elif defined(PSP)
 #include "psp/pmp.h"
 
-bool video_init() 
+bool video_init()
 {
     return (pmp_init() == NULL);
 }

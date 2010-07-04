@@ -1,6 +1,6 @@
 /*
  *  Colditz Escape! - Rewritten Engine for "Escape From Colditz"
- *  copyright (C) 2008-2009 Aperture Software 
+ *  copyright (C) 2008-2009 Aperture Software
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -25,7 +25,7 @@
 
 #if defined(WIN32)
 #define _WIN32_DCOM
-#define _CRT_SECURE_NO_WARNINGS 1 
+#define _CRT_SECURE_NO_WARNINGS 1
 #pragma warning(disable:4995)
 #endif
 
@@ -110,9 +110,9 @@ static int m_nRow;		// Current row being played
 static int m_nTick;		// Current tick number (there are "m_nSpeed"
 // ticks between each row)
 static int BPM_RATE;		// Adjusted master BPM for refresh rate
-static int m_nBPM;		// Beats-per-minute...controls length of 
+static int m_nBPM;		// Beats-per-minute...controls length of
 // each tick
-static int m_nSamplesLeft;	// Number of samples left to mix for the 
+static int m_nSamplesLeft;	// Number of samples left to mix for the
 // current tick
 static int m_nNumTracks;	// Number of tracks in this mod
 
@@ -139,9 +139,9 @@ static unsigned long	loop_pos;
 static unsigned long	loop_len;
 static void*			loop_addr;
 
-// Play a MONO, possibly looping, sound sample. channel = -1 => autoallocated 
+// Play a MONO, possibly looping, sound sample. channel = -1 => autoallocated
 // NB: the PSP is limited to 64 KB for non looping samples
-bool play_sample(int channel, unsigned int volume, void *address, unsigned int length, 
+bool play_sample(int channel, unsigned int volume, void *address, unsigned int length,
                  unsigned int frequency, unsigned int bits_per_sample, bool loop)
 {
     if (no_audio)
@@ -202,7 +202,7 @@ bool play_sample(int channel, unsigned int volume, void *address, unsigned int l
         if (!winXAudio2SetVoiceCallback(loop_channel, LoopCallback, NULL, frequency, bits_per_sample, false))
             return false;
     }
-    else	
+    else
     {
         if (!winXAudio2SetVoice(play_channel, (BYTE*) address, length, frequency, bits_per_sample, false))
             return false;
@@ -232,8 +232,8 @@ void stop_loop()
 }
 
 #if defined(PSP)
-// This upconverts an 8 bit PCM file @ any frequency to 16 bit/PLAYBACK_FREQ  
-bool psp_upsample(short **upconverted_address, unsigned long *upconverted_length, char *src_sample, 
+// This upconverts an 8 bit PCM file @ any frequency to 16 bit/PLAYBACK_FREQ
+bool psp_upsample(short **upconverted_address, unsigned long *upconverted_length, char *src_sample,
                   unsigned long src_numsamples, unsigned short src_frequency)
 {
     unsigned long src_fracpos = 0;
@@ -250,7 +250,7 @@ bool psp_upsample(short **upconverted_address, unsigned long *upconverted_length
         return false;
     }
 
-    for (dst_pos = 0; dst_pos < dst_length; dst_pos++) 
+    for (dst_pos = 0; dst_pos < dst_length; dst_pos++)
     {
         // Mix this sample in and update our position
     #ifdef OVERSAMPLE
@@ -396,7 +396,7 @@ bool is_mod_playing()
 }
 
 //  This is the initialiser and module loader
-//  This is a general call, which loads the module from the 
+//  This is a general call, which loads the module from the
 //  given address into the modplayer
 //
 //  It basically loads into an internal format, so once this function
@@ -470,7 +470,7 @@ bool mod_init(char *filename)
     // Read in all the instrument headers - mod files have 31, sample #0 is ignored
     m_Samples_num = numsamples;
     m_Samples = (Sample *) malloc(m_Samples_num * sizeof(Sample));
-    // BUGFIX: If you don't memset the first Sample to 0, 
+    // BUGFIX: If you don't memset the first Sample to 0,
     // all kind of bad things can happen on Win32!!!
     memset(m_Samples, 0, sizeof(Sample));
     for (i = 1; i < numsamples; i++) {
@@ -590,10 +590,10 @@ bool mod_init(char *filename)
 bool mod_play()
 {
     int track;
-   
+
     if (no_audio)
         return false;
-    
+
     // See if I'm already playing
     if (m_bPlaying)
         return false;
@@ -661,7 +661,7 @@ bool mod_stop()
 // Functions - Local and not public
 //////////////////////////////////////////////////////////////////////
 
-// This function mixes an entire chunk of sound which is then 
+// This function mixes an entire chunk of sound which is then
 // to be sent to the sound driver, in this case the IOP module.
 static bool MixChunk(int numsamples, short *buffer)
 {
@@ -723,8 +723,8 @@ static bool MixChunk(int numsamples, short *buffer)
     return true;
 }
 
-// This function is called whenever a new row is encountered. 
-// It loops through each track, check's it's appropriate NoteData structure 
+// This function is called whenever a new row is encountered.
+// It loops through each track, check's it's appropriate NoteData structure
 // and updates the track accordingly.
 static void UpdateRow()
 {
@@ -737,7 +737,7 @@ static void UpdateRow()
         // Get note data
         NoteData *note = &m_CurrentRow->note[track];
 
-        // Make a copy of each value in the NoteData structure so they'll 
+        // Make a copy of each value in the NoteData structure so they'll
         // be easier to work with (less typing)
         int sample = note->sample_num;
         int period = note->period_index;
@@ -883,7 +883,7 @@ static void UpdateRow()
                 m_TrackDat[track].period += eparmy;
                 break;
 
-                // Glissando 
+                // Glissando
             case 0x03:
                 break;		// not supported
 
@@ -1010,7 +1010,7 @@ static bool MixSubChunk(short *buffer, int numsamples)
             while (samples_to_mix) {
                 int thiscount;
 
-                // If I'm a looping sample then I need to check if it's time to 
+                // If I'm a looping sample then I need to check if it's time to
                 // loop back. I also need to figure out how many samples I can mix
                 // before I need to loop again
                 if (nLoopEnd > (2 << FRAC_BITS)) {
@@ -1021,7 +1021,7 @@ static bool MixSubChunk(short *buffer, int numsamples)
 
                     samples_to_mix -= thiscount;
                 }
-                // If I'm not a looping sample then mix until I'm done playing 
+                // If I'm not a looping sample then mix until I'm done playing
                 // the entire sample
                 else {
                     // If we've already reached the end of the sample then forget it
@@ -1256,7 +1256,7 @@ static void DoTremalo(int track)
     }
 }
 
-// Sets the master volume for the mod being played. 
+// Sets the master volume for the mod being played.
 // The value should be from 0 (silence) to 64 (max volume)
 static void SetMasterVolume(int volume)
 {
@@ -1266,9 +1266,9 @@ static void SetMasterVolume(int volume)
             VolumeTable[i][j] = volume * i * (int) (char) j / 64;
 }
 
-// 16-bit word values in a mod are stored in the Motorola 
-// Most-Significant-Byte-First format. 
-// They're also stored at half their actual value, thus doubling their range. 
+// 16-bit word values in a mod are stored in the Motorola
+// Most-Significant-Byte-First format.
+// They're also stored at half their actual value, thus doubling their range.
 // This function accepts a pointer to such a word and returns it's integer value
 // NOTE: relic from pc testing.
 static int ReadModWord(unsigned char *data, int index)

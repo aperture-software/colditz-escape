@@ -1,5 +1,5 @@
 // modplayeri.h: headers for psp modplayer code
-//      
+//
 // NOTE: this is only for including in modplayer.c, use 'modplayer.h'
 //       for including the public funcs in your own code
 //
@@ -16,11 +16,11 @@ extern "C" {
 // The NoteData structure stores the information for a single note and/or effect.
     typedef struct {
         int sample_num;		// The sample number (ie "instrument") to play, 1->31
-        int period_index;	// This effectively stores the frequency to play the 
-        // sample, although it's actually an index into 
+        int period_index;	// This effectively stores the frequency to play the
+        // sample, although it's actually an index into
         // PeriodTable.
         int effect;		// Contains the effect code
-        int effect_parms;	// Used to store control parameters for the 
+        int effect_parms;	// Used to store control parameters for the
         // various effects
     } NoteData;
 
@@ -32,7 +32,7 @@ extern "C" {
         NoteData *note;
     } RowData;
 
-// Pattern contains all the information for a single pattern. 
+// Pattern contains all the information for a single pattern.
 // It is filled with 64 elements of type RowData.
     typedef struct {
         int numrows;
@@ -56,18 +56,18 @@ extern "C" {
         int sample;		// The current sample being played (0 for none)
         int pos;		// The current playback position in the sample,
         // stored in fixed-point format
-        int period_index;	// Which note to play, stored as an index into the 
+        int period_index;	// Which note to play, stored as an index into the
         // PeriodTable array
-        int period;		// The period number that period_index corresponds to 
+        int period;		// The period number that period_index corresponds to
         // (needed for various effects)
-        float freq;		// This is the actual frequency used to do the mixing. 
-        // It's a combination of the value calculated from the 
+        float freq;		// This is the actual frequency used to do the mixing.
+        // It's a combination of the value calculated from the
         // period member and an "adjustment" made by various effects.
         int volume;		// Volume that this track is to be mixed at
-        int mixvol;		// This is the actual volume used to do the mixing. 
-        // It's a combination of the volume member and an 
+        int mixvol;		// This is the actual volume used to do the mixing.
+        // It's a combination of the volume member and an
         // "adjustment" made by various effects.
-        int porta;		// Used by the porta effect, this stores the note we're 
+        int porta;		// Used by the porta effect, this stores the note we're
         // porta-ing (?) to
         int portasp;		// The speed at which to porta
         int vibspe;		// Vibrato speed
@@ -76,7 +76,7 @@ extern "C" {
         int tremdep;		// Tremolo depth
         int panval;		// Pan value....this player doesn't actually do panning,
         // so this member is ignored (but included for future use)
-        int sinepos;		// These next two values are pointers to the sine table. 
+        int sinepos;		// These next two values are pointers to the sine table.
         // They're used to do
         int sineneg;		// various effects.
     } TrackData;

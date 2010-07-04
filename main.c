@@ -1,6 +1,6 @@
 /*
  *  Colditz Escape! - Rewritten Engine for "Escape From Colditz"
- *  copyright (C) 2008-2009 Aperture Software 
+ *  copyright (C) 2008-2009 Aperture Software
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -23,7 +23,7 @@
 
 
 #include <stdio.h>
-#include <stdlib.h>	
+#include <stdlib.h>
 #include <string.h>
 #include <math.h>
 
@@ -31,8 +31,7 @@
 #include <windows.h>
 #include <gl/gl.h>
 #include <gl/glu.h>
-#include <gl/glut.h>
-
+#include "win32/glut.h"
 
 // Tell VC++ to include the GL libs
 #pragma comment(lib, "opengl32.lib")
@@ -65,7 +64,7 @@
 #include "psp/pmp.h"
 #endif
 
-#include "getopt.h"	
+#include "getopt.h"
 #include "data-types.h"
 #include "low-level.h"
 #include "colditz.h"
@@ -96,7 +95,7 @@ bool opt_debug					= false;
 bool opt_onscreen_debug			= false;
 bool opt_display_fps			= false;
 // Do I hear a safecracker?
-bool opt_play_as_the_safe[NB_NATIONS] 
+bool opt_play_as_the_safe[NB_NATIONS]
                                 = {false, false, false, false};
 // indifferent guards
 bool opt_meh					= false;
@@ -127,7 +126,7 @@ float fade_value				= 1.0f;
 // false for fade in, true for fade out
 bool fade_out					= false;
 // Save config.xml?
-bool config_save				= false;	
+bool config_save				= false;
 // Is the GPU recent enough to support GLSL shaders (for HQ2X)
 bool opt_glsl_enabled			= false;
 // Prevents double consumption of keys while opening a door
@@ -166,7 +165,7 @@ int		glut_mod;
 // Key handling
 bool	key_down[256], key_readonce[256];
 static	__inline bool read_key_once(u8 k)
-{	
+{
     if (key_down[k])
     {
         if (key_readonce[k])
@@ -184,7 +183,7 @@ static	__inline bool read_key_once(u8 k)
 bool key_cheat_readonce[256];
 u8 last_key_used = 0;
 static __inline bool read_cheat_key_once(u8 k)
-{	
+{
     if (key_down[k])
     {
         if (key_cheat_readonce[k])
@@ -204,7 +203,7 @@ typedef struct
 // Cheat definitions
 static u8 konami[]		= {SPECIAL_KEY_UP, SPECIAL_KEY_UP, SPECIAL_KEY_DOWN, SPECIAL_KEY_DOWN,
                            SPECIAL_KEY_LEFT, SPECIAL_KEY_RIGHT, SPECIAL_KEY_LEFT, SPECIAL_KEY_RIGHT};
-static u8 namiko[]		= {SPECIAL_KEY_DOWN, SPECIAL_KEY_DOWN, SPECIAL_KEY_UP, SPECIAL_KEY_UP, 
+static u8 namiko[]		= {SPECIAL_KEY_DOWN, SPECIAL_KEY_DOWN, SPECIAL_KEY_UP, SPECIAL_KEY_UP,
                            SPECIAL_KEY_RIGHT, SPECIAL_KEY_LEFT, SPECIAL_KEY_RIGHT, SPECIAL_KEY_LEFT};
 // NB: I have seen NO EVIDENCE WHATSOEVER in the disassembly that the first 3 cheats below were
 // ever implemented in the original game. But just for the sake of it...
@@ -215,10 +214,10 @@ static u8 no_cake[]		= "the cake is a lie";
 static u8 as_safe[]		= "safecracker";
 static u8 thriller[]	= "thrillerdance";
 s_cheat_sequence cheat_sequence[] = {
-    {SIZE_A(konami), 0, konami}, 
-    {SIZE_A(want_it_all)-1, 0, want_it_all}, 
+    {SIZE_A(konami), 0, konami},
+    {SIZE_A(want_it_all)-1, 0, want_it_all},
     {SIZE_A(keymaster)-1, 0, keymaster},
-    {SIZE_A(die_die)-1, 0, die_die}, 
+    {SIZE_A(die_die)-1, 0, die_die},
     {SIZE_A(no_cake)-1, 0, no_cake},
     {SIZE_A(as_safe)-1, 0, as_safe},
     {SIZE_A(thriller)-1, 0, thriller},
@@ -265,12 +264,12 @@ const s16	directions[3][3] = { {3,2,4}, {0,8,1}, {6,5,7} };
 // reverse table for dx and dy
 const s16	dir_to_dx[9]  = {-1, 1, 0, -1, 1, 0, -1, 1, 0};
 const s16	dir_to_d2y[9] = {0, 0, -1, -1, -1, 1, 1, 1, 0};
-const s16	invert_dir[9] = {1, 0, 5, 7, 6, 2, 4, 3, 8}; 
+const s16	invert_dir[9] = {1, 0, 5, 7, 6, 2, 4, 3, 8};
 // The direct nation keys might not be sequencial on custom key mapping
 u8			key_nation[NB_NATIONS+2];
 
 
-/* 
+/*
  *	Internal Prototypes
  */
 static void glut_idle_static_pic(void);
@@ -308,7 +307,7 @@ static void glut_init()
     // Use Glut to create a window
     glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE | GLUT_ALPHA);
     glutInitWindowSize(gl_width, gl_height);
-    glutInitWindowPosition(0, 0); 
+    glutInitWindowPosition(0, 0);
     glutCreateWindow(APPNAME);
 
     glShadeModel(GL_SMOOTH);		// set by default
@@ -345,7 +344,7 @@ static void glut_init()
 }
 
 
-// Our display routine. 
+// Our display routine.
 static void glut_display(void)
 {
     // For onscreen FPS debug
@@ -359,7 +358,7 @@ static void glut_display(void)
     // is called, as we may have debug printf (PSP) or video onscreen
     if (game_suspended)
         return;
-    
+
     // Always start with a clear to black
     glClear(GL_COLOR_BUFFER_BIT);
 
@@ -380,11 +379,11 @@ static void glut_display(void)
         // Should we display the game menu?
         if ((menu) && (picture_state != GAME_FADE_IN) )
             display_menu_screen();
-    } 
+    }
 
     if (opt_display_fps)
     {
-        // NB: Having the (blocking) glFinish() on will shoot the CPU usage 
+        // NB: Having the (blocking) glFinish() on will shoot the CPU usage
         // through the roof! Don't use in normal operations
         glFinish();
         plast = ptime;
@@ -412,18 +411,18 @@ static void glut_display(void)
     glutSwapBuffers();
 }
 
-// 
+//
 static void glut_reshape (int w, int h)
 {
 //	u32 gl_crop_width, gl_crop_height;
 
     gl_width=w;
     gl_height=h;
-    
+
 //	gl_crop_width = (32.0f * gl_width/PSP_SCR_WIDTH);
 //	gl_crop_height = (16.0f * gl_height/PSP_SCR_HEIGHT);
 
-    // Don't ask me why you need to use TWO scales of coordinates 
+    // Don't ask me why you need to use TWO scales of coordinates
     // in the same formula to get the right amount of cropping
 //	glScissor(32,32, (gl_width-32)-gl_crop_width,(gl_height-32));
 //	glScissor(0,32, gl_width,(gl_height-32));
@@ -437,9 +436,9 @@ void process_motion(void)
 {
     s16 new_direction;
     s16 exit;
-    
+
     if (prisoner_state & MOTION_DISALLOWED)
-    {	// Only a few states will allow motion 
+    {	// Only a few states will allow motion
         dx=0;
         d2y=0;
     }
@@ -485,7 +484,7 @@ void process_motion(void)
             if (prisoner_fatigue >= MAX_FATIGUE)
             {
                 prisoner_speed = 1;
-                prisoner_ani.index = prisoner_as_guard?GUARD_WALK_ANI:WALK_ANI; 
+                prisoner_ani.index = prisoner_as_guard?GUARD_WALK_ANI:WALK_ANI;
             }
             prisoner_fatigue += (prisoner_speed==1)?1:4;
         }
@@ -553,7 +552,7 @@ void user_input()
         config_save = false;
     }
 
-    // Handle the pausing of the game 
+    // Handle the pausing of the game
     if (read_key_once(KEY_PAUSE))
     {
         game_state |= GAME_STATE_PAUSED;
@@ -609,7 +608,7 @@ void user_input()
                     case THRILLERDANCE:
                         if (!opt_thrillerdance)
                             set_status_message("  'COZ THIS IS THRILLER!... ", 3, CHEAT_MESSAGE_TIMEOUT);
-                        opt_thrillerdance = !opt_thrillerdance; 
+                        opt_thrillerdance = !opt_thrillerdance;
                         thriller_toggle();
                         break;
                     case CHEAT_KEYMASTER:
@@ -660,23 +659,23 @@ void user_input()
         return;
 
     // Walk/Run toggle
-    if (read_key_once(KEY_TOGGLE_WALK_RUN) && (!in_tunnel) && 
+    if (read_key_once(KEY_TOGGLE_WALK_RUN) && (!in_tunnel) &&
         // Not checking for the following leads to issues
-         ( (prisoner_ani.index == RUN_ANI) || 
+         ( (prisoner_ani.index == RUN_ANI) ||
            (prisoner_ani.index == WALK_ANI) ||
            (prisoner_ani.index == GUARD_RUN_ANI) ||
-           (prisoner_ani.index == GUARD_WALK_ANI) ) 
+           (prisoner_ani.index == GUARD_WALK_ANI) )
        )
     {
         if  ((prisoner_speed == 1) && (prisoner_fatigue < MAX_FATIGUE) )
         {
             prisoner_speed = 2;
-            prisoner_ani.index = prisoner_as_guard?GUARD_RUN_ANI:RUN_ANI; 
+            prisoner_ani.index = prisoner_as_guard?GUARD_RUN_ANI:RUN_ANI;
         }
         else
         {
             prisoner_speed = 1;
-            prisoner_ani.index = prisoner_as_guard?GUARD_WALK_ANI:WALK_ANI; 
+            prisoner_ani.index = prisoner_as_guard?GUARD_WALK_ANI:WALK_ANI;
         }
     }
 
@@ -687,7 +686,7 @@ void user_input()
     // Even if we're idle, we might be trying to open a tunnel exit, or use a prop
     if (read_key_once(KEY_FIRE))
     {
-        // We need to set this variable as we might check if fire is pressed 
+        // We need to set this variable as we might check if fire is pressed
         // in various subroutines below
         is_fire_pressed = true;
 
@@ -706,7 +705,7 @@ void user_input()
         {	// We used a prop to open a tunnel => cue in animation
             prisoner_state |= STATE_ANIMATED;
             // enqueue our 2 u8 parameters
-            prisoner_ani.end_of_ani_parameter = (current_nation & 0xFF) | 
+            prisoner_ani.end_of_ani_parameter = (current_nation & 0xFF) |
                 ((prisoner_ani.index << 8) & 0xFF00);
             prisoner_ani.index = prisoner_as_guard?GUARD_KNEEL_ANI:KNEEL_ANI;
             // Make sure we go through frame 0
@@ -722,13 +721,13 @@ void user_input()
                 if ( (!in_tunnel) &&
                      ( ((cur_prop == ITEM_GUARDS_UNIFORM) && (!prisoner_as_guard)) ||
                        ((cur_prop == ITEM_PRISONERS_UNIFORM) && (prisoner_as_guard) ) ) )
-                {	
+                {
                     prisoner_as_guard = (cur_prop == ITEM_GUARDS_UNIFORM);
                     consume_prop();
                     show_prop_count();
                     // Set the animation for changing into guard's clothes
                     prisoner_state |= STATE_ANIMATED+STATE_KNEELING;
-                    prisoner_ani.end_of_ani_parameter = (current_nation & 0xFF) | 
+                    prisoner_ani.end_of_ani_parameter = (current_nation & 0xFF) |
                         ((prisoner_ani.index << 8) & 0xFF00);
                     prisoner_ani.index = (cur_prop == ITEM_GUARDS_UNIFORM)?
                         INTO_GUARDS_UNI_ANI:INTO_PRISONERS_UNI_ANI;
@@ -761,7 +760,7 @@ void user_input()
 
         // Inventory cycle
         if ( (read_key_once(KEY_INVENTORY_LEFT)) ||
-             (read_key_once(KEY_INVENTORY_RIGHT)) ) 
+             (read_key_once(KEY_INVENTORY_RIGHT)) )
         {
             prop_id = selected_prop[current_nation];
             direction = key_down[KEY_INVENTORY_LEFT]?0x0F:1;
@@ -787,7 +786,7 @@ void user_input()
         {
             prisoner_state |= STATE_ANIMATED|STATE_KNEELING;
             // enqueue our 2 u8 parameters
-            prisoner_ani.end_of_ani_parameter = (current_nation & 0xFF) | 
+            prisoner_ani.end_of_ani_parameter = (current_nation & 0xFF) |
                 ((prisoner_ani.index << 8) & 0xFF00);
             prisoner_ani.index = prisoner_as_guard?GUARD_KNEEL_ANI:KNEEL_ANI;
             // Make sure we go through frame 0
@@ -813,14 +812,14 @@ void user_input()
                 {
                     found = false;
                     over_prop_id = selected_prop[current_nation];
-                    // OK, now we'll look for an picked object space in obs.bin to store 
+                    // OK, now we'll look for an picked object space in obs.bin to store
                     // our data
                     for (prop_offset=2; prop_offset<(8*nb_objects+2); prop_offset+=8)
                     {
                         if (readword(fbuffer[OBJECTS],prop_offset) == ROOM_NO_PROP)
                         {	// There should always be at least one
                             // Add the prop to our current room
-                            room_props[nb_room_props] = prop_offset; 
+                            room_props[nb_room_props] = prop_offset;
                             nb_room_props++;
                             // Write down the relevant value in obs.bin
                             // 1. Room number
@@ -884,7 +883,7 @@ void user_input()
     // Hey, GLUT, where's my bleeping callback on Windows?
     // NB: The routine is not called if there's no joystick
     //     and the force func does not exist on PSP
-    glutForceJoystickFunc();	
+    glutForceJoystickFunc();
 #endif
 
     // Joystick motion overrides keys
@@ -897,12 +896,12 @@ void user_input()
 
 // This is the main game loop
 static void glut_idle_game(void)
-{	
+{
     u8 i;
 
     // Reset the motion
-    dx = 0; 
-    d2y = 0;	
+    dx = 0;
+    d2y = 0;
 
     // They say it's good practice to poke the sleeping GL monster a bit
     glFlush();
@@ -966,7 +965,7 @@ static void glut_idle_game(void)
                 }
             }
 
-            // Check for timed events  
+            // Check for timed events
             timed_events(hours_digit_h*10+hours_digit_l, minutes_digit_h, minutes_digit_l);
             // If we got an event with a static pic, cancel the rest
             if (game_state & GAME_STATE_STATIC_PIC)
@@ -995,7 +994,7 @@ static void glut_idle_game(void)
     if ((game_time - last_ptime) > REPOSITION_INTERVAL)
     {
         last_ptime = game_time;
-    
+
         // Update the guards positions (if not playing with guards disabled)
         if (!opt_no_guards && move_guards())
         {	// we have a collision with a guard => kill our motion
@@ -1005,7 +1004,7 @@ static void glut_idle_game(void)
             dx = 0; d2y = 0;
             prisoner_state &= ~STATE_MOTION;
         }
-        else 
+        else
         // Update our guy's position
             process_motion();
         // Do we have something going on with a prisoner (request, caught, release...)
@@ -1034,13 +1033,13 @@ void process_menu()
     // Menu navigation (up or down)
     if (read_key_once(SPECIAL_KEY_UP) || read_key_once(KEY_DIRECTION_UP))
     {
-        do 
+        do
             selected_menu_item = (selected_menu_item+NB_MENU_ITEMS-1)%NB_MENU_ITEMS;
         while (!enabled_menus[selected_menu][selected_menu_item]);
     }
     if (read_key_once(SPECIAL_KEY_DOWN) || read_key_once(KEY_DIRECTION_DOWN))
     {
-        do 
+        do
             selected_menu_item = (selected_menu_item+1)%NB_MENU_ITEMS;
         while (!enabled_menus[selected_menu][selected_menu_item]);
     }
@@ -1218,7 +1217,7 @@ static void glut_idle_static_pic(void)
             fade_value += min_fade;
         if ((fade_value >= 1.0f) || (fade_value <= min_fade))
         {
-            fade_value = (fade_value <= min_fade)?min_fade:1.0f;	
+            fade_value = (fade_value <= min_fade)?min_fade:1.0f;
             picture_state++;
             transition_start = 0;
         }
@@ -1241,7 +1240,7 @@ static void glut_idle_static_pic(void)
             // We use the picture fade in to create the pause screen if paused
             create_pause_screen();
         else if (menu)
-            picture_state++;	// Skip picture fade 
+            picture_state++;	// Skip picture fade
         else
         {
             // Load a new MOD if needed...
@@ -1295,7 +1294,7 @@ static void glut_idle_static_pic(void)
         break;
     case PICTURE_WAIT:
         if (menu)
-        { 
+        {
             if (read_key_once(KEY_ESCAPE))
             {
                 if ((config_save) && (!write_xml(confname)))
@@ -1303,7 +1302,7 @@ static void glut_idle_static_pic(void)
                 picture_state = GAME_FADE_IN_START;
             }
         }
-        else if (read_key_once(last_key_used) || 
+        else if (read_key_once(last_key_used) ||
             ( (!game_over) && (!paused) && (program_time-picture_t > PICTURE_TIMEOUT)))
         {	// Any key or timeout
             picture_state++;
@@ -1334,7 +1333,7 @@ static void glut_idle_static_pic(void)
                 static_screen(current_picture, NULL, 0);
             }
             else if (game_over)
-            {	
+            {
                 game_state = GAME_STATE_INTRO | GAME_STATE_PICTURE_LOOP | GAME_STATE_STATIC_PIC;
                 static_screen(INTRO_SCREEN_START, NULL, 0);
             }
@@ -1352,7 +1351,7 @@ static void glut_idle_static_pic(void)
             static_screen(TO_SOLITARY, go_to_jail, current_nation);
             picture_state = PICTURE_FADE_IN_START;
         }
-        else	
+        else
             game_state &= ~GAME_STATE_STATIC_PIC;
         break;
     case GAME_FADE_IN:
@@ -1483,7 +1482,7 @@ static void glut_joystick(uint buttonMask, int x, int y, int z)
         jdx = 1;
     else if (x<-JOY_DEADZONE)
         jdx = -1;
-    else 
+    else
         jdx = 0;
     if (y>JOY_DEADZONE)
         jd2y = 1;
@@ -1568,9 +1567,16 @@ static void glut_mouse_buttons(int button, int state, int x, int y)
 }
 
 
-
 /* Here we go! */
+#if defined(WIN32)
+// If we don't use WinMain, the latest DX will create a console
+int __stdcall WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
+// argc & argv are provided by msvcrt.dll, as __argc & __argv for Windows apps
+#define argc __argc
+#define argv __argv
+#else
 int main (int argc, char *argv[])
+#endif
 {
 
     // Flags
@@ -1599,7 +1605,7 @@ int main (int argc, char *argv[])
             opt_debug = true;
             break;
         case 's':		// debug SID (sprite) test
-            sscanf(optarg, ("%x"), &opt_sid); 
+            sscanf(optarg, ("%x"), &opt_sid);
             break;
 #endif
         case 'h':		// Half size on Windows
@@ -1610,8 +1616,8 @@ int main (int argc, char *argv[])
             break;
     }
 
-//	printf("\nColditz Escape! %s\n", VERSION);
-//	printf("by Aperture Software - 2009\n\n");
+	printf("\nColditz Escape! %s\n", VERSION);
+	printf("by Aperture Software - 2009-2010\n\n");
 
     if ( ((argc-optind) > 3) || opt_error)
     {
@@ -1752,7 +1758,7 @@ int main (int argc, char *argv[])
     glutSpecialUpFunc(glut_special_keys_up);
     glutMouseFunc(glut_mouse_buttons);
 
-    glutJoystickFunc(glut_joystick,30);	
+    glutJoystickFunc(glut_joystick,30);
 
     glutMainLoop();
 

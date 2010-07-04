@@ -1,6 +1,6 @@
 /*
  *  Colditz Escape! - Rewritten Engine for "Escape From Colditz"
- *  copyright (C) 2008-2009 Aperture Software 
+ *  copyright (C) 2008-2009 Aperture Software
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -59,7 +59,7 @@ bool wmp_init(char* app_name)
     CoInitializeEx(NULL, COINIT_MULTITHREADED);
 
     // Instantiate a filter graph interface
-    hr = CoCreateInstance(CLSID_FilterGraph, NULL, CLSCTX_INPROC, 
+    hr = CoCreateInstance(CLSID_FilterGraph, NULL, CLSCTX_INPROC,
         IID_IGraphBuilder, (void **)&pGB);
     if (hr != S_OK)
     {
@@ -133,7 +133,7 @@ bool wmp_play(char* s)
     // What the hell is a FilterGraph anyway?
     hr = pGB->RenderFile(unicode_s, NULL);
     SysFreeString(unicode_s);
-    if (FAILED(hr)) 
+    if (FAILED(hr))
     {
         fprintf(stderr, "Failed(0x%08lx) in RenderFile(%s)!\n", hr, s);
         return false;
@@ -141,7 +141,7 @@ bool wmp_play(char* s)
 
     // Use our GL window for video display
     hr = pVW->put_Owner((OAHWND)hWnd);
-    if (FAILED(hr)) 
+    if (FAILED(hr))
     {
         fprintf(stderr, "Failed(0x%08lx) in put_Owner!\n", hr, s);
         return false;
@@ -169,10 +169,10 @@ bool wmp_isplaying()
     LONG_PTR lpParam1, lpParam2;
 
     // Check for end of playback
-    if (is_video_playing && (pME != NULL) && 
+    if (is_video_playing && (pME != NULL) &&
         (pME->GetEvent(&lEventCode, &lpParam1, &lpParam2, 0) != E_ABORT))
     {
-        if (lEventCode == EC_COMPLETE) 
+        if (lEventCode == EC_COMPLETE)
             is_video_playing = false;
         pME->FreeEventParams(lEventCode, lpParam1, lpParam2);
     }

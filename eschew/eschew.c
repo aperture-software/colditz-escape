@@ -95,7 +95,7 @@ typedef struct {
     stack_el stack[XML_STACK_SIZE];
     // holder for the string conversion of the read value
     char value[XML_MAX_STRING_LENGTH];
-    // For intelligent white space detection and assignation. Allows a sequence 
+    // For intelligent white space detection and assignation. Allows a sequence
     // of white spaces to be assigned as a value if only white spaces are present
     int white_space_value;
     int index;
@@ -110,17 +110,17 @@ static const char* xml_true_values[NB_XML_BOOL_VALUES] = { "true", "enabled", "o
 static const char* xml_false_values[NB_XML_BOOL_VALUES] = { "false", "disabled", "off" };
 
 /*
- *	Convert a single UTF8 sequence to a 16 bit UTF16, for the zero terminated 
- *	string 'source'. Fill a 16 bit UTF16 in '*target' and returns the number 
+ *	Convert a single UTF8 sequence to a 16 bit UTF16, for the zero terminated
+ *	string 'source'. Fill a 16 bit UTF16 in '*target' and returns the number
  *	of bytes consumed.
  *	If the target glyph is not valid Unicode, FFFF is returned
  *	If the target glyph is valid but falls outside our scope, FFFD is returned
  *
- *	Note that this is NOT a true UTF8 to UTF16 conversion function, as it 
+ *	Note that this is NOT a true UTF8 to UTF16 conversion function, as it
  *	only returns UTF16 chars in the range [0000-FFFF], whereas true UTF16
  *	is [0000-10FFFF] with surrogate pairs
  */
-size_t single_utf8_to_utf16(const UTF8* source, UTF16* target) 
+size_t single_utf8_to_utf16(const UTF8* source, UTF16* target)
 {
     UTF16	utf16[2];
     // Pointers to the "current" position in source and target
@@ -128,7 +128,7 @@ size_t single_utf8_to_utf16(const UTF8* source, UTF16* target)
     UTF16*	p_utf16 = utf16;
     ConversionResult res;
 
-    res = ConvertUTF8toUTF16 (&p_utf8, &p_utf8[trailingBytesForUTF8[p_utf8[0]]+1], 
+    res = ConvertUTF8toUTF16 (&p_utf8, &p_utf8[trailingBytesForUTF8[p_utf8[0]]+1],
                               &p_utf16, &utf16[1], 0);
     switch(res)
     {
@@ -183,7 +183,7 @@ static __inline int get_node_index(const char* name, xml_node parent)
 }
 
 // Init the  parsing user structure
-void init_info(Parseinfo *info) 
+void init_info(Parseinfo *info)
 {
     int i;
     info->skip = 0;
@@ -217,7 +217,7 @@ xml_node get_sibling(xml_node startnode, const char** attr)
 }
 
 /*
- *	This function is used to create the XML tree by linking the tables previously 
+ *	This function is used to create the XML tree by linking the tables previously
  *	defined. No special cases needed for duplicates as each node/table has a unique
  *	name (see attributes notes) => a specific table can only ever have one parent.
  */
@@ -257,7 +257,7 @@ int link_table(xml_node child, xml_node potential_parent)
 
 
 // Find out if a node should be skipped. Returns true if skippable
-int skip(Parseinfo *inf, const char *name, const char **attr) 
+int skip(Parseinfo *inf, const char *name, const char **attr)
 {
     int index;
 
@@ -272,9 +272,9 @@ int skip(Parseinfo *inf, const char *name, const char **attr)
         if ( (STACK_NODE(inf->depth-1)->node_type == t_xml_node) &&
              (STACK_NODE(inf->depth-1)->value[index] == NULL) )
         {
-            fprintf(stderr, "eschew.skip: Orphan link found for node table xml_%s[%s]\n" 
-                "Did you forget to create table xml_%s in your source?\n", 
-                STACK_NODE(inf->depth-1)->id, STACK_NODE(inf->depth-1)->name[index], 
+            fprintf(stderr, "eschew.skip: Orphan link found for node table xml_%s[%s]\n"
+                "Did you forget to create table xml_%s in your source?\n",
+                STACK_NODE(inf->depth-1)->id, STACK_NODE(inf->depth-1)->name[index],
                 STACK_NODE(inf->depth-1)->name[index]);
             return -1;
         }
@@ -299,11 +299,11 @@ static void XMLCALL read_value(void *userData, const char *s, int len)
     if (inf->skip)
         return;
 
-    /*		
+    /*
      *	White spaces, as defined by section 2.3 of the XML specs (http://www.w3.org/TR/REC-xml)
      *
-     *	Our smart elimination of whitespaces is as follows: If the value is made of only 
-     *  whitespaces, we use that value, otherwise any leading and some trailing whitespaces 
+     *	Our smart elimination of whitespaces is as follows: If the value is made of only
+     *  whitespaces, we use that value, otherwise any leading and some trailing whitespaces
      *	are eliminated. Not quite 'xml:space="preserve"' but close enough for our use
      */
     for (i=0; i<len; i++)
@@ -368,8 +368,8 @@ static void XMLCALL start(void *userData, const char *name, const char **attr)
             if (STACK_NODE(inf->depth-1)->value[i] == NULL)
             {
                 fprintf(stderr, "eschew.start: Orphan link for node table xml_%s[%s]\n"
-                    "              Did you forget to create table xml_%s in your source?\n", 
-                    STACK_NODE(inf->depth-1)->id,  STACK_NODE(inf->depth-1)->name[i], 
+                    "              Did you forget to create table xml_%s in your source?\n",
+                    STACK_NODE(inf->depth-1)->id,  STACK_NODE(inf->depth-1)->name[i],
                     STACK_NODE(inf->depth-1)->name[i]);
                 STACK_NODE(inf->depth) = NULL;
             }
@@ -382,7 +382,7 @@ static void XMLCALL start(void *userData, const char *name, const char **attr)
     }
     inf->index = 0;
     inf->value[0] = 0;	// reinit for smart whitespace detections
-} 
+}
 
 
 // Define the XML cast recursive to assign a table element from a variable
@@ -428,7 +428,7 @@ static void XMLCALL assign(void *userData, const char *name)
             if (!inf->white_space_value)
             {	// If it's a white space, it's not an error
                 if (STACK_NODE_SAFE(inf->depth-1) != NULL)
-                    fprintf(stderr, "eschew.assign: Could not find node named %s in table xml_%s\n", 
+                    fprintf(stderr, "eschew.assign: Could not find node named %s in table xml_%s\n",
                         name, STACK_NODE(inf->depth-1)->id);
                 else
                     fprintf(stderr, "eschew.assign: Tried to assign a value to the root node!\n");
@@ -440,8 +440,8 @@ static void XMLCALL assign(void *userData, const char *name)
         {
         // BOOLEAN types
         case t_xml_boolean:
-            if (xml_to_bool(inf->value, &tmp_bool)) 
-                ((xml_boolean*)STACK_NODE(inf->depth-1)->value)[i] = tmp_bool; 
+            if (xml_to_bool(inf->value, &tmp_bool))
+                ((xml_boolean*)STACK_NODE(inf->depth-1)->value)[i] = tmp_bool;
             else
                 fprintf(stderr, "eschew.assign: '%s' is not a valid boolean value\n", inf->value);
             break;
@@ -451,19 +451,19 @@ static void XMLCALL assign(void *userData, const char *name)
             consumed = single_utf8_to_utf16((UTF8*)inf->value, &utf16);
             if (utf16 > 0x100)
                 fprintf(stderr, "eschew.assign: Truncated Unicode value to fit single byte\n");
-            XML_CAST_TO_BYTE(STACK_NODE(inf->depth-1)->value, i, utf16&0xFF, 
-                STACK_NODE(inf->depth-1)->node_type); 
+            XML_CAST_TO_BYTE(STACK_NODE(inf->depth-1)->value, i, utf16&0xFF,
+                STACK_NODE(inf->depth-1)->node_type);
             break;
         // STRING types
         case t_xml_string:
             // Convert to string
-            ((xml_string*)STACK_NODE(inf->depth-1)->value)[i] = strdup(inf->value); 
+            ((xml_string*)STACK_NODE(inf->depth-1)->value)[i] = strdup(inf->value);
             break;
         // FLOATING POINT types
         case t_xml_float:
         case t_xml_double:
-            XML_CAST_TO_INTEGER(STACK_NODE(inf->depth-1)->value, i, 
-                atof(inf->value), STACK_NODE(inf->depth-1)->node_type); 
+            XML_CAST_TO_INTEGER(STACK_NODE(inf->depth-1)->value, i,
+                atof(inf->value), STACK_NODE(inf->depth-1)->node_type);
             break;
         // INTEGER types
         case t_xml_unsigned_short:
@@ -477,12 +477,12 @@ static void XMLCALL assign(void *userData, const char *name)
             // Check if the string value is a boolean
             if (xml_to_bool(inf->value, &tmp_bool))
             {
-                ((xml_boolean*)STACK_NODE(inf->depth-1)->value)[i] = tmp_bool; 
+                ((xml_boolean*)STACK_NODE(inf->depth-1)->value)[i] = tmp_bool;
             }
             else	// Not a boolean
             {
-                XML_CAST_TO_INTEGER(STACK_NODE(inf->depth-1)->value, i, 
-                    atoll(inf->value), STACK_NODE(inf->depth-1)->node_type); 
+                XML_CAST_TO_INTEGER(STACK_NODE(inf->depth-1)->value, i,
+                    atoll(inf->value), STACK_NODE(inf->depth-1)->node_type);
             }
             break;
         // Someone is trying to assign a direct value to a meta node
@@ -491,7 +491,7 @@ static void XMLCALL assign(void *userData, const char *name)
             // Only alert the user on non whitespaces.
             if (!inf->white_space_value)
             {
-                fprintf(stderr, "eschew.assign: Invalid value '%s' assigned to meta-node <%s", 
+                fprintf(stderr, "eschew.assign: Invalid value '%s' assigned to meta-node <%s",
                     inf->value, STACK_NODE(inf->depth)->id);
                 if (STACK_NODE(inf->depth)->attr[0] != NULL)
                     fprintf(stderr, " %s=\"%s\"", STACK_NODE(inf->depth)->attr[0], STACK_NODE(inf->depth)->attr[1]);
@@ -500,7 +500,7 @@ static void XMLCALL assign(void *userData, const char *name)
             break;
         // UNSUPPORTED
         default:
-            fprintf(stderr, "eschew.assign: Conversion of '%s' into table %s's type is not supported yet.\n", 
+            fprintf(stderr, "eschew.assign: Conversion of '%s' into table %s's type is not supported yet.\n",
                 inf->value, STACK_NODE(inf->depth-1)->id);
             break;
         }
@@ -516,29 +516,29 @@ static void XMLCALL assign(void *userData, const char *name)
 }
 
 // The calls to the raw function is used to skip nodes we don't want
-void rawstart(void *userData, const char *name, const char **attr) 
+void rawstart(void *userData, const char *name, const char **attr)
 {
     Parseinfo *inf = (Parseinfo *) userData;
 
-    if (!inf->skip) 
+    if (!inf->skip)
     {
-        if (skip(inf, name, attr)) 
+        if (skip(inf, name, attr))
             inf->skip = inf->depth;
-        else 
-            start(inf, name, attr); 
+        else
+            start(inf, name, attr);
     }
-    inf->depth++;	
+    inf->depth++;
 }
 
-void rawend(void *userData, const char *name) 
+void rawend(void *userData, const char *name)
 {
     Parseinfo *inf = (Parseinfo *) userData;
     inf->depth--;
     if (!inf->skip)
         assign(inf, name);
-    if (inf->skip == inf->depth) 
+    if (inf->skip == inf->depth)
         inf->skip = 0;
-}  
+}
 
 /*
  *	Open and parse the xml file "filename"
@@ -549,7 +549,7 @@ int read_xml(const char* filename)
     // Expat variables
     char buf[BUFSIZ];
     int done;
-    XML_Parser parser; 
+    XML_Parser parser;
     FILE* fd;
     Parseinfo info;
 
@@ -568,18 +568,18 @@ int read_xml(const char* filename)
 
     XML_SetCharacterDataHandler(parser, read_value);
 
-    do 
+    do
     {
         int len = (int)fread(buf, 1, sizeof(buf), fd);
         done = len < sizeof(buf);
-        if (XML_Parse(parser, buf, len, done) == XML_STATUS_ERROR) 
+        if (XML_Parse(parser, buf, len, done) == XML_STATUS_ERROR)
         {
             fprintf(stderr, "expat error: [%d] %s at line %lu\n", XML_GetErrorCode(parser),
                 XML_ErrorString(XML_GetErrorCode(parser)),
                 XML_GetCurrentLineNumber(parser));
             return 0;
         }
-    } 
+    }
     while (!done);
     XML_ParserFree(parser);
     fclose(fd);
@@ -622,7 +622,7 @@ void write_node(FILE* fd, xml_node xn)
     {
         if (xn->comment[n] != NULL)
         {
-            XML_INDENT; 
+            XML_INDENT;
             fprintf(fd, "<!--%s-->\n", xn->comment[n]);
         }
         switch(xn->node_type)
@@ -637,14 +637,14 @@ void write_node(FILE* fd, xml_node xn)
             break;
         case t_xml_boolean:
             XML_CAST_TO_BOOLEAN(xn->value, n, bval, xn->node_type);
-            XML_INDENT; 
-            fprintf(fd, "<%s>%s</%s>\n", xn->name[n], 
+            XML_INDENT;
+            fprintf(fd, "<%s>%s</%s>\n", xn->name[n],
                 (bval?xml_true_values[0]:xml_false_values[0]), xn->name[n]);
             break;
         case t_xml_unsigned_char:
         case t_xml_char:
             XML_CAST_TO_BYTE(xn->value, n, cval, xn->node_type);
-            XML_INDENT; 
+            XML_INDENT;
             fprintf(fd, "<%s>", xn->name[n]);
             if ((cval < 0x20) || (cval >= 0x7F))
                 fprintf(fd, "&#x%02X;", cval);
@@ -661,24 +661,24 @@ void write_node(FILE* fd, xml_node xn)
         case t_xml_unsigned_long_long:
         case t_xml_long_long:
             XML_CAST_TO_INTEGER(xn->value, n, lval, xn->node_type);
-            XML_INDENT; 
+            XML_INDENT;
             fprintf(fd, "<%s>%lld</%s>\n", xn->name[n], lval, xn->name[n]);
             break;
         case t_xml_float:
         case t_xml_double:
             XML_CAST_TO_FLOATING(xn->value, n, fval, xn->node_type);
-            XML_INDENT; 
+            XML_INDENT;
             fprintf(fd, "<%s>%f</%s>\n", xn->name[n], fval, xn->name[n]);
             break;
         case t_xml_string:
             XML_CAST_TO_STRING(xn->value, n, sval, xn->node_type);
-            XML_INDENT; 
+            XML_INDENT;
             fprintf(fd, "<%s>%s</%s>\n", xn->name[n], (sval==NULL)?"":sval, xn->name[n]);
             break;
         default:
             fprintf(stderr, "eschew.write_node: Conversion to xml type %d not yet implemented\n", xn->node_type);
             // Let's write a blank value nonetheless
-            XML_INDENT; 
+            XML_INDENT;
             fprintf(fd, "<%s>undefined</%s>\n", xn->name[n], xn->name[n]);
             break;
         }

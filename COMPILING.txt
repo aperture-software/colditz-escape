@@ -1,25 +1,24 @@
   Colditz Escape! - Rewritten Engine for "Escape From Colditz"
 
 
-WINDOWS:
+WINDOWS (Visual Studio 2008):
+=============================
 
-For glut, you need the dll in the exec location or system32
-and to compile, you need:
-- glut32.lib in C:\Program Files\Microsoft SDKs\Windows\v6.0A\Lib
-- glut.h in C:\Program Files\Microsoft SDKs\Windows\v6.0A\Include\gl 
-The libs and header can be had from:
-  http://www.opengl.org/resources/libraries/glut/glutdlls37beta.zip
-
-For the GLSL zoom shader(s), you will also need the static version of the
-Glew library (http://glew.sourceforge.net/)
-
-You will also need the following DirectX libraries, as highlighted at the 
-beginning of main.c:
-- X2Audio libs: X3DAudio.lib
+Download and install the latest DirectX SDK, which should be listed at:
+  http://msdn.microsoft.com/en-us/directx/aa937788.aspx
+This provides: 
+- X2Audio libs: X3DAudio.lib (as well as xaudio2.h)
 - DirectShow movie player lib: strmiids.lib
 
+Optional 
+- You can update the glut redistributables from:
+  http://www.opengl.org/resources/libraries/glut/glutdlls37beta.zip
+- You can update the GLSL zoom shader(s), with the static version of the Glew
+  library from: http://glew.sourceforge.net/
 
-PSP:
+
+PSP (PSP SDK):
+==============
 
 For PSP you will need the following libraries:
 - pmplib 
@@ -35,13 +34,16 @@ which can be obtained from:
 included with this source in extras/pspgl
 
 
-EXPAT:
+COMMON (optional):
+==================
 
-For expat, you need libexpatMT.lib (WIN)/libexpat.a (PSP) and on Windows, you 
-must add XML_STATIC in the C/C++ PreProcessor Definitions. You will also need to
-set the Multi-threaded (/MT) static flag instead of Multi-threaded DLL (/MD) in 
-Configuration Properties -> C/C++ -> Code Generation -> Runtime Library
-Prcompiled versions of thse libraries are provided in the libs/ directory
+If you want to update Expat, you'll need to recompile libexpatMT.lib (WIN) / 
+libexpat.a (PSP) and on Windows, you must add XML_STATIC in the C/C++ 
+PreProcessor Definitions. 
+You will also need to set the Multi-threaded (/MT) static flag instead of 
+Multi-threaded DLL (/MD) in Configuration Properties -> C/C++
+-> Code Generation -> Runtime Library
+Precompiled versions of thse libraries are provided in the libs/ directory
 
 Important note: Because I'll be darned before I agree with the XML comitee's 
 extreme shortsightedness that some chars in [00-7F] should be illegal, 
@@ -54,12 +56,13 @@ If you don't want to have to tweak expat, you can modifie eschew.c to convert
 integer strings to unsigned char rather than simply read the value, and modify 
 the config.xml
 
-If you want to recompile Expat, you can find it at: 
+The Expat sources can be found it at: 
 http://nds.cmamod.com/psp/Expat.2.01.win32_msys_bin.zip
 For PSP recompilation, use the expat_config.h in extras/
 
 
 DIRECTORY STRUCTURE AND FILE DESCRIPTION:
+=========================================
 
 src/
   +--- bin/                      [Additional binaries required at runtime]
@@ -75,6 +78,7 @@ src/
   +--- eschew/                   [See http://code.google.com/p/eschew/]
   +--- extras/                   [Additional licenses and files]
   +--- libs/                     [Additional libraries required for compilation]
+        +--- glut32.lib          GLUT library
         +--- glew32s.lib         Static win32 version of the Glew library (v1.5.1)
         +--- libexpat.a          Slightly modified Expat library for the PSP
         +--- libexpatMT.a        Slightly modified Expat library for Windows
@@ -85,6 +89,7 @@ src/
         +--- psp-setup.c         Standard PSP callbacks initialization
         +--- psp-setup.h             "           "           "
   +--- win32/                    [Windows specific sourcefiles]
+        +--- glut.h              GLUT header
         +--- glew.h              Glew (OpenGL Extension Wrangler Library) header
         +--- wglew.h             files (v1.5.1)
         +--- winXAudio2.cpp      XAudio2 engine wrapper, with double buffered

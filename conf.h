@@ -1,6 +1,6 @@
 /*
  *  Colditz Escape! - Rewritten Engine for "Escape From Colditz"
- *  copyright (C) 2008-2009 Aperture Software 
+ *  copyright (C) 2008-2009 Aperture Software
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -33,15 +33,15 @@ extern "C" {
 // At the end of the day, below are the tables of interest to y'all:
 // Standard key = regular (lowercase) ASCII code
 // 0x7F         = Del
-// [0x80-0x8B]  = [F1-F12] 
+// [0x80-0x8B]  = [F1-F12]
 // [0x8C-0x8F]  = [Left, Up, Right, Down]
-// [0x90-0x94]  = [PgUp, PgDn, Home, End, Insert] 
+// [0x90-0x94]  = [PgUp, PgDn, Home, End, Insert]
 // [0x95-0x97]  = [Shift, Ctrl, Alt] (*)
 // [0x98-0x9A]  = [Mouse Left, Mouse Middle, Mouse Right]
 // (*) Because of GLUT's limitations, these key events are ONLY detected
 // in conjuction with other keypresses, and cannot be used as standalone
 // see http://www.nabble.com/Re%3A-Status-of-modifier-keys-(shift-ctrl-alt)-p6983221.html
-// 
+//
 // The PSP GLUT key mappings from pspgl are as follows:
 // [X] = 'x'
 // [O] = 'o'
@@ -54,7 +54,7 @@ extern "C" {
 // [Right Trigger] = Mouse Right (see above for the actual code)
 //
 // Now, with regards to the overall ugliness of this section, it is ugly because
-// of Unicode's total idiocy on not wanting to add common keyboard keys to their 
+// of Unicode's total idiocy on not wanting to add common keyboard keys to their
 // charts. Otherwise we would have gone Unicode all the way and dropped the GLUT
 // codes & required redefinition.
 // As per http://www.mail-archive.com/unicode@unicode.org/msg27037.html:
@@ -70,10 +70,10 @@ extern "C" {
 // you ALREADY have charts that include device control characters, why on earth
 // don't you want to define a set of keyboard codes that everyone can agree on.
 // Ever heard about my friend, De Facto?!?
-// And if you want a rationale for this, how about a glyphset that describes 
+// And if you want a rationale for this, how about a glyphset that describes
 // keypresses/mousepresses (using common input devices) for vision impaired
 // users for instance?
-// 
+//
 
 // We'll use the [0x80-0x9F] section of ASCII for our special codes
 #define SPECIAL_KEY_OFFSET1			0x80
@@ -112,7 +112,7 @@ extern "C" {
 #if defined(PSP)
 #define KEYVAL(key)					XML_VALUE(controls_target_psp, key)
 #else
-#define KEYVAL(key)					XML_VALUE(controls_target_windows, key)		
+#define KEYVAL(key)					XML_VALUE(controls_target_windows, key)
 #endif
 
 // Short(?)cut defines for the main program
@@ -137,9 +137,9 @@ extern "C" {
 #define KEY_DIRECTION_UP			KEYVAL(key_direction_up)
 #define KEY_DIRECTION_DOWN			KEYVAL(key_direction_down)
 
-#define opt_picture_corners			XML_VALUE(options, picture_corners)	
-#define opt_enhanced_guards			XML_VALUE(options, enhanced_guards)	
-#define opt_enhanced_tunnels		XML_VALUE(options, enhanced_tunnels)	
+#define opt_picture_corners			XML_VALUE(options, picture_corners)
+#define opt_enhanced_guards			XML_VALUE(options, enhanced_guards)
+#define opt_enhanced_tunnels		XML_VALUE(options, enhanced_tunnels)
 #define opt_skip_intro				XML_VALUE(options, skip_intro)
 #define opt_gl_smoothing			XML_VALUE(options, gl_smoothing)
 #define opt_fullscreen				XML_VALUE(options, fullscreen)
@@ -151,16 +151,16 @@ extern "C" {
 //
 
 // root node
-DEFINE_XML_NODES(config_nodes, 
-				 runtime,		
-				 options,					
+DEFINE_XML_NODES(config_nodes,
+				 runtime,
+				 options,
 				 controls)
-CREATE_XML_TABLE(config, config_nodes, xml_node) 
+CREATE_XML_TABLE(config, config_nodes, xml_node)
 SET_XML_ROOT(config)
 
 // General program options
-DEFINE_XML_NODES(options_nodes, 
-				 skip_intro,	
+DEFINE_XML_NODES(options_nodes,
+				 skip_intro,
 				 enhanced_guards,
 				 enhanced_tunnels,
 				 picture_corners,
@@ -171,26 +171,26 @@ DEFINE_XML_NODES(options_nodes,
 CREATE_XML_TABLE(options, options_nodes, xml_int)
 
 // User input mappings
-DEFINE_XML_NODES(controls_nodes, 
-				 key_fire,	
-				 key_toggle_walk_run,		
-				 key_pause,					
-				 key_sleep,					
-				 key_stooge,				
-				 key_direction_left,		
-				 key_direction_right,		
-				 key_direction_up,			
-				 key_direction_down,		
-				 key_inventory_cycle_left,	
-				 key_inventory_cycle_right,	
-				 key_pickup,				
-				 key_dropdown,				
-				 key_escape,				
-				 key_prisoners_cycle_left,	
-				 key_prisoners_cycle_right,	
-				 key_select_british,		
-				 key_select_french,			
-				 key_select_american,		
+DEFINE_XML_NODES(controls_nodes,
+				 key_fire,
+				 key_toggle_walk_run,
+				 key_pause,
+				 key_sleep,
+				 key_stooge,
+				 key_direction_left,
+				 key_direction_right,
+				 key_direction_up,
+				 key_direction_down,
+				 key_inventory_cycle_left,
+				 key_inventory_cycle_right,
+				 key_pickup,
+				 key_dropdown,
+				 key_escape,
+				 key_prisoners_cycle_left,
+				 key_prisoners_cycle_right,
+				 key_select_british,
+				 key_select_french,
+				 key_select_american,
 				 key_select_polish)
 #if defined(PSP)
 CREATE_XML_TABLE(controls_target_psp, controls_nodes, xml_unsigned_char)
@@ -198,7 +198,7 @@ CREATE_XML_TABLE(controls_target_psp, controls_nodes, xml_unsigned_char)
 CREATE_XML_TABLE(controls_target_windows, controls_nodes, xml_unsigned_char)
 #endif
 
-void init_xml(); 
+void init_xml();
 void set_xml_defaults();
 
 #ifdef	__cplusplus

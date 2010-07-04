@@ -28,7 +28,7 @@
 #include <windows.h>
 #include <gl/gl.h>
 #include <gl/glu.h>
-#include <gl/glut.h>
+#include "win32/glut.h"
 #elif defined(PSP)
 #include <pspkernel.h>
 #include <GL/gl.h>
@@ -87,13 +87,13 @@ void set_xml_defaults()
     SET_XML_NODE_COMMENT(options, fullscreen,
 		" resize to fullscreen (Windows only) ");
 	SET_XML_NODE_DEFAULT(options, enhanced_guards, true);
-	SET_XML_NODE_COMMENT(options, enhanced_guards, 
+	SET_XML_NODE_COMMENT(options, enhanced_guards,
 		" have guards remember when they've seen a pass ");
 	SET_XML_NODE_DEFAULT(options, enhanced_tunnels, true);
-	SET_XML_NODE_COMMENT(options, enhanced_tunnels, 
+	SET_XML_NODE_COMMENT(options, enhanced_tunnels,
 		" limited field of vision in tunnels ");
 	SET_XML_NODE_DEFAULT(options, picture_corners, true);
-	SET_XML_NODE_COMMENT(options, picture_corners, 
+	SET_XML_NODE_COMMENT(options, picture_corners,
 		" display texturized picture corners, rather than black triangles ");
 	SET_XML_NODE_DEFAULT(options, gl_smoothing, 0);
     SET_XML_NODE_COMMENT(options, gl_smoothing,
@@ -137,5 +137,5 @@ void set_xml_defaults()
     SET_CONTROLS_DEFAULT(key_select_polish, 0, SPECIAL_KEY_F4);
 
 	// Debug
-//	PRINT_XML_TABLE(controls); 
+//	PRINT_XML_TABLE(controls);
 }

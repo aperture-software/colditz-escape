@@ -1,6 +1,6 @@
 /*
  *  Colditz Escape! - Rewritten Engine for "Escape From Colditz"
- *  copyright (C) 2008-2009 Aperture Software 
+ *  copyright (C) 2008-2009 Aperture Software
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -22,17 +22,17 @@
  */
 #pragma once
 
-// This #define is used to convert an Amiga period number to a frequency. 
+// This #define is used to convert an Amiga period number to a frequency.
 // The frequency returned is the frequency that the sample should be played at.
 //  3579545.25f / 428 = 8363.423 Hz for Middle C (PAL)
 #define Period2Freq(period) (3579545.25f / (period))
 
-// These next few lines determine how the sound will be mixed. 
-// Set PLAYBACK_FREQ to whatever you want. 
+// These next few lines determine how the sound will be mixed.
+// Set PLAYBACK_FREQ to whatever you want.
 #define PLAYBACK_FREQ 44100
 
-// OVERSAMPLE can be commented out to disable that function 
-// (takes up less CPU time, but doesnt sound as good). 
+// OVERSAMPLE can be commented out to disable that function
+// (takes up less CPU time, but doesnt sound as good).
 #define OVERSAMPLE
 
 #ifdef __cplusplus
@@ -48,13 +48,13 @@ extern "C" {
     bool is_mod_playing();
     void mod_pause();
     bool mod_stop();
-    bool play_sample(int channel, unsigned int volume, void *address, unsigned int length, 
+    bool play_sample(int channel, unsigned int volume, void *address, unsigned int length,
         unsigned int frequency, unsigned int bits_per_sample, bool loop);
-    bool play_loop(unsigned int volume, void *address, unsigned int length, 
+    bool play_loop(unsigned int volume, void *address, unsigned int length,
         unsigned int frequency, unsigned int bits_per_sample);
     void stop_loop();
 #if defined(PSP)
-    bool psp_upsample(short **dst_address, unsigned long *dst_length, char *src_sample, 
+    bool psp_upsample(short **dst_address, unsigned long *dst_length, char *src_sample,
                       unsigned long src_numsamples, unsigned short src_frequency);
 #endif
 #ifdef __cplusplus

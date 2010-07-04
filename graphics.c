@@ -1,6 +1,6 @@
 /*
  *  Colditz Escape! - Rewritten Engine for "Escape From Colditz"
- *  copyright (C) 2008-2009 Aperture Software 
+ *  copyright (C) 2008-2009 Aperture Software
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -32,11 +32,11 @@
 #include <windows.h>
 // Well, since Microsoft PURPOSEFULLY refuse to update their '96 gl.h file...
 #define GLEW_STATIC
-#include "win32/glew.h"		// ...we'll use Glew for the OpenGL shader extension 
-#include "win32/wglew.h"	
+#include "win32/glew.h"		// ...we'll use Glew for the OpenGL shader extension
+#include "win32/wglew.h"
 #include <gl/gl.h>
 #include <gl/glu.h>
-#include <gl/glut.h>
+#include "win32/glut.h"
 #endif
 #if defined(PSP)
 #include <stdarg.h>
@@ -84,12 +84,12 @@ GLuint* chars_texid;
 GLuint render_texid;
 GLuint paused_texid[4];
 
-u16  nb_cells; 
+u16  nb_cells;
 s16	gl_off_x = 0, gl_off_y  = 0;	// GL display offsets
 s16  last_p_x, last_p_y;			// Stored positions
 u8* background_buffer;				// (re)used for static pictures
 u8  pause_rgb[3];					// colour for the pause screen borders
-u16  aPalette[32];					// Global palette (32 instead of 16, because 
+u16  aPalette[32];					// Global palette (32 instead of 16, because
                                     // we also use it to load 5 bpp IFF images
 s_sprite*	sprite;
 s_overlay*	overlay;
@@ -103,9 +103,9 @@ GLuint sp;							// Shader Program for zoom
  */
 int	  selected_menu_item, selected_menu;
 char save_list[NB_SAVEGAMES][20];
-char* menus[NB_MENUS][NB_MENU_ITEMS] = {	
+char* menus[NB_MENUS][NB_MENU_ITEMS] = {
     {" MAIN MENU", "", "", "BACK TO GAME", "RESET GAME", "SAVE", "LOAD", "OPTIONS", "", "EXIT GAME"} ,
-    {" OPTIONS MENU", "", "", "BACK TO MAIN MENU", "SKIP INTRO     ", "PICTURE CORNERS", 
+    {" OPTIONS MENU", "", "", "BACK TO MAIN MENU", "SKIP INTRO     ", "PICTURE CORNERS",
      "GFX SMOOTHING  ", "FULLSCREEN     ", "ENHANCEMENTS   ", "ORIGINAL MODE  " },
      // The save slots of the following menus will be filled at runtime
     {" SAVE MENU", "", "", "BACK TO MAIN MENU", NULL, NULL, NULL, NULL, NULL, NULL},
@@ -117,7 +117,7 @@ bool  enabled_menus[NB_MENUS][NB_MENU_ITEMS] = {
     { 0, 0, 0, 1, 1, 1, 1, 1, 0, 1 },
 #if defined(PSP)
     // Options like linear interprolation and fullscreen don't make sense on PSP
-    { 0, 0, 0, 1, 1, 1, 0, 0, 1, 1 }, 
+    { 0, 0, 0, 1, 1, 1, 0, 0, 1, 1 },
 #else
     { 0, 0, 0, 1, 1, 1, 1, 1, 1, 1 },
 #endif
@@ -127,21 +127,21 @@ bool  enabled_menus[NB_MENUS][NB_MENU_ITEMS] = {
 
 
 // For the outside map, because of the removable sections and the fact that
-// having a removable section set for the tile does not guarantee that the 
+// having a removable section set for the tile does not guarantee that the
 // prop should be hidden (eg: bottom of a removable wall), we'll define a
 // set of tile where props should always appear. We're actually defining 4
-// prop disaplayable quadrants, deliminated by an X in the tile, with each 
+// prop disaplayable quadrants, deliminated by an X in the tile, with each
 // bit for a quadrant, starting with the left quadrant (lsb) and going
 // clockwise
 // For the time being, we're not going to use these, but just set the prop
-// 'on' if nonzero, coz it's a bit of an overkill, compared to what the 
+// 'on' if nonzero, coz it's a bit of an overkill, compared to what the
 // original game did. Still this is an improvement on the original game's
 // props handling, as if you dropped a prop in front of the chapel there
 // it would simply vanish!
 
 static const u16 props_tile [0x213] = {
-// Well, C doesn't have binary constants, so, for maintainability reasons, 
-// we'll use fake "decimal binary", which we're gonna convert to proper 
+// Well, C doesn't have binary constants, so, for maintainability reasons,
+// we'll use fake "decimal binary", which we're gonna convert to proper
 // bitmasks at init time. That is, if we're ever gonna use the actual masks...
     0000,1111,1111,1111,1111,1111,1111,1111,1111,1111,	// 0000
     1111,1111,1111,1111,1111,1111,1111,1111,1111,1111,	// 0500
@@ -209,12 +209,12 @@ void printLog(GLuint obj)
 {
     int infologLength = 0;
     char infoLog[1024];
- 
+
 	if (glIsShader(obj))
 		glGetShaderInfoLog(obj, 1024, &infologLength, infoLog);
 	else
 		glGetProgramInfoLog(obj, 1024, &infologLength, infoLog);
- 
+
     if (infologLength > 0)
 		printf("%s\n", infoLog);
 }
@@ -226,28 +226,28 @@ char *file2string(const char *path)
 	long len,
 		 r;
 	char *str;
- 
+
 	if (!(fd = fopen(path, "rb")))
 	{
 		fprintf(stderr, "Can't open shader file '%s' for reading\n", path);
 		return NULL;
 	}
- 
+
 	fseek(fd, 0, SEEK_END);
 	len = ftell(fd);
- 
+
 	fseek(fd, 0, SEEK_SET);
- 
+
 	if (!(str = malloc((len+2) * sizeof(char))))
 	{
 		fprintf(stderr, "Can't malloc space for shader '%s'\n", path);
 		return NULL;
 	}
- 
+
 	r = fread(str, sizeof(char), len, fd);
 	// Files without an ending CR will produce compilation errors
-	str[r] = 0x0A; 
-	str[r+1] = '\0'; 
+	str[r] = 0x0A;
+	str[r+1] = '\0';
  	fclose(fd);
 
 	return str;
@@ -261,7 +261,7 @@ bool compile_shader(u8 zoomfactor)
 	char *fsSource;
 	char shadername[20];
 
-	GLuint vs,				// Vertex Shader 
+	GLuint vs,				// Vertex Shader
 		   fs,				// Fragment Shader
 	       status;
 
@@ -286,7 +286,7 @@ bool compile_shader(u8 zoomfactor)
 		printLog(vs);
 		return false;
 	}
- 
+
 	fs = glCreateShader(GL_FRAGMENT_SHADER);
 	glShaderSource(fs, 1, &fsSource, NULL);
 	glCompileShader(fs);
@@ -297,10 +297,10 @@ bool compile_shader(u8 zoomfactor)
 		printLog(fs);
 		return false;
 	}
- 
+
 	free(vsSource);
 	free(fsSource);
- 
+
 	sp = glCreateProgram();
 	glAttachShader(sp, vs);
 	glAttachShader(sp, fs);
@@ -356,20 +356,20 @@ void set_textures()
     // The maximum size for our static image textures is 512x256x2 (IFF) or 512x512x3
     // (RAW RGB) bytes
     // NOTE that because we don't want to waste the 512x(512-272)x3 (=360 KB) extra
-    // space on the PSP (the PSP can only deal with texture dimensions that are in 
+    // space on the PSP (the PSP can only deal with texture dimensions that are in
     // power of twos), we are doing something really dodgy here, which is that we
-    // pretend the extra 360K have been allocated, and let the system blatantly 
-    // overflow our image buffer if it wants to (since it should never display that 
+    // pretend the extra 360K have been allocated, and let the system blatantly
+    // overflow our image buffer if it wants to (since it should never display that
     // data anyway). Doesn't seem to be too much of an issue...
-    // 
-    // 
+    //
+    //
     // If you're really unhappy about this kind of practice, just allocate 512x512x3
     background_buffer = (u8*) aligned_malloc(512*PSP_SCR_HEIGHT*3,16);
-//	background_buffer = (u8*) aligned_malloc(512*512*3,16);	
+//	background_buffer = (u8*) aligned_malloc(512*512*3,16);
     if (background_buffer == NULL)
         printf("Could not allocate buffer for static images display\n");
 
-    // Now that we have that buffer alloc'd, we can set the textures that will make 
+    // Now that we have that buffer alloc'd, we can set the textures that will make
     // use of it. This includes all the IFFs
     for (i=0; i<NB_IFFS; i++)
         texture[i].buffer = background_buffer;
@@ -392,7 +392,7 @@ void set_textures()
     chars_texid = calloc(sizeof(GLuint) * NB_PANEL_CHARS, 1);
     glGenTextures(NB_PANEL_CHARS, chars_texid);
 
-    // Setup textures for the zoom and paused function 
+    // Setup textures for the zoom and paused function
     glGenTextures(1, &render_texid);
     for (i=0; i<4; i++)
         glGenTextures(1, &paused_texid[i]);
@@ -420,7 +420,7 @@ void to_16bit_palette(u8 palette_index, u8 transparent_index, u8 io_file)
     for (i=0; i<16; i++)		// 16 colours
     {
         rgb = readword(fbuffer[io_file], palette_start + 2*i);
-        printv(" %03X", rgb); 
+        printv(" %03X", rgb);
         if (i==7)
             printv("\n");
         // OK, we need to convert our rgb to grab
@@ -493,9 +493,9 @@ void bitplane_to_wGRAB(u8* source, u8* dest, u16 w, u16 ext_w, u16 h)
 
     wb = w/8;	// width in bytes
     ext_wb = ext_w/8;
-    bitplane_size = h*wb; 
+    bitplane_size = h*wb;
 
-    for (i=0; i<bitplane_size; i++)	
+    for (i=0; i<bitplane_size; i++)
     {
         // Read one byte from each bitplane...
         for (j=0; j<5; j++)
@@ -506,7 +506,7 @@ void bitplane_to_wGRAB(u8* source, u8* dest, u16 w, u16 ext_w, u16 h)
         // For clarity
         mask_byte = bitplane_byte[4];
 
-        // Write 8 RGBA words 
+        // Write 8 RGBA words
         for (k=0; k<8; k++)
         {
 
@@ -540,7 +540,7 @@ void cells_to_wGRAB(u8* source, u8* dest)
     {
         line_interleaved_to_wGRAB(source + (256*i), dest+(2*RGBA_SIZE*256*i), 32, 16, 4);
         glBindTexture(GL_TEXTURE_2D, cell_texid[i]);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 32, 16, 0, GL_RGBA, GL_UNSIGNED_SHORT_4_4_4_4_REV, 
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 32, 16, 0, GL_RGBA, GL_UNSIGNED_SHORT_4_4_4_4_REV,
             ((u8*)rgbCells) + i*2*RGBA_SIZE*0x100);
     }
 
@@ -557,7 +557,7 @@ void init_panel_chars()
         for (x=0; x<PANEL_CHARS_W; x++)
             writeword((u8*)panel_chars[MENU_MARKER], y*16 + 2*x, 0xFFFF);
     glBindTexture(GL_TEXTURE_2D, chars_texid[MENU_MARKER]);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, PANEL_CHARS_W, 8, 0, GL_RGBA, 
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, PANEL_CHARS_W, 8, 0, GL_RGBA,
         GL_UNSIGNED_SHORT_4_4_4_4_REV, (u8*)panel_chars[MENU_MARKER]);
 
 
@@ -581,9 +581,9 @@ void init_panel_chars()
                     // The bits are inverted => anything set is to be transparent
                     writeword((u8*)panel_chars[c], y*16 + 2*x, 0x0000);
                 else
-                    writeword((u8*)panel_chars[c], y*16 + 2*x, 
+                    writeword((u8*)panel_chars[c], y*16 + 2*x,
                     // Respect the nice incremental colour graduation
-                        PANEL_CHARS_GRAB_BASE + (y-1)*PANEL_CHARS_GRAB_INCR);					
+                        PANEL_CHARS_GRAB_BASE + (y-1)*PANEL_CHARS_GRAB_INCR);
             }
         }
         // last line is transparent too
@@ -592,7 +592,7 @@ void init_panel_chars()
 
         // Convert to textures
         glBindTexture(GL_TEXTURE_2D, chars_texid[c]);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, PANEL_CHARS_W, 8, 0, GL_RGBA, 
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, PANEL_CHARS_W, 8, 0, GL_RGBA,
             GL_UNSIGNED_SHORT_4_4_4_4_REV, (u8*)panel_chars[c]);
     }
 
@@ -618,7 +618,7 @@ s_panel_sprite get_panel_sprite(u16 sprite_index)
         sp.offset = PANEL_FACES_OFFSET;
     }
     // Clock digits (8x16)
-    else if (sprite_index < NB_STANDARD_SPRITES + NB_PANEL_FLAGS + NB_PANEL_FACES + 
+    else if (sprite_index < NB_STANDARD_SPRITES + NB_PANEL_FLAGS + NB_PANEL_FACES +
         NB_PANEL_CLOCK_DIGITS)
     {
         sp.w = 8;
@@ -626,7 +626,7 @@ s_panel_sprite get_panel_sprite(u16 sprite_index)
         sp.offset = PANEL_CLOCK_DIGITS_OFF;
     }
     // inventory props + status (32x16)
-    else if (sprite_index < NB_STANDARD_SPRITES + NB_PANEL_FLAGS + NB_PANEL_FACES + 
+    else if (sprite_index < NB_STANDARD_SPRITES + NB_PANEL_FLAGS + NB_PANEL_FACES +
         NB_PANEL_CLOCK_DIGITS + NB_PANEL_ITEMS)
     {
         sp.w = 32;
@@ -680,12 +680,12 @@ void init_sprites()
         // h will be problematic as pspgl wants a power of 2
         sprite[sprite_index].h = readword(fbuffer[SPRITES],sprite_address+2);
         sprite[sprite_index].corrected_h = powerize(sprite[sprite_index].h);
-        
+
         // There's an offset to position the sprite depending on the mask's presence
         sprite[sprite_index].x_offset = (sprite_w & 0x8000)?16:1;
         sprite[sprite_index].y_offset = 0;
         sprite[sprite_index].z_offset = 0;
-        sprite[sprite_index].data = aligned_malloc( RGBA_SIZE * 
+        sprite[sprite_index].data = aligned_malloc( RGBA_SIZE *
             sprite[sprite_index].corrected_w * sprite[sprite_index].corrected_h, 16);
 //		printb("  w,h = %0X, %0X\n", sprite[sprite_index].w , sprite[sprite_index].h);
     }
@@ -719,7 +719,7 @@ void init_sprites()
         sprite[sprite_index].h = 16;
         sprite[sprite_index].corrected_h = 16;
         sprite[sprite_index].x_offset = 1;
-        sprite[sprite_index].data = aligned_malloc( RGBA_SIZE * 
+        sprite[sprite_index].data = aligned_malloc( RGBA_SIZE *
             sprite[sprite_index].w * sprite[sprite_index].h, 16);
     }
 
@@ -729,7 +729,7 @@ void init_sprites()
     sprite[PANEL_FATIGUE_SPRITE].h = 8;
     sprite[PANEL_FATIGUE_SPRITE].corrected_h = 8;
     sprite[PANEL_FATIGUE_SPRITE].x_offset = 1;
-    sprite[PANEL_FATIGUE_SPRITE].data = aligned_malloc( RGBA_SIZE * 
+    sprite[PANEL_FATIGUE_SPRITE].data = aligned_malloc( RGBA_SIZE *
             sprite[PANEL_FATIGUE_SPRITE].w * sprite[PANEL_FATIGUE_SPRITE].h, 16);
 
     // And one more for the fooled by one
@@ -738,7 +738,7 @@ void init_sprites()
     sprite[FOOLED_BY_SPRITE].h = 8;
     sprite[FOOLED_BY_SPRITE].corrected_h = 8;
     sprite[FOOLED_BY_SPRITE].x_offset = 0;
-    sprite[FOOLED_BY_SPRITE].data = aligned_malloc( RGBA_SIZE * 
+    sprite[FOOLED_BY_SPRITE].data = aligned_malloc( RGBA_SIZE *
             sprite[FOOLED_BY_SPRITE].w * sprite[FOOLED_BY_SPRITE].h, 16);
 
     // We use a different sprite array for status message chars
@@ -750,7 +750,7 @@ void init_sprites()
 void sprites_to_wGRAB()
 {
     // Fatigue bar base sprite colours (4_4_4_4 GRAB)
-    static const u16 fatigue_colour[8] = {0x29F0, 0x4BF0, 0x29F0, 0x06F0, 
+    static const u16 fatigue_colour[8] = {0x29F0, 0x4BF0, 0x29F0, 0x06F0,
         0x16F1, GRAB_TRANSPARENT_COLOUR, GRAB_TRANSPARENT_COLOUR, GRAB_TRANSPARENT_COLOUR};
 
     // We'll use this 4x8 GRAB sprite as an indicator for guards fooled by a pass
@@ -765,7 +765,7 @@ void sprites_to_wGRAB()
         {0xbdf7,0x9bf5,0xbdf7,0xbdf7,0xff0f,0xff0f,0xff0f,0xff0f},
         {0xbdf7,0xbdf7,0xbdf7,0xbdf7,0xff0f,0xff0f,0xff0f,0xff0f},
         {0xff0f,0xff0f,0xff0f,0xff0f,0xff0f,0xff0f,0xff0f,0xff0f}
-    };	
+    };
 
     u16 sprite_index;
     u32 sprite_address;
@@ -788,14 +788,14 @@ void sprites_to_wGRAB()
             // Populate the z_offset, which we'll use later on to decide the z position
             // of the overlays. We substract h because we use top left corner rather than
             // bottom right as in original game (speed up computations for later)
-            sprite[sprite_index].z_offset = readword(fbuffer[SPRITES],sprite_address+4) - 
+            sprite[sprite_index].z_offset = readword(fbuffer[SPRITES],sprite_address+4) -
                 sprite[sprite_index].h;
-            
+
             // Compute the source address
-            sbuffer = fbuffer[SPRITES] + sprite_address + 8; 
+            sbuffer = fbuffer[SPRITES] + sprite_address + 8;
         }
         // Panel (nonstandard sprites)
-        else 
+        else
         {
             if (sprite_index == NB_STANDARD_SPRITES)
             {	// we're getting into panel overlays => switch to the panel palette
@@ -806,7 +806,7 @@ void sprites_to_wGRAB()
                 pause_rgb[BLUE] = (aPalette[10]&0xF)*0x11;
                 to_16bit_palette(0, 1, SPRITES_PANEL);
             }
-            sbuffer = fbuffer[SPRITES_PANEL] + get_panel_sprite(sprite_index).offset + 
+            sbuffer = fbuffer[SPRITES_PANEL] + get_panel_sprite(sprite_index).offset +
                 8*sprite[sprite_index].w*(sprite_index-get_panel_sprite(sprite_index).base);
             no_mask = 1;
         }
@@ -814,7 +814,7 @@ void sprites_to_wGRAB()
         if (no_mask)
         {
             // Bitplanes that have no mask are line-interleaved, like cells
-            line_interleaved_to_wGRAB(sbuffer, sprite[sprite_index].data, 
+            line_interleaved_to_wGRAB(sbuffer, sprite[sprite_index].data,
                 sprite[sprite_index].w, sprite[sprite_index].h, 4);
             // A sprite with no mask should always display under anything else
             sprite[sprite_index].z_offset = MIN_Z;
@@ -826,7 +826,7 @@ void sprites_to_wGRAB()
 
         // Now that we have data in a GL readable format, let's texturize it!
         glBindTexture(GL_TEXTURE_2D, sprite_texid[sprite_index]);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, sprite[sprite_index].corrected_w, 
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, sprite[sprite_index].corrected_w,
             sprite[sprite_index].corrected_h, 0, GL_RGBA, GL_UNSIGNED_SHORT_4_4_4_4_REV,
             sprite[sprite_index].data);
     }
@@ -846,14 +846,14 @@ void sprites_to_wGRAB()
             writeword(sprite[FOOLED_BY_SPRITE].data, 16*y+2*x, fooled_by_sprite[y][x]);
 
     glBindTexture(GL_TEXTURE_2D, sprite_texid[FOOLED_BY_SPRITE]);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, sprite[FOOLED_BY_SPRITE].corrected_w, 
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, sprite[FOOLED_BY_SPRITE].corrected_w,
         sprite[FOOLED_BY_SPRITE].corrected_h, 0, GL_RGBA, GL_UNSIGNED_SHORT_4_4_4_4_REV,
         sprite[FOOLED_BY_SPRITE].data);
 }
 
 
 // Display a sprite or cell, using the top left corner as the origin
-static __inline void display_sprite(float x1, float y1, float w, float h, unsigned int texid) 
+static __inline void display_sprite(float x1, float y1, float w, float h, unsigned int texid)
 {
     float register x2, y2;
 
@@ -869,11 +869,11 @@ static __inline void display_sprite(float x1, float y1, float w, float h, unsign
 #if defined(PSP)
     glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
     glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
-#else 
+#else
     // For some reason GL_CLAMP_TO_EDGE on Win achieves the same as GL_CLAMP on PSP
     glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-#endif 
+#endif
 
     // pspGL does not implement QUADS
     glBegin(GL_TRIANGLE_FAN);
@@ -891,7 +891,7 @@ static __inline void display_sprite(float x1, float y1, float w, float h, unsign
 
 // That's right: we define 2 different display_sprite routines just
 // to spare the processing time of an if condition for linear/nearest!
-void display_sprite_linear(float x1, float y1, float w, float h, unsigned int texid) 
+void display_sprite_linear(float x1, float y1, float w, float h, unsigned int texid)
 {
     float register x2, y2;
 
@@ -912,7 +912,7 @@ void display_sprite_linear(float x1, float y1, float w, float h, unsigned int te
     // For some reason GL_CLAMP_TO_EDGE on Win achieves the same as GL_CLAMP on PSP
     glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-#endif 
+#endif
 
     // pspGL does not implement QUADS
     glBegin(GL_TRIANGLE_FAN);
@@ -942,7 +942,7 @@ void display_overlays()
     for (j=0; j<overlay_index; j++)
     {
         i = overlay_order[j];
-        display_sprite(overlay[i].x, overlay[i].y, sprite[overlay[i].sid].corrected_w, 
+        display_sprite(overlay[i].x, overlay[i].y, sprite[overlay[i].sid].corrected_w,
             sprite[overlay[i].sid].corrected_h, sprite_texid[overlay[i].sid]);
 //		printb("ovl(%d,%d), sid = %X\n", overlay[i].x, overlay[i].y, overlay[i].sid);
     }
@@ -973,13 +973,13 @@ void display_room()
         // TODO_execute all end of ani functions
         for (u=0; u<MAX_CURRENTLY_ANIMATED; u++)
             currently_animated[u] = -1;	// We use -1, as 0 is a valid index
-        // Reset 
+        // Reset
         nb_animations = 0;
         for (u=0; u<NB_GUYBRUSHES; u++)
             guybrush[u].reset_animation = true;
     }
 
-    // Compute GL offsets (position of 0,0 corner of the room wrt center of the screen) 
+    // Compute GL offsets (position of 0,0 corner of the room wrt center of the screen)
     gl_off_x = PSP_SCR_WIDTH/2 - prisoner_x;
     gl_off_y = PSP_SCR_HEIGHT/2 - (prisoner_2y/2) - NORTHWARD_HO;
 
@@ -990,17 +990,17 @@ void display_room()
     // overlay call, if we want a props message override
     if (is_outside)
     {	// Outside
-        set_status_message(fbuffer[LOADER] + readlong(fbuffer[LOADER], MESSAGE_BASE + 
+        set_status_message(fbuffer[LOADER] + readlong(fbuffer[LOADER], MESSAGE_BASE +
             4*COURTYARD_MSG_ID), 0, NO_MESSAGE_TIMEOUT);
     }
     else if (current_room_index < ROOM_TUNNEL)
     {	// Standard room
-        set_status_message(fbuffer[LOADER] + readlong(fbuffer[LOADER], MESSAGE_BASE + 
+        set_status_message(fbuffer[LOADER] + readlong(fbuffer[LOADER], MESSAGE_BASE +
             4*(readbyte(fbuffer[LOADER], ROOM_DESC_BASE	+ current_room_index))), 0, NO_MESSAGE_TIMEOUT);
     }
     else
     {	// Tunnel
-        set_status_message(fbuffer[LOADER] + readlong(fbuffer[LOADER], MESSAGE_BASE + 
+        set_status_message(fbuffer[LOADER] + readlong(fbuffer[LOADER], MESSAGE_BASE +
             4*TUNNEL_MSG_ID), 0, NO_MESSAGE_TIMEOUT);
     }
 
@@ -1027,7 +1027,7 @@ void display_room()
                 // A specific room tile is identified by a word
 
                 /*
-                 * tile_data  = tttt tttt tggo xxxx 
+                 * tile_data  = tttt tttt tggo xxxx
                  * t: tile #
                  * g: lock grade (01 = lockpick, 10 = key 2, 11 = key 1)
                  * o: door open flag
@@ -1035,11 +1035,11 @@ void display_room()
                 */
                 tile_data = readword((u8*)fbuffer[ROOMS], offset);
 
-                display_sprite(pixel_x,pixel_y,32,16, 
+                display_sprite(pixel_x,pixel_y,32,16,
                     cell_texid[(tile_data>>7) + ((current_room_index>0x202)?0x1E0:0)]);
 
                 // Display sprite overlay
-                crm_set_overlays(pixel_x, pixel_y, tile_data & 0xFF80); 
+                crm_set_overlays(pixel_x, pixel_y, tile_data & 0xFF80);
 
                 offset +=2;		// Read next tile
                 pixel_x += 32;
@@ -1101,14 +1101,14 @@ void display_room()
                 // For the time being, we'll reset the removable boolean for props
                 remove_props[tile_x][tile_y] = 0;
 
-                // If the first 15 bits of this longword are zero, then we have a simple tile, 
-                // with remainder 17 being the tile data 
+                // If the first 15 bits of this longword are zero, then we have a simple tile,
+                // with remainder 17 being the tile data
                 rem_offset = (raw_data >> 16) & 0xFFFE;
                 // First word (with mask 0xFFFE) indicates if we have a simple tile or not
 
                 if (rem_offset != 0)
-                // If the first 15 bits are not null, we have a complex sequence, 
-                // which we must read in second part of the compressed map, 
+                // If the first 15 bits are not null, we have a complex sequence,
+                // which we must read in second part of the compressed map,
                 // the 15 bits being the offset from start of second part
                 {
                     // The first word read is the number of overlapping tiles
@@ -1132,7 +1132,7 @@ void display_room()
                 }
 
                 // At last, we have a tile we can display
-                display_sprite(pixel_x,pixel_y,32,16, 
+                display_sprite(pixel_x,pixel_y,32,16,
                     cell_texid[(tile_data>>7)]);
 
                 offset += 4;
@@ -1156,7 +1156,7 @@ void display_room()
 
     // We'll need that for next run
     last_p_x = prisoner_x;
-    last_p_y = prisoner_2y/2; 
+    last_p_y = prisoner_2y/2;
 }
 
 
@@ -1184,14 +1184,14 @@ void display_message(char string[])
 
 
 // Display a static picture (512x256x16 GRAB texture) that was previously
-// loaded from an IFF file. 
+// loaded from an IFF file.
 void display_picture()
 {
-    // NB, we don't need to clear the screen to black, as this is done 
+    // NB, we don't need to clear the screen to black, as this is done
     // before calling this function
 
     // Set white to the current fade_value for fading effects
-    glColor3f(fade_value, fade_value, fade_value);	
+    glColor3f(fade_value, fade_value, fade_value);
 
     // Display the current IFF image
     glBindTexture(GL_TEXTURE_2D, texture[current_picture].texid);
@@ -1205,10 +1205,10 @@ void display_picture()
         glTexCoord2f(1.0f, 0.0f);
         glVertex2f(512 + (PSP_SCR_WIDTH-texture[current_picture].w)/2, (PSP_SCR_HEIGHT-texture[current_picture].h)/2);
         glTexCoord2f(1.0, 1.0);
-        glVertex2f(512 + (PSP_SCR_WIDTH-texture[current_picture].w)/2, 
+        glVertex2f(512 + (PSP_SCR_WIDTH-texture[current_picture].w)/2,
             powerize(texture[current_picture].h) + (PSP_SCR_HEIGHT-texture[current_picture].h)/2);
         glTexCoord2f(0.0, 1.0);
-        glVertex2f((PSP_SCR_WIDTH-texture[current_picture].w)/2, 
+        glVertex2f((PSP_SCR_WIDTH-texture[current_picture].w)/2,
             powerize(texture[current_picture].h) + (PSP_SCR_HEIGHT-texture[current_picture].h)/2);
     glEnd();
 }
@@ -1225,7 +1225,7 @@ void display_tunnel_area()
 
     // Hidde everything that's outside our texture using 4 black rectangles
     glDisable(GL_TEXTURE_2D);		// Disable textures and set colour to black
-    glColor3f(0.0f, 0.0f, 0.0f);	
+    glColor3f(0.0f, 0.0f, 0.0f);
 
     glBegin(GL_TRIANGLE_FAN);
         glVertex2f(0, 0);
@@ -1284,7 +1284,7 @@ void display_panel()
 
     // Black rectangle (panel base) at the bottom
     glDisable(GL_TEXTURE_2D);		// Disable textures and set colour to black
-    glColor3f(0.0f, 0.0f, 0.0f);	
+    glColor3f(0.0f, 0.0f, 0.0f);
 
     glBegin(GL_TRIANGLE_FAN);
         glVertex2f(0, PSP_SCR_HEIGHT-32);
@@ -1396,7 +1396,7 @@ void display_panel()
     else
     {	// Use black triangles
         glDisable(GL_TEXTURE_2D);
-        glColor3f(0.0f, 0.0f, 0.0f);	
+        glColor3f(0.0f, 0.0f, 0.0f);
 
         h = (float) (28-NORTHWARD_HO)+36;	// 36
         w = (float) 2*h;					// 72
@@ -1430,7 +1430,7 @@ void display_panel()
             sid = PANEL_FACE_SHOT;
         else if (p_event[i].escaped)
             sid = PANEL_FACE_FREE;
-        else 
+        else
         {
             sid = 0xd5 + i;
             if ((guy(i).state & STATE_IN_PRISON) ||
@@ -1503,7 +1503,7 @@ void rescale_buffer()
 // using the buffer as a texture, is the ONLY WAY I COULD FIND TO GET A ZOOM
 // THAT WORKS PROPERLY IN OPENGL!!! (i.e. without showing artefacts around overlay sprites)
 // Seriously guys, if you're doing 2D with sprites, you'll waste DAYS trying
-// to figure out a bloody solution to zoom the lousy colour buffer, because 
+// to figure out a bloody solution to zoom the lousy colour buffer, because
 // if you think, with all the GPU acceleration, there should be an easy way to
 // achieve that crap, you couldn't be more wrong! And if you want anything elaborate, you
 // have to write your own shader (coz even with PCI-X, tranferring image data back and
@@ -1514,7 +1514,7 @@ void rescale_buffer()
 #endif
 
     if ((gl_width != PSP_SCR_WIDTH) && (gl_height != PSP_SCR_HEIGHT))
-    {	
+    {
 		glDisable(GL_BLEND);	// Better than having to use glClear()
 
         // If we don't set full luminosity, our menu will fade too
@@ -1663,7 +1663,7 @@ void display_menu_screen()
         }
 
         if (selected_menu == OPTIONS_MENU)
-        {	
+        {
 			if (line == MENU_SMOOTHING)
 			{	// This one has multiple values
 				for (j=0; (c = smoothing[opt_gl_smoothing][j]); i++,j++)
@@ -1775,7 +1775,7 @@ void display_pause_screen()
     {
         glColor3f(fade_value, fade_value, fade_value);
 
-        j = (2*(i+1) + i/2)%4;	// we need to display in 2, 0, 3, 1 order because of texture 
+        j = (2*(i+1) + i/2)%4;	// we need to display in 2, 0, 3, 1 order because of texture
                                 // overlap correction due to having to use powerized ones on PSP
         x = (j%2)*(PSP_SCR_WIDTH/2) + SPACER + x_shift[j%2] + 0.5;
         y = (j/2)*(PSP_SCR_HEIGHT/2) + (PSP_SCR_HEIGHT/2) - SPACER + y_shift[j/2] + 0.5;
@@ -1791,7 +1791,7 @@ void display_pause_screen()
         glBegin(GL_LINE_STRIP);		// doesn't look like pspGL handles LINE_LOOP
             glVertex2f(x, y);
             glVertex2f(x+w, y);
-            glVertex2f(x+w, y-h);		
+            glVertex2f(x+w, y-h);
             glVertex2f(x, y-h);
             glVertex2f(x, y);
         glEnd();
@@ -1831,7 +1831,7 @@ void display_pause_screen()
 }
 
 
-// Open and texturize an IFF image file. 
+// Open and texturize an IFF image file.
 bool load_iff(s_tex* tex)
 {
     bool got_cmap		= false;
@@ -1965,7 +1965,7 @@ bool load_iff(s_tex* tex)
             freadlong(fd);	// Ignore BODY size
 
             // Calculate bytes per line. (NB: our width is always a multiple of 8)
-            bytes_per_line = w >> 3;  
+            bytes_per_line = w >> 3;
 
             for (y = 0; y < h; y++)
             {
@@ -1982,7 +1982,7 @@ bool load_iff(s_tex* tex)
                                 bytecount++;
                                 fread(&lbuffer[plane][i], 1, bytecount, fd);
                                 i += bytecount;
-                            } 
+                            }
                             else if (bytecount > 128)
                             {
                                 bytecount = -bytecount + 1;
@@ -2002,7 +2002,7 @@ bool load_iff(s_tex* tex)
 
                 // OK, now we have our <nplanes> line buffers
                 // Let's recombine those bits, and convert to GRAB from our palette
-                line_interleaved_to_wGRAB((u8*)lbuffer, 
+                line_interleaved_to_wGRAB((u8*)lbuffer,
                     tex->buffer+powerized_w*y*2, powerized_w, 1, nplanes);
             }
 
@@ -2019,7 +2019,7 @@ bool load_iff(s_tex* tex)
             for (i=0; i<len; i++)
                 freadbyte(fd);
         }
-    } 
+    }
 
     fclose(fd);
     fd = NULL;
@@ -2037,7 +2037,7 @@ bool load_iff(s_tex* tex)
 }
 
 
-// Open and texturize a 16, 24 or 32 bpp RGB(A) RAW image 
+// Open and texturize a 16, 24 or 32 bpp RGB(A) RAW image
 bool load_raw_rgb(s_tex* tex, u8 pixel_size)
 {
     u32 line_size, powerized_line_size;
@@ -2089,7 +2089,7 @@ bool load_raw_rgb(s_tex* tex, u8 pixel_size)
         return false;
         break;
     }
-    
+
     return true;
 }
 
@@ -2106,7 +2106,7 @@ u16  powerized_w;
 
     // closest greater power of 2
     powerized_w = powerize(tex->w);
-    
+
     // Make sure we have a valid texture
     if (tex->texid == 0)
         glGenTextures(1, &(tex->texid));
@@ -2123,7 +2123,7 @@ u16  powerized_w;
     {	// IFF file
         iff_file = true;
     }
-    else	 
+    else
     {	// RAW file
 
         // Find out if there is an alpha channel to read by computing the size

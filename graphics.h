@@ -1,6 +1,6 @@
 /*
  *  Colditz Escape! - Rewritten Engine for "Escape From Colditz"
- *  copyright (C) 2008-2009 Aperture Software 
+ *  copyright (C) 2008-2009 Aperture Software
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -59,7 +59,7 @@ typedef struct
  */
 extern s_tex		texture[NB_TEXTURES];
 extern s_sprite		*sprite;
-extern s_overlay	*overlay; 
+extern s_overlay	*overlay;
 extern u8			overlay_index;
 extern s16			gl_off_x, gl_off_y;
 extern s16			last_p_x, last_p_y;

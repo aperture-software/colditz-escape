@@ -1,6 +1,6 @@
 /*
  *  Colditz Escape! - Rewritten Engine for "Escape From Colditz"
- *  copyright (C) 2008-2009 Aperture Software 
+ *  copyright (C) 2008-2009 Aperture Software
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -28,7 +28,7 @@ extern "C" {
 #endif
 
 /*
- *	These game macro will come handy later on 
+ *	These game macro will come handy later on
  */
 
 // Reads the tile index at (x,y) from compressed map and rotate
@@ -47,7 +47,7 @@ extern "C" {
 #define readexit(x,y)				\
 	(is_outside?comp_readexit(x,y):room_readexit(x,y))
 
-// Returns the offset of the byte that describes the exit status (open/closed, key level...) 
+// Returns the offset of the byte that describes the exit status (open/closed, key level...)
 #define room_get_exit_offset(x,y)	\
 	(offset + ((y)*room_x+(x))*2 + 1)
 #define comp_get_exit_offset(x,y)	\
@@ -60,7 +60,7 @@ extern "C" {
 
 // Checks that an overlay is visible onscreen (with generous margins)
 #define is_offscreen_x(x) ((x < -64) || (x > (PSP_SCR_WIDTH+64)))
-#define is_offscreen_y(y) ((y < -64) || (y > (PSP_SCR_HEIGHT+64)))	
+#define is_offscreen_y(y) ((y < -64) || (y > (PSP_SCR_HEIGHT+64)))
 #define ignore_offscreen_x(ovl)	{if is_offscreen_x(overlay[ovl].x) continue;}
 #define ignore_offscreen_y(ovl)	{if is_offscreen_y(overlay[ovl].y) continue;}
 
@@ -81,16 +81,16 @@ extern "C" {
 	if (overlay_index <= (MAX_OVERLAYS-1))	\
 		overlay_index++;					\
 	else									\
-		perr("Too many overlays!\n");		}	
+		perr("Too many overlays!\n");		}
 
 
 // A few definitions to make prop handling and status messages more readable
 extern u64  t_status_message_timeout;
-static __inline void set_status_message(void* msg, int priority, u64 timeout_duration)	
+static __inline void set_status_message(void* msg, int priority, u64 timeout_duration)
 {
 	if (priority >= status_message_priority)
 	{
-		t_status_message_timeout = game_time + timeout_duration;	
+		t_status_message_timeout = game_time + timeout_duration;
 		status_message = (char*)(msg);
 		status_message_priority = priority;
 	}
@@ -111,7 +111,7 @@ static __inline void consume_prop()
 	nb_props_message[1] = (props[current_nation][prop_id] / 10) + 0x30;				\
 	nb_props_message[2] = (props[current_nation][prop_id] % 10) + 0x30;				\
 	strcpy(nb_props_message+6, (char*) fbuffer[LOADER] + readlong(fbuffer[LOADER],	\
-		PROPS_MESSAGE_BASE + 4*(prop_id-1)) + 1);									
+		PROPS_MESSAGE_BASE + 4*(prop_id-1)) + 1);
 
 #define show_prop_count()															\
 	update_props_message(selected_prop[current_nation]);							\
