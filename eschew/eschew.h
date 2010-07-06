@@ -152,10 +152,10 @@ char* __eschew_s;
 // A runtime initialization is necessary for the tokenization of the node names
 // and their copying into the table
 #define INIT_XML_TABLE(tabid) {	__eschew_i=0;									\
-	if ( (xml_##tabid.name[0] == NULL)                                          \
-      && ( (__eschew_s = strtok(xml_##tabid._tokens, " ,\t")) != NULL) ) {	    \
-	  do { xml_##tabid.name[__eschew_i++] = __eschew_s; }                       \
-	  while ( (__eschew_s = strtok(NULL, " ,\t")) != NULL ); }                  \
+	if ( (xml_##tabid.name[0] == NULL)											\
+	  && ( (__eschew_s = strtok(xml_##tabid._tokens, " ,\t")) != NULL) ) {		\
+	  do { xml_##tabid.name[__eschew_i++] = __eschew_s; }						\
+	  while ( (__eschew_s = strtok(NULL, " ,\t")) != NULL ); }					\
 	SET_ATTRIBUTE(tabid);														\
 	if (!link_table((xml_node)((void*)&xml_##tabid), &xml_root))				\
 		printf("Could not find parent for table %s!!!\n", xml_##tabid.id); }
@@ -220,4 +220,3 @@ int free_xml(void);
 #ifdef	__cplusplus
 }
 #endif
-

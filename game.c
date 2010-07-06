@@ -617,7 +617,7 @@ void enqueue_event(void (*f)(u32), u32 p, u64 delay)
 }
 
 // Returns the last frame of an animation (usually the centered position)
-int get_stop_animation_sid(u8 index, bool is_guybrush)
+int get_stop_animation_sid(u8 ani_index, bool is_guybrush)
 {
     u8 frame;
     int sid;
@@ -626,11 +626,11 @@ int get_stop_animation_sid(u8 index, bool is_guybrush)
     s_animation* p_ani;
 
     // Pointer to the animation structure
-    p_ani = is_guybrush?&guybrush[index].animation:&animations[index];
+    p_ani = is_guybrush?&guybrush[ani_index].animation:&animations[ani_index];
     // Our index will tell us which animation sequence we use (walk, run, kneel, etc.)
     ani_base = readlong(fbuffer[LOADER], ANIMATION_OFFSET_BASE + 4*p_ani->index);
     // Guybrushes animations need to handle a direction, others do not
-    dir = is_guybrush?guybrush[index].direction:0;
+    dir = is_guybrush?guybrush[ani_index].direction:0;
     // With the direction and animation base, we can get to the base SID of the ani sequence
     sid = readbyte(fbuffer[LOADER], ani_base + 0x0A + dir);
     // find out the index of the last animation frame
@@ -641,7 +641,7 @@ int get_stop_animation_sid(u8 index, bool is_guybrush)
 
 // Returns an animation frame
 // index is either the animation[] array index (standard overlays) or the guybrush[] array index
-int get_animation_sid(u8 index, bool is_guybrush)
+int get_animation_sid(u8 ani_index, bool is_guybrush)
 {
     u8 sid_increment;
     int sid;
@@ -652,10 +652,10 @@ int get_animation_sid(u8 index, bool is_guybrush)
     u8 sfx_id;
 
     // Pointer to the animation structure
-    p_ani = is_guybrush?&guybrush[index].animation:&animations[index];
+    p_ani = is_guybrush?&guybrush[ani_index].animation:&animations[ani_index];
     // read the base sid
     ani_base = readlong(fbuffer[LOADER], ANIMATION_OFFSET_BASE + 4*p_ani->index);
-    dir = is_guybrush?guybrush[index].direction:0;
+    dir = is_guybrush?guybrush[ani_index].direction:0;
     sid = readbyte(fbuffer[LOADER], ani_base + 0x0A + dir);
 //	printb("framecount = %d\n", p_ani->framecount);
     nb_frames = readbyte(fbuffer[LOADER], ani_base);	// offset 0 is nb frames max
@@ -2016,9 +2016,9 @@ void toggle_exit(u32 exit_nr)
     u8	exit_flags;
     u16 target_room_index;
     // Don't use the globals here, or exit handling will go screwie!!!
-    u16 room_x, room_y;
-    s16 tile_x, tile_y;
-    u32 offset;
+    u16 _room_x, _room_y;
+    s16 _tile_x, _tile_y;
+    u32 _offset;
 
 	// Restore the ability to consume a key (prevents double key consumption issue)
 	can_consume_key = true;
@@ -2038,9 +2038,9 @@ void toggle_exit(u32 exit_nr)
         // Get target:
         // If we are on the compressed map, we need to read 2 words (out of 4)
         // from beginning of the ROOMS_MAP file or from TUNNEL_IO if tunnelling
-        offset = (exit_nr&0xFF) << 3;	// skip 8 bytes
-        target_room_index = readword((u8*)fbuffer[ROOMS_TUNIO], offset) & 0x7FF;
-        exit_index = readword((u8*)fbuffer[ROOMS_TUNIO], offset+2);
+        _offset = (exit_nr&0xFF) << 3;	// skip 8 bytes
+        target_room_index = readword((u8*)fbuffer[ROOMS_TUNIO], _offset) & 0x7FF;
+        exit_index = readword((u8*)fbuffer[ROOMS_TUNIO], _offset+2);
     }
     else
     {
@@ -2051,11 +2051,11 @@ void toggle_exit(u32 exit_nr)
 
         // Get target by reading from the ROOMS_EXIT_BASE data
         exit_index = (exit_nr&0xF)-1;
-        offset = current_room_index << 4;
+        _offset = current_room_index << 4;
         // Now the real clever trick here is that the exit index of the room you
         // just left and the exit index of the one you go always match.
         // Thus, we know where we should get positioned on entering the room
-        target_room_index = readword((u8*)fbuffer[ROOMS], ROOMS_EXITS_BASE + offset
+        target_room_index = readword((u8*)fbuffer[ROOMS], ROOMS_EXITS_BASE + _offset
             + 2*exit_index);
     }
 
@@ -2063,40 +2063,40 @@ void toggle_exit(u32 exit_nr)
 
     if (target_room_index & 0x8000)
     {	// outside destination (compressed map)
-        room_x = CMP_MAP_WIDTH;		// keep our readtile macros happy
+        _room_x = CMP_MAP_WIDTH;	// keep our readtile macros happy
         // NB: The ground floor rooms are in [00-F8]
-        offset = target_room_index & 0xF8;
+        _offset = target_room_index & 0xF8;
         // set the mirror door to open
-        exit_flags = readbyte(fbuffer[ROOMS_TUNIO], offset);
+        exit_flags = readbyte(fbuffer[ROOMS_TUNIO], _offset);
         toggle_open_flag(exit_flags);
-        writebyte(fbuffer[ROOMS_TUNIO], offset, exit_flags);
+        writebyte(fbuffer[ROOMS_TUNIO], _offset, exit_flags);
     }
     else
     {	// inside destination (colditz_room_map)
         // Get the room dimensions
-        offset = readlong((u8*)fbuffer[ROOMS], CRM_OFFSETS_START+4*target_room_index);
-        room_y = readword((u8*)fbuffer[ROOMS], CRM_ROOMS_START+offset);
-        offset +=2;
-        room_x = readword((u8*)fbuffer[ROOMS], CRM_ROOMS_START+offset);
-        offset +=2;
+        _offset = readlong((u8*)fbuffer[ROOMS], CRM_OFFSETS_START+4*target_room_index);
+        _room_y = readword((u8*)fbuffer[ROOMS], CRM_ROOMS_START+_offset);
+        _offset +=2;
+        _room_x = readword((u8*)fbuffer[ROOMS], CRM_ROOMS_START+_offset);
+        _offset +=2;
 
         // Read the tiles data
         found = false;	// easier this way, as tile_x/y won't need adjusting
-        for (tile_y=0; (tile_y<room_y)&&(!found); tile_y++)
+        for (_tile_y=0; (_tile_y<_room_y)&&(!found); _tile_y++)
         {
-            for(tile_x=0; (tile_x<room_x)&&(!found); tile_x++)
+            for(_tile_x=0; (_tile_x<room_x)&&(!found); _tile_x++)
             {
-                tile_data = readword((u8*)fbuffer[ROOMS], CRM_ROOMS_START+offset);
+                tile_data = readword((u8*)fbuffer[ROOMS], CRM_ROOMS_START+_offset);
                 if ((tile_data & 0xF) == exit_index)
                 {
                     found = true;
                     // open exit
                     exit_flags = tile_data & 0xFF;
                     toggle_open_flag(exit_flags);
-                    writebyte(fbuffer[ROOMS], CRM_ROOMS_START+offset+1, exit_flags);
+                    writebyte(fbuffer[ROOMS], CRM_ROOMS_START+_offset+1, exit_flags);
                     break;
                 }
-                offset +=2;		// Read next tile
+                _offset +=2;		// Read next tile
             }
             if (found)
                 break;
@@ -2107,29 +2107,29 @@ void toggle_exit(u32 exit_nr)
 
 // Helper function for check_footprint() below:
 // populates relevant properties for one of the 4 quadrant's tile
-static __inline void get_tile_props(s16 tile_x, s16 tile_y, int index)
+static __inline void get_tile_props(s16 _tile_x, s16 _tile_y, int index_nr)
 {
     u8 register u;
     u32 tile;
 
     // Set the left mask offset index, converted to a long offset
-    // Be mindful that the tile_x/y used here are not the global variables
+    // Be mindful that the _tile_x/y used here are not the global variables
     // as me might be doing a lookup right/down
-    tile = readtile(tile_x, tile_y) + (in_tunnel?TUNNEL_TILE_ADDON:0);
+    tile = readtile(_tile_x, _tile_y) + (in_tunnel?TUNNEL_TILE_ADDON:0);
 //	printb("got tile %04X\n", tile<<7);
     // Dunno why they reset the tile index for tunnels in the original game
 
     // Get the exit mask, if we stand on an exit
     // If we are not on an exit tile we'll use the empty mask from TILE_MASKS
     // NB: This is why we add the ####_MASKS_STARTs here, as we might mix EXIT and TILE
-    exit_offset[index] = MASK_EMPTY;
+    exit_offset[index_nr] = MASK_EMPTY;
 
     for (u=0; u<NB_EXITS; u++)
     {	// Check if the tile is a regular exit
         if (readword((u8*)fbuffer[LOADER], EXIT_TILES_LIST + 2*u) == tile)
         {
-            exit_offset[index] = EXIT_MASKS_START + readword((u8*)fbuffer[LOADER], EXIT_MASKS_OFFSETS+2*u);
-            exit_dx[index/2] = index%2;
+            exit_offset[index_nr] = EXIT_MASKS_START + readword((u8*)fbuffer[LOADER], EXIT_MASKS_OFFSETS+2*u);
+            exit_dx[index_nr/2] = index_nr%2;
             break;
         }
     }
@@ -2138,13 +2138,13 @@ static __inline void get_tile_props(s16 tile_x, s16 tile_y, int index)
     // NB: we need to do that even when not specifically checking for tunnel exits
     //     to make sure tunnel I/O tiles are walkable (MASK_FULL) as their default
     //     mask is not
-    tunexit_tool[index] = ITEM_NONE;
+    tunexit_tool[index_nr] = ITEM_NONE;
     for (u=0; u<NB_TUNNEL_EXITS; u++)
     {	// Check if the tile is a tunnel exit
         if (readword((u8*)fbuffer[LOADER], TUNNEL_EXIT_TILES_LIST + 2*u) == tile)
         {
-            tunexit_tool[index] = readbyte((u8*)fbuffer[LOADER], TUNNEL_EXIT_TOOLS_LIST + 2*u + 1);
-//			printb("tunnexit_tool[%d] set\n", index);
+            tunexit_tool[index_nr] = readbyte((u8*)fbuffer[LOADER], TUNNEL_EXIT_TOOLS_LIST + 2*u + 1);
+//			printb("tunnexit_tool[%d] set\n", index_nr);
             break;
         }
     }
@@ -2152,10 +2152,10 @@ static __inline void get_tile_props(s16 tile_x, s16 tile_y, int index)
     if (u<IN_TUNNEL_EXITS_START)	// means we had a match (above ground) above
     // a tunnel exit is always walkable (even open), as per the original game
     // NB: This is not necessary for inside tunnel exits, where the default mask works fine
-        mask_offset[index] = MASK_FULL;
+        mask_offset[index_nr] = MASK_FULL;
     else
         // Regular
-        mask_offset[index] = TILE_MASKS_START + readlong((u8*)fbuffer[LOADER], TILE_MASKS_OFFSETS+(tile<<2));
+        mask_offset[index_nr] = TILE_MASKS_START + readlong((u8*)fbuffer[LOADER], TILE_MASKS_OFFSETS+(tile<<2));
 }
 
 

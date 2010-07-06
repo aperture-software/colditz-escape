@@ -2,6 +2,8 @@
    Updated Eschew to v1.1 (fixes potential memory issues)
    Fixed a couple of memory leaks in Windows Audio
    Program now warns users if their version of DirectX is too old for WinXAudio2
+   Acted on -Wshadow warnings
+   Uses latest pspGL on PSP
 0.9.3: 2009.11.23
    HQ2X OpenGL Shader (+ GLEW) for GFX smoothing on Windows platforms
    Data files now included with binaries

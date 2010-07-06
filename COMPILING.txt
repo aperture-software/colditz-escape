@@ -24,17 +24,12 @@ PSP (PSP SDK):
 ==============
 
 For PSP you will need the following libraries:
-- pmplib 
 - pspgl (which includes glut)
+- pmp 
+- expat
 
-Please be mindful that If you try to use a PSPGL that relies on VFPU (i.e. need 
-to add -lpspvfpu in your Makefile), the game will be SUPER-SLOW!!!
-Don't know what the heck has changed in the VFPU based versions of PSPGL, but it
-sure didn't improve 2D performance!
-To get *proper* GL speed, you MUST use the 2005.12.10 version of the PSPGL, 
-which can be obtained from:
-# http://hg.goop.org/pspgl/jsgf?cmd=archive;node=working;type=zip or the one 
-included with this source in extras/pspgl
+precompiled versions of expat (libexpat.a) and pmp (libpmp.a) are provided in
+the libs/ directory. Any recent version of the PSP SDK should come with pspGL.
 
 
 COMMON (optional):

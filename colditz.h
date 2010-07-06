@@ -424,7 +424,6 @@ extern "C" {
 // Stack for time delayed events. Doubt we'll need more than that
 #define NB_EVENTS				32
 // Time between animation frames, in ms
-// 66 or 67 is about as close as we can get to the original game
 #define ANIMATION_INTERVAL		120
 // 20 ms provides the same speed (for patrols) as on the Amiga
 #define	REPOSITION_INTERVAL		15

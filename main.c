@@ -435,7 +435,7 @@ static void glut_reshape (int w, int h)
 void process_motion(void)
 {
     s16 new_direction;
-    s16 exit;
+    s16 exit_nr;
 
     if (prisoner_state & MOTION_DISALLOWED)
     {	// Only a few states will allow motion
@@ -446,14 +446,14 @@ void process_motion(void)
     // Check if we're allowed to go where we want
     if ((dx != 0) || (d2y != 0))
     {
-        exit = check_footprint(dx*prisoner_speed, d2y*prisoner_speed);
-        if (exit != -1)
+        exit_nr = check_footprint(dx*prisoner_speed, d2y*prisoner_speed);
+        if (exit_nr != -1)
         {	// if -1, we move normally
             // in all other cases, we need to stop (even on sucessful exit)
-            if (exit>0)
+            if (exit_nr > 0)
             {
-                printb("exit[%d], from room[%X]\n", exit-1, current_room_index);
-                switch_room(exit-1, false);
+//              printb("exit[%d], from room[%X]\n", exit_nr-1, current_room_index);
+                switch_room(exit_nr-1, false);
                 // keep_message_on = false;	// we could do without this
             }
             // Change the last direction so that we use the right sid for stopping
@@ -1615,10 +1615,10 @@ int main (int argc, char *argv[])
             opt_error++;
             break;
     }
-
+#if !defined(PSP)
 	printf("\nColditz Escape! %s\n", VERSION);
 	printf("by Aperture Software - 2009-2010\n\n");
-
+#endif
     if ( ((argc-optind) > 3) || opt_error)
     {
         printf("usage: %s\n\n", argv[0]);

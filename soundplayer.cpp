@@ -1271,9 +1271,9 @@ static void SetMasterVolume(int volume)
 // They're also stored at half their actual value, thus doubling their range.
 // This function accepts a pointer to such a word and returns it's integer value
 // NOTE: relic from pc testing.
-static int ReadModWord(unsigned char *data, int index)
+static int ReadModWord(unsigned char *buffer, int index)
 {
-    int byte1 = (int) (unsigned char) *(data + index);
-    int byte2 = (int) (unsigned char) *(data + index + 1);
+    int byte1 = (int) (unsigned char) *(buffer + index);
+    int byte2 = (int) (unsigned char) *(buffer + index + 1);
     return ((byte1 * 256) + byte2) * 2;
 }

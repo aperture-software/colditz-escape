@@ -131,13 +131,13 @@ static __inline u32 readlong(u8* buffer, u32 addr)
 		(((u32)buffer[addr+2])<<8) + ((u32)buffer[addr+3]));
 }
 
-static __inline u32 freadlong(FILE* fd)
+static __inline u32 freadlong(FILE* f)
 {
 	u8	b, i;
 	u32 r = 0;
 	for (i=0; i<4; i++)
 	{
-		fread(&b, 1, 1, fd);
+		fread(&b, 1, 1, f);
 		r <<= 8;
 		r |= b;
 	}
@@ -163,13 +163,13 @@ static __inline u16 readword(u8* buffer, u32 addr)
 	return ((((u16)buffer[addr+0])<<8) + ((u16)buffer[addr+1]));
 }
 
-static __inline u16 freadword(FILE* fd)
+static __inline u16 freadword(FILE* f)
 {
 	u8	b,i;
 	u16 r = 0;
 	for (i=0; i<2; i++)
 	{
-		fread(&b, 1, 1, fd);
+		fread(&b, 1, 1, f);
 		r <<= 8;
 		r |= b;
 	}
@@ -187,10 +187,10 @@ static __inline u8 readbyte(u8* buffer, u32 addr)
 	return buffer[addr];
 }
 
-static __inline u8 freadbyte(FILE* fd)
+static __inline u8 freadbyte(FILE* f)
 {
 	u8	b = 0;
-	fread(&b, 1, 1, fd);
+	fread(&b, 1, 1, f);
 	return b;
 }
 

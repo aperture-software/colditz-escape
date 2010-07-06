@@ -93,4 +93,3 @@ bool init_shader();
 #ifdef	__cplusplus
 }
 #endif
-

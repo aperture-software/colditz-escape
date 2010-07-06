@@ -219,25 +219,6 @@ void printLog(GLuint obj)
 		printf("%s\n", infoLog);
 }
 
-// Dealloc gfx buffers
-void free_gfx()
-{
-	int i;
-	SAFREE(background_buffer);
-	SFREE(cell_texid);
-	SFREE(sprite_texid);
-	SFREE(chars_texid);
-	SAFREE(texture[PANEL_BASE1].buffer);
-	SAFREE(texture[PANEL_BASE2].buffer);
-	SAFREE(texture[PICTURE_CORNER].buffer);
-	SAFREE(texture[TUNNEL_VISION].buffer);
-	SAFREE(rgbCells);
-	for (i=0; i<NB_SPRITES; i++)
-		SAFREE(sprite[i].data);
-	SAFREE(sprite);
-	SAFREE(overlay);
-}
-
 // Convert a shader file to text
 char *file2string(const char *path)
 {
@@ -365,7 +346,26 @@ bool init_shader()
 }
 #endif
 
-// Set the gloabl textures properties
+// Dealloc gfx buffers
+void free_gfx()
+{
+	int i;
+	SAFREE(background_buffer);
+	SFREE(cell_texid);
+	SFREE(sprite_texid);
+	SFREE(chars_texid);
+	SAFREE(texture[PANEL_BASE1].buffer);
+	SAFREE(texture[PANEL_BASE2].buffer);
+	SAFREE(texture[PICTURE_CORNER].buffer);
+	SAFREE(texture[TUNNEL_VISION].buffer);
+	SAFREE(rgbCells);
+	for (i=0; i<NB_SPRITES; i++)
+		SAFREE(sprite[i].data);
+	SAFREE(sprite);
+	SAFREE(overlay);
+}
+
+// Set the global textures properties
 void set_textures()
 {
     int	i;
@@ -425,15 +425,15 @@ void set_textures()
 
 
 // Convert an Amiga 12 bit RGB colour palette to 16 bit GRAB
-void to_16bit_palette(u8 palette_index, u8 transparent_index, u8 io_file)
+void to_16bit_palette(u8 pal_index, u8 transparent_index, u8 io_file)
 {
     u32 i;
     u16 rgb, grab;
 
-    int palette_start = palette_index * 0x20;
+    int palette_start = pal_index * 0x20;
 
     // Read the palette
-    printv("Using Amiga Palette index: %d\n", palette_index);
+    printv("Using Amiga Palette index: %d\n", pal_index);
 
 
     for (i=0; i<16; i++)		// 16 colours
@@ -667,7 +667,7 @@ s_panel_sprite get_panel_sprite(u16 sprite_index)
 // Initialize the sprite array
 void init_sprites()
 {
-    u32 index = 2;	// We need to ignore the first word (nb of sprites)
+    u32 i = 2;	// We need to ignore the first word (nb of sprites)
     u16 sprite_index = 0;
     u16 sprite_w;	// width, in words
     u32 sprite_address;
@@ -677,12 +677,12 @@ void init_sprites()
     overlay = aligned_malloc(MAX_OVERLAYS * sizeof(s_overlay), 16);
 
     // First thing we do is populate the standard sprite offsets at the beginning of the table
-    sprite_address = index + 4* (readword(fbuffer[SPRITES],0) + 1);
+    sprite_address = i + 4* (readword(fbuffer[SPRITES],0) + 1);
     for (sprite_index=0; sprite_index<NB_STANDARD_SPRITES; sprite_index++)
     {
-        sprite_address += readlong(fbuffer[SPRITES],index);
-        writelong(fbuffer[SPRITES],index,sprite_address);
-        index+=4;
+        sprite_address += readlong(fbuffer[SPRITES],i);
+        writelong(fbuffer[SPRITES],i,sprite_address);
+        i+=4;
     }
     // Each sprite is prefixed by 2 words (x size in words, y size in pixels)
     // and one longword (size of one bitplane, in bytes)

@@ -67,9 +67,9 @@ _ESCHEW_REC(tab, idx, val, typ, xml_unsigned_short,								\
       _ESCHEW_REC(tab, idx, val, typ, xml_unsigned_long_long,					\
        _ESCHEW_REC(tab, idx, val, typ, xml_long_long,							\
         fprintf(stderr, "illegal cast to integer\n"))							\
-	  )																			\
-	 )																			\
-	)																			\
+      )																			\
+     )																			\
+    )																			\
    )																			\
   )																				\
  )																				\
@@ -99,8 +99,8 @@ typedef struct {
 } stack_el;
 
 typedef struct {
-    int skip;
-    int depth;
+	int skip;
+	int depth;
 	stack_el stack[XML_STACK_SIZE];
 	// holder for the string conversion of the read value
 	char value[XML_MAX_STRING_LENGTH];
@@ -161,7 +161,7 @@ size_t single_utf8_to_utf16(const UTF8* source, UTF16* target)
  */
 void to_release(void* allocated)
 {
-	static tbl_size = XML_MALLOC_TABLE_INITIAL_SIZE;
+	static int tbl_size = XML_MALLOC_TABLE_INITIAL_SIZE;
 	int no_more_mem = 0;
 	void** tbl_tmp;
 
@@ -255,8 +255,8 @@ static __inline int get_node_index(const char* name, xml_node parent)
 void init_info(Parseinfo *info)
 {
 	int i;
-    info->skip = 0;
-    info->depth = 1;	// Must start at 1
+	info->skip = 0;
+	info->depth = 1;	// Must start at 1
 	info->index = 0;
 	for (i=0; i<XML_STACK_SIZE; i++)
 	{	// Think your init variables will be zeroed by VC++? Think again!
@@ -328,28 +328,28 @@ int link_table(xml_node child, xml_node potential_parent)
 // Find out if a node should be skipped. Returns true if skippable
 int skip(Parseinfo *inf, const char *name, const char **attr)
 {
-	int index;
+	int _index;
 
 	if (inf->depth <= 1)
 		return (strcmp(name, xml_root.name[0]) != 0);
 
 	// find out if "name" is one of the previous node's children
-	index = get_node_index(name, STACK_NODE_SAFE(inf->depth-1));
-	if (index != -1)
+	_index = get_node_index(name, STACK_NODE_SAFE(inf->depth-1));
+	if (_index != -1)
 	{	// Got a match for our name in the parent table
 		// In case the parent is a meta-node, is this parent link actually pointing to a table?
 		if ( (STACK_NODE(inf->depth-1)->node_type == t_xml_node) &&
-			 (STACK_NODE(inf->depth-1)->value[index] == NULL) )
+			 (STACK_NODE(inf->depth-1)->value[_index] == NULL) )
 		{
 			fprintf(stderr, "eschew.skip: Orphan link found for node table xml_%s[%s]\n"
 				"Did you forget to create table xml_%s in your source?\n",
-				STACK_NODE(inf->depth-1)->id, STACK_NODE(inf->depth-1)->name[index],
-				STACK_NODE(inf->depth-1)->name[index]);
+				STACK_NODE(inf->depth-1)->id, STACK_NODE(inf->depth-1)->name[_index],
+				STACK_NODE(inf->depth-1)->name[_index]);
 			return -1;
 		}
 		// In case the parent is a meta node, do we have the right sibling
 		else if ( (STACK_NODE(inf->depth-1)->node_type == t_xml_node) &&
-				  (get_sibling((xml_node) (STACK_NODE(inf->depth-1)->value[index]), attr) == NULL) )
+				  (get_sibling((xml_node) (STACK_NODE(inf->depth-1)->value[_index]), attr) == NULL) )
 			return -1;
 		else
 			return 0;
@@ -410,14 +410,14 @@ static void XMLCALL read_value(void *userData, const char *s, int len)
 // Copy comments to our current stack for later processing (in assign)
 static void XMLCALL copy_comments(void *userData, const char *s)
 {
-    Parseinfo *inf = (Parseinfo *) userData;
+	Parseinfo *inf = (Parseinfo *) userData;
 	inf->stack[inf->depth].comment = strdup(s);
 }
 
 // Parsing of a node name: start
 static void XMLCALL start(void *userData, const char *name, const char **attr)
 {
-    Parseinfo *inf = (Parseinfo *) userData;
+	Parseinfo *inf = (Parseinfo *) userData;
 	xml_node node;
 	int i;
 	inf->stack[inf->depth].name = strdup(name);
@@ -463,7 +463,7 @@ static void XMLCALL assign(void *userData, const char *name)
 	int i;
 	UTF16 utf16;
 	size_t consumed;
-    Parseinfo *inf = (Parseinfo *) userData;
+	Parseinfo *inf = (Parseinfo *) userData;
 	xml_boolean tmp_bool;
 
 	// Handle comments
@@ -591,24 +591,24 @@ out:
 // The calls to the raw function is used to skip nodes we don't want
 void rawstart(void *userData, const char *name, const char **attr)
 {
-    Parseinfo *inf = (Parseinfo *) userData;
+	Parseinfo *inf = (Parseinfo *) userData;
 
-    if (!inf->skip)
+	if (!inf->skip)
 	{
-        if (skip(inf, name, attr))
+		if (skip(inf, name, attr))
 			inf->skip = inf->depth;
-        else
-            start(inf, name, attr);
-    }
-    inf->depth++;
+		else
+			start(inf, name, attr);
+	}
+	inf->depth++;
 }
 
 void rawend(void *userData, const char *name)
 {
-    Parseinfo *inf = (Parseinfo *) userData;
+	Parseinfo *inf = (Parseinfo *) userData;
 	inf->depth--;
-    if (!inf->skip)
-        assign(inf, name);
+	if (!inf->skip)
+		assign(inf, name);
 	else
 	{
 		if (inf->stack[inf->depth].name != NULL) {
@@ -623,7 +623,7 @@ void rawend(void *userData, const char *name)
 	}
 
 	if (inf->skip == inf->depth)
-        inf->skip = 0;
+		inf->skip = 0;
 }
 
 /*
@@ -643,13 +643,13 @@ int read_xml(const char* filename)
 		return 0;
 
 	parser = XML_ParserCreate(NULL);
-    if (parser == NULL) {
+	if (parser == NULL) {
 		fprintf(stderr, "eschew.read_xml: Could not allocate memory for parser\n");
-        return 0;
-    }
-    init_info(&info);
+		return 0;
+	}
+	init_info(&info);
 	XML_SetUserData(parser, &info);
-    XML_SetElementHandler(parser, rawstart, rawend);
+	XML_SetElementHandler(parser, rawstart, rawend);
 	XML_SetCommentHandler(parser, copy_comments);
 
 	XML_SetCharacterDataHandler(parser, read_value);
