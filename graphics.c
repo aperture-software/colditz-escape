@@ -78,16 +78,16 @@ extern s16 tile_x, tile_y;
 extern u32 offset;
 
 // Whatever you do, you don't want local variables holding textures
-GLuint* cell_texid;
-GLuint* sprite_texid;
-GLuint* chars_texid;
+GLuint* cell_texid = NULL;
+GLuint* sprite_texid = NULL;
+GLuint* chars_texid = NULL;
 GLuint render_texid;
 GLuint paused_texid[4];
 
 u16  nb_cells;
 s16	gl_off_x = 0, gl_off_y  = 0;	// GL display offsets
 s16  last_p_x, last_p_y;			// Stored positions
-u8* background_buffer;				// (re)used for static pictures
+u8* background_buffer = NULL;		// (re)used for static pictures
 u8  pause_rgb[3];					// colour for the pause screen borders
 u16  aPalette[32];					// Global palette (32 instead of 16, because
                                     // we also use it to load 5 bpp IFF images
@@ -217,6 +217,25 @@ void printLog(GLuint obj)
 
     if (infologLength > 0)
 		printf("%s\n", infoLog);
+}
+
+// Dealloc gfx buffers
+void free_gfx()
+{
+	int i;
+	SAFREE(background_buffer);
+	SFREE(cell_texid);
+	SFREE(sprite_texid);
+	SFREE(chars_texid);
+	SAFREE(texture[PANEL_BASE1].buffer);
+	SAFREE(texture[PANEL_BASE2].buffer);
+	SAFREE(texture[PICTURE_CORNER].buffer);
+	SAFREE(texture[TUNNEL_VISION].buffer);
+	SAFREE(rgbCells);
+	for (i=0; i<NB_SPRITES; i++)
+		SAFREE(sprite[i].data);
+	SAFREE(sprite);
+	SAFREE(overlay);
 }
 
 // Convert a shader file to text
@@ -2188,5 +2207,4 @@ u16  powerized_w;
     }
     return true;
 }
-
 

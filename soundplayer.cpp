@@ -25,7 +25,6 @@
 
 #if defined(WIN32)
 #define _WIN32_DCOM
-#define _CRT_SECURE_NO_WARNINGS 1
 #pragma warning(disable:4995)
 #endif
 
@@ -99,7 +98,7 @@ static int m_nSongLength;
 static int m_nOrders_num;
 static int *m_nOrders;
 static int m_Patterns_num;
-static Pattern *m_Patterns;
+static Pattern *m_Patterns = NULL;
 static int m_Samples_num;
 static Sample *m_Samples;
 
@@ -384,8 +383,9 @@ void mod_release()
         free(m_Samples[i].data);
     free(m_Samples);
 
-    // Free tracks
+    // Free tracks and patterns
     free(m_TrackDat);
+	free(m_Patterns);
 
     m_bSet = false;
 }

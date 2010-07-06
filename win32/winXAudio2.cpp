@@ -24,7 +24,6 @@
 
 // Remove some annoying warnings
 #define _WIN32_DCOM
-#define _CRT_SECURE_NO_WARNINGS 1
 #pragma warning(disable:4995)
 
 #include <windows.h>
@@ -150,6 +149,9 @@ int i;
     if( FAILED( XAudio2Create(&pXAudio2, 0) ) )
     {
         fprintf(stderr, "winXAudio2Init: Failed to init XAudio2 engine\n");
+        MessageBox(NULL, "Audio could not be initialized (WinXAudio2).\n"
+            "Please make sure you have a recent version of DirectX installed.",
+            "Audio Initialization Failure", MB_ICONSTOP);
         CoUninitialize();
         return false;
     }
@@ -178,6 +180,9 @@ int i;
 // Kill the XAudio2 Engine
 bool winXAudio2Release()
 {
+	int i;
+	for (i=0; i<NB_VOICES_MAX; i++)
+		SAFE_DELETE(pVoiceCallback[i]);
     if (XAudio2Init)
     {
         SAFE_RELEASE( pXAudio2 );
@@ -220,8 +225,10 @@ bool winXAudio2SetVoice(int voice, BYTE* audioData, int audioSize, unsigned int 
     if( FAILED( pXAudio2->CreateSourceVoice( &pSourceVoice[voice], pwfx) ) )
     {
         fprintf(stderr, "winXAudio2SetVoice: Error creating source voice\n");
+		SAFE_DELETE(pwfx);
         return false;
     }
+	SAFE_DELETE(pwfx);
 
     // Make sure the VoiceCallback is set to NULL
     SAFE_DELETE(pVoiceCallback[voice]);
@@ -296,8 +303,10 @@ unsigned char	nb_channels;
         0, XAUDIO2_DEFAULT_FREQ_RATIO, pVoiceCallback[voice], NULL, NULL) ) )
     {
         fprintf(stderr, "winXAudio2SetVoiceCallback: Error creating source voice\n" );
+		SAFE_DELETE(pwfx);
         return false;
     }
+	SAFE_DELETE(pwfx);
 
     voice_set_up[voice] = true;
 
@@ -343,7 +352,7 @@ bool winXAudio2ReleaseVoice(int voice)
         return false;
     winXAudio2StopVoice(voice);
     pSourceVoice[voice]->DestroyVoice();
-    SAFE_FREE(pSourceVoice[voice]);
+    pSourceVoice[voice] = NULL;
     voice_set_up[voice] = false;
     return true;
 }

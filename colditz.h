@@ -1,6 +1,6 @@
 /*
  *  Colditz Escape! - Rewritten Engine for "Escape From Colditz"
- *  copyright (C) 2008-2009 Aperture Software 
+ *  copyright (C) 2008-2009 Aperture Software
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -33,7 +33,7 @@ extern "C" {
 #define ANTI_TAMPERING_ENABLED
 //#define DEBUG_ENABLED
 
-/*	
+/*
  *	LIST OF ABREVIATIONS:
  *	CRM = Colditz Room Maps => data used for inside rooms
  *	CMP = CoMPressed map => data used for outisde
@@ -46,7 +46,7 @@ extern "C" {
 #define APPNAME					"colditz"
 // NB: Make sure you use capital V for version as we don't have lowercase
 // in our menu font (where we display this version as well)
-#define VERSION					"V0.9.3"
+#define VERSION					"V0.9.4"
 #define COLDITZ_URL				"HTTP://SITES.GOOGLE.COM/SITE/COLDITZESCAPE"
 
 /*
@@ -241,7 +241,7 @@ extern "C" {
 #define ITEM_PAPERS				0x0D
 #define ITEM_STETHOSCOPE		0x0E
 // Alright, the next item doesn't really exists, but if you add it
-// manually in the original game, you get to drop an "inflatable" 
+// manually in the original game, you get to drop an "inflatable"
 // prisoner's dummy ;)
 // In the orginal, the item's identified as "ROUND TOWER"
 #define ITEM_INFLATABLE_DUMMY	0x0F
@@ -255,7 +255,7 @@ extern "C" {
 #define PANEL_BASE_H			32
 #define PANEL_OFF_X				79
 #define PANEL_OFF_Y				3
-// Panel sprites 
+// Panel sprites
 #define PANEL_FACES_OFFSET		0x00001482
 #define NB_PANEL_FACES			7
 #define PANEL_FACES_W			16
@@ -359,7 +359,7 @@ extern "C" {
 #define GET_LOST_X				5000
 #define GET_LOST_Y				5000
 
-// This loader section defines the list of authorized rooms (through their 
+// This loader section defines the list of authorized rooms (through their
 // message ID) after certain events (appel, exercise, confined)
 #define AUTHORIZED_BASE			0x000020EE
 #define NB_AUTHORIZED_POINTERS	7
@@ -465,7 +465,7 @@ extern "C" {
 // First timed event of the game
 #define TIMED_EVENTS_INIT		0x00002C1A
 // Palette change type
-#define TIMED_EVENT_PALETTE		0xFFFF	
+#define TIMED_EVENT_PALETTE		0xFFFF
 // Rollcall check
 #define TIMED_EVENT_ROLLCALL_CHECK	1
 // For pursuit states
@@ -574,7 +574,7 @@ extern "C" {
  */
 
 // Structure to hold the standard RGBA sprites
-typedef struct 
+typedef struct
 {
     u16 w;
 	u16 h;
@@ -588,7 +588,7 @@ typedef struct
 } s_sprite;
 
 // for nonstandtard sprites (panel, etc)
-typedef struct 
+typedef struct
 {
 	u16 w;
 	u16 base;
@@ -596,7 +596,7 @@ typedef struct
 } s_panel_sprite;
 
 // For room overlays (props, bed, stairs, etc)
-typedef struct 
+typedef struct
 {
 	s16 x;
 	s16 y;
@@ -605,7 +605,7 @@ typedef struct
 } s_overlay;
 
 // Animated sprites data
-typedef struct 
+typedef struct
 {
 	u32	index;	// index for the ani in the LOADER table
 	s32	framecount;
@@ -614,7 +614,7 @@ typedef struct
 } s_animation;
 
 // Timed events
-typedef struct 
+typedef struct
 {
 	u64	expiration_time;
 	u32 parameter;
@@ -622,7 +622,7 @@ typedef struct
 } s_event;
 
 // Sound FXs
-typedef struct 
+typedef struct
 {
 	u32				address;
 	u16				length;
@@ -634,7 +634,7 @@ typedef struct
 } s_sfx;
 
 // Guybrushes (prisoners or guards)
-typedef struct 
+typedef struct
 {
 	u16				room;					// Room index
 	s16				px;
@@ -642,7 +642,7 @@ typedef struct
 	s16				speed;					// Walk = 1, Run = 2
 	/* For animated overlays, direction is one of:
 	 *    3  2  4
-	 *    0  8  1 
+	 *    0  8  1
 	 *    6  5  7   */
 	s16				direction;
 	u16				state;					// Motion related state (see above)
@@ -652,7 +652,7 @@ typedef struct
 	bool			is_dressed_as_guard;
 	bool			is_onscreen;
 	// Guard activity variables
-	bool			reinstantiate;			
+	bool			reinstantiate;
 	bool			resume_motion;
 	bool			blocked_by_prisoner;
 	u32				go_on;
@@ -666,7 +666,7 @@ typedef struct
 } s_guybrush;
 
 // Event related states (applies to prisoners only)
-typedef struct 
+typedef struct
 {
 	bool require_pass;
 	bool require_papers;

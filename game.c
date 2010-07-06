@@ -201,6 +201,16 @@ void depack_loadtune()
     free(buffer);
 }
 
+// free all allocated data
+void free_data()
+{
+	int i;
+	free_xml();
+	free_gfx();
+	for (i=0; i<NB_FILES; i++)
+		SAFREE(fbuffer[i]);
+	audio_release();
+}
 
 // Initial file loader
 void load_all_files()
@@ -3018,9 +3028,6 @@ void set_sfxs()
     psp_upsample(&upthrill, &upthrill_len, (char*)thriller_sfx, sizeof(thriller_sfx), 8000);
 #endif
 }
-
-
-
 
 // Play one of the 5 game SFXs
 void play_sfx(int sfx_id)

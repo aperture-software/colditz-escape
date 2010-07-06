@@ -1,6 +1,6 @@
 /*
  *  Colditz Escape! - Rewritten Engine for "Escape From Colditz"
- *  copyright (C) 2008-2009 Aperture Software 
+ *  copyright (C) 2008-2009 Aperture Software
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -33,7 +33,7 @@ extern "C" {
 static __inline u64 mtime(void)
 {	// Because MS uses a 32 bit value, this counter will reset every 49 days or so
 	// Hope you won't be playing the game while it resets...
-	return timeGetTime(); 
+	return timeGetTime();
 }
 #elif defined(PSP)
 #include <pspthreadman.h>
@@ -42,7 +42,7 @@ static __inline u64 mtime(void)
 #define msleep(msecs) sceKernelDelayThread(1000*msecs)
 static __inline u64 mtime(void)
 {
-	u64 blahtime; 
+	u64 blahtime;
 	sceRtcGetCurrentTick(&blahtime);
 	return blahtime/1000;
 }
@@ -59,25 +59,19 @@ static __inline u64 mtime(void)
 #define NULL_FD fopen("/dev/null", "w")
 #endif
 
-
-
-// Handy macro for exiting. xbuffer or fd = NULL is no problemo 
-// (except for lousy Visual C++, that will CRASH on fd = NULL!!!!)
-//#define FREE_BUFFERS	{int _buf; for (_buf=0;_buf<NB_FILES;_buf++) aligned_free(fbuffer[_buf]); aligned_free(mbuffer);}
-//#define ERR_EXIT		{FREE_BUFFERS; if (fd != NULL) fclose(fd); fflush(stdin); exit(0);}
 // On Windows and PSP, exiting the application will automatically free allocated memory blocks
 // so we don't bother freeing any buffers here
 #if defined(WIN32)
-#define LEAVE			exit(0)
-#define FATAL			exit(1)
+#define LEAVE			free_data(); exit(0)
+#define FATAL			free_data(); exit(1)
 #elif defined(PSP)
-#define LEAVE			back_to_kernel()
+#define LEAVE			free_data(); back_to_kernel()
 #if defined(PSP_ONSCREEN_STDOUT)
 // No immediate exit on PSP as we might want to display the error
 extern void back_to_kernel (void);
 
 // Wait for a (new) keypress (can't use idle_supended as we can't continue on error)
-static __inline void psp_any_key() 
+static __inline void psp_any_key()
 {
 	unsigned int initialButtons;
 	SceCtrlData pad;
@@ -99,7 +93,7 @@ static __inline void psp_any_key()
 #define FATAL			back_to_kernel()
 #endif
 #endif
-#define ERR_EXIT		{if (fd!=NULL) fclose(fd); fflush(stdout); FATAL;}
+#define ERR_EXIT		do{if (fd!=NULL) fclose(fd); fflush(stdout); FATAL;}while(0)
 #if defined(PSP_ONSCREEN_STDOUT)
 #define perr(...)		printf(__VA_ARGS__)
 #else
@@ -114,7 +108,11 @@ static __inline void psp_any_key()
 // size of an array
 #define SIZE_A(ar)		(sizeof(ar)/sizeof(ar[0]))
 
-// concatenate 2 words into a long 
+// dealloc macros
+#define SFREE(p)		do{if(p!=NULL)free(p);p=NULL;}while(0)
+#define SAFREE(p)		do{aligned_free(p);p=NULL;}while(0)
+
+// concatenate 2 words into a long
 #define to_long(msw,lsw)			\
 	((((u32)(msw))<<16) | ((u16)(lsw)))
 
@@ -202,10 +200,10 @@ static __inline void writebyte(u8* buffer, u32 addr, u8 value)
 }
 
 // The well known K&R method to count bits
-static __inline int count_bits(u32 n) 
-{     
-  int c; 
-  for (c = 0; n; c++) 
+static __inline int count_bits(u32 n)
+{
+  int c;
+  for (c = 0; n; c++)
     n &= n - 1; // clear the least significant bit set
   return c;
 }

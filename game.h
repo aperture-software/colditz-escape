@@ -129,6 +129,7 @@ extern s_guybrush	guybrush[NB_GUYBRUSHES];
 /*
  *	Public prototypes
  */
+void free_data();
 void load_all_files();
 void reload_files();
 void newgame_init();

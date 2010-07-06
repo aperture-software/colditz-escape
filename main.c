@@ -1568,7 +1568,7 @@ static void glut_mouse_buttons(int button, int state, int x, int y)
 
 
 /* Here we go! */
-#if defined(WIN32)
+#if (defined(WIN32) && !defined(_DEBUG))
 // If we don't use WinMain, the latest DX will create a console
 int __stdcall WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
 // argc & argv are provided by msvcrt.dll, as __argc & __argv for Windows apps
@@ -1690,8 +1690,8 @@ int main (int argc, char *argv[])
     // Some of the files need patching (this was done too in the original game!)
     fix_files(false);
 
-    set_textures();
-    set_sfxs();
+	set_textures();
+	set_sfxs();
 
     // Set global variables
     t_last = mtime();

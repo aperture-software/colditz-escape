@@ -70,6 +70,7 @@ extern bool			enabled_menus[NB_MENUS][NB_MENU_ITEMS];
 /*
  *	Public prototypes
  */
+void free_gfx();
 void to_16bit_palette(u8 palette_index, u8 transparent_index, u8 io_file);
 void cells_to_wGRAB(u8* source, u8* dest);
 void display_sprite_linear(float x1, float y1, float w, float h, unsigned int texid) ;
@@ -92,5 +93,4 @@ bool init_shader();
 #ifdef	__cplusplus
 }
 #endif
-
 

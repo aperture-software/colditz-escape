@@ -10,6 +10,9 @@ This provides:
 - X2Audio libs: X3DAudio.lib (as well as xaudio2.h)
 - DirectShow movie player lib: strmiids.lib
 
+Make sure the relevant directories for DX and the Windows SDK are set in
+Tools -> Options -> Projects and Solutions -> VC++ Directories
+
 Optional 
 - You can update the glut redistributables from:
   http://www.opengl.org/resources/libraries/glut/glutdlls37beta.zip
@@ -43,7 +46,7 @@ PreProcessor Definitions.
 You will also need to set the Multi-threaded (/MT) static flag instead of 
 Multi-threaded DLL (/MD) in Configuration Properties -> C/C++
 -> Code Generation -> Runtime Library
-Precompiled versions of thse libraries are provided in the libs/ directory
+Precompiled versions of these libraries are provided in the libs/ directory
 
 Important note: Because I'll be darned before I agree with the XML comitee's 
 extreme shortsightedness that some chars in [00-7F] should be illegal, 

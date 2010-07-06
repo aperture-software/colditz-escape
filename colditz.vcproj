@@ -24,7 +24,7 @@
 			OutputDirectory="$(SolutionDir)$(ConfigurationName)"
 			IntermediateDirectory="$(ConfigurationName)"
 			ConfigurationType="1"
-			CharacterSet="1"
+			CharacterSet="2"
 			>
 			<Tool
 				Name="VCPreBuildEventTool"
@@ -49,14 +49,14 @@
 				Optimization="0"
 				AdditionalIncludeDirectories=""
 				PreprocessorDefinitions="WIN32;_DEBUG;_CONSOLE;XML_STATIC;_CRT_SECURE_NO_DEPRECATE;_CRT_NONSTDC_NO_DEPRECATE"
-				MinimalRebuild="true"
 				BasicRuntimeChecks="3"
 				RuntimeLibrary="1"
 				EnableEnhancedInstructionSet="2"
 				FloatingPointModel="2"
 				UsePrecompiledHeader="0"
+				BrowseInformation="1"
 				WarningLevel="3"
-				DebugInformationFormat="3"
+				DebugInformationFormat="4"
 			/>
 			<Tool
 				Name="VCManagedResourceCompilerTool"
@@ -69,11 +69,11 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				LinkIncremental="1"
-				AdditionalLibraryDirectories="libs;&quot;C:\Program Files\Microsoft SDKs\Windows\v6.0A\Lib&quot;;&quot;E:\Program Files\Microsoft SDKs\Windows\v6.0\Lib\x86&quot;;&quot;E:\Program Files\Microsoft SDKs\Windows\v6.0\Lib\x64&quot;;&quot;E:\Program Files (x86)\Microsoft DirectX SDK (March 2009)\Lib\x64&quot;;&quot;E:\Program Files (x86)\Microsoft DirectX SDK (March 2009)\Lib\x86&quot;"
+				LinkIncremental="2"
+				AdditionalLibraryDirectories="libs"
 				IgnoreDefaultLibraryNames=""
 				GenerateDebugInformation="true"
-				SubSystem="2"
+				SubSystem="1"
 				TargetMachine="1"
 			/>
 			<Tool
@@ -103,7 +103,7 @@
 			OutputDirectory="$(SolutionDir)$(ConfigurationName)"
 			IntermediateDirectory="$(ConfigurationName)"
 			ConfigurationType="1"
-			CharacterSet="1"
+			CharacterSet="2"
 			WholeProgramOptimization="1"
 			>
 			<Tool
@@ -154,7 +154,7 @@
 			<Tool
 				Name="VCLinkerTool"
 				LinkIncremental="1"
-				AdditionalLibraryDirectories="libs;&quot;C:\Program Files\Microsoft SDKs\Windows\v6.0A\Lib&quot;;&quot;E:\Program Files\Microsoft SDKs\Windows\v6.0\Lib\x86&quot;;&quot;E:\Program Files\Microsoft SDKs\Windows\v6.0\Lib\x64&quot;;&quot;E:\Program Files (x86)\Microsoft DirectX SDK (March 2009)\Lib\x64&quot;;&quot;E:\Program Files (x86)\Microsoft DirectX SDK (March 2009)\Lib\x86&quot;"
+				AdditionalLibraryDirectories="libs"
 				IgnoreDefaultLibraryNames="libc.lib"
 				GenerateDebugInformation="false"
 				SubSystem="2"
@@ -359,12 +359,6 @@
 				RelativePath=".\win32\wmp.h"
 				>
 			</File>
-		</Filter>
-		<Filter
-			Name="Resource Files"
-			Filter="rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav"
-			UniqueIdentifier="{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}"
-			>
 		</Filter>
 	</Files>
 	<Globals>
