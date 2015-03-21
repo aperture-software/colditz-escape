@@ -4,7 +4,10 @@
 WINDOWS (Visual Studio 2013):
 =============================
 
-Download and install the latest DirectX SDK, which should be listed at:
+If running Windows 8 or later, you shouldn't have to install anything special.
+
+If not running Windows 8 or later, you will need to download and install the
+latest DirectX SDK, which should be listed at:
   http://www.microsoft.com/en-us/download/details.aspx?id=6812
 This provides: 
 - X2Audio libs: X3DAudio.lib (as well as xaudio2.h)

@@ -9,7 +9,6 @@
 *.res
 *.sdf
 *.suo
-*.user
 *.opensdf
 Debug
 Release

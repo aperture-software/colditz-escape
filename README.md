@@ -18,7 +18,7 @@ For more information, see http://sites.google.com/site/colditzescape.
 * [IFF](http://en.wikipedia.org/wiki/Interchange_File_Format) image loader (`/graphics.c` &rarr; `load_iff()`)
 * RAW texture loader, with or without Alpha (`/graphics.c` &rarr; `load_raw_rgb()`)
 * OpenGL 2D rescale (`/graphics.c` &rarr; `rescale_buffer()`)
-* line/bitplane interleaved interleaved to RGBA texture conversion (`graphics.c` &rrar; `line_interleaved_to_wGRAB()` and `bitplane_to_wGRAB()`)
+* line/bitplane interleaved interleaved to RGBA texture conversion (`graphics.c` &rarr; `line_interleaved_to_wGRAB()` and `bitplane_to_wGRAB()`)
 * Bytekiller 1.3 decompression algorithm (`/low-level.c` &rarr; `uncompress()`)
 * PowerPacker decompression (`/low-level.c` &rarr; `ppDecrunch()`, courtesy of 'amigadepacker' by _Heikki Orsila_)
 * Generic HQ2X GLSL OpenGL Zoom shader 
