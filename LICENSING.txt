@@ -1,14 +1,13 @@
 ORIGINAL SOURCECODE LICENSING:
 
-      Copyright (C) Aperture Software 2009
+      Copyright © Aperture Software 2008-2015
       http://sites.google.com/site/colditzescape/
-      http://code.google.com/p/colditzescape/
-      GPL v3.0. See LICENSE.txt in src extras/GPL
+      GPL v3.0 or later. See LICENSE.txt in extras/GPL
 
 
 FULL SOURCECODE AVAILABLE AT:
 
-      http://code.google.com/p/colditzescape/source/browse/#svn/trunk      
+      https://github.com/aperture-software/colditz-escape
 
 
 COMMON SOURCE & LIBRARIES LICENSING:

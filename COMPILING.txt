@@ -1,11 +1,11 @@
   Colditz Escape! - Rewritten Engine for "Escape From Colditz"
 
 
-WINDOWS (Visual Studio 2008):
+WINDOWS (Visual Studio 2013):
 =============================
 
 Download and install the latest DirectX SDK, which should be listed at:
-  http://msdn.microsoft.com/en-us/directx/aa937788.aspx
+  http://www.microsoft.com/en-us/download/details.aspx?id=6812
 This provides: 
 - X2Audio libs: X3DAudio.lib (as well as xaudio2.h)
 - DirectShow movie player lib: strmiids.lib
