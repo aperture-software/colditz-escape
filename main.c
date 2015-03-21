@@ -41,8 +41,6 @@
 #pragma comment(lib, "glew32s.lib")
 // Prevents a potential "LINK : fatal error LNK1104: cannot open file 'libc.lib'" error with Glew
 #pragma comment(linker, "/NODEFAULTLIB:libc.lib")
-// X2Audio libs -> win32/winXAudio2.cpp
-#pragma comment(lib, "X3DAudio.lib")
 // DirectShow movie player -> win32/wmp.cpp
 #pragma comment(lib, "strmiids.lib")
 // Expat lib for XML config file processing -> conf.c
