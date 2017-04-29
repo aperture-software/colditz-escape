@@ -2084,7 +2084,7 @@ void toggle_exit(u32 exit_nr)
         found = false;	// easier this way, as tile_x/y won't need adjusting
         for (_tile_y=0; (_tile_y<_room_y)&&(!found); _tile_y++)
         {
-            for(_tile_x=0; (_tile_x<room_x)&&(!found); _tile_x++)
+            for(_tile_x=0; (_tile_x<_room_x)&&(!found); _tile_x++)
             {
                 tile_data = readword((u8*)fbuffer[ROOMS], CRM_ROOMS_START+_offset);
                 if ((tile_data & 0xF) == exit_index)
