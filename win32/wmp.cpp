@@ -143,7 +143,7 @@ bool wmp_play(char* s)
     hr = pVW->put_Owner((OAHWND)hWnd);
     if (FAILED(hr))
     {
-        fprintf(stderr, "Failed(0x%08lx) in put_Owner!\n", hr, s);
+        fprintf(stderr, "Failed(0x%08lx) in put_Owner(%s)!\n", hr, s);
         return false;
     }
     pVW->put_WindowStyle(WS_CHILD | WS_CLIPCHILDREN | WS_CLIPSIBLINGS);
