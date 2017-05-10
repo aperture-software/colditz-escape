@@ -11,126 +11,126 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="conf.c">
+    <ClCompile Include="..\conf.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="eschew\ConvertUTF.c">
+    <ClCompile Include="..\eschew\ConvertUTF.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="eschew\eschew.c">
+    <ClCompile Include="..\eschew\eschew.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="game.c">
+    <ClCompile Include="..\game.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="getopt.c">
+    <ClCompile Include="..\getopt.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="graphics.c">
+    <ClCompile Include="..\graphics.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="low-level.c">
+    <ClCompile Include="..\low-level.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="main.c">
+    <ClCompile Include="..\main.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="md5.c">
+    <ClCompile Include="..\md5.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="psp\psp-setup.c">
+    <ClCompile Include="..\psp\psp-setup.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="soundplayer.cpp">
+    <ClCompile Include="..\soundplayer.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="videoplayer.c">
+    <ClCompile Include="..\videoplayer.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="win32\winXAudio2.cpp">
+    <ClCompile Include="..\win32\winXAudio2.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="win32\wmp.cpp">
+    <ClCompile Include="..\win32\wmp.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="anti-tampering.h">
+    <ClInclude Include="..\anti-tampering.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="cluck.h">
+    <ClInclude Include="..\cluck.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="colditz.h">
+    <ClInclude Include="..\colditz.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="conf.h">
+    <ClInclude Include="..\conf.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="eschew\ConvertUTF.h">
+    <ClInclude Include="..\eschew\ConvertUTF.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="data-types.h">
+    <ClInclude Include="..\data-types.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="eschew\eschew.h">
+    <ClInclude Include="..\eschew\eschew.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="game.h">
+    <ClInclude Include="..\game.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="getopt.h">
+    <ClInclude Include="..\getopt.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="getopt_int.h">
+    <ClInclude Include="..\getopt_int.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="gettext.h">
+    <ClInclude Include="..\gettext.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="win32\glut.h">
+    <ClInclude Include="..\win32\glut.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="graphics.h">
+    <ClInclude Include="..\graphics.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="low-level.h">
+    <ClInclude Include="..\low-level.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="md5.h">
+    <ClInclude Include="..\md5.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="modplayeri.h">
+    <ClInclude Include="..\modplayeri.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="modtables.h">
+    <ClInclude Include="..\modtables.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="psp\pmp.h">
+    <ClInclude Include="..\psp\pmp.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="psp\psp-printf.h">
+    <ClInclude Include="..\psp\psp-printf.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="psp\psp-setup.h">
+    <ClInclude Include="..\psp\psp-setup.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="soundplayer.h">
+    <ClInclude Include="..\soundplayer.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="videoplayer.h">
+    <ClInclude Include="..\videoplayer.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="win32\winXAudio2.h">
+    <ClInclude Include="..\win32\winXAudio2.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="win32\wmp.h">
+    <ClInclude Include="..\win32\wmp.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="win32\glew.h">
+    <ClInclude Include="..\win32\glew.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="win32\wglew.h">
+    <ClInclude Include="..\win32\wglew.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

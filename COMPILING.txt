@@ -1,7 +1,7 @@
   Colditz Escape! - Rewritten Engine for "Escape From Colditz"
 
 
-WINDOWS (Visual Studio 2013):
+WINDOWS (Visual Studio 2017):
 =============================
 
 If running Windows 8 or later, you shouldn't have to install anything special.
@@ -17,8 +17,6 @@ Make sure the relevant directories for DX and the Windows SDK are set in
 Tools -> Options -> Projects and Solutions -> VC++ Directories
 
 Optional 
-- You can update the glut redistributables from:
-  http://www.opengl.org/resources/libraries/glut/glutdlls37beta.zip
 - You can update the GLSL zoom shader(s), with the static version of the Glew
   library from: http://glew.sourceforge.net/
 
@@ -66,6 +64,7 @@ DIRECTORY STRUCTURE AND FILE DESCRIPTION:
 =========================================
 
 src/
+  +--- .vs/                      [Visual Studio 2015 project files]
   +--- bin/                      [Additional binaries required at runtime]
         +--- aperture.avi        Aperture Software Intro movie - Windows version
         +--- aperture.pmp        Aperture Software Intro movie - PSP version
@@ -78,8 +77,8 @@ src/
         +--- tunnel-vision.raw   16 bit GRAB raw image for the tunnel shadows
   +--- eschew/                   [See http://code.google.com/p/eschew/]
   +--- extras/                   [Additional licenses and files]
+  +--- glut/                     [GLUT static library files]
   +--- libs/                     [Additional libraries required for compilation]
-        +--- glut32.lib          GLUT library
         +--- glew32s.lib         Static win32 version of the Glew library (v1.5.1)
         +--- libexpat.a          Slightly modified Expat library for the PSP
         +--- libexpatMT.a        Slightly modified Expat library for Windows
@@ -101,7 +100,7 @@ src/
   +--- CHANGELOG.txt             Change Log
   +--- cluck.h                   Additional (non ORG) SFXs
   +--- colditz.h                 Main constants and structures definition
-  +--- colditz.vcproj            Visual Studio 2008 Project File
+  +--- colditz.sln               Visual Studio 2015 Solution file
   +--- COMPILING.txt             This file
   +--- conf.c                    Eschew wrapper for the config.xml ini file with
   +--- conf.h                     declarations for options and key mappings
@@ -115,7 +114,6 @@ src/
   +--- graphics.c                Game Graphics runtime subroutines
   +--- graphics.h                Game Graphics runtime header
   +--- icon1.png                 PSP EBOOT icon
-  +--- IPHONE.txt                Notes about Apple Appstore port
   +--- LICENSING.txt             Licensing notes
   +--- low-level.c               Low level functions, with files decompression
   +--- low-level.h                and bit/byte manipulations

@@ -14,6 +14,7 @@
     <ProjectGuid>{DE0D60B9-EF9E-4F9A-9BE2-1645CF8AA184}</ProjectGuid>
     <RootNamespace>colditz</RootNamespace>
     <Keyword>Win32Proj</Keyword>
+    <WindowsTargetPlatformVersion>8.1</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
@@ -43,12 +44,12 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <OutDir>$(SolutionDir)$(Configuration)\</OutDir>
-    <IntDir>$(Configuration)\</IntDir>
+    <IntDir>$(SolutionDir)$(Configuration)\</IntDir>
     <LinkIncremental>true</LinkIncremental>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <OutDir>$(SolutionDir)$(Configuration)\</OutDir>
-    <IntDir>$(Configuration)\</IntDir>
+    <IntDir>$(SolutionDir)$(Configuration)\</IntDir>
     <LinkIncremental>false</LinkIncremental>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
@@ -65,7 +66,7 @@
       <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
     </ClCompile>
     <Link>
-      <AdditionalLibraryDirectories>libs;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>..\libs;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Console</SubSystem>
       <TargetMachine>MachineX86</TargetMachine>
@@ -73,7 +74,7 @@
       <IgnoreSpecificDefaultLibraries>libc.lib;libcmt.lib;%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
     </Link>
     <PostBuildEvent>
-      <Command>copy "$(OutDir)\colditz.exe" "$(ProjectDir)\bin"</Command>
+      <Command>copy "$(OutDir)\colditz.exe" "$(SolutionDir)\bin"</Command>
       <Message>Copying executable...</Message>
     </PostBuildEvent>
   </ItemDefinitionGroup>
@@ -93,8 +94,8 @@
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
     </ClCompile>
     <Link>
-      <AdditionalLibraryDirectories>libs;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <IgnoreSpecificDefaultLibraries>libc.lib;%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
+      <AdditionalLibraryDirectories>..\libs;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <IgnoreSpecificDefaultLibraries>libc.lib;libcmt.lib;%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
       <GenerateDebugInformation>false</GenerateDebugInformation>
       <SubSystem>Windows</SubSystem>
       <OptimizeReferences>true</OptimizeReferences>
@@ -103,53 +104,53 @@
       <ImageHasSafeExceptionHandlers>false</ImageHasSafeExceptionHandlers>
     </Link>
     <PostBuildEvent>
-      <Command>copy "$(OutDir)\colditz.exe" "$(ProjectDir)\bin"</Command>
+      <Command>copy "$(OutDir)\colditz.exe" "$(SolutionDir)\bin"</Command>
       <Message>Copying executable...</Message>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="conf.c" />
-    <ClCompile Include="eschew\ConvertUTF.c" />
-    <ClCompile Include="eschew\eschew.c" />
-    <ClCompile Include="game.c" />
-    <ClCompile Include="getopt.c" />
-    <ClCompile Include="graphics.c" />
-    <ClCompile Include="low-level.c" />
-    <ClCompile Include="main.c" />
-    <ClCompile Include="md5.c" />
-    <ClCompile Include="psp\psp-setup.c" />
-    <ClCompile Include="soundplayer.cpp" />
-    <ClCompile Include="videoplayer.c" />
-    <ClCompile Include="win32\winXAudio2.cpp" />
-    <ClCompile Include="win32\wmp.cpp" />
+    <ClCompile Include="..\conf.c" />
+    <ClCompile Include="..\eschew\ConvertUTF.c" />
+    <ClCompile Include="..\eschew\eschew.c" />
+    <ClCompile Include="..\game.c" />
+    <ClCompile Include="..\getopt.c" />
+    <ClCompile Include="..\graphics.c" />
+    <ClCompile Include="..\low-level.c" />
+    <ClCompile Include="..\main.c" />
+    <ClCompile Include="..\md5.c" />
+    <ClCompile Include="..\psp\psp-setup.c" />
+    <ClCompile Include="..\soundplayer.cpp" />
+    <ClCompile Include="..\videoplayer.c" />
+    <ClCompile Include="..\win32\winXAudio2.cpp" />
+    <ClCompile Include="..\win32\wmp.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="anti-tampering.h" />
-    <ClInclude Include="cluck.h" />
-    <ClInclude Include="colditz.h" />
-    <ClInclude Include="conf.h" />
-    <ClInclude Include="data-types.h" />
-    <ClInclude Include="eschew\ConvertUTF.h" />
-    <ClInclude Include="eschew\eschew.h" />
-    <ClInclude Include="game.h" />
-    <ClInclude Include="getopt.h" />
-    <ClInclude Include="getopt_int.h" />
-    <ClInclude Include="gettext.h" />
-    <ClInclude Include="graphics.h" />
-    <ClInclude Include="low-level.h" />
-    <ClInclude Include="md5.h" />
-    <ClInclude Include="modplayeri.h" />
-    <ClInclude Include="modtables.h" />
-    <ClInclude Include="psp\pmp.h" />
-    <ClInclude Include="psp\psp-printf.h" />
-    <ClInclude Include="psp\psp-setup.h" />
-    <ClInclude Include="soundplayer.h" />
-    <ClInclude Include="videoplayer.h" />
-    <ClInclude Include="win32\glew.h" />
-    <ClInclude Include="win32\glut.h" />
-    <ClInclude Include="win32\wglew.h" />
-    <ClInclude Include="win32\winXAudio2.h" />
-    <ClInclude Include="win32\wmp.h" />
+    <ClInclude Include="..\anti-tampering.h" />
+    <ClInclude Include="..\cluck.h" />
+    <ClInclude Include="..\colditz.h" />
+    <ClInclude Include="..\conf.h" />
+    <ClInclude Include="..\data-types.h" />
+    <ClInclude Include="..\eschew\ConvertUTF.h" />
+    <ClInclude Include="..\eschew\eschew.h" />
+    <ClInclude Include="..\game.h" />
+    <ClInclude Include="..\getopt.h" />
+    <ClInclude Include="..\getopt_int.h" />
+    <ClInclude Include="..\gettext.h" />
+    <ClInclude Include="..\graphics.h" />
+    <ClInclude Include="..\low-level.h" />
+    <ClInclude Include="..\md5.h" />
+    <ClInclude Include="..\modplayeri.h" />
+    <ClInclude Include="..\modtables.h" />
+    <ClInclude Include="..\psp\pmp.h" />
+    <ClInclude Include="..\psp\psp-printf.h" />
+    <ClInclude Include="..\psp\psp-setup.h" />
+    <ClInclude Include="..\soundplayer.h" />
+    <ClInclude Include="..\videoplayer.h" />
+    <ClInclude Include="..\win32\glew.h" />
+    <ClInclude Include="..\win32\glut.h" />
+    <ClInclude Include="..\win32\wglew.h" />
+    <ClInclude Include="..\win32\winXAudio2.h" />
+    <ClInclude Include="..\win32\wmp.h" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="glut.vcxproj">

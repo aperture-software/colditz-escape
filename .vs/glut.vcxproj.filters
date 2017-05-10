@@ -11,171 +11,171 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="glut\glut_8x13.c">
+    <ClCompile Include="..\glut\glut_8x13.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="glut\glut_9x15.c">
+    <ClCompile Include="..\glut\glut_9x15.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="glut\glut_bitmap.c">
+    <ClCompile Include="..\glut\glut_bitmap.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="glut\glut_bwidth.c">
+    <ClCompile Include="..\glut\glut_bwidth.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="glut\glut_cindex.c">
+    <ClCompile Include="..\glut\glut_cindex.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="glut\glut_cmap.c">
+    <ClCompile Include="..\glut\glut_cmap.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="glut\glut_cursor.c">
+    <ClCompile Include="..\glut\glut_cursor.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="glut\glut_dials.c">
+    <ClCompile Include="..\glut\glut_dials.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="glut\glut_dstr.c">
+    <ClCompile Include="..\glut\glut_dstr.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="glut\glut_event.c">
+    <ClCompile Include="..\glut\glut_event.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="glut\glut_ext.c">
+    <ClCompile Include="..\glut\glut_ext.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="glut\glut_fullscrn.c">
+    <ClCompile Include="..\glut\glut_fullscrn.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="glut\glut_gamemode.c">
+    <ClCompile Include="..\glut\glut_gamemode.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="glut\glut_get.c">
+    <ClCompile Include="..\glut\glut_get.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="glut\glut_hel10.c">
+    <ClCompile Include="..\glut\glut_hel10.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="glut\glut_hel12.c">
+    <ClCompile Include="..\glut\glut_hel12.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="glut\glut_hel18.c">
+    <ClCompile Include="..\glut\glut_hel18.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="glut\glut_init.c">
+    <ClCompile Include="..\glut\glut_init.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="glut\glut_input.c">
+    <ClCompile Include="..\glut\glut_input.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="glut\glut_joy.c">
+    <ClCompile Include="..\glut\glut_joy.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="glut\glut_key.c">
+    <ClCompile Include="..\glut\glut_key.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="glut\glut_keyctrl.c">
+    <ClCompile Include="..\glut\glut_keyctrl.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="glut\glut_keyup.c">
+    <ClCompile Include="..\glut\glut_keyup.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="glut\glut_mesa.c">
+    <ClCompile Include="..\glut\glut_mesa.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="glut\glut_modifier.c">
+    <ClCompile Include="..\glut\glut_modifier.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="glut\glut_mroman.c">
+    <ClCompile Include="..\glut\glut_mroman.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="glut\glut_overlay.c">
+    <ClCompile Include="..\glut\glut_overlay.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="glut\glut_roman.c">
+    <ClCompile Include="..\glut\glut_roman.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="glut\glut_shapes.c">
+    <ClCompile Include="..\glut\glut_shapes.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="glut\glut_space.c">
+    <ClCompile Include="..\glut\glut_space.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="glut\glut_stroke.c">
+    <ClCompile Include="..\glut\glut_stroke.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="glut\glut_swap.c">
+    <ClCompile Include="..\glut\glut_swap.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="glut\glut_swidth.c">
+    <ClCompile Include="..\glut\glut_swidth.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="glut\glut_tablet.c">
+    <ClCompile Include="..\glut\glut_tablet.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="glut\glut_teapot.c">
+    <ClCompile Include="..\glut\glut_teapot.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="glut\glut_tr10.c">
+    <ClCompile Include="..\glut\glut_tr10.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="glut\glut_tr24.c">
+    <ClCompile Include="..\glut\glut_tr24.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="glut\glut_util.c">
+    <ClCompile Include="..\glut\glut_util.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="glut\glut_vidresize.c">
+    <ClCompile Include="..\glut\glut_vidresize.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="glut\glut_warp.c">
+    <ClCompile Include="..\glut\glut_warp.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="glut\glut_win.c">
+    <ClCompile Include="..\glut\glut_win.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="glut\glut_winmisc.c">
+    <ClCompile Include="..\glut\glut_winmisc.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="glut\win32_glx.c">
+    <ClCompile Include="..\glut\win32_glx.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="glut\win32_menu.c">
+    <ClCompile Include="..\glut\win32_menu.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="glut\win32_util.c">
+    <ClCompile Include="..\glut\win32_util.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="glut\win32_winproc.c">
+    <ClCompile Include="..\glut\win32_winproc.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="glut\win32_x11.c">
+    <ClCompile Include="..\glut\win32_x11.c">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="glut\glutbitmap.h">
+    <ClInclude Include="..\glut\glutbitmap.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="glut\glutint.h">
+    <ClInclude Include="..\glut\glutint.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="glut\glutstroke.h">
+    <ClInclude Include="..\glut\glutstroke.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="glut\glutwin32.h">
+    <ClInclude Include="..\glut\glutwin32.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="glut\layerutil.h">
+    <ClInclude Include="..\glut\layerutil.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="glut\stroke.h">
+    <ClInclude Include="..\glut\stroke.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="glut\win32_glx.h">
+    <ClInclude Include="..\glut\win32_glx.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="glut\win32_x11.h">
+    <ClInclude Include="..\glut\win32_x11.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

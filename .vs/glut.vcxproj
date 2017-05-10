@@ -11,70 +11,70 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="glut\glut_8x13.c" />
-    <ClCompile Include="glut\glut_9x15.c" />
-    <ClCompile Include="glut\glut_bitmap.c" />
-    <ClCompile Include="glut\glut_bwidth.c" />
-    <ClCompile Include="glut\glut_cindex.c" />
-    <ClCompile Include="glut\glut_cmap.c" />
-    <ClCompile Include="glut\glut_cursor.c" />
-    <ClCompile Include="glut\glut_dials.c" />
-    <ClCompile Include="glut\glut_dstr.c" />
-    <ClCompile Include="glut\glut_event.c" />
-    <ClCompile Include="glut\glut_ext.c" />
-    <ClCompile Include="glut\glut_fullscrn.c" />
-    <ClCompile Include="glut\glut_gamemode.c" />
-    <ClCompile Include="glut\glut_get.c" />
-    <ClCompile Include="glut\glut_hel10.c" />
-    <ClCompile Include="glut\glut_hel12.c" />
-    <ClCompile Include="glut\glut_hel18.c" />
-    <ClCompile Include="glut\glut_init.c" />
-    <ClCompile Include="glut\glut_input.c" />
-    <ClCompile Include="glut\glut_joy.c" />
-    <ClCompile Include="glut\glut_key.c" />
-    <ClCompile Include="glut\glut_keyctrl.c" />
-    <ClCompile Include="glut\glut_keyup.c" />
-    <ClCompile Include="glut\glut_mesa.c" />
-    <ClCompile Include="glut\glut_modifier.c" />
-    <ClCompile Include="glut\glut_mroman.c" />
-    <ClCompile Include="glut\glut_overlay.c" />
-    <ClCompile Include="glut\glut_roman.c" />
-    <ClCompile Include="glut\glut_shapes.c" />
-    <ClCompile Include="glut\glut_space.c" />
-    <ClCompile Include="glut\glut_stroke.c" />
-    <ClCompile Include="glut\glut_swap.c" />
-    <ClCompile Include="glut\glut_swidth.c" />
-    <ClCompile Include="glut\glut_tablet.c" />
-    <ClCompile Include="glut\glut_teapot.c" />
-    <ClCompile Include="glut\glut_tr10.c" />
-    <ClCompile Include="glut\glut_tr24.c" />
-    <ClCompile Include="glut\glut_util.c" />
-    <ClCompile Include="glut\glut_vidresize.c" />
-    <ClCompile Include="glut\glut_warp.c" />
-    <ClCompile Include="glut\glut_win.c" />
-    <ClCompile Include="glut\glut_winmisc.c" />
-    <ClCompile Include="glut\win32_glx.c" />
-    <ClCompile Include="glut\win32_menu.c" />
-    <ClCompile Include="glut\win32_util.c" />
-    <ClCompile Include="glut\win32_winproc.c" />
-    <ClCompile Include="glut\win32_x11.c" />
+    <ClCompile Include="..\glut\glut_8x13.c" />
+    <ClCompile Include="..\glut\glut_9x15.c" />
+    <ClCompile Include="..\glut\glut_bitmap.c" />
+    <ClCompile Include="..\glut\glut_bwidth.c" />
+    <ClCompile Include="..\glut\glut_cindex.c" />
+    <ClCompile Include="..\glut\glut_cmap.c" />
+    <ClCompile Include="..\glut\glut_cursor.c" />
+    <ClCompile Include="..\glut\glut_dials.c" />
+    <ClCompile Include="..\glut\glut_dstr.c" />
+    <ClCompile Include="..\glut\glut_event.c" />
+    <ClCompile Include="..\glut\glut_ext.c" />
+    <ClCompile Include="..\glut\glut_fullscrn.c" />
+    <ClCompile Include="..\glut\glut_gamemode.c" />
+    <ClCompile Include="..\glut\glut_get.c" />
+    <ClCompile Include="..\glut\glut_hel10.c" />
+    <ClCompile Include="..\glut\glut_hel12.c" />
+    <ClCompile Include="..\glut\glut_hel18.c" />
+    <ClCompile Include="..\glut\glut_init.c" />
+    <ClCompile Include="..\glut\glut_input.c" />
+    <ClCompile Include="..\glut\glut_joy.c" />
+    <ClCompile Include="..\glut\glut_key.c" />
+    <ClCompile Include="..\glut\glut_keyctrl.c" />
+    <ClCompile Include="..\glut\glut_keyup.c" />
+    <ClCompile Include="..\glut\glut_mesa.c" />
+    <ClCompile Include="..\glut\glut_modifier.c" />
+    <ClCompile Include="..\glut\glut_mroman.c" />
+    <ClCompile Include="..\glut\glut_overlay.c" />
+    <ClCompile Include="..\glut\glut_roman.c" />
+    <ClCompile Include="..\glut\glut_shapes.c" />
+    <ClCompile Include="..\glut\glut_space.c" />
+    <ClCompile Include="..\glut\glut_stroke.c" />
+    <ClCompile Include="..\glut\glut_swap.c" />
+    <ClCompile Include="..\glut\glut_swidth.c" />
+    <ClCompile Include="..\glut\glut_tablet.c" />
+    <ClCompile Include="..\glut\glut_teapot.c" />
+    <ClCompile Include="..\glut\glut_tr10.c" />
+    <ClCompile Include="..\glut\glut_tr24.c" />
+    <ClCompile Include="..\glut\glut_util.c" />
+    <ClCompile Include="..\glut\glut_vidresize.c" />
+    <ClCompile Include="..\glut\glut_warp.c" />
+    <ClCompile Include="..\glut\glut_win.c" />
+    <ClCompile Include="..\glut\glut_winmisc.c" />
+    <ClCompile Include="..\glut\win32_glx.c" />
+    <ClCompile Include="..\glut\win32_menu.c" />
+    <ClCompile Include="..\glut\win32_util.c" />
+    <ClCompile Include="..\glut\win32_winproc.c" />
+    <ClCompile Include="..\glut\win32_x11.c" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="glut\glutbitmap.h" />
-    <ClInclude Include="glut\glutint.h" />
-    <ClInclude Include="glut\glutstroke.h" />
-    <ClInclude Include="glut\glutwin32.h" />
-    <ClInclude Include="glut\layerutil.h" />
-    <ClInclude Include="glut\stroke.h" />
-    <ClInclude Include="glut\win32_glx.h" />
-    <ClInclude Include="glut\win32_x11.h" />
+    <ClInclude Include="..\glut\glutbitmap.h" />
+    <ClInclude Include="..\glut\glutint.h" />
+    <ClInclude Include="..\glut\glutstroke.h" />
+    <ClInclude Include="..\glut\glutwin32.h" />
+    <ClInclude Include="..\glut\layerutil.h" />
+    <ClInclude Include="..\glut\stroke.h" />
+    <ClInclude Include="..\glut\win32_glx.h" />
+    <ClInclude Include="..\glut\win32_x11.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>15.0</VCProjectVersion>
     <ProjectGuid>{CE81641E-636F-4703-B21E-CF914D548B28}</ProjectGuid>
     <RootNamespace>glut</RootNamespace>
-    <WindowsTargetPlatformVersion>10.0.15063.0</WindowsTargetPlatformVersion>
     <ProjectName>glut32</ProjectName>
+    <WindowsTargetPlatformVersion>8.1</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
@@ -104,18 +104,18 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <OutDir>$(SolutionDir)$(Configuration)\$(ProjectName)\</OutDir>
-    <IntDir>$(Configuration)\$(ProjectName)\</IntDir>
+    <IntDir>$(SolutionDir)$(Configuration)\$(ProjectName)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <OutDir>$(SolutionDir)$(Configuration)\$(ProjectName)\</OutDir>
-    <IntDir>$(Configuration)\$(ProjectName)\</IntDir>
+    <IntDir>$(SolutionDir)$(Configuration)\$(ProjectName)\</IntDir>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>.\win32;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\win32;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN32;_CRT_SECURE_NO_DEPRECATE;_CRT_NONSTDC_NO_DEPRECATE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Lib>
@@ -129,7 +129,7 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>.\win32;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\win32;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN32;_CRT_SECURE_NO_DEPRECATE;_CRT_NONSTDC_NO_DEPRECATE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>

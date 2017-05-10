@@ -1,10 +1,14 @@
 *.a
+*.db*
 *.exe
 *.idb
+*.ipch
 *.lib
 *.ncb
 *.o
 *.obj
+*.opendb
+*.
 *.pdb
 *.res
 *.sdf
