@@ -22,7 +22,7 @@
 #include <GL/glx.h>
 #endif
 
-#include <GL/glut.h>
+#include <glut.h>
 
 /* Non-Win32 platforms need APIENTRY defined to nothing
    because all the GLUT routines have the APIENTRY prefix
