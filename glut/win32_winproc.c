@@ -25,6 +25,10 @@ extern void handleTimeouts(void);
 extern GLUTmenuItem *__glutGetUniqueMenuItem(GLUTmenu * menu, int unique);
 static HMENU __glutHMenu;
 
+#ifdef XBOX360_CONTROLLER_DPAD_SUPPORT
+extern DWORD XBox360DpadMask[9];
+#endif
+
 void
 updateWindowState(GLUTwindow *window, int visState)
 {
@@ -700,6 +704,17 @@ __glutWindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
       x = jix.dwXpos;
       y = jix.dwYpos;
       z = jix.dwZpos;
+
+#ifdef XBOX360_CONTROLLER_DPAD_SUPPORT
+      /* 0x1194 = 1/8th position change around the DPAD */
+      jix.dwPOV /= 0x1194;
+      /* Rest state of DPAD is 0x0000FFFF which is greater
+         than 8 x 0x1194 */
+      if (jix.dwPOV >= 8)
+          jix.dwPOV = 8;
+      jix.dwButtons |= XBox360DpadMask[jix.dwPOV];
+#endif
+
       window->joystick(jix.dwButtons, SCALE(x), SCALE(y), SCALE(z));
 
       return TRUE;

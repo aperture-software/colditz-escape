@@ -12,6 +12,14 @@
 
 #include "glutint.h"
 
+#ifdef XBOX360_CONTROLLER_DPAD_SUPPORT
+/* Table used to insert an XBox360 DPAD controller
+   position into the button mask */
+DWORD XBox360DpadMask[9] = { 0x10000000, 0x30000000,
+     0x20000000, 0x60000000, 0x40000000, 0xC0000000,
+     0x80000000, 0x90000000, 0x00000000 };
+#endif
+
 /* CENTRY */
 void APIENTRY
 glutJoystickFunc(GLUTjoystickCB joystickFunc, int pollInterval)
@@ -22,7 +30,7 @@ glutJoystickFunc(GLUTjoystickCB joystickFunc, int pollInterval)
       MMRESULT result;
 
       /* Capture joystick focus if current window has
-  	 focus now. */
+         focus now. */
       result = joySetCapture(__glutCurrentWindow->win,
         JOYSTICKID1, 0, TRUE);
       if (result == JOYERR_NOERROR) {
@@ -65,6 +73,16 @@ glutForceJoystickFunc(void)
       x = jix.dwXpos;
       y = jix.dwYpos;
       z = jix.dwZpos;
+
+#ifdef XBOX360_CONTROLLER_DPAD_SUPPORT
+      /* 0x1194 = 1/8th position change around the DPAD */
+      jix.dwPOV /= 0x1194;
+      /* Rest state of DPAD is 0x0000FFFF which is greater
+         than 8 x 0x1194 */
+      if (jix.dwPOV >= 8)
+        jix.dwPOV = 8;
+      jix.dwButtons |= XBox360DpadMask[jix.dwPOV];
+#endif
 
 #define SCALE(v)  ((int) ((v - 32767)/32.768))
 
