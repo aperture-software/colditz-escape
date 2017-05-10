@@ -1,0 +1,182 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
+      <Extensions>h;hh;hpp;hxx;hm;inl;inc;xsd</Extensions>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="glut\glut_8x13.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="glut\glut_9x15.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="glut\glut_bitmap.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="glut\glut_bwidth.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="glut\glut_cindex.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="glut\glut_cmap.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="glut\glut_cursor.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="glut\glut_dials.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="glut\glut_dstr.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="glut\glut_event.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="glut\glut_ext.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="glut\glut_fullscrn.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="glut\glut_gamemode.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="glut\glut_get.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="glut\glut_hel10.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="glut\glut_hel12.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="glut\glut_hel18.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="glut\glut_init.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="glut\glut_input.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="glut\glut_joy.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="glut\glut_key.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="glut\glut_keyctrl.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="glut\glut_keyup.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="glut\glut_mesa.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="glut\glut_modifier.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="glut\glut_mroman.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="glut\glut_overlay.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="glut\glut_roman.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="glut\glut_shapes.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="glut\glut_space.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="glut\glut_stroke.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="glut\glut_swap.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="glut\glut_swidth.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="glut\glut_tablet.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="glut\glut_teapot.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="glut\glut_tr10.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="glut\glut_tr24.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="glut\glut_util.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="glut\glut_vidresize.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="glut\glut_warp.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="glut\glut_win.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="glut\glut_winmisc.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="glut\win32_glx.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="glut\win32_menu.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="glut\win32_util.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="glut\win32_winproc.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="glut\win32_x11.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="glut\glutbitmap.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="glut\glutint.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="glut\glutstroke.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="glut\glutwin32.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="glut\layerutil.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="glut\stroke.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="glut\win32_glx.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="glut\win32_x11.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+  </ItemGroup>
+</Project>
