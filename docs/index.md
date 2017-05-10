@@ -15,6 +15,9 @@ Please note that the latest version comes with all the data files required for t
 Screenshots
 -----------
 
+![Screenshot 1](pics/screenshot1.png) ![Screenshot 2](pics/screenshot2.png)
+![Screenshot 3](pics/screenshot3.png) ![Screenshot 4](pics/screenshot4.png)
+
 Installation
 ------------
 

@@ -1,6 +1,6 @@
 ORIGINAL SOURCECODE LICENSING:
 
-      Copyright © Aperture Software 2008-2015
+      Copyright © Aperture Software 2008-2017
       http://sites.google.com/site/colditzescape/
       GPL v3.0 or later. See LICENSE.txt in extras/GPL
 
@@ -36,7 +36,8 @@ Uses: IFF loader code, modified from IFF C samples by Jerry Morrison and Steve S
       http://ftp.funet.fi/pub/amiga/fish/001-100/ff010/iff.lha 
       http://www.martinreddy.net/gfx/2d/IFF.txt
       Public domain
-      
+Uses: GLUT by Mark J. Kilgard
+      Freely distributable without licensing fees
 
 PSP SOURCE & LIBRARIES LICENSING:
 
@@ -55,8 +56,6 @@ Uses: PSPSDK libraries by adresd, Marcus R. Brown, James Forshaw, John Kelley, J
       
 WINDOWS SOURCE & LIBRARIES LICENSING:
 
-Uses: GLUT for Windows, by Mark J. Kilgard
-      Freely distributable without licensing fees
 Uses: OpenGL for Windows, by Silicon Graphics, Inc. & Microsoft Corporation
       Freely distributable without licensing fees
 Uses: Directshow (DirectX) and XAudio2 for Windows, by Microsoft Corporation
