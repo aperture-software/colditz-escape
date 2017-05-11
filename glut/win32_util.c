@@ -63,6 +63,7 @@ __glutFont(void *font)
   }
   __glutFatalError("out of memory.");
   /* NOTREACHED */
+  return NULL;
 }
 
 int

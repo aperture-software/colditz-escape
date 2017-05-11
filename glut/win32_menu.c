@@ -96,9 +96,9 @@ __glutFinishMenu(Window win, int x, int y)
 static void
 mapMenu(GLUTmenu * menu, int x, int y)
 {
-  TrackPopupMenu(menu->win, TPM_LEFTALIGN |
-    __glutMenuButton == TPM_RIGHTBUTTON ? 
-    TPM_RIGHTBUTTON : TPM_LEFTBUTTON,
+  TrackPopupMenu((HMENU)menu->win, TPM_LEFTALIGN |
+    (__glutMenuButton == TPM_RIGHTBUTTON ? 
+    TPM_RIGHTBUTTON : TPM_LEFTBUTTON),
     x, y, 0, __glutCurrentWindow->win, NULL);
 }
 
@@ -254,7 +254,7 @@ glutCreateMenu(GLUTselectCB selectFunc)
   menu->cascade = NULL;
   menu->highlighted = NULL;
   menu->anchor = NULL;
-  menu->win = CreatePopupMenu();
+  menu->win = (HWND)CreatePopupMenu();
   menuList[menuid] = menu;
   __glutSetMenu(menu);
   return menuid + 1;
@@ -270,7 +270,7 @@ glutDestroyMenu(int menunum)
     menuModificationError();
   }
   assert(menu->id == menunum - 1);
-  DestroyMenu(menu->win);
+  DestroyMenu((HMENU)menu->win);
   menuList[menunum - 1] = NULL;
   /* free all menu entries */
   item = menu->list;
@@ -330,9 +330,9 @@ setMenuItem(GLUTmenuItem * item, const char *label,
   item->value = value;
   item->unique = uniqueMenuHandler++;
   if (isTrigger) {
-    AppendMenu(menu->win, MF_POPUP, (UINT)item->win, label);
+    AppendMenu((HMENU)menu->win, MF_POPUP, (UINT)item->win, label);
   } else {
-    AppendMenu(menu->win, MF_STRING, item->unique, label);
+    AppendMenu((HMENU)menu->win, MF_STRING, item->unique, label);
   }
 }
 
@@ -398,7 +398,7 @@ glutChangeToMenuEntry(int num, const char *label, int value)
            need to account for submenus.  */
         item->menu->submenus--;
 	/* Nuke the Win32 menu. */
-	DestroyMenu(item->win);		
+	DestroyMenu((HMENU)item->win);
       }
       free(item->label);
 
@@ -409,7 +409,7 @@ glutChangeToMenuEntry(int num, const char *label, int value)
       item->len = (int) strlen(label);
       item->value = value;
       item->unique = uniqueMenuHandler++;
-      ModifyMenu(__glutCurrentMenu->win, (UINT) i - 1,
+      ModifyMenu((HMENU)__glutCurrentMenu->win, (UINT) i - 1,
         MF_BYPOSITION | MFT_STRING, item->unique, label);
 
       return;
@@ -438,7 +438,7 @@ glutChangeToSubMenu(int num, const char *label, int menu)
         /* If changing a menu entry to as submenu trigger, we
            need to account for submenus.  */
         item->menu->submenus++;
-	item->win = CreatePopupMenu();
+	item->win = (HWND)CreatePopupMenu();
       }
       free(item->label);
       
@@ -452,7 +452,7 @@ glutChangeToSubMenu(int num, const char *label, int menu)
       popupmenu = __glutGetMenuByNum(menu);
       if (popupmenu)
 	item->win = popupmenu->win;
-      ModifyMenu(__glutCurrentMenu->win, (UINT) i - 1,
+      ModifyMenu((HMENU)__glutCurrentMenu->win, (UINT) i - 1,
         MF_BYPOSITION | MF_POPUP, (UINT) item->win, label);
       return;
     }
@@ -482,7 +482,7 @@ glutRemoveMenuItem(int num)
       /* Patch up menu's item list. */
       *prev = item->next;
 
-      RemoveMenu(__glutCurrentMenu->win, (UINT) i - 1, MF_BYPOSITION);
+      RemoveMenu((HMENU)__glutCurrentMenu->win, (UINT) i - 1, MF_BYPOSITION);
 
       free(item->label);
       free(item);
