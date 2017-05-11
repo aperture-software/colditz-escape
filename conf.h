@@ -110,32 +110,53 @@ extern "C" {
 #define SPECIAL_RIGHT_MOUSE_BUTTON	(GLUT_RIGHT_BUTTON - GLUT_LEFT_BUTTON + SPECIAL_MOUSE_BUTTON_BASE)
 
 #if defined(PSP)
-#define KEYVAL(key)					XML_VALUE(controls_target_psp, key)
+#define KEYVAL(key, fallback)		(XML_VALUE(controls_target_psp, key)?XML_VALUE(controls_target_psp, key):fallback)
 #else
-#define KEYVAL(key)					XML_VALUE(controls_target_windows, key)
+#define KEYVAL(key, fallback)		(XML_VALUE(controls_target_windows, key)?XML_VALUE(controls_target_windows, key):fallback)
 #endif
 
 // Short(?)cut defines for the main program
-#define KEY_FIRE					KEYVAL(key_fire)
-#define KEY_TOGGLE_WALK_RUN			KEYVAL(key_toggle_walk_run)
-#define KEY_PAUSE					KEYVAL(key_pause)
-#define KEY_INVENTORY_LEFT			KEYVAL(key_inventory_cycle_left)
-#define KEY_INVENTORY_RIGHT			KEYVAL(key_inventory_cycle_right)
-#define KEY_INVENTORY_PICKUP		KEYVAL(key_pickup)
-#define KEY_INVENTORY_DROP			KEYVAL(key_dropdown)
-#define KEY_SLEEP					KEYVAL(key_sleep)
-#define KEY_STOOGE					KEYVAL(key_stooge)
-#define KEY_ESCAPE					KEYVAL(key_escape)
-#define KEY_PRISONERS_LEFT			KEYVAL(key_prisoners_cycle_left)
-#define KEY_PRISONERS_RIGHT			KEYVAL(key_prisoners_cycle_right)
-#define KEY_BRITISH					KEYVAL(key_select_british)
-#define KEY_FRENCH					KEYVAL(key_select_french)
-#define KEY_AMERICAN				KEYVAL(key_select_american)
-#define KEY_POLISH					KEYVAL(key_select_polish)
-#define KEY_DIRECTION_LEFT			KEYVAL(key_direction_left)
-#define KEY_DIRECTION_RIGHT			KEYVAL(key_direction_right)
-#define KEY_DIRECTION_UP			KEYVAL(key_direction_up)
-#define KEY_DIRECTION_DOWN			KEYVAL(key_direction_down)
+#define KEY_ACTION					KEYVAL(key_action, 0xe0)
+#define KEY_CANCEL					KEYVAL(key_cancel, 0xe1)
+#define KEY_TOGGLE_WALK_RUN			KEYVAL(key_toggle_walk_run, 0xe2)
+#define KEY_PAUSE					KEYVAL(key_pause, 0xe3)
+#define KEY_INVENTORY_LEFT			KEYVAL(key_inventory_cycle_left, 0xe4)
+#define KEY_INVENTORY_RIGHT			KEYVAL(key_inventory_cycle_right, 0xe5)
+#define KEY_INVENTORY_PICKUP		KEYVAL(key_pickup, 0xe6)
+#define KEY_INVENTORY_DROP			KEYVAL(key_dropdown, 0xe7)
+#define KEY_SLEEP					KEYVAL(key_sleep, 0xe8)
+#define KEY_STOOGE					KEYVAL(key_stooge, 0xe9)
+#define KEY_ESCAPE					KEYVAL(key_escape, 0xea)
+#define KEY_PRISONERS_LEFT			KEYVAL(key_prisoners_cycle_left, 0xeb)
+#define KEY_PRISONERS_RIGHT			KEYVAL(key_prisoners_cycle_right, 0xec)
+#define KEY_BRITISH					KEYVAL(key_select_british, 0xed)
+#define KEY_FRENCH					KEYVAL(key_select_french, 0xee)
+#define KEY_AMERICAN				KEYVAL(key_select_american, 0x0ef)
+#define KEY_POLISH					KEYVAL(key_select_polish, 0xf0)
+#define KEY_DIRECTION_LEFT			KEYVAL(key_direction_left, 0xf1)
+#define KEY_DIRECTION_RIGHT			KEYVAL(key_direction_right, 0xf2)
+#define KEY_DIRECTION_UP			KEYVAL(key_direction_up, 0xf3)
+#define KEY_DIRECTION_DOWN			KEYVAL(key_direction_down, 0xf4)
+
+// XBox 360 Controller definitions
+#define XBOX360_CONTROLLER_SUPPORT
+
+#define XBOX360_CONTROLLER_BUTTON_A		0x00000001
+#define XBOX360_CONTROLLER_BUTTON_B		0x00000002
+#define XBOX360_CONTROLLER_BUTTON_X		0x00000004
+#define XBOX360_CONTROLLER_BUTTON_Y		0x00000008
+#define XBOX360_CONTROLLER_BUTTON_LB	0x00000010
+#define XBOX360_CONTROLLER_BUTTON_RB	0x00000020
+#define XBOX360_CONTROLLER_BUTTON_BACK	0x00000040
+#define XBOX360_CONTROLLER_BUTTON_START	0x00000080
+#define XBOX360_CONTROLLER_BUTTON_LJOY	0x00000100
+#define XBOX360_CONTROLLER_BUTTON_RJOY	0x00000200
+#define XBOX360_CONTROLLER_BUTTON_LT	0x00010000
+#define XBOX360_CONTROLLER_BUTTON_RT	0x00020000
+#define XBOX360_CONTROLLER_DPAD_UP		0x10000000
+#define XBOX360_CONTROLLER_DPAD_RIGHT	0x20000000
+#define XBOX360_CONTROLLER_DPAD_DOWN	0x40000000
+#define XBOX360_CONTROLLER_DPAD_LEFT	0x80000000
 
 #define opt_picture_corners			XML_VALUE(options, picture_corners)
 #define opt_enhanced_guards			XML_VALUE(options, enhanced_guards)
@@ -172,7 +193,8 @@ CREATE_XML_TABLE(options, options_nodes, xml_int)
 
 // User input mappings
 DEFINE_XML_NODES(controls_nodes,
-				 key_fire,
+				 key_action,
+				 key_cancel,
 				 key_toggle_walk_run,
 				 key_pause,
 				 key_sleep,

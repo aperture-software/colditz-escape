@@ -59,7 +59,7 @@ void init_xml()
 
 void set_xml_defaults()
 {
-	SET_XML_NODE_COMMENT(config, controls, " About our key mappings:\n"
+    SET_XML_NODE_COMMENT(config, controls, " About our key mappings:\n"
 "       Standard key = regular (lowercase) ASCII code\n"
 "       0x7F         = Del\n"
 "       [0x80-0x8B]  = [F1-F12]\n"
@@ -67,9 +67,10 @@ void set_xml_defaults()
 "       [0x90-0x94]  = [PgUp, PgDn, Home, End, Insert]\n"
 "       [0x95-0x97]  = [Shift, Ctrl, Alt] (*)\n"
 "       [0x98-0x9A]  = [Mouse Left, Mouse Middle, Mouse Right]\n"
+"       [0xE0-0xFF]  = [Reserved - DO NOT USE]\n"
 "       (*) Because of GLUT's limitations, these key events are ONLY detected\n"
 "       in conjuction with other keypresses, and cannot be used as standalone\n"
-"       see http://www.nabble.com/Re%3A-Status-of-modifier-keys-(shift-ctrl-alt)-p6983221.html\n\n"
+"       see https://www.opengl.org/resources/libraries/glut/spec3/node73.html\n\n"
 "       Now with regards to the PSP GLUT key mappings conversions\n"
 "       [X] = 'x'\n"
 "       [O] = 'o'\n"
@@ -81,41 +82,42 @@ void set_xml_defaults()
 "       [Left Trigger] = Mouse Left (see above for the actual code)\n"
 "       [Right Trigger] = Mouse Right (see above for the actual code) ")
 
-	// Set defaults values. Can be skipped if relying on the external XML
-	SET_XML_NODE_DEFAULT(options, skip_intro, false);
-	SET_XML_NODE_DEFAULT(options, fullscreen, false);
+    // Set defaults values. Can be skipped if relying on the external XML
+    SET_XML_NODE_DEFAULT(options, skip_intro, false);
+    SET_XML_NODE_DEFAULT(options, fullscreen, false);
     SET_XML_NODE_COMMENT(options, fullscreen,
-		" resize to fullscreen (Windows only) ");
-	SET_XML_NODE_DEFAULT(options, enhanced_guards, true);
-	SET_XML_NODE_COMMENT(options, enhanced_guards,
-		" have guards remember when they've seen a pass ");
-	SET_XML_NODE_DEFAULT(options, enhanced_tunnels, true);
-	SET_XML_NODE_COMMENT(options, enhanced_tunnels,
-		" limited field of vision in tunnels ");
-	SET_XML_NODE_DEFAULT(options, picture_corners, true);
-	SET_XML_NODE_COMMENT(options, picture_corners,
-		" display texturized picture corners, rather than black triangles ");
-	SET_XML_NODE_DEFAULT(options, gl_smoothing, 0);
+        " resize to fullscreen (Windows only) ");
+    SET_XML_NODE_DEFAULT(options, enhanced_guards, true);
+    SET_XML_NODE_COMMENT(options, enhanced_guards,
+        " have guards remember when they've seen a pass ");
+    SET_XML_NODE_DEFAULT(options, enhanced_tunnels, true);
+    SET_XML_NODE_COMMENT(options, enhanced_tunnels,
+        " limited field of vision in tunnels ");
+    SET_XML_NODE_DEFAULT(options, picture_corners, true);
+    SET_XML_NODE_COMMENT(options, picture_corners,
+        " display texturized picture corners, rather than black triangles ");
+    SET_XML_NODE_DEFAULT(options, gl_smoothing, 0);
     SET_XML_NODE_COMMENT(options, gl_smoothing,
-		" type of graphic smoothing: none, linear, hq2x (Windows only) ");
-	SET_XML_NODE_DEFAULT(options, joy_deadzone, 450);
+        " type of graphic smoothing: none, linear, hq2x (Windows only) ");
+    SET_XML_NODE_DEFAULT(options, joy_deadzone, 450);
     SET_XML_NODE_COMMENT(options, joy_deadzone,
-		" joystick deadzone");
-	SET_XML_NODE_DEFAULT(options, original_mode, false);
+        " joystick deadzone");
+    SET_XML_NODE_DEFAULT(options, original_mode, false);
     SET_XML_NODE_COMMENT(options, original_mode,
-		" Bwak! Bwaaak! Chicken!!! ");
+        " Bwak! Bwaaak! Chicken!!! ");
 
 
 #if defined(PSP)
 #define SET_CONTROLS_DEFAULT(key, val1, val2) 							\
-	SET_XML_NODE_DEFAULT(controls_target_psp, key, val1)
+    SET_XML_NODE_DEFAULT(controls_target_psp, key, val1)
 #else
 #define SET_CONTROLS_DEFAULT(key, val1, val2) 							\
-	SET_XML_NODE_DEFAULT(controls_target_windows, key, val2)
+    SET_XML_NODE_DEFAULT(controls_target_windows, key, val2)
 #endif
 
-	// The order is PSP, WIN
-	SET_CONTROLS_DEFAULT(key_fire, 'x', '5');
+    // The order is PSP, WIN
+    SET_CONTROLS_DEFAULT(key_action, 'x', '5');
+    SET_CONTROLS_DEFAULT(key_cancel, 0, 0);
     SET_CONTROLS_DEFAULT(key_toggle_walk_run, 'o', ' ');
     SET_CONTROLS_DEFAULT(key_pause, 's', SPECIAL_KEY_F5);
     SET_CONTROLS_DEFAULT(key_sleep, 'q', SPECIAL_KEY_F9);
@@ -136,6 +138,6 @@ void set_xml_defaults()
     SET_CONTROLS_DEFAULT(key_select_american, 0, SPECIAL_KEY_F3);
     SET_CONTROLS_DEFAULT(key_select_polish, 0, SPECIAL_KEY_F4);
 
-	// Debug
-//	PRINT_XML_TABLE(controls);
+    // Debug
+//  PRINT_XML_TABLE(controls_target_windows);
 }

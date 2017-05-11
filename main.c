@@ -140,9 +140,9 @@ FILE* fd					= NULL;
 char* fname[NB_FILES]		= FNAMES;			// file name(s)
 u32   fsize[NB_FILES]		= FSIZES;
 u8*   fbuffer[NB_FILES];
-u8*	  rbuffer				= NULL;
+u8*   rbuffer				= NULL;
 u8*   mbuffer				= NULL;
-u8*	  rgbCells				= NULL;
+u8*   rgbCells				= NULL;
 u8*   static_image_buffer   = NULL;
 s_tex texture[NB_TEXTURES]	= TEXTURES;
 char* mod_name[NB_MODS]		= MOD_NAMES;
@@ -538,6 +538,13 @@ void user_input()
     s16 exit_nr;
     u8	cur_prop;
 
+#if !defined(PSP)
+    // Hey, GLUT, where's my bleeping callback on Windows?
+    // NB: The routine is not called if there's no joystick
+    //     and the force func does not exist on PSP
+    glutForceJoystickFunc();
+#endif
+
     // Access the menu
     if (read_key_once(KEY_ESCAPE))
     {
@@ -682,7 +689,7 @@ void user_input()
         prisoner_state ^= STATE_STOOGING;
 
     // Even if we're idle, we might be trying to open a tunnel exit, or use a prop
-    if (read_key_once(KEY_FIRE))
+    if (read_key_once(KEY_ACTION))
     {
         // We need to set this variable as we might check if fire is pressed
         // in various subroutines below
@@ -877,13 +884,6 @@ void user_input()
     else if (key_down[KEY_DIRECTION_DOWN])
         d2y = +1;
 
-#if !defined(PSP)
-    // Hey, GLUT, where's my bleeping callback on Windows?
-    // NB: The routine is not called if there's no joystick
-    //     and the force func does not exist on PSP
-    glutForceJoystickFunc();
-#endif
-
     // Joystick motion overrides keys
     if (jdx)
         dx = jdx;
@@ -1023,6 +1023,7 @@ static void glut_idle_game(void)
 #define ROT(option, nb_values) {option=(option+(key_down[SPECIAL_KEY_LEFT]?nb_values-1:1))%nb_values, config_save=true;}
 void process_menu()
 {
+    bool cancel_selected = read_key_once(KEY_CANCEL);
     char save_name[] = "colditz_00.sav";
 #if !defined(PSP)
     static int old_w=2*PSP_SCR_WIDTH, old_h=2*PSP_SCR_HEIGHT;
@@ -1042,12 +1043,14 @@ void process_menu()
         while (!enabled_menus[selected_menu][selected_menu_item]);
     }
 
-    if (read_key_once(KEY_FIRE) || read_key_once(0x0D) || read_key_once(' ') ||
-        read_key_once(SPECIAL_KEY_LEFT) || read_key_once(SPECIAL_KEY_RIGHT) )
+    if (read_key_once(KEY_ACTION) || read_key_once(0x0D) || read_key_once(' ') ||
+        read_key_once(SPECIAL_KEY_LEFT) || read_key_once(SPECIAL_KEY_RIGHT) || cancel_selected)
     {
         switch (selected_menu)
         {
         case MAIN_MENU:
+            if (cancel_selected)
+                selected_menu_item = MENU_RETURN;
             switch(selected_menu_item)
             {
             case MENU_RETURN:
@@ -1079,6 +1082,8 @@ void process_menu()
             }
             break;
         case OPTIONS_MENU:
+            if (cancel_selected)
+                selected_menu_item = MENU_BACK_TO_MAIN;
             switch(selected_menu_item)
             {
             case MENU_BACK_TO_MAIN:
@@ -1097,7 +1102,7 @@ void process_menu()
 // The following only make sense on Windows
 #if defined(WIN32)
             case MENU_SMOOTHING:
-				ROT(opt_gl_smoothing, (opt_glsl_enabled?3:2));
+                ROT(opt_gl_smoothing, (opt_glsl_enabled?3:2));
                 break;
             case MENU_FULLSCREEN:
                 TOG(opt_fullscreen);
@@ -1138,6 +1143,8 @@ void process_menu()
             break;
         case SAVE_MENU:
         case LOAD_MENU:
+            if (cancel_selected)
+                selected_menu_item = MENU_BACK_TO_MAIN;
             if (selected_menu_item == MENU_BACK_TO_MAIN)
             {
                 selected_menu = MAIN_MENU;
@@ -1183,6 +1190,10 @@ static void glut_idle_static_pic(void)
     min_fade = (menu)?MIN_MENU_FADE:0.0f;
     // As usual, we'll need the current time value for a bunch of stuff
     update_timers();
+
+#if !defined(PSP)
+    glutForceJoystickFunc();
+#endif
 
     if (menu)
         process_menu();
@@ -1386,6 +1397,10 @@ void glut_idle_suspended(void)
 {
 static bool video_initialized = false;
 
+#if !defined(PSP)
+    glutForceJoystickFunc();
+#endif
+
     if (game_state & GAME_STATE_CUTSCENE)
     {
         if (!video_initialized)
@@ -1472,6 +1487,45 @@ void static_screen(u8 picture_id, void (*func)(u32), u32 param)
 
 }
 
+#if defined(XBOX360_CONTROLLER_SUPPORT)
+#define ASSIGN_X360(key, button)                                    \
+    if ((buttonMask & button) && !(last_buttonMask & button))       \
+    {                                                               \
+        key_down[key] = true;                                       \
+        last_key_used = key;                                        \
+    }                                                               \
+    else if (!(buttonMask & button) && (last_buttonMask & button))  \
+    {                                                               \
+        key_down[key] = false;                                      \
+        key_readonce[key] = false;                                  \
+        key_cheat_readonce[key] = false;                            \
+    }
+
+static void parse_xbox360_controller(uint buttonMask)
+{
+    // Keep a copy of last mask to track button up
+    static uint last_buttonMask = 0;
+
+    if (buttonMask != last_buttonMask)
+    {
+        ASSIGN_X360(KEY_ACTION, XBOX360_CONTROLLER_BUTTON_A);
+        ASSIGN_X360(KEY_CANCEL, XBOX360_CONTROLLER_BUTTON_B);
+        ASSIGN_X360(KEY_SLEEP, XBOX360_CONTROLLER_BUTTON_X);
+        ASSIGN_X360(KEY_INVENTORY_PICKUP, XBOX360_CONTROLLER_DPAD_UP);
+        ASSIGN_X360(KEY_INVENTORY_DROP, XBOX360_CONTROLLER_DPAD_DOWN);
+        ASSIGN_X360(KEY_INVENTORY_LEFT, XBOX360_CONTROLLER_DPAD_LEFT);
+        ASSIGN_X360(KEY_INVENTORY_RIGHT, XBOX360_CONTROLLER_DPAD_RIGHT);
+        ASSIGN_X360(KEY_TOGGLE_WALK_RUN, XBOX360_CONTROLLER_BUTTON_RT);
+        ASSIGN_X360(KEY_STOOGE, XBOX360_CONTROLLER_BUTTON_LT);
+        ASSIGN_X360(KEY_PRISONERS_LEFT, XBOX360_CONTROLLER_BUTTON_LB);
+        ASSIGN_X360(KEY_PRISONERS_RIGHT, XBOX360_CONTROLLER_BUTTON_RB);
+        ASSIGN_X360(KEY_ESCAPE, XBOX360_CONTROLLER_BUTTON_START);
+        ASSIGN_X360(KEY_PAUSE, XBOX360_CONTROLLER_BUTTON_BACK);
+        last_buttonMask = buttonMask;
+    }
+}
+#endif
+
 // Input handling
 static void glut_joystick(uint buttonMask, int x, int y, int z)
 {
@@ -1488,6 +1542,14 @@ static void glut_joystick(uint buttonMask, int x, int y, int z)
         jd2y = -1;
     else jd2y = 0;
 
+#if defined(XBOX360_CONTROLLER_SUPPORT)
+    // Remap the analog trigger input to virtual buttons
+    if (z>JOY_DEADZONE)
+        buttonMask |= XBOX360_CONTROLLER_BUTTON_LT;
+    else if (z<-JOY_DEADZONE)
+        buttonMask |= XBOX360_CONTROLLER_BUTTON_RT;
+    parse_xbox360_controller(buttonMask);
+#endif
 #if defined(PSP)
     // The PSP has the bad habit of powering the LCD down EVEN if the analog stick is in use
     if ((jdx != 0) || (jd2y != 0))
@@ -1614,8 +1676,8 @@ int main (int argc, char *argv[])
             break;
     }
 #if !defined(PSP)
-	printf("\nColditz Escape! %s\n", VERSION);
-	printf("by Aperture Software - 2009-2010\n\n");
+    printf("\nColditz Escape! %s\n", VERSION);
+    printf("by Aperture Software - 2009-2017\n\n");
 #endif
     if ( ((argc-optind) > 3) || opt_error)
     {
