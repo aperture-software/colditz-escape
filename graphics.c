@@ -1,6 +1,6 @@
 /*
  *  Colditz Escape! - Rewritten Engine for "Escape From Colditz"
- *  copyright (C) 2008-2009 Aperture Software
+ *  copyright (C) 2008-2017 Aperture Software
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -210,159 +210,162 @@ void printLog(GLuint obj)
     int infologLength = 0;
     char infoLog[1024];
 
-	if (glIsShader(obj))
-		glGetShaderInfoLog(obj, 1024, &infologLength, infoLog);
-	else
-		glGetProgramInfoLog(obj, 1024, &infologLength, infoLog);
+    if (glIsShader(obj))
+        glGetShaderInfoLog(obj, 1024, &infologLength, infoLog);
+    else
+        glGetProgramInfoLog(obj, 1024, &infologLength, infoLog);
 
     if (infologLength > 0)
-		printf("%s\n", infoLog);
+        printf("%s\n", infoLog);
 }
 
 // Convert a shader file to text
 char *file2string(const char *path)
 {
-	FILE *fd;
-	long len,
-		 r;
-	char *str;
+    FILE *fd;
+    long len, r;
+    char *str;
 
-	if (!(fd = fopen(path, "rb")))
-	{
-		fprintf(stderr, "Can't open shader file '%s' for reading\n", path);
-		return NULL;
-	}
+    if (!(fd = fopen(path, "rb")))
+    {
+        fprintf(stderr, "Can't open shader file '%s' for reading\n", path);
+        return NULL;
+    }
 
-	fseek(fd, 0, SEEK_END);
-	len = ftell(fd);
+    fseek(fd, 0, SEEK_END);
+    len = ftell(fd);
+    if (len <= 0)
+    {
+        fprintf(stderr, "Can't get the size of shader file '%s'\n", path);
+        return NULL;
+    }
 
-	fseek(fd, 0, SEEK_SET);
+    fseek(fd, 0, SEEK_SET);
 
-	if (!(str = malloc((len+2) * sizeof(char))))
-	{
-		fprintf(stderr, "Can't malloc space for shader '%s'\n", path);
-		return NULL;
-	}
+    if (!(str = malloc((len+2) * sizeof(char))))
+    {
+        fprintf(stderr, "Can't malloc space for shader '%s'\n", path);
+        return NULL;
+    }
 
-	r = fread(str, sizeof(char), len, fd);
-	// Files without an ending CR will produce compilation errors
-	str[r] = 0x0A;
-	str[r+1] = '\0';
- 	fclose(fd);
+    r = fread(str, sizeof(char), len, fd);
+    // Files without an ending CR will produce compilation errors
+    str[r] = 0x0A;
+    str[r+1] = '\0';
+    fclose(fd);
 
-	return str;
+    return str;
 }
 
 // Load and compile the HQnX shader
 bool compile_shader(u8 zoomfactor)
 {
-	// The vertex shader
-	char *vsSource;
-	char *fsSource;
-	char shadername[20];
+    // The vertex shader
+    char *vsSource;
+    char *fsSource;
+    char shadername[20];
 
-	GLuint vs,				// Vertex Shader
-		   fs,				// Fragment Shader
-	       status;
+    GLuint vs,				// Vertex Shader
+        fs,				// Fragment Shader
+        status;
 
-	if (zoomfactor <= 1 || zoomfactor >= 4)
-	// 2x, 3x, 4x only
-		return false;
+    if (zoomfactor <= 1 || zoomfactor >= 4)
+    // 2x, 3x, 4x only
+        return false;
 
-	sprintf(shadername, "shader-hq%dx.vert", zoomfactor);
-	if ((vsSource = file2string(shadername)) == NULL)
-		return false;
-	sprintf(shadername, "shader-hq%dx.frag", zoomfactor);
-	if ((fsSource = file2string(shadername)) == NULL)
-		return false;
+    sprintf(shadername, "shader-hq%dx.vert", zoomfactor);
+    if ((vsSource = file2string(shadername)) == NULL)
+        return false;
+    sprintf(shadername, "shader-hq%dx.frag", zoomfactor);
+    if ((fsSource = file2string(shadername)) == NULL)
+        return false;
 
-	vs = glCreateShader(GL_VERTEX_SHADER);
-	glShaderSource(vs, 1, &vsSource, NULL);
-	glCompileShader(vs);
-	glGetShaderiv(vs, GL_COMPILE_STATUS, &status);
-	if (status != GL_TRUE)
-	{	// Compilation error
-		perr("Error compiling Vertex shader:\n");
-		printLog(vs);
-		return false;
-	}
+    vs = glCreateShader(GL_VERTEX_SHADER);
+    glShaderSource(vs, 1, &vsSource, NULL);
+    glCompileShader(vs);
+    glGetShaderiv(vs, GL_COMPILE_STATUS, &status);
+    if (status != GL_TRUE)
+    {	// Compilation error
+        perr("Error compiling Vertex shader:\n");
+        printLog(vs);
+        return false;
+    }
 
-	fs = glCreateShader(GL_FRAGMENT_SHADER);
-	glShaderSource(fs, 1, &fsSource, NULL);
-	glCompileShader(fs);
-	glGetShaderiv(fs, GL_COMPILE_STATUS, &status);
-	if (status != GL_TRUE)
-	{	// Compilation error
-		perr("Error compiling Fragment shader:\n");
-		printLog(fs);
-		return false;
-	}
+    fs = glCreateShader(GL_FRAGMENT_SHADER);
+    glShaderSource(fs, 1, &fsSource, NULL);
+    glCompileShader(fs);
+    glGetShaderiv(fs, GL_COMPILE_STATUS, &status);
+    if (status != GL_TRUE)
+    {	// Compilation error
+        perr("Error compiling Fragment shader:\n");
+        printLog(fs);
+        return false;
+    }
 
-	free(vsSource);
-	free(fsSource);
+    free(vsSource);
+    free(fsSource);
 
-	sp = glCreateProgram();
-	glAttachShader(sp, vs);
-	glAttachShader(sp, fs);
-	glLinkProgram(sp);
-	glGetProgramiv(sp, GL_LINK_STATUS, &status);
-	if (status != GL_TRUE)
-	{	// Compilation error
-		perr("Error linking shader program:\n");
-		printLog(sp);
-		return false;
-	}
+    sp = glCreateProgram();
+    glAttachShader(sp, vs);
+    glAttachShader(sp, fs);
+    glLinkProgram(sp);
+    glGetProgramiv(sp, GL_LINK_STATUS, &status);
+    if (status != GL_TRUE)
+    {	// Compilation error
+        perr("Error linking shader program:\n");
+        printLog(sp);
+        return false;
+    }
 
-	return true;
+    return true;
 }
 
 // Init the shader. Returns false if an issue was encountered
 bool init_shader()
 {
-	GLenum gl_err;
+    GLenum gl_err;
 
-	// Needs to intervene after glut_init
-	gl_err = glewInit();
-	if (GLEW_OK != gl_err)
-	{
-		perr("Error: %s\n", glewGetErrorString(gl_err));
-		ERR_EXIT;
-	}
-	if (!GLEW_VERSION_2_0)
-		return false;
+    // Needs to intervene after glut_init
+    gl_err = glewInit();
+    if (GLEW_OK != gl_err)
+    {
+        perr("Error: %s\n", glewGetErrorString(gl_err));
+        ERR_EXIT;
+    }
+    if (!GLEW_VERSION_2_0)
+        return false;
 
-	// For now, only HQ2X **LITE** is available as HQnX GLSL shader,
-	// (and it's not doing as good a job as the **FULL** CPU HQ2X
-	// version -- which is too slow for our use) so 2x factor only.
-	// When someone actually bothers writing proper GLSL versions of
-	// **BOTH** HQ3X and HQ4X, we'll see about adding them
-	if (compile_shader(2))
-	{
-		opt_glsl_enabled = true;
-		return true;
-	}
-	else
-		return false;
+    // For now, only HQ2X **LITE** is available as HQnX GLSL shader,
+    // (and it's not doing as good a job as the **FULL** CPU HQ2X
+    // version -- which is too slow for our use) so 2x factor only.
+    // When someone actually bothers writing proper GLSL versions of
+    // **BOTH** HQ3X and HQ4X, we'll see about adding them
+    if (compile_shader(2))
+    {
+        opt_glsl_enabled = true;
+        return true;
+    } else
+        return false;
 }
 #endif
 
 // Dealloc gfx buffers
 void free_gfx()
 {
-	int i;
-	SAFREE(background_buffer);
-	SFREE(cell_texid);
-	SFREE(sprite_texid);
-	SFREE(chars_texid);
-	SAFREE(texture[PANEL_BASE1].buffer);
-	SAFREE(texture[PANEL_BASE2].buffer);
-	SAFREE(texture[PICTURE_CORNER].buffer);
-	SAFREE(texture[TUNNEL_VISION].buffer);
-	SAFREE(rgbCells);
-	for (i=0; i<NB_SPRITES; i++)
-		SAFREE(sprite[i].data);
-	SAFREE(sprite);
-	SAFREE(overlay);
+    int i;
+    SAFREE(background_buffer);
+    SFREE(cell_texid);
+    SFREE(sprite_texid);
+    SFREE(chars_texid);
+    SAFREE(texture[PANEL_BASE1].buffer);
+    SAFREE(texture[PANEL_BASE2].buffer);
+    SAFREE(texture[PICTURE_CORNER].buffer);
+    SAFREE(texture[TUNNEL_VISION].buffer);
+    SAFREE(rgbCells);
+    for (i = 0; i < NB_SPRITES; i++)
+        SAFREE(sprite[i].data);
+    SAFREE(sprite);
+    SAFREE(overlay);
 }
 
 // Set the global textures properties
@@ -1651,16 +1654,16 @@ void create_savegame_list()
 void display_menu_screen()
 {
     char c;
-    int	i, j, line;
-    u16	line_start;
-    u8	on_off_index;
+    int i, j, line;
+    u16 line_start;
+    u8  on_off_index;
     const char  aperurl[] = COLDITZ_URL;
     const char* aperblurb[] = { " COLDITZ ESCAPE! " VERSION , " (C) APERTURE SOFTWARE 2009"};
 
     // Show each menu line
     for (line = 0; line < NB_MENU_ITEMS; line++)
     {
-        if (menus[selected_menu][line][0] == ' ')
+        if ((menus[selected_menu][line] != NULL) && (menus[selected_menu][line][0] == ' '))
         {	// A menu line starting with a space must be centered
             line_start = ((PSP_SCR_WIDTH-(strlen(menus[selected_menu][line])-0)*16)/2)&(~0x0F);
         }
@@ -1675,50 +1678,55 @@ void display_menu_screen()
         else
             glColor4f(1.0f, 1.0f, 1.0f, 1.0f-fade_value+MIN_MENU_FADE);
 
-        for (i=0; (c = menus[selected_menu][line][i]); i++)
+        if (menus[selected_menu][line] != NULL)
         {
-            display_sprite(line_start+16*i, 32+16*line,
-                2*PANEL_CHARS_W, 2*PANEL_CHARS_CORRECTED_H, chars_texid[c-0x20]);
+            for (i=0; (c = menus[selected_menu][line][i]); i++)
+            {
+                display_sprite(line_start+16*i, 32+16*line,
+                    2*PANEL_CHARS_W, 2*PANEL_CHARS_CORRECTED_H, chars_texid[c-0x20]);
+            }
         }
+        else
+            i = 0;
 
         if (selected_menu == OPTIONS_MENU)
         {
-			if (line == MENU_SMOOTHING)
-			{	// This one has multiple values
-				for (j=0; (c = smoothing[opt_gl_smoothing][j]); i++,j++)
-					display_sprite(line_start+16*i, 32+16*line,
-						2*PANEL_CHARS_W, 2*PANEL_CHARS_CORRECTED_H, chars_texid[c-0x20]);
-			}
-			else
-			{
-				// Display the ON/OFF status of toggables
-				switch(line)
-				{
-				case MENU_ENHANCEMENTS:
-					on_off_index = opt_enhanced_guards?1:2;
-					break;
-				case MENU_SKIP_INTRO:
-					on_off_index = opt_skip_intro?1:2;
-					break;
-				case MENU_FULLSCREEN:
-					on_off_index = opt_fullscreen?1:2;
-					break;
-				case MENU_PICTURE_CORNERS:
-					on_off_index = opt_picture_corners?1:2;
-					break;
-				case MENU_ORIGINAL_MODE:
-					on_off_index = opt_original_mode?1:2;
-					break;
-				default:
-					on_off_index = 0;
-					break;
-				}
-				for (j=0; (c = on_off[on_off_index][j]); i++,j++)
-					display_sprite(line_start+16*i, 32+16*line,
-						2*PANEL_CHARS_W, 2*PANEL_CHARS_CORRECTED_H, chars_texid[c-0x20]);
-			}
-		}
-	}
+            if (line == MENU_SMOOTHING)
+            {	// This one has multiple values
+                for (j=0; (c = smoothing[opt_gl_smoothing][j]); i++,j++)
+                    display_sprite(line_start+16*i, 32+16*line,
+                        2*PANEL_CHARS_W, 2*PANEL_CHARS_CORRECTED_H, chars_texid[c-0x20]);
+            }
+            else
+            {
+                // Display the ON/OFF status of toggables
+                switch(line)
+                {
+                case MENU_ENHANCEMENTS:
+                    on_off_index = opt_enhanced_guards?1:2;
+                    break;
+                case MENU_SKIP_INTRO:
+                    on_off_index = opt_skip_intro?1:2;
+                    break;
+                case MENU_FULLSCREEN:
+                    on_off_index = opt_fullscreen?1:2;
+                    break;
+                case MENU_PICTURE_CORNERS:
+                    on_off_index = opt_picture_corners?1:2;
+                    break;
+                case MENU_ORIGINAL_MODE:
+                    on_off_index = opt_original_mode?1:2;
+                    break;
+                default:
+                    on_off_index = 0;
+                    break;
+                }
+                for (j=0; (c = on_off[on_off_index][j]); i++,j++)
+                    display_sprite(line_start+16*i, 32+16*line,
+                        2*PANEL_CHARS_W, 2*PANEL_CHARS_CORRECTED_H, chars_texid[c-0x20]);
+            }
+        }
+    }
     // Selection cursor
     glColor4f(1.0f, 1.0f, 1.0f, 1.0f-fade_value+MIN_MENU_FADE);
     display_sprite(line_start-20, 32+16*selected_menu_item,
@@ -1853,8 +1861,8 @@ void display_pause_screen()
 // Open and texturize an IFF image file.
 bool load_iff(s_tex* tex)
 {
-    bool got_cmap		= false;
-    bool got_body		= false;
+    bool got_cmap = false;
+    bool got_body = false;
     u16  i, w, h, y, powerized_w, bytes_per_line, plane;
     u8	 nplanes, masking, compression, bytecount, bytedup;
     u32  iff_tag, len;

@@ -1,6 +1,6 @@
 /*
  *  Colditz Escape! - Rewritten Engine for "Escape From Colditz"
- *  copyright (C) 2008-2009 Aperture Software
+ *  copyright (C) 2008-2017 Aperture Software
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -25,6 +25,7 @@
 // Remove some annoying warnings
 #define _WIN32_DCOM
 #pragma warning(disable:4995)
+#define IGNORE_RETVAL(expr) do { (void)(expr); } while(0)
 
 #include <windows.h>
 // If you don't include that initguid.h before xaudio2.h, you'll get
@@ -145,7 +146,7 @@ int i;
         return true;
 
     // Get a handle to the XAudio engine
-    CoInitializeEx( NULL, COINIT_MULTITHREADED );
+    IGNORE_RETVAL( CoInitializeEx( NULL, COINIT_MULTITHREADED ));
     if( FAILED( XAudio2Create(&pXAudio2, 0) ) )
     {
         fprintf(stderr, "winXAudio2Init: Failed to init XAudio2 engine\n");
@@ -225,10 +226,10 @@ bool winXAudio2SetVoice(int voice, BYTE* audioData, int audioSize, unsigned int 
     if( FAILED( pXAudio2->CreateSourceVoice( &pSourceVoice[voice], pwfx) ) )
     {
         fprintf(stderr, "winXAudio2SetVoice: Error creating source voice\n");
-		SAFE_DELETE(pwfx);
+        SAFE_DELETE_ARRAY(pwfx);
         return false;
     }
-	SAFE_DELETE(pwfx);
+    SAFE_DELETE_ARRAY(pwfx);
 
     // Make sure the VoiceCallback is set to NULL
     SAFE_DELETE(pVoiceCallback[voice]);
@@ -303,10 +304,10 @@ unsigned char	nb_channels;
         0, XAUDIO2_DEFAULT_FREQ_RATIO, pVoiceCallback[voice], NULL, NULL) ) )
     {
         fprintf(stderr, "winXAudio2SetVoiceCallback: Error creating source voice\n" );
-		SAFE_DELETE(pwfx);
+        SAFE_DELETE_ARRAY(pwfx);
         return false;
     }
-	SAFE_DELETE(pwfx);
+    SAFE_DELETE_ARRAY(pwfx);
 
     voice_set_up[voice] = true;
 

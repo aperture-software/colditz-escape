@@ -1,6 +1,6 @@
 /*
  *  Colditz Escape! - Rewritten Engine for "Escape From Colditz"
- *  copyright (C) 2008-2009 Aperture Software
+ *  copyright (C) 2008-2017 Aperture Software
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -31,7 +31,8 @@ extern "C" {
 // General compilation options for the program
 #define CHEATMODE_ENABLED
 #define ANTI_TAMPERING_ENABLED
-//#define DEBUG_ENABLED
+
+#define IGNORE_RETVAL(expr) do { (void)(expr); } while(0)
 
 /*
  *	LIST OF ABREVIATIONS:

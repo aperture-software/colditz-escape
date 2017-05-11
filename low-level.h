@@ -109,7 +109,7 @@ static __inline void psp_any_key()
 #define SIZE_A(ar)		(sizeof(ar)/sizeof(ar[0]))
 
 // dealloc macros
-#define SFREE(p)		do{if(p!=NULL)free(p);p=NULL;}while(0)
+#define SFREE(p)		do{free(p);p=NULL;}while(0)
 #define SAFREE(p)		do{aligned_free(p);p=NULL;}while(0)
 
 // concatenate 2 words into a long

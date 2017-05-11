@@ -894,7 +894,7 @@ _getopt_internal_r (int argc, char *const *argv, const char *optstring,
 
     /* Test all long options for either exact match
        or abbreviated matches.  */
-    for (p = longopts, option_index = 0; p->name; p++, option_index++)
+    for (p = longopts, option_index = 0; p && p->name; p++, option_index++)
       if (!strncmp (p->name, d->__nextchar, nameend - d->__nextchar))
         {
           if ((unsigned int) (nameend - d->__nextchar) == strlen (p->name))

@@ -56,7 +56,7 @@ bool wmp_init(char* app_name)
 
     // Initialize COM (and don't care too much about errors, as it might
     // already have been initialized elsewhere)
-    CoInitializeEx(NULL, COINIT_MULTITHREADED);
+    IGNORE_RETVAL(CoInitializeEx(NULL, COINIT_MULTITHREADED));
 
     // Instantiate a filter graph interface
     hr = CoCreateInstance(CLSID_FilterGraph, NULL, CLSCTX_INPROC,

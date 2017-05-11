@@ -1,6 +1,6 @@
 /*
  *  Colditz Escape! - Rewritten Engine for "Escape From Colditz"
- *  copyright (C) 2008-2009 Aperture Software
+ *  copyright (C) 2008-2017 Aperture Software
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -370,11 +370,12 @@ void mod_release()
     if (data)
         free(data);
     // Free patterns
-    for (i = 0; i < m_Patterns_num; i++) {
-        for (row = 0; row < 64; row++)
-            free(m_Patterns[i].row[row].note);
-        free(m_Patterns[i].row);
-    }
+    if (m_Patterns != NULL)
+        for (i = 0; i < m_Patterns_num; i++) {
+            for (row = 0; row < 64; row++)
+                free(m_Patterns[i].row[row].note);
+            free(m_Patterns[i].row);
+        }
     // Free orders
     free(m_nOrders);
 
@@ -385,7 +386,7 @@ void mod_release()
 
     // Free tracks and patterns
     free(m_TrackDat);
-	free(m_Patterns);
+    free(m_Patterns);
 
     m_bSet = false;
 }
@@ -418,10 +419,14 @@ bool mod_init(char *filename)
         //  opened file, so get size now
         fseek(fd, 0, SEEK_END);
         size = ftell(fd);
+        if (size < 1084) {
+            fclose(fd);
+            return false;
+        }
         fseek(fd, 0, SEEK_SET);
         data = (unsigned char *) malloc(size + 8);
-        memset(data, 0, size + 8);
-        if (data != 0) {	// Read file in
+        if (data != NULL) {	// Read file in
+            memset(data, 0, size + 8);
             fread(data, 1, size, fd);
         } else {
             fclose(fd);
@@ -469,18 +474,16 @@ bool mod_init(char *filename)
 
     // Read in all the instrument headers - mod files have 31, sample #0 is ignored
     m_Samples_num = numsamples;
-    m_Samples = (Sample *) malloc(m_Samples_num * sizeof(Sample));
-    // BUGFIX: If you don't memset the first Sample to 0,
+    // Make sure we allocate zeroed data
+    m_Samples = (Sample *) calloc(m_Samples_num,  sizeof(Sample));
+    if (m_Samples == NULL)
+        return false;
+    // BUGFIX: If you don't keep the first Sample to 0,
     // all kind of bad things can happen on Win32!!!
-    memset(m_Samples, 0, sizeof(Sample));
     for (i = 1; i < numsamples; i++) {
         // Read the sample name
-        char samplename[23];
-        memcpy(samplename, &data[index], 22);
-        samplename[22] = 0;
-        strcpy(m_Samples[i].szName, samplename);
+        memcpy(m_Samples[i].szName, &data[index], 22);
         index += 22;
-
         // Read remaining info about sample
         m_Samples[i].nLength = ReadModWord(data, index);
         index += 2;
@@ -509,6 +512,8 @@ bool mod_init(char *filename)
     numpatterns = 0;
     m_nOrders_num = 128;
     m_nOrders = (int *) malloc(m_nOrders_num * sizeof(int));
+    if (m_nOrders == NULL)
+        return false;
     for (i = 0; i < 128; i++) {
         m_nOrders[i] = (int) (unsigned char) *(data + index);
         index++;
@@ -521,6 +526,8 @@ bool mod_init(char *filename)
     // Load in the pattern data
     m_Patterns_num = numpatterns;
     m_Patterns = (Pattern *) malloc(m_Patterns_num * sizeof(Pattern));
+    if (m_Patterns == NULL)
+        return false;
     for (i = 0; i < numpatterns; i++) {
         // Set the number of rows for this pattern, for mods it's always 64
         m_Patterns[i].numrows = 64;
@@ -596,6 +603,9 @@ bool mod_play()
 
     // See if I'm already playing
     if (m_bPlaying)
+        return false;
+
+    if ((m_Patterns == NULL)|| (m_nOrders == NULL))
         return false;
 
     // Reset all track data
@@ -680,18 +690,20 @@ static bool MixChunk(int numsamples, short *buffer)
             // If we're on tick 0 then update the row
             if (m_nTick == 0) {
                 // Get this row
-                m_CurrentRow = &m_Patterns[m_nOrders[m_nOrder]].row[m_nRow];
+                if (m_nOrders != NULL) {
+                    m_CurrentRow = &m_Patterns[m_nOrders[m_nOrder]].row[m_nRow];
 
-                // Set up for next row (effect might change these values later)
-                m_nRow++;
-                if (m_nRow >= 64) {
-                    m_nRow = 0;
-                    m_nOrder++;
-                    if (m_nOrder >= m_nSongLength)
-                        m_nOrder = 0;
+                    // Set up for next row (effect might change these values later)
+                    m_nRow++;
+                    if (m_nRow >= 64) {
+                        m_nRow = 0;
+                        m_nOrder++;
+                        if (m_nOrder >= m_nSongLength)
+                            m_nOrder = 0;
+                    }
+                    // Now update this row
+                    UpdateRow();
                 }
-                // Now update this row
-                UpdateRow();
             }
             // Otherwise, all we gotta do is update the effects
             else {

@@ -1,6 +1,6 @@
 /*
  *  Colditz Escape! - Rewritten Engine for "Escape From Colditz"
- *  copyright (C) 2008-2009 Aperture Software
+ *  copyright (C) 2008-2017 Aperture Software
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -49,11 +49,11 @@
 
 /* Some more globals */
 u8  obs_to_sprite[NB_OBS_TO_SPRITE];
-u8	remove_props[CMP_MAP_WIDTH][CMP_MAP_HEIGHT];
+u8  remove_props[CMP_MAP_WIDTH][CMP_MAP_HEIGHT];
 u8  overlay_order[MAX_OVERLAYS];
 // Do we need to reload the files on newgame?
 bool game_restart = false;
-u8	nb_animations = 0;
+u8  nb_animations = 0;
 s_animation	animations[MAX_ANIMATIONS];
 s_guybrush guybrush[NB_GUYBRUSHES];
 
@@ -118,7 +118,7 @@ ROM:00008A3E                 dc.l kneel3_ani         ; #54
 ROM:00008A42                 dc.l ger_kneel_ani      ; #58
 */
 const u8 looping_animation[NB_ANIMATED_SPRITES] =
-    {	1, 1, 0, 0, 1, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0 };
+    { 1, 1, 0, 0, 1, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0 };
 
 
 // Uncompress the PowerPacked LOADTUNE.MUS if needed
@@ -204,12 +204,12 @@ void depack_loadtune()
 // free all allocated data
 void free_data()
 {
-	int i;
-	free_xml();
-	free_gfx();
-	for (i=0; i<NB_FILES; i++)
-		SAFREE(fbuffer[i]);
-	audio_release();
+    int i;
+    free_xml();
+    free_gfx();
+    for (i=0; i<NB_FILES; i++)
+        SAFREE(fbuffer[i]);
+    audio_release();
 }
 
 // Initial file loader
@@ -329,6 +329,7 @@ void reload_files()
         {
             perrv ("fopen()");
             printf("Can't find file '%s'\n", fname[i]);
+            return;
         }
         // Read file
         printv("Reloading file '%s'...\n", fname[i]);
@@ -2988,7 +2989,7 @@ void fix_files(bool reload)
 // Initalize the SFXs
 void set_sfxs()
 {
-    u16	i,j;
+    u16 i,j;
 
     // Initialize SFXs
     for (i=0; i<NB_SFXS; i++)

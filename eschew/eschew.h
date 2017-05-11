@@ -1,6 +1,6 @@
 /*
  *  Eschew - Even Simpler C-Heuristic Expat Wrapper
- *  copyright (C) 2008-2009 Aperture Software
+ *  copyright (C) 2008-2017 Aperture Software
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -151,7 +151,7 @@ char* __eschew_s;
 
 // A runtime initialization is necessary for the tokenization of the node names
 // and their copying into the table
-#define INIT_XML_TABLE(tabid) {	__eschew_i=0;									\
+#define INIT_XML_TABLE(tabid) { __eschew_i=0;									\
 	if ( (xml_##tabid.name[0] == NULL)											\
 	  && ( (__eschew_s = strtok(xml_##tabid._tokens, " ,\t")) != NULL) ) {		\
 	  do { xml_##tabid.name[__eschew_i++] = __eschew_s; }						\
@@ -163,7 +163,7 @@ char* __eschew_s;
 // At least one table must be defined as root (after it has been created)
 // Note that _p_root_name MUST be initialized to NULL, else a sibling is created
 #define SET_XML_ROOT(tabid)														\
-	xml_node _p_root_table = NULL;	char* _p_root_name = #tabid;				\
+	xml_node _p_root_table = NULL; char* _p_root_name = #tabid;					\
 	xnode xml_root = { t_xml_node, 1, {NULL, NULL}, NULL, "root",				\
 			&_p_root_name, NULL, &_p_root_table, NULL };
 
@@ -175,17 +175,17 @@ char* __eschew_s;
 #define CREATE_XML_TABLE(tabid, nodid, type)									\
 	typedef struct {enum XML_TYPE node_type; int node_count; char* attr[2];		\
 		char** _tokens; char* id; char** name; char** comment; type* value;		\
-		xml_node next;}	s_xml_##tabid;	extern s_xml_##tabid xml_##tabid;
+		xml_node next;} s_xml_##tabid; extern s_xml_##tabid xml_##tabid;
 
 #define SET_XML_ROOT(table) extern xnode xml_root;
 
 #endif
 
 // Debug printout of a node tree
-#define PRINT_XML_TABLE(tabid)													\
+#define PRINT_XML_TABLE(tabid)	{ int i;										\
 	for (i=0; i<xml_##tabid.node_count; i++) {									\
 		printf("node[%d].name = %s\n", i, XML_NAME(tabid, i));					\
-		printf("node[%d].value = %X\n", i, XML_VALUE(tabid, i)); }
+		printf("node[%d].value = %X\n", i, XML_VALUE(tabid, i)); } }
 
 
 /*

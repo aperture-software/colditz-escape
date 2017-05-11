@@ -1,6 +1,6 @@
 /*
  *  Colditz Escape! - Rewritten Engine for "Escape From Colditz"
- *  copyright (C) 2008-2009 Aperture Software
+ *  copyright (C) 2008-2017 Aperture Software
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -519,6 +519,12 @@ void restore_params(u32 param)
     brush = param & 0xFF;
     // extract the previous animation index
     previous_index = (param >> 8) & 0xFF;
+
+    if (brush >= NB_GUYBRUSHES)
+    {
+        perr("restore_params: brush #%d is out of range!\n", brush);
+        return;
+    }
 
     guybrush[brush].animation.index = previous_index;
     guybrush[brush].animation.framecount = 0;
@@ -1665,7 +1671,7 @@ int main (int argc, char *argv[])
             opt_debug = true;
             break;
         case 's':		// debug SID (sprite) test
-            sscanf(optarg, ("%x"), &opt_sid);
+            IGNORE_RETVAL(sscanf(optarg, ("%x"), &opt_sid));
             break;
 #endif
         case 'h':		// Half size on Windows

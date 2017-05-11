@@ -1,6 +1,6 @@
 /*
  *  Eschew - Even Simpler C-Heuristic Expat Wrapper
- *  copyright (C) 2008-2009 Aperture Software
+ *  copyright (C) 2008-2017 Aperture Software
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -169,7 +169,16 @@ void to_release(void* allocated)
 		return;
 
 	if (_ep_tbl == NULL)
+	{
 		_ep_tbl = malloc(tbl_size * sizeof(void*));
+		if (_ep_tbl == NULL)
+		{
+			fprintf(stderr, "eschew.to_release: memory allocation error.\n"
+				"Allocated memory structures will not be freed.\n");
+			no_more_mem = -1;
+			return;
+		}
+	}
 
 	if (_ep_index == tbl_size)
 	{
