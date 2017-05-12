@@ -86,7 +86,8 @@ __glutOpenWin32Connection(char* display)
   wc.style         = CS_OWNDC;
   wc.lpfnWndProc   = (WNDPROC)__glutWindowProc;
   wc.hInstance     = hInstance;
-  wc.hIcon         = LoadIcon(hInstance, "GLUT_ICON");
+  /* Don't use "GLUT_ICON" but instead force the (usual) ID of the first icon resource */
+  wc.hIcon         = LoadIcon(hInstance, MAKEINTRESOURCE(101));
   wc.hCursor       = LoadCursor(hInstance, IDC_ARROW);
   wc.hbrBackground = NULL;
   wc.lpszMenuName  = NULL;

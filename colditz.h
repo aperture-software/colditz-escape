@@ -47,7 +47,7 @@ extern "C" {
 #define APPNAME					"colditz"
 // NB: Make sure you use capital V for version as we don't have lowercase
 // in our menu font (where we display this version as well)
-#define VERSION					"V0.9.4"
+#define VERSION					"V0.9.6"
 #define COLDITZ_URL				"HTTP://SITES.GOOGLE.COM/SITE/COLDITZESCAPE"
 
 /*
