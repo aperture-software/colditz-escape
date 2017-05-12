@@ -1,5 +1,5 @@
 /*
- *  Colditz Escape! - Rewritten Engine for "Escape From Colditz"
+ *  Colditz Escape - Rewritten Engine for "Escape From Colditz"
  *  copyright (C) 2008-2017 Aperture Software
  *
  *  This program is free software; you can redistribute it and/or modify
@@ -371,7 +371,7 @@ void free_gfx()
 // Set the global textures properties
 void set_textures()
 {
-    int	i;
+    int i;
 
     // Allocate the main background buffer, which is not tied to any file but shared
     // to display static images, etc...
@@ -2215,4 +2215,3 @@ u16  powerized_w;
     }
     return true;
 }
-

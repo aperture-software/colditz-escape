@@ -1,4 +1,5 @@
 *.a
+*.aps
 *.db*
 *.exe
 *.idb
@@ -14,5 +15,6 @@
 *.sdf
 *.suo
 *.opensdf
+config.xml
 Debug
 Release

@@ -4,7 +4,7 @@ Home
 General Information
 -------------------
 
-__Colditz Escape!__ is a rewritten game engine for the classic _"Escape From Colditz"_ Amiga game.
+__Colditz Escape__ is a rewritten game engine for the classic _"Escape From Colditz"_ Amiga game.
 In this game, you control a set of four prisoners of war trying to escape from the infamous Colditz Castle WWII prison.
 
 The original game, created by __Mike Halsall__ and __John Law__ (with intro music by [__Bjørn Lynne__](http://www.lynnemusic.com/)), was published in 1991 by Digital Magic Software.

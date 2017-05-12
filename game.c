@@ -1,5 +1,5 @@
 /*
- *  Colditz Escape! - Rewritten Engine for "Escape From Colditz"
+ *  Colditz Escape - Rewritten Engine for "Escape From Colditz"
  *  copyright (C) 2008-2017 Aperture Software
  *
  *  This program is free software; you can redistribute it and/or modify
@@ -2021,8 +2021,8 @@ void toggle_exit(u32 exit_nr)
     s16 _tile_x, _tile_y;
     u32 _offset;
 
-	// Restore the ability to consume a key (prevents double key consumption issue)
-	can_consume_key = true;
+    // Restore the ability to consume a key (prevents double key consumption issue)
+    can_consume_key = true;
 
     // On the compressed map, we use either the ROOMS or TUNNEL_IO file
     // depending on the exit type.

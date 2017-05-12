@@ -1,5 +1,5 @@
 /*
- *  Colditz Escape! - Rewritten Engine for "Escape From Colditz"
+ *  Colditz Escape - Rewritten Engine for "Escape From Colditz"
  *  copyright (C) 2008-2009 Aperture Software
  *
  *  This program is free software; you can redistribute it and/or modify
@@ -41,4 +41,3 @@ bool video_isplaying();
 #ifdef __cplusplus
 }
 #endif
-

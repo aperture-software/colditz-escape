@@ -1,5 +1,5 @@
 /*
- *  Colditz Escape! - Rewritten Engine for "Escape From Colditz"
+ *  Colditz Escape - Rewritten Engine for "Escape From Colditz"
  *  copyright (C) 2008-2009 Aperture Software
  *
  *  This program is free software; you can redistribute it and/or modify
@@ -220,4 +220,3 @@ int ppDecrunch(u8 *src, u8 *dest, u8 *offset_lens, u32 src_len, u32 dest_len, u8
 #ifdef	__cplusplus
 }
 #endif
-

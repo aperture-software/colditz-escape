@@ -1,4 +1,4 @@
-Colditz Escape! - Activity Log
+Colditz Escape - Activity Log
 
 [MAIN]
 -M overlay depth [DONE]

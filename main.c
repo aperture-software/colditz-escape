@@ -1,5 +1,5 @@
 /*
- *  Colditz Escape! - Rewritten Engine for "Escape From Colditz"
+ *  Colditz Escape - Rewritten Engine for "Escape From Colditz"
  *  copyright (C) 2008-2017 Aperture Software
  *
  *  This program is free software; you can redistribute it and/or modify
@@ -1644,9 +1644,8 @@ int __stdcall WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 int main (int argc, char *argv[])
 #endif
 {
-
     // Flags
-    int opt_error 			= 0;	// getopt
+    int opt_error = 0;	// getopt
     // General purpose
     u32  i;
 
@@ -1682,7 +1681,7 @@ int main (int argc, char *argv[])
             break;
     }
 #if !defined(PSP)
-    printf("\nColditz Escape! %s\n", VERSION);
+    printf("\nColditz Escape %s\n", VERSION);
     printf("by Aperture Software - 2009-2017\n\n");
 #endif
     if ( ((argc-optind) > 3) || opt_error)
@@ -1706,7 +1705,7 @@ int main (int argc, char *argv[])
     glut_init();
 
 #if defined(WIN32)
-	init_shader();
+    init_shader();
 #endif
 
 //	remove(confname);
@@ -1756,8 +1755,8 @@ int main (int argc, char *argv[])
     // Some of the files need patching (this was done too in the original game!)
     fix_files(false);
 
-	set_textures();
-	set_sfxs();
+    set_textures();
+    set_sfxs();
 
     // Set global variables
     t_last = mtime();

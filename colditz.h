@@ -1,5 +1,5 @@
 /*
- *  Colditz Escape! - Rewritten Engine for "Escape From Colditz"
+ *  Colditz Escape - Rewritten Engine for "Escape From Colditz"
  *  copyright (C) 2008-2017 Aperture Software
  *
  *  This program is free software; you can redistribute it and/or modify
@@ -770,4 +770,3 @@ void static_screen(u8 iff_id, void (*func)(u32), u32 param);
 #ifdef	__cplusplus
 }
 #endif
-

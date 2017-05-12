@@ -1,4 +1,4 @@
-_Colditz Escape!_ is a rewritten game engine for the classic "Escape From Colditz" Amiga game.
+_Colditz Escape_ is a rewritten game engine for the classic "Escape From Colditz" Amiga game.
 In this game, you control a set of four prisoners of war trying to escape from the infamous Colditz Castle WWII prison.
 
 The original game, created by _Mike Halsall_ and _John Law_ (with intro music by [Bjørn Lynne](http://www.lynnemusic.com/)),

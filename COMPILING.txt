@@ -1,4 +1,4 @@
-  Colditz Escape! - Rewritten Engine for "Escape From Colditz"
+  Colditz Escape - Rewritten Engine for "Escape From Colditz"
 
 
 WINDOWS (Visual Studio 2017):
