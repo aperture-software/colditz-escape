@@ -44,14 +44,11 @@ extern "C" {
  *	Global defines
  */
 
-#define APPNAME					"colditz"
-// NB: Make sure you use capital V for version as we don't have lowercase
-// in our menu font (where we display this version as well)
-#define VERSION					"V0.9.6"
-#define COLDITZ_URL				"HTTP://SITES.GOOGLE.COM/SITE/COLDITZESCAPE"
+#define APPNAME					"Colditz Escape"
+#define VERSION					"1.0.81"
 
 /*
- * Graphics
+ *	Graphics
  */
 // The PSP Screen dimensions will be our base def
 #define PSP_SCR_WIDTH			480

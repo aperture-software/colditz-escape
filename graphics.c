@@ -1657,8 +1657,8 @@ void display_menu_screen()
     int i, j, line;
     u16 line_start;
     u8  on_off_index;
-    const char  aperurl[] = COLDITZ_URL;
-    const char* aperblurb[] = { " COLDITZ ESCAPE! " VERSION , " (C) APERTURE SOFTWARE 2009"};
+    const char* aperblurb[] = { " COLDITZ ESCAPE " VERSION ,
+        " (C) APERTURE SOFTWARE 2009-2017", " HTTP://TINY.CC/COLDITZ-ESCAPE" };
 
     // Show each menu line
     for (line = 0; line < NB_MENU_ITEMS; line++)
@@ -1738,20 +1738,14 @@ void display_menu_screen()
     {
         if (aperblurb[line][0] == ' ')
         {	// A menu line starting with a space must be centered
-            line_start = (u16)((PSP_SCR_WIDTH-(strlen(aperblurb[line])+1)*12)/2);
+            line_start = (u16)((PSP_SCR_WIDTH-(strlen(aperblurb[line])+1)*8)/2)&(~7);
         }
         for (i=0; (c = aperblurb[line][i]); i++)
         {
-            display_sprite(line_start+12*i, 212+10*line,
+            display_sprite(line_start+8*i, 212+10*line,
                 PANEL_CHARS_W, PANEL_CHARS_CORRECTED_H, chars_texid[c-0x20]);
         }
     }
-    line_start = ((PSP_SCR_WIDTH-(strlen(aperurl))*8)/2)&(~7);
-    for (i=0; (c = aperurl[i]); i++)
-        {
-            display_sprite(line_start+8*i, 232,
-                PANEL_CHARS_W, PANEL_CHARS_CORRECTED_H, chars_texid[c-0x20]);
-        }
 
     glColor4f(fade_value, fade_value, fade_value, 1.0f);
 }
