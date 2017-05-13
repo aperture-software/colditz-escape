@@ -540,9 +540,9 @@ void restore_params(u32 param)
 void user_input()
 {
     u16 prop_offset;
-    u8	prop_id, direction, i, j;
+    u8  prop_id, direction, i, j;
     s16 exit_nr;
-    u8	cur_prop;
+    u8  cur_prop;
 
 #if !defined(PSP)
     // Hey, GLUT, where's my bleeping callback on Windows?
@@ -653,16 +653,27 @@ void user_input()
 // Non official debug keys
 #define KEY_DEBUG_PRINT_POS		'p'
 #define KEY_OSD					']'
+#define KEY_NEXT_SID			'+'
+#define KEY_PREV_SID			'-'
     // Display our current position
     if (read_key_once(KEY_DEBUG_PRINT_POS))
     {
-        printf("(px, p2y) = (%d, %d), room = %x, rem = %08X\n", prisoner_x, prisoner_2y, current_room_index, rem_bitmask);
-        printf("state = %X\n", prisoner_state);
-        printf("game_time = %lld, program_time = %lld\n", game_time, program_time);
+        printf("game_time = %lld, program_time = %lld, state = 0x%02X\n",
+            game_time, program_time, prisoner_state);
+        printf("room = 0x%03X, (px, p2y) = (%d, %d), rem_bitmask = 0x%08X\n",
+            current_room_index, prisoner_x, prisoner_2y, rem_bitmask);
     }
 
     if (read_key_once(KEY_OSD))
         opt_onscreen_debug = !opt_onscreen_debug;
+
+    if (opt_sid >= 0)
+    {
+        if (read_key_once(KEY_NEXT_SID))
+            opt_sid++;
+        if (read_key_once(KEY_PREV_SID))
+            opt_sid--;
+    }
 #endif
 
     // Above are all the keys allowed if the prisoner has not already escaped or died, thus...
@@ -688,6 +699,7 @@ void user_input()
             prisoner_speed = 1;
             prisoner_ani.index = prisoner_as_guard?GUARD_WALK_ANI:WALK_ANI;
         }
+        prisoner_ani.framecount = 0;
     }
 
     // Toggle stooge

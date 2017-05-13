@@ -38,6 +38,7 @@ extern "C" {
  *	LIST OF ABREVIATIONS:
  *	CRM = Colditz Room Maps => data used for inside rooms
  *	CMP = CoMPressed map => data used for outisde
+ *	SID = Sprite ID
  */
 
 /*
@@ -45,7 +46,7 @@ extern "C" {
  */
 
 #define APPNAME					"Colditz Escape"
-#define VERSION					"1.0.81"
+#define VERSION					"1.0.82"
 
 /*
  *	Graphics

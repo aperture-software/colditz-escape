@@ -658,11 +658,9 @@ int get_animation_sid(u8 ani_index, bool is_guybrush)
     ani_base = readlong(fbuffer[LOADER], ANIMATION_OFFSET_BASE + 4*p_ani->index);
     dir = is_guybrush?guybrush[ani_index].direction:0;
     sid = readbyte(fbuffer[LOADER], ani_base + 0x0A + dir);
-//	printb("framecount = %d\n", p_ani->framecount);
     nb_frames = readbyte(fbuffer[LOADER], ani_base);	// offset 0 is nb frames max
-//	printb("sid base = %x, nb_frames = %d\n", sid, nb_frames);
-//	printb("ani_index = %d\n", p_ani->index);
-
+//  printb("sid base = %04X, p_ani->framecount = %d\n", sid, p_ani->framecount);
+//  printb("p_ani = %p, ani_index = %d, p_ani->index = %d, dir = %d\n", p_ani, ani_index, p_ani->index, dir);
 
     if ( (!(looping_animation[p_ani->index])) && (p_ani->framecount >= nb_frames) )
     {	// end of one shot animations
@@ -677,10 +675,9 @@ int get_animation_sid(u8 ani_index, bool is_guybrush)
     {	// one shot (non end) or loop
         frame = p_ani->framecount % nb_frames;
     }
-//	printb("nb_frames = %d, framecount = %d\n", nb_frames, animations[index].framecount);
     sid_increment = readbyte(fbuffer[LOADER],
         readlong(fbuffer[LOADER], ani_base + 0x06) + frame);
-//	printb("frame = %d, increment = %x\n", frame, sid_increment);
+//  printb("frame = %d/%d, increment = %x\n", frame, nb_frames, sid_increment);
     if (sid_increment == 0xFF)
     {	// play a sound
         sfx_id = readbyte(fbuffer[LOADER],
