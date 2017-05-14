@@ -46,7 +46,7 @@ extern "C" {
  */
 
 #define APPNAME					"Colditz Escape"
-#define VERSION					"1.0.87"
+#define VERSION					"1.0.88"
 
 /*
  *	Graphics
@@ -114,7 +114,7 @@ extern "C" {
 // Most of the archive versions from the net use the Skid Row loader
 #define ALT_LOADER				"SKR_COLD"
 #define ALT_LOADER_SIZE			28820
-#define ALT_LOADER_SIZE2        27940
+#define ALT_LOADER_SIZE2		27940
 
 // Static images
 #define NB_TEXTURES				24
@@ -574,7 +574,7 @@ extern "C" {
 // Structure to hold the standard RGBA sprites
 typedef struct
 {
-    u16 w;
+	u16 w;
 	u16 h;
 	// Politicaly correct w & h (power of twos, to keep the PSP happy)
 	u16 corrected_w;

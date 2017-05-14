@@ -1,6 +1,7 @@
 *.a
 *.aps
 *.db*
+*.elf
 *.exe
 *.idb
 *.ipch
@@ -9,12 +10,16 @@
 *.o
 *.obj
 *.opendb
-*.
+*.prx
 *.pdb
 *.res
+*.sfo
 *.sdf
 *.suo
 *.opensdf
+*.zip
+*.7z
 config.xml
+EBOOT.PBP
 Debug
 Release
