@@ -4,8 +4,9 @@ Colditz Escape
 [![Build status](https://ci.appveyor.com/api/projects/status/sjm9b9rqjlh1pbqa?svg=true)](https://ci.appveyor.com/project/aperture-software/colditz-escape)
 [![Licence](https://img.shields.io/badge/license-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0.en.html)
 
-![Colditz Escape Logo](https://raw.githubusercontent.com/aperture-software/colditz-escape/master/docs/pics/icon-256.png)
- _Colditz Escape_ is a rewritten game engine for the classic "Escape From Colditz" Amiga game.
+![Colditz Escape Logo](docs/pics/icon-256.png)
+
+_Colditz Escape_ is a rewritten game engine for the classic "Escape From Colditz" Amiga game.
 In this game, you control a set of four prisoners of war trying to escape from the infamous Colditz Castle WWII prison.
 
 The original game, created by _Mike Halsall_ and _John Law_ (with intro music by [Bjørn Lynne](http://www.lynnemusic.com/)),

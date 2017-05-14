@@ -75,7 +75,7 @@
       <IgnoreSpecificDefaultLibraries>libc.lib;libcmt.lib;%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
     </Link>
     <PostBuildEvent>
-      <Command>copy "$(OutDir)\colditz.exe" "$(SolutionDir)\bin"</Command>
+      <Command>copy /Y "$(OutDir)\colditz.exe" "$(SolutionDir)\Colditz Escape"</Command>
       <Message>Copying executable...</Message>
     </PostBuildEvent>
   </ItemDefinitionGroup>
@@ -106,7 +106,7 @@
       <ImageHasSafeExceptionHandlers>false</ImageHasSafeExceptionHandlers>
     </Link>
     <PostBuildEvent>
-      <Command>copy "$(OutDir)\colditz.exe" "$(SolutionDir)\bin"</Command>
+      <Command>copy /Y "$(OutDir)\colditz.exe" "$(SolutionDir)\Colditz Escape"</Command>
       <Message>Copying executable...</Message>
     </PostBuildEvent>
   </ItemDefinitionGroup>

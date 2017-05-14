@@ -14,7 +14,7 @@ EXTRA_TARGETS   = EBOOT.PBP
 
 PSP_DIR_NAME    = Colditz
 PSP_EBOOT_SFO   = param.sfo
-PSP_EBOOT_TITLE = Colditz Escape v1.0.86
+PSP_EBOOT_TITLE = Colditz Escape v1.0.87
 PSP_EBOOT       = EBOOT.PBP
 PSP_EBOOT_ICON  = icon1.png
 PSP_EBOOT_ICON1 = NULL
@@ -27,3 +27,5 @@ PSP_FW_VERSION  = 371
 PSPSDK          = $(shell psp-config --pspsdk-path)
 include $(PSPSDK)/lib/build.mak
 
+release: all
+	cp EBOOT.PBP "Colditz Escape"

@@ -25,6 +25,10 @@ build_script:
         msbuild colditz.sln /m /p:Configuration=Release /logger:"C:\Program Files\AppVeyor\BuildAgent\Appveyor.MSBuildLogger.dll"
       } elseif ($env:PSP) {
         $env:Path  += ";" + $env:APPVEYOR_BUILD_FOLDER + "\PSPSDK\bin"
-        $env:PSPSDK = $env:APPVEYOR_BUILD_FOLDER + "\PSPSDK\psp\sdk"
-        make
+        make release
       }
+
+artifacts:
+  - path: Colditz Escape
+    name: Colditz Escape
+    type: zip
