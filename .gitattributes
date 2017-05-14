@@ -1,6 +1,8 @@
 Makefile        eol=lf
+*.sh            eol=lf
 *.sln           eol=crlf
 *.vcxproj*      eol=crlf
+*.rc            eol=crlf
 .gitattributes  export-ignore
 .gitignore      export-ignore
 
