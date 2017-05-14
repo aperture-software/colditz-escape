@@ -500,11 +500,6 @@ void process_motion(void)
     {	// We just stopped
         prisoner_state ^= STATE_MOTION;
     }
-    else if (prisoner_state & STATE_SLEEPING)
-    {	// Decrease fatigue
-        if (prisoner_fatigue >= 2)
-            prisoner_fatigue -= 2;
-    }
 }
 
 /*

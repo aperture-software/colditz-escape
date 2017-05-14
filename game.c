@@ -2839,6 +2839,9 @@ void check_on_prisoners()
     // Other conditions
     for(p=0; p<NB_NATIONS; p++)
     {
+        // Decrease fatigue if sleeping
+        if ((guy(p).state & STATE_SLEEPING) && (p_event[p].fatigue >= 2))
+            p_event[p].fatigue -= 2;
         // At this stage, we've processed user input & guards actions so we
         // reset the thrown_stone flag if set
         p_event[p].thrown_stone = false;
