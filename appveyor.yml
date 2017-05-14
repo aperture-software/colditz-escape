@@ -1,17 +1,9 @@
 os: Visual Studio 2017
 
-init:
-  - set PATH=%PATH%;%APPVEYOR_BUILD_FOLDER%\PSPSDK\bin
-  - set PSPSDK=%APPVEYOR_BUILD_FOLDER%\PSPSDK\psp\sdk
-
 environment:
   matrix:
-    - CONFIGURATION: Debug
-      PLATFORM: Windows
-    - CONFIGURATION: Release
-      PLATFORM: Windows
-    - CONFIGURATION: Release
-      PLATFORM: PSP
+  - WINDOWS: Release
+  - PSP: Release
 
 build:
   project: colditz.sln
@@ -19,9 +11,20 @@ build:
   verbosity: detailed
 
 install:
-  - curl -o pspsdk-setup.exe -L https://sourceforge.net/projects/minpspw/files/SDK%20%2B%20devpak/pspsdk%200.11.2/pspsdk-setup-0.11.2r3.exe
-  - 7z x pspsdk-setup.exe -o PSPSDK
+# Wow, as per http://www.yamllint.com/, yaml is SUPER SENSITIVE
+# to indentations when using ps:
+- ps: |-
+      if ($env:PSP) {
+        Invoke-WebRequest -UserAgent 'Chrome' -outfile pspsdk-setup.exe https://sourceforge.net/projects/minpspw/files/SDK%20%2B%20devpak/pspsdk%200.11.2/pspsdk-setup-0.11.2r3.exe
+        7z x pspsdk-setup.exe -oPSPSDK -y
+      }
 
 build_script:
-  - if [%PLATFORM%]==[Windows] msbuild colditz.sln /m /p:Configuration=%CONFIGURATION% /logger:"C:\Program Files\AppVeyor\BuildAgent\Appveyor.MSBuildLogger.dll"
-  - if [%PLATFORM%]==[PSP] make"
+- ps: |-
+      if ($env:WINDOWS) {
+        msbuild colditz.sln /m /p:Configuration=Release /logger:"C:\Program Files\AppVeyor\BuildAgent\Appveyor.MSBuildLogger.dll"
+      } elseif ($env:PSP) {
+        $env:Path  += ";" + $env:APPVEYOR_BUILD_FOLDER + "\PSPSDK\bin"
+        $env:PSPSDK = $env:APPVEYOR_BUILD_FOLDER + "\PSPSDK\psp\sdk"
+        make
+      }
