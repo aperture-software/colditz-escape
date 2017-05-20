@@ -25,7 +25,8 @@
 #define PSP_ONSCREEN_STDOUT
 
 #if defined(PSP_ONSCREEN_STDOUT)
-extern int game_suspended;
+#include <stdbool.h>
+extern bool game_suspended;
 extern unsigned char last_key_used;
 extern void (*work_around_stupid_linkers_glut_idle_suspended)(void);
 extern void (*work_around_stupid_linkers_glutIdleFunc)(void (*func)(void));

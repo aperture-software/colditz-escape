@@ -26,6 +26,9 @@
 extern "C" {
 #endif
 
+/* use standard library for booleans */
+#include <stdbool.h>
+
 // On the PSP, these are defined in pspkernel.h
 #if !defined(PSP)
 #ifndef u8
@@ -57,15 +60,6 @@ extern "C" {
 #endif
 #endif
 
-#if !defined(bool)
-#define bool int
-#endif
-#if !defined(false)
-#define false ((bool)0)
-#endif
-#if !defined(true)
-#define true ((bool)(!false))
-#endif
 
 #if !defined(min)
 #define min(a,b) (((a)<(b))?(a):(b))
