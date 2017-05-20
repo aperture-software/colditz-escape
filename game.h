@@ -138,7 +138,7 @@ bool load_game(char* load_name);
 void depack_loadtune();
 void set_room_props();
 void set_sfxs();
-int  move_guards();
+bool  move_guards();
 void toggle_exit(u32 exit_nr);
 s16  check_footprint(s16 dx, s16 d2y);
 s16  check_tunnel_io();

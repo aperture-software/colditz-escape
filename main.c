@@ -102,7 +102,7 @@ bool opt_halfsize				= false;
 // Who needs keys?
 bool opt_keymaster				= false;
 // "'coz this is triller!..."
-int opt_thrillerdance			= false;
+bool opt_thrillerdance			= false;
 // Force a specific sprite ID for our guy
 // NB: must be init to -1
 int opt_sid						= -1;

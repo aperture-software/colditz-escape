@@ -2783,7 +2783,7 @@ void check_on_prisoners()
     static int nb_escaped = 0;
     int p;
     u16 i;
-    bool authorized_id;
+    u16 authorized_id;
     u8 room_desc_id;
     int game_over_count, game_won_count;
 
@@ -3078,5 +3078,5 @@ static bool is_playing = false;
 #error No SFX playout for this platform
 #endif
     }
-    is_playing = ~is_playing;
+    is_playing = !is_playing;
 }
