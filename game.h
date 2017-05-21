@@ -1,6 +1,6 @@
 /*
  *  Colditz Escape - Rewritten Engine for "Escape From Colditz"
- *  copyright (C) 2008-2009 Aperture Software
+ *  copyright (C) 2008-2017 Aperture Software
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -33,17 +33,17 @@ extern "C" {
 
 // Reads the tile index at (x,y) from compressed map and rotate
 #define comp_readtile(x,y)			\
-	((u32)(readlong((u8*)fbuffer[COMPRESSED_MAP], ((y)*room_x+(x))*4) & 0x1FF00) >> 8)
+	((uint32_t)(readlong((uint8_t*)fbuffer[COMPRESSED_MAP], ((y)*room_x+(x))*4) & 0x1FF00) >> 8)
 #define room_readtile(x,y)			\
-	((u32)(readword((u8*)(fbuffer[ROOMS]+offset),((y)*room_x+(x))*2) & 0xFF80) >> 7)
+	((uint32_t)(readword((uint8_t*)(fbuffer[ROOMS]+offset),((y)*room_x+(x))*2) & 0xFF80) >> 7)
 #define readtile(x,y)				\
 	(is_outside?comp_readtile(x,y):room_readtile(x,y))
 
 // Reads the exit index, which we need to get to the target room index
 #define comp_readexit(x,y)			\
-	((u32)(readlong((u8*)fbuffer[COMPRESSED_MAP], ((y)*room_x+(x))*4) & 0x1F))
+	((uint32_t)(readlong((uint8_t*)fbuffer[COMPRESSED_MAP], ((y)*room_x+(x))*4) & 0x1F))
 #define room_readexit(x,y)			\
-	((u32)(readword((u8*)(fbuffer[ROOMS]+offset),((y)*room_x+(x))*2) & 0x1F))
+	((uint32_t)(readword((uint8_t*)(fbuffer[ROOMS]+offset),((y)*room_x+(x))*2) & 0x1F))
 #define readexit(x,y)				\
 	(is_outside?comp_readexit(x,y):room_readexit(x,y))
 
@@ -85,8 +85,8 @@ extern "C" {
 
 
 // A few definitions to make prop handling and status messages more readable
-extern u64  t_status_message_timeout;
-static __inline void set_status_message(void* msg, int priority, u64 timeout_duration)
+extern uint64_t t_status_message_timeout;
+static __inline void set_status_message(void* msg, int priority, uint64_t timeout_duration)
 {
 	if (priority >= status_message_priority)
 	{
@@ -121,7 +121,7 @@ static __inline void consume_prop()
 /*
  *	Global variables
  */
-extern u8			nb_animations;
+extern uint8_t		nb_animations;
 extern s_animation	animations[MAX_ANIMATIONS];
 extern s_guybrush	guybrush[NB_GUYBRUSHES];
 
@@ -138,25 +138,25 @@ bool load_game(char* load_name);
 void depack_loadtune();
 void set_room_props();
 void set_sfxs();
-bool  move_guards();
-void toggle_exit(u32 exit_nr);
-s16  check_footprint(s16 dx, s16 d2y);
-s16  check_tunnel_io();
-bool check_guard_footprint(u8 g, s16 dx, s16 d2y);
-void switch_nation(u8 new_nation);
-void switch_room(s16 exit, bool tunnel_io);
+bool move_guards();
+void toggle_exit(uint32_t exit_nr);
+int16_t check_footprint(int16_t dx, int16_t d2y);
+int16_t check_tunnel_io();
+bool check_guard_footprint(uint8_t g, int16_t dx, int16_t d2y);
+void switch_nation(uint8_t new_nation);
+void switch_room(int16_t exit, bool tunnel_io);
 void fix_files(bool reload);
-void timed_events(u16 hours, u16 minutes_high, u16 minutes_low);
+void timed_events(uint16_t hours, uint16_t minutes_high, uint16_t minutes_low);
 void check_on_prisoners();
 void play_sfx(int sfx_id);
-void go_to_jail(u32 p);
-void set_room_xy(u16 room);
+void go_to_jail(uint32_t p);
+void set_room_xy(uint16_t room);
 void set_props_overlays();
-void crm_set_overlays(s16 x, s16 y, u16 current_tile);
+void crm_set_overlays(int16_t x, int16_t y, uint16_t current_tile);
 void cmp_set_overlays();
 void removable_walls();
 void add_guybrushes();
-void sort_overlays(u8 a[], u8 n);
+void sort_overlays(uint8_t a[], uint8_t n);
 void play_cluck();
 void thriller_toggle();
 

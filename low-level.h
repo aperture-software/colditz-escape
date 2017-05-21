@@ -1,6 +1,6 @@
 /*
  *  Colditz Escape - Rewritten Engine for "Escape From Colditz"
- *  copyright (C) 2008-2009 Aperture Software
+ *  copyright (C) 2008-2017 Aperture Software
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -26,11 +26,13 @@
 extern "C" {
 #endif
 
+#include <stdint.h>
+
 // Define our msleep function
 #if defined(WIN32)
 #define msleep(msecs) Sleep(msecs)
 #include <Windows.h>
-static __inline u64 mtime(void)
+static __inline uint64_t mtime(void)
 {	// Because MS uses a 32 bit value, this counter will reset every 49 days or so
 	// Hope you won't be playing the game while it resets...
 	return timeGetTime();
@@ -114,7 +116,7 @@ static __inline void psp_any_key()
 
 // concatenate 2 words into a long
 #define to_long(msw,lsw)			\
-	((((u32)(msw))<<16) | ((u16)(lsw)))
+	((((uint32_t)(msw))<<16) | ((uint16_t)(lsw)))
 
 // check if a sprite (s) is overflowing on a mask (m)
 #define collision(s,m)				\
@@ -125,16 +127,16 @@ static __inline void psp_any_key()
 	collision(s,~m)
 
 // The handy ones, in big endian mode
-static __inline u32 readlong(u8* buffer, u32 addr)
+static __inline uint32_t readlong(uint8_t* buffer, uint32_t addr)
 {
-	return ((((u32)buffer[addr+0])<<24) + (((u32)buffer[addr+1])<<16) +
-		(((u32)buffer[addr+2])<<8) + ((u32)buffer[addr+3]));
+	return ((((uint32_t)buffer[addr+0])<<24) + (((uint32_t)buffer[addr+1])<<16) +
+		(((uint32_t)buffer[addr+2])<<8) + ((uint32_t)buffer[addr+3]));
 }
 
-static __inline u32 freadlong(FILE* f)
+static __inline uint32_t freadlong(FILE* f)
 {
-	u8	b, i;
-	u32 r = 0;
+	uint8_t b, i;
+	uint32_t r = 0;
 	for (i=0; i<4; i++)
 	{
 		fread(&b, 1, 1, f);
@@ -144,29 +146,29 @@ static __inline u32 freadlong(FILE* f)
 	return r;
 }
 
-static __inline void writelong(u8* buffer, u32 addr, u32 value)
+static __inline void writelong(uint8_t* buffer, uint32_t addr, uint32_t value)
 {
-	buffer[addr]   = (u8)(value>>24);
-	buffer[addr+1] = (u8)(value>>16);
-	buffer[addr+2] = (u8)(value>>8);
-	buffer[addr+3] = (u8)value;
+	buffer[addr]   = (uint8_t)(value>>24);
+	buffer[addr+1] = (uint8_t)(value>>16);
+	buffer[addr+2] = (uint8_t)(value>>8);
+	buffer[addr+3] = (uint8_t)value;
 }
 
-static __inline u32 read24(u8* buffer, u32 addr)
+static __inline uint32_t read24(uint8_t* buffer, uint32_t addr)
 {
-	return ((((u32)buffer[addr+0])<<16) + (((u32)buffer[addr+1])<<8) +
-		((u32)buffer[addr+2]));
+	return ((((uint32_t)buffer[addr+0])<<16) + (((uint32_t)buffer[addr+1])<<8) +
+		((uint32_t)buffer[addr+2]));
 }
 
-static __inline u16 readword(u8* buffer, u32 addr)
+static __inline uint16_t readword(uint8_t* buffer, uint32_t addr)
 {
-	return ((((u16)buffer[addr+0])<<8) + ((u16)buffer[addr+1]));
+	return ((((uint16_t)buffer[addr+0])<<8) + ((uint16_t)buffer[addr+1]));
 }
 
-static __inline u16 freadword(FILE* f)
+static __inline uint16_t freadword(FILE* f)
 {
-	u8	b,i;
-	u16 r = 0;
+	uint8_t b,i;
+	uint16_t r = 0;
 	for (i=0; i<2; i++)
 	{
 		fread(&b, 1, 1, f);
@@ -176,31 +178,31 @@ static __inline u16 freadword(FILE* f)
 	return r;
 }
 
-static __inline void writeword(u8* buffer, u32 addr, u16 value)
+static __inline void writeword(uint8_t* buffer, uint32_t addr, uint16_t value)
 {
-	buffer[addr]   = (u8)(value>>8);
-	buffer[addr+1] = (u8)value;
+	buffer[addr]   = (uint8_t)(value>>8);
+	buffer[addr+1] = (uint8_t)value;
 }
 
-static __inline u8 readbyte(u8* buffer, u32 addr)
+static __inline uint8_t readbyte(uint8_t* buffer, uint32_t addr)
 {
 	return buffer[addr];
 }
 
-static __inline u8 freadbyte(FILE* f)
+static __inline uint8_t freadbyte(FILE* f)
 {
-	u8	b = 0;
+	uint8_t b = 0;
 	fread(&b, 1, 1, f);
 	return b;
 }
 
-static __inline void writebyte(u8* buffer, u32 addr, u8 value)
+static __inline void writebyte(uint8_t* buffer, uint32_t addr, uint8_t value)
 {
 	buffer[addr] = value;
 }
 
 // The well known K&R method to count bits
-static __inline int count_bits(u32 n)
+static __inline int count_bits(uint32_t n)
 {
   int c;
   for (c = 0; n; c++)
@@ -210,12 +212,12 @@ static __inline int count_bits(u32 n)
 
 
 // Prototypes
-u16 powerize(u16 n);
-int uncompress(u32 expected_size);
+uint16_t powerize(uint16_t n);
+int uncompress(uint32_t expected_size);
 void *aligned_malloc(size_t bytes, size_t alignment);
 void aligned_free(void *ptr);
-const char *to_binary(u32 x);
-int ppDecrunch(u8 *src, u8 *dest, u8 *offset_lens, u32 src_len, u32 dest_len, u8 skip_bits);
+const char *to_binary(uint32_t x);
+int ppDecrunch(uint8_t *src, uint8_t *dest, uint8_t *offset_lens, uint32_t src_len, uint32_t dest_len, uint8_t skip_bits);
 
 #ifdef	__cplusplus
 }

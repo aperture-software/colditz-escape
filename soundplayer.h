@@ -1,6 +1,6 @@
 /*
  *  Colditz Escape - Rewritten Engine for "Escape From Colditz"
- *  copyright (C) 2008-2009 Aperture Software
+ *  copyright (C) 2008-2017 Aperture Software
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -39,6 +39,7 @@
 extern "C" {
 #endif
 
+#include <stdbool.h>
 
     bool audio_init();
     bool audio_release();
@@ -49,9 +50,9 @@ extern "C" {
     void mod_pause();
     bool mod_stop();
     bool play_sample(int channel, unsigned int volume, void *address, unsigned int length,
-        unsigned int frequency, unsigned int bits_per_sample, bool loop);
+                     unsigned int frequency, unsigned int bits_per_sample, bool loop);
     bool play_loop(unsigned int volume, void *address, unsigned int length,
-        unsigned int frequency, unsigned int bits_per_sample);
+                   unsigned int frequency, unsigned int bits_per_sample);
     void stop_loop();
 #if defined(PSP)
     bool psp_upsample(short **dst_address, unsigned long *dst_length, char *src_sample,

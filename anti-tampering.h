@@ -1,6 +1,6 @@
 /*
  *  Colditz Escape - Rewritten Engine for "Escape From Colditz"
- *  copyright (C) 2008-2009 Aperture Software
+ *  copyright (C) 2008-2017 Aperture Software
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -27,6 +27,8 @@
 extern "C" {
 #endif
 
+#include <stdbool.h>
+#include <stdint.h>
 
 #if defined(ANTI_TAMPERING_ENABLED)
 #include "md5.h"
@@ -48,12 +50,12 @@ extern "C" {
 
 
 // This inline performs an MD5 check on file i
-extern void md5( unsigned char *input, int ilen, unsigned char output[16] );
-extern const u8  fmd5hash[NB_FILES][16];
-static __inline bool integrity_check(u16 i)
+extern void md5(unsigned char *input, int ilen, unsigned char output[16]);
+extern const uint8_t  fmd5hash[NB_FILES][16];
+static __inline bool integrity_check(uint16_t i)
 {
 	int j;
-	u8 md5hash[16];
+	uint8_t md5hash[16];
 	md5(fbuffer[i]+((i==LOADER)?LOADER_PADDING:0), fsize[i], md5hash);
 	for (j=0; j<16; j++)
 		if (md5hash[j] != fmd5hash[i][j])

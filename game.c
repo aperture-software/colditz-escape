@@ -48,45 +48,47 @@
 
 
 /* Some more globals */
-u8  obs_to_sprite[NB_OBS_TO_SPRITE];
-u8  remove_props[CMP_MAP_WIDTH][CMP_MAP_HEIGHT];
-u8  overlay_order[MAX_OVERLAYS];
+uint8_t     obs_to_sprite[NB_OBS_TO_SPRITE];
+uint8_t     remove_props[CMP_MAP_WIDTH][CMP_MAP_HEIGHT];
+uint8_t     overlay_order[MAX_OVERLAYS];
 // Do we need to reload the files on newgame?
-bool game_restart = false;
-u8  nb_animations = 0;
-s_animation	animations[MAX_ANIMATIONS];
-s_guybrush guybrush[NB_GUYBRUSHES];
+bool        game_restart = false;
+uint8_t     nb_animations = 0;
+s_animation animations[MAX_ANIMATIONS];
+s_guybrush  guybrush[NB_GUYBRUSHES];
 
 
 int	currently_animated[MAX_ANIMATIONS];
-u32 exit_flags_offset;
+uint32_t    exit_flags_offset;
 // Pointer to the message ID list of the currently allowed rooms
-u32 authorized_ptr;
-u32 next_timed_event_ptr = TIMED_EVENTS_INIT;
+uint32_t    authorized_ptr;
+uint32_t    next_timed_event_ptr = TIMED_EVENTS_INIT;
 // We end up using these variables all the time
 // making them global allows for more elegant code
-u16 room_x, room_y;
-s16 tile_x, tile_y;
-u32 offset;
+uint16_t    room_x, room_y;
+int16_t     tile_x, tile_y;
+uint32_t    offset;
 // And these one are used to break the footprint check into more
 // readable functions
 // 4 values for upper-left, upper-right, lower-left, lower_right tiles
-u32 mask_offset[4];		// tile boundary
-u32 exit_offset[4];		// exit boundary
-u8  tunexit_tool[4];	// tunnel tool
-s16 exit_dx[2];
-s_sfx sfx[NB_SFXS];
-// Additional SFX
-short*			upcluck;
-unsigned long	upcluck_len;
-short*			upthrill;
-unsigned long	upthrill_len;
+uint32_t    mask_offset[4];		// tile boundary
+uint32_t    exit_offset[4];		// exit boundary
+uint8_t     tunexit_tool[4];	// tunnel tool
+int16_t     exit_dx[2];
+s_sfx       sfx[NB_SFXS];
 
+#if defined(PSP)
+// Additional SFX
+short*          upcluck;
+unsigned long   upcluck_len;
+short*          upthrill;
+unsigned long   upthrill_len;
+#endif
 
 // These are the offsets to the solitary cells doors for each prisoner
 // We use them to make sure the doors are closed after leaving a prisoner in
-u32 solitary_cells_door_offset[NB_NATIONS][2] = { {0x3473, 0x34C1}, {0x3FD1, 0x3F9F},
-                                                  {0x92A1, 0x3FA9}, {0x92C3, 0x3FAD} };
+uint32_t solitary_cells_door_offset[NB_NATIONS][2] = { {0x3473, 0x34C1}, {0x3FD1, 0x3F9F},
+                                                       {0x92A1, 0x3FA9}, {0x92C3, 0x3FAD} };
 
 // Bummer! The way they setup their animation overlays and the way we
 // do it to be more efficient means we need to define a custom table
@@ -117,7 +119,7 @@ ROM:00008A3A                 dc.l kneel2_ani         ; #50
 ROM:00008A3E                 dc.l kneel3_ani         ; #54
 ROM:00008A42                 dc.l ger_kneel_ani      ; #58
 */
-const u8 looping_animation[NB_ANIMATED_SPRITES] =
+const uint8_t looping_animation[NB_ANIMATED_SPRITES] =
     { 1, 1, 0, 0, 1, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0 };
 
 
@@ -125,8 +127,8 @@ const u8 looping_animation[NB_ANIMATED_SPRITES] =
 void depack_loadtune()
 {
     size_t read;
-    u32 length;
-    u8 *ppbuffer, *buffer;
+    uint32_t length;
+    uint8_t *ppbuffer, *buffer;
 
     // Don't bother if we already have an uncompressed LOADTUNE
     if ((fd = fopen (mod_name[MOD_LOADTUNE], "rb")) != NULL)
@@ -144,7 +146,7 @@ void depack_loadtune()
         return;
     }
 
-    if ( (ppbuffer = (u8*) calloc(PP_LOADTUNE_SIZE, 1)) == NULL)
+    if ( (ppbuffer = (uint8_t*) calloc(PP_LOADTUNE_SIZE, 1)) == NULL)
     {
         printf("  Could not allocate source buffer for ppunpack\n");
         fclose(fd);
@@ -172,7 +174,7 @@ void depack_loadtune()
     // The uncompressed length is given at the end of the file
     length = read24(ppbuffer, PP_LOADTUNE_SIZE-4);
 
-    if ( (buffer = (u8*) calloc(length,1)) == NULL)
+    if ( (buffer = (uint8_t*) calloc(length,1)) == NULL)
     {
         printf("  Could not allocate destination buffer for ppunpack\n");
         free(ppbuffer); return;
@@ -216,7 +218,7 @@ void free_data()
 void load_all_files()
 {
     size_t read;
-    u16 i;
+    uint16_t i;
     int compressed_loader = 0;
 
     // We need a little padding of the loader to keep the offsets happy
@@ -224,7 +226,7 @@ void load_all_files()
 
     for (i=0; i<NB_FILES; i++)
     {
-        if ( (fbuffer[i] = (u8*) aligned_malloc(fsize[i], 16)) == NULL)
+        if ( (fbuffer[i] = (uint8_t*) aligned_malloc(fsize[i], 16)) == NULL)
         {
             printf("Could not allocate buffers\n");
             ERR_EXIT;
@@ -252,7 +254,7 @@ void load_all_files()
                     ERR_EXIT;
                 }
                 // OK, file was found - let's allocated the compressed data buffer
-                if ((mbuffer = (u8*) aligned_malloc(ALT_LOADER_SIZE, 16)) == NULL)
+                if ((mbuffer = (uint8_t*) aligned_malloc(ALT_LOADER_SIZE, 16)) == NULL)
                 {
                     printf("  Could not allocate source buffer for loader decompression\n");
                     ERR_EXIT;
@@ -321,7 +323,7 @@ void load_all_files()
 void reload_files()
 {
     size_t read;
-    u32 i;
+    uint32_t i;
 
     for (i=0; i<NB_FILES_TO_RELOAD; i++)
     {
@@ -375,7 +377,7 @@ static __inline void init_guard(int i)
 
 void newgame_init()
 {
-    u16  i,j;
+    uint16_t  i,j;
 
     // Reset all cheats
     if (opt_thrillerdance)
@@ -597,9 +599,9 @@ bool load_game(char* load_name)
 
 
 // Simple event handler
-void enqueue_event(void (*f)(u32), u32 p, u64 delay)
+void enqueue_event(void (*f)(uint32_t), uint32_t p, uint64_t delay)
 {
-    u8 i;
+    uint8_t i;
 
     // find an empty event to use
     for (i=0; i< NB_EVENTS; i++)
@@ -618,12 +620,12 @@ void enqueue_event(void (*f)(u32), u32 p, u64 delay)
 }
 
 // Returns the last frame of an animation (usually the centered position)
-int get_stop_animation_sid(u8 ani_index, bool is_guybrush)
+int get_stop_animation_sid(uint8_t ani_index, bool is_guybrush)
 {
-    u8 frame;
+    uint8_t frame;
     int sid;
-    u32 ani_base;
-    s16 dir;
+    uint32_t ani_base;
+    int16_t dir;
     s_animation* p_ani;
 
     // Pointer to the animation structure
@@ -642,15 +644,15 @@ int get_stop_animation_sid(u8 ani_index, bool is_guybrush)
 
 // Returns an animation frame
 // index is either the animation[] array index (standard overlays) or the guybrush[] array index
-int get_animation_sid(u8 ani_index, bool is_guybrush)
+int get_animation_sid(uint8_t ani_index, bool is_guybrush)
 {
-    u8 sid_increment;
+    uint8_t sid_increment;
     int sid;
-    u32 ani_base;
-    s32 frame, nb_frames;
-    s16 dir;
+    uint32_t ani_base;
+    int32_t frame, nb_frames;
+    int16_t dir;
     s_animation* p_ani;
-    u8 sfx_id;
+    uint8_t sfx_id;
 
     // Pointer to the animation structure
     p_ani = is_guybrush?&guybrush[ani_index].animation:&animations[ani_index];
@@ -698,7 +700,7 @@ int get_animation_sid(u8 ani_index, bool is_guybrush)
 
 // This function sets the room_x, room_y as well as the offset global variables
 // usually called before checking some room properties
-void set_room_xy(u16 room)
+void set_room_xy(uint16_t room)
 {
     if (room == ROOM_OUTSIDE)
     {	// on the compressed map
@@ -708,12 +710,12 @@ void set_room_xy(u16 room)
     }
     else
     {	// in a room (inside)
-        offset = CRM_ROOMS_START + readlong((u8*)fbuffer[ROOMS], CRM_OFFSETS_START+4*room);
+        offset = CRM_ROOMS_START + readlong((uint8_t*)fbuffer[ROOMS], CRM_OFFSETS_START+4*room);
         // Note that offset might be 0xFFFFFFFF for some room indexes as there
         // is a gap in the middle of the CRM file. We do not check this here
-        room_y = readword((u8*)fbuffer[ROOMS], offset);
+        room_y = readword((uint8_t*)fbuffer[ROOMS], offset);
         offset +=2;
-        room_x = readword((u8*)fbuffer[ROOMS], offset);
+        room_x = readword((uint8_t*)fbuffer[ROOMS], offset);
         offset +=2;		// remember offset is used in readtile/readexit and needs
                         // to be constant from there on
     }
@@ -721,12 +723,12 @@ void set_room_xy(u16 room)
 
 
 // Populates the tile overlays, if we are on Colditz Rooms Map
-void crm_set_overlays(s16 x, s16 y, u16 current_tile)
+void crm_set_overlays(int16_t x, int16_t y, uint16_t current_tile)
 {
-    u16 tile2_data;
-    u16 i;
-    s16 sx, sy;
-    u16 sid;
+    uint16_t tile2_data;
+    uint16_t i;
+    int16_t sx, sy;
+    uint16_t sid;
     int animated_sid;	// sprite index
 
     animated_sid = 0;	// 0 is a valid sid, but not for overlays, so we
@@ -804,7 +806,7 @@ void crm_set_overlays(s16 x, s16 y, u16 current_tile)
             continue;
 
         sid = (animated_sid)?animated_sid:readword(fbuffer[LOADER], SPECIAL_TILES_START+i+4);
-        overlay[overlay_index].sid = (u8)sid;
+        overlay[overlay_index].sid = (uint8_t)sid;
 
 //		printb("    overlay as %04X != %04X => %X\n", tile2_data,
 //			readword(fbuffer[LOADER], SPECIAL_TILES_START+i+2), sid);
@@ -840,12 +842,12 @@ void crm_set_overlays(s16 x, s16 y, u16 current_tile)
 // Populates the tile overlays, if we are on the CoMPressed map
 void cmp_set_overlays()
 {
-    u16 i;
-    u32 bitset;
+    uint16_t i;
+    uint32_t bitset;
     short sx, sy;
-    u8	exit_nr;
+    uint8_t	exit_nr;
     int sid;	// sprite index
-    u8 io_file = ROOMS;	// We'll need to switch to TUNNEL_IO midway through
+    uint8_t io_file = ROOMS;	// We'll need to switch to TUNNEL_IO midway through
 
     // We're on the compressed map
     room_x = CMP_MAP_WIDTH;
@@ -931,7 +933,7 @@ void cmp_set_overlays()
 // For efficiency reasons, this is only done when switching room
 void set_room_props()
 {
-    u16 prop_offset;
+    uint16_t prop_offset;
 
     nb_room_props = 0;
     for (prop_offset=2; prop_offset<(8*nb_objects+2); prop_offset+=8)
@@ -948,9 +950,9 @@ void set_room_props()
 // Set the props overlays
 void set_props_overlays()
 {
-    u8 u;
-    u32 prop_offset;
-    u16 x, y;
+    uint8_t u;
+    uint32_t prop_offset;
+    uint16_t x, y;
 
     // reset the stand over prop
     over_prop = 0;
@@ -1001,10 +1003,10 @@ void set_props_overlays()
 // We need a sort to reorganize our overlays according to z
 // We'll use "merge" sort (see: http://www.sorting-algorithms.com/) here,
 // but we probably could have gotten away with "shell" sort
-void sort_overlays(u8 a[], u8 n)
+void sort_overlays(uint8_t a[], uint8_t n)
 {
-    u8 m,i,j,k;
-    static u8 b[MAX_OVERLAYS/2+1];
+    uint8_t m,i,j,k;
+    static uint8_t b[MAX_OVERLAYS/2+1];
 
     if (n < 2)
         return;
@@ -1035,13 +1037,13 @@ void sort_overlays(u8 a[], u8 n)
 void removable_walls()
 {	// Get the current removable walls mask to apply
 
-    u16 tile_data;
-    u32 cmp_data;
-    u32 tmp_bitmask;
-    u8  bit_index;
-    u32 dir_offset;
+    uint16_t tile_data;
+    uint32_t cmp_data;
+    uint32_t tmp_bitmask;
+    uint8_t  bit_index;
+    uint32_t dir_offset;
     int register rdx, rdy;
-    u8  register cmp_x, cmp_y;
+    uint8_t  register cmp_x, cmp_y;
 
     rdx = prisoner_x - last_p_x;
     rdy = (prisoner_2y/2) - last_p_y;
@@ -1062,19 +1064,19 @@ void removable_walls()
     // II IIII            is the removable_mask index to use when positionned on this tile
     //                    (REMOVABLES_MASKS_LENGTH possible values)
     // DD                 is the index for the direction subroutine to pick
-    cmp_data = readlong((u8*)fbuffer[COMPRESSED_MAP], (tile_y*CMP_MAP_WIDTH+tile_x)*4);
+    cmp_data = readlong((uint8_t*)fbuffer[COMPRESSED_MAP], (tile_y*CMP_MAP_WIDTH+tile_x)*4);
 
-    tile_data = (u16)((u32)(cmp_data & 0x1FF00) >> 1);
+    tile_data = (uint16_t)((uint32_t)(cmp_data & 0x1FF00) >> 1);
 
-    bit_index = ((u8)cmp_data) & 0xFC;
+    bit_index = ((uint8_t)cmp_data) & 0xFC;
     if (bit_index == 0)
         return;
 
     // direction "subroutine" to use (diagonal, horizontal...)
-    dir_offset = ((u8)cmp_data) & 0x03;
+    dir_offset = ((uint8_t)cmp_data) & 0x03;
 
     // read the mask with relevant removable turned on, associated to the tile
-    tmp_bitmask = readlong((u8*)fbuffer[LOADER],  REMOVABLES_MASKS_START + bit_index);
+    tmp_bitmask = readlong((uint8_t*)fbuffer[LOADER],  REMOVABLES_MASKS_START + bit_index);
 
     if ((tile_data <= 0x480) || (tile_data == 0x5100) || (tile_data == 0x5180) ||
         (tile_data == 0x6100) || (tile_data == 0x6180))
@@ -1146,7 +1148,7 @@ void removable_walls()
 
 
 // Display the 8 bit debug index n at overlay pos (x,y,z), using the clock's digits
-void debug_index(s16 x, s16 y, s16 z, u8 n)
+void debug_index(int16_t x, int16_t y, int16_t z, uint8_t n)
 {	// Display guard numbers, using the clock's digits
 
     // units
@@ -1175,7 +1177,7 @@ void debug_index(s16 x, s16 y, s16 z, u8 n)
     }
 }
 
-static __inline u32 get_base_ani_index(int i)
+static __inline uint32_t get_base_ani_index(int i)
 {
     if (guy(i).state & STATE_TUNNELING)
         return (guy(i).is_dressed_as_guard)?GUARD_CRAWL_ANI:CRAWL_ANI;
@@ -1195,7 +1197,7 @@ static __inline u32 get_base_ani_index(int i)
 // Places individuals on the map
 void add_guybrushes()
 {
-u8 i, sid;
+uint8_t i, sid;
 
     // Add our current prisoner's animation (DO NOT RESET if kneeling!)
     if (prisoner_reset_ani && !(prisoner_state & STATE_KNEELING))
@@ -1333,7 +1335,7 @@ u8 i, sid;
 }
 
 // Called after the shot animation has finished playing
-void prisoner_killed(u32 p)
+void prisoner_killed(uint32_t p)
 {
     p_event[p].display_shot = true;
     // Prevent the sprite from being animated
@@ -1341,7 +1343,7 @@ void prisoner_killed(u32 p)
 }
 
 
-void stop_guards_in_pursuit(u32 p)
+void stop_guards_in_pursuit(uint32_t p)
 {
     int g;
 
@@ -1350,7 +1352,7 @@ void stop_guards_in_pursuit(u32 p)
             guard(g).state &= ~(STATE_MOTION|STATE_ANIMATED);
 }
 
-void reinstantiate_guards_in_pursuit(u32 p)
+void reinstantiate_guards_in_pursuit(uint32_t p)
 {
     int g;
     for (g=0; g<NB_GUARDS; g++)
@@ -1361,7 +1363,7 @@ void reinstantiate_guards_in_pursuit(u32 p)
         }
 }
 
-void reinstantiate_guard_delayed(u32 g)
+void reinstantiate_guard_delayed(uint32_t g)
 {
     guard(g).state = 0;
     guard(g).reinstantiate = true;
@@ -1371,7 +1373,7 @@ void reinstantiate_guard_delayed(u32 g)
 }
 
 
-void reset_guard_delayed(u32 g)
+void reset_guard_delayed(uint32_t g)
 {
     guard(g).state = STATE_RESUME_ROUTE_WAIT;
     guard(g).speed = 1;
@@ -1379,7 +1381,7 @@ void reset_guard_delayed(u32 g)
     guard(g).target = NO_TARGET;
 }
 
-void reset_guards_in_pursuit(u32 p)
+void reset_guards_in_pursuit(uint32_t p)
 {
     int g;
 //	printb("reset_guards_in_pursuit() called\n");
@@ -1389,7 +1391,7 @@ void reset_guards_in_pursuit(u32 p)
 }
 
 // This one will clear the in pursuit state for the prisonner if he kept quiet for a while
-void clear_pursuit(u32 p)
+void clear_pursuit(uint32_t p)
 {
     int j;
 //	printb("in clear_pursuit for prisoner %d\n", p);
@@ -1413,7 +1415,7 @@ void clear_pursuit(u32 p)
 // These helper functions are used by guard_in_pursuit() & move_guards()
 static __inline bool guard_close_by(i, pos_x, pos_2y)
 {
-s16 dx, dy;
+int16_t dx, dy;
     dx = pos_x+16 - guard(i).px;
     dy = pos_2y+8 - guard(i).p2y;
     if ( ((dx>=0 && dx<=144) || (dx<0 && dx>=-144)) &&
@@ -1425,7 +1427,7 @@ s16 dx, dy;
 
 static __inline bool guard_collision(i, pos_x, pos_2y)
 {
-s16 dx, dy;
+int16_t dx, dy;
     dx = pos_x+16 - guard(i).px;
     dy = pos_2y+8 - guard(i).p2y;
     if ( ((dx>=0 && dx<=10) || (dx<0 && dx>=-10)) &&
@@ -1439,9 +1441,9 @@ s16 dx, dy;
 void route_guard(int i)
 {
     int dir_x, dir_y;
-    u32 route_pos;
-    u16 route_data;
-    u16 g_px, g_py, g_room;
+    uint32_t route_pos;
+    uint16_t route_data;
+    uint16_t g_px, g_py, g_room;
 //	bool route_reset;
 
     if (guard(i).reinstantiate)
@@ -1939,10 +1941,10 @@ bool move_guards()
 
 
 // Handle timed game events (palette change, rollcalls, ...)
-void timed_events(u16 hours, u16 minutes_high, u16 minutes_low)
+void timed_events(uint16_t hours, uint16_t minutes_high, uint16_t minutes_low)
 {
-    u16 event_data;
-    u16 p, iff_id;
+    uint16_t event_data;
+    uint16_t p, iff_id;
 
     // Read the hour (or reset marker)
     event_data = readword(fbuffer[LOADER], next_timed_event_ptr);
@@ -1988,7 +1990,7 @@ void timed_events(u16 hours, u16 minutes_high, u16 minutes_low)
         iff_id = readword(fbuffer[LOADER], IFF_INDEX_TABLE + 2*event_data);
 ///		printb("iff to load = %x\n", current_iff);
         if (iff_id != 0xFFFF)
-            static_screen((u8)iff_id, NULL, 0);
+            static_screen((uint8_t)iff_id, NULL, 0);
         else if (event_data == TIMED_EVENT_ROLLCALL_CHECK)
         {	// This is the actual courtyard rollcall check
             for (p=0; p<NB_NATIONS; p++)
@@ -2005,18 +2007,18 @@ void timed_events(u16 hours, u16 minutes_high, u16 minutes_low)
 
 // Open a closed door, or close an open door
 // Makes use of exit_flags_offset which is a global variable
-void toggle_exit(u32 exit_nr)
+void toggle_exit(uint32_t exit_nr)
 {
-    u8	ROOMS_TUNIO;
-    u16 exit_index;	// exit index in destination room
-    u16 tile_data;
+    uint8_t	ROOMS_TUNIO;
+    uint16_t exit_index;	// exit index in destination room
+    uint16_t tile_data;
     bool found;
-    u8	exit_flags;
-    u16 target_room_index;
+    uint8_t	exit_flags;
+    uint16_t target_room_index;
     // Don't use the globals here, or exit handling will go screwie!!!
-    u16 _room_x, _room_y;
-    s16 _tile_x, _tile_y;
-    u32 _offset;
+    uint16_t _room_x, _room_y;
+    int16_t _tile_x, _tile_y;
+    uint32_t _offset;
 
     // Restore the ability to consume a key (prevents double key consumption issue)
     can_consume_key = true;
@@ -2037,8 +2039,8 @@ void toggle_exit(u32 exit_nr)
         // If we are on the compressed map, we need to read 2 words (out of 4)
         // from beginning of the ROOMS_MAP file or from TUNNEL_IO if tunnelling
         _offset = (exit_nr&0xFF) << 3;	// skip 8 bytes
-        target_room_index = readword((u8*)fbuffer[ROOMS_TUNIO], _offset) & 0x7FF;
-        exit_index = readword((u8*)fbuffer[ROOMS_TUNIO], _offset+2);
+        target_room_index = readword((uint8_t*)fbuffer[ROOMS_TUNIO], _offset) & 0x7FF;
+        exit_index = readword((uint8_t*)fbuffer[ROOMS_TUNIO], _offset+2);
     }
     else
     {
@@ -2053,7 +2055,7 @@ void toggle_exit(u32 exit_nr)
         // Now the real clever trick here is that the exit index of the room you
         // just left and the exit index of the one you go always match.
         // Thus, we know where we should get positioned on entering the room
-        target_room_index = readword((u8*)fbuffer[ROOMS], ROOMS_EXITS_BASE + _offset
+        target_room_index = readword((uint8_t*)fbuffer[ROOMS], ROOMS_EXITS_BASE + _offset
             + 2*exit_index);
     }
 
@@ -2072,10 +2074,10 @@ void toggle_exit(u32 exit_nr)
     else
     {	// inside destination (colditz_room_map)
         // Get the room dimensions
-        _offset = readlong((u8*)fbuffer[ROOMS], CRM_OFFSETS_START+4*target_room_index);
-        _room_y = readword((u8*)fbuffer[ROOMS], CRM_ROOMS_START+_offset);
+        _offset = readlong((uint8_t*)fbuffer[ROOMS], CRM_OFFSETS_START+4*target_room_index);
+        _room_y = readword((uint8_t*)fbuffer[ROOMS], CRM_ROOMS_START+_offset);
         _offset +=2;
-        _room_x = readword((u8*)fbuffer[ROOMS], CRM_ROOMS_START+_offset);
+        _room_x = readword((uint8_t*)fbuffer[ROOMS], CRM_ROOMS_START+_offset);
         _offset +=2;
 
         // Read the tiles data
@@ -2084,7 +2086,7 @@ void toggle_exit(u32 exit_nr)
         {
             for(_tile_x=0; (_tile_x<_room_x)&&(!found); _tile_x++)
             {
-                tile_data = readword((u8*)fbuffer[ROOMS], CRM_ROOMS_START+_offset);
+                tile_data = readword((uint8_t*)fbuffer[ROOMS], CRM_ROOMS_START+_offset);
                 if ((tile_data & 0xF) == exit_index)
                 {
                     found = true;
@@ -2105,10 +2107,10 @@ void toggle_exit(u32 exit_nr)
 
 // Helper function for check_footprint() below:
 // populates relevant properties for one of the 4 quadrant's tile
-static __inline void get_tile_props(s16 _tile_x, s16 _tile_y, int index_nr)
+static __inline void get_tile_props(int16_t _tile_x, int16_t _tile_y, int index_nr)
 {
-    u8 register u;
-    u32 tile;
+    uint8_t register u;
+    uint32_t tile;
 
     // Set the left mask offset index, converted to a long offset
     // Be mindful that the _tile_x/y used here are not the global variables
@@ -2124,9 +2126,9 @@ static __inline void get_tile_props(s16 _tile_x, s16 _tile_y, int index_nr)
 
     for (u=0; u<NB_EXITS; u++)
     {	// Check if the tile is a regular exit
-        if (readword((u8*)fbuffer[LOADER], EXIT_TILES_LIST + 2*u) == tile)
+        if (readword((uint8_t*)fbuffer[LOADER], EXIT_TILES_LIST + 2*u) == tile)
         {
-            exit_offset[index_nr] = EXIT_MASKS_START + readword((u8*)fbuffer[LOADER], EXIT_MASKS_OFFSETS+2*u);
+            exit_offset[index_nr] = EXIT_MASKS_START + readword((uint8_t*)fbuffer[LOADER], EXIT_MASKS_OFFSETS+2*u);
             exit_dx[index_nr/2] = index_nr%2;
             break;
         }
@@ -2139,9 +2141,9 @@ static __inline void get_tile_props(s16 _tile_x, s16 _tile_y, int index_nr)
     tunexit_tool[index_nr] = ITEM_NONE;
     for (u=0; u<NB_TUNNEL_EXITS; u++)
     {	// Check if the tile is a tunnel exit
-        if (readword((u8*)fbuffer[LOADER], TUNNEL_EXIT_TILES_LIST + 2*u) == tile)
+        if (readword((uint8_t*)fbuffer[LOADER], TUNNEL_EXIT_TILES_LIST + 2*u) == tile)
         {
-            tunexit_tool[index_nr] = readbyte((u8*)fbuffer[LOADER], TUNNEL_EXIT_TOOLS_LIST + 2*u + 1);
+            tunexit_tool[index_nr] = readbyte((uint8_t*)fbuffer[LOADER], TUNNEL_EXIT_TOOLS_LIST + 2*u + 1);
 //			printb("tunnexit_tool[%d] set\n", index_nr);
             break;
         }
@@ -2153,23 +2155,23 @@ static __inline void get_tile_props(s16 _tile_x, s16 _tile_y, int index_nr)
         mask_offset[index_nr] = MASK_FULL;
     else
         // Regular
-        mask_offset[index_nr] = TILE_MASKS_START + readlong((u8*)fbuffer[LOADER], TILE_MASKS_OFFSETS+(tile<<2));
+        mask_offset[index_nr] = TILE_MASKS_START + readlong((uint8_t*)fbuffer[LOADER], TILE_MASKS_OFFSETS+(tile<<2));
 }
 
 
 // Checks if the prisoner can go to (px,p2y) and initiates door/tunnel I/O
 // Returns non zero if allowed (-1 if not an exit, or the exit number), 0 if not allowed
 // Be mindful that the dx, d2y used here are not the same as the global values from main!
-s16 check_footprint(s16 dx, s16 d2y)
+int16_t check_footprint(int16_t dx, int16_t d2y)
 {
-    u32 tile_mask, exit_mask;
-    u32 ani_offset;
-    u32 footprint;
-    u16 mask_y;
-    u8 i, u, sid;
-    s16 px, p2y;
-    u8	exit_flags;
-    u8	exit_nr;
+    uint32_t tile_mask, exit_mask;
+    uint32_t ani_offset;
+    uint32_t footprint;
+    uint16_t mask_y;
+    uint8_t i, u, sid;
+    int16_t px, p2y;
+    uint8_t exit_flags;
+    uint8_t exit_nr;
     char* debug_message = "WHY DO I HAVE TO INITIALIZE THIS CRAP?";
 
     // Initialize a few values
@@ -2243,11 +2245,11 @@ s16 check_footprint(s16 dx, s16 d2y)
     // Not tunnel I/O => we check collisions and room IO for multiple py's
     for (i=0; i<FOOTPRINT_HEIGHT; i++)
     {
-        tile_mask = to_long(readword((u8*)fbuffer[LOADER], mask_offset[0]),
-            readword((u8*)fbuffer[LOADER], mask_offset[1]));
+        tile_mask = to_long(readword((uint8_t*)fbuffer[LOADER], mask_offset[0]),
+            readword((uint8_t*)fbuffer[LOADER], mask_offset[1]));
 
-        exit_mask = to_long(readword((u8*)fbuffer[LOADER], exit_offset[0]),
-            readword((u8*)fbuffer[LOADER], exit_offset[1]));
+        exit_mask = to_long(readword((uint8_t*)fbuffer[LOADER], exit_offset[0]),
+            readword((uint8_t*)fbuffer[LOADER], exit_offset[1]));
 
 ///	printb("%s ",to_binary(exit_mask));
 ///	printb("%s\n", to_binary(tile_mask));
@@ -2264,7 +2266,7 @@ s16 check_footprint(s16 dx, s16 d2y)
 
                 if (opt_onscreen_debug)
                 {	// Override the message
-                    exit_nr = (u8) readexit(tile_x+exit_dx[0],tile_y-2) & 0x1F;
+                    exit_nr = (uint8_t) readexit(tile_x+exit_dx[0],tile_y-2) & 0x1F;
                     sprintf(debug_message, "EXIT #%d (GRADE %d)", exit_nr & (is_inside?0x0F:0xFF), ((exit_flags & 0x60) >> 5) - 1);
                     set_status_message(debug_message, 3, 3000); //NO_MESSAGE_TIMEOUT);
                 }
@@ -2281,7 +2283,7 @@ s16 check_footprint(s16 dx, s16 d2y)
                             // Play the door SFX
                             play_sfx(SFX_DOOR);
                             // enqueue the door opening animation
-                            exit_nr = (u8) readexit(tile_x+exit_dx[0],tile_y-2) & 0x1F;
+                            exit_nr = (uint8_t) readexit(tile_x+exit_dx[0],tile_y-2) & 0x1F;
                             // The trick is we use currently_animated[] to store our door sids
                             // even if not yet animated, so that we can quickly access the
                             // right animation data, rather than exhaustively compare tiles
@@ -2356,12 +2358,12 @@ s16 check_footprint(s16 dx, s16 d2y)
 // This function MUST immediately follow a call to check_footprint(0,0)
 // Checks if the prisoner can do tunnel I/O
 // Returns >0 if went through a tunnel, <0 if opened a tunnel or 0 if no tunnel action occured
-s16 check_tunnel_io()
+int16_t check_tunnel_io()
 {
-    u8 u;
-    s16 px, p2y;
-    u8	exit_flags;
-    u8	exit_nr;
+    uint8_t u;
+    int16_t px, p2y;
+    uint8_t exit_flags;
+    uint8_t exit_nr;
 
     // Compute the tile on which we try to stand
     // tile_x and tile_y from previous check_footprint() call are still relevant
@@ -2438,13 +2440,13 @@ s16 check_tunnel_io()
 
 
 // Simplified (faster) check_footprint for guards => only checks wall collisions
-bool check_guard_footprint(u8 g, s16 dx, s16 d2y)
+bool check_guard_footprint(uint8_t g, int16_t dx, int16_t d2y)
 {
-    u32 tile, tile_mask;
-    u32 footprint;
-    u16 mask_y;
-    u8 i,u;
-    s16 gx, g2y;
+    uint32_t tile, tile_mask;
+    uint32_t footprint;
+    uint16_t mask_y;
+    uint8_t i,u;
+    int16_t gx, g2y;
 
 
     footprint = SPRITE_FOOTPRINT;
@@ -2467,7 +2469,7 @@ bool check_guard_footprint(u8 g, s16 dx, s16 d2y)
     {
         // Set the left mask offset (tile_x, tile_y(+1)) index, converted to a long offset
         tile = readtile(tile_x, tile_y);
-        mask_offset[2*i] = TILE_MASKS_START + readlong((u8*)fbuffer[LOADER], TILE_MASKS_OFFSETS+(tile<<2));
+        mask_offset[2*i] = TILE_MASKS_START + readlong((uint8_t*)fbuffer[LOADER], TILE_MASKS_OFFSETS+(tile<<2));
 
         // Set the upper right mask offset
         if ((gx&0x1F) < 16)
@@ -2481,7 +2483,7 @@ bool check_guard_footprint(u8 g, s16 dx, s16 d2y)
             if ((tile_x+1) < room_x)
             {	// only read adjacent if it exists (i.e. < room_x)
                 tile = readtile(tile_x+1, tile_y);
-                mask_offset[2*i+1] = TILE_MASKS_START + readlong((u8*)fbuffer[LOADER], TILE_MASKS_OFFSETS+(tile<<2));
+                mask_offset[2*i+1] = TILE_MASKS_START + readlong((uint8_t*)fbuffer[LOADER], TILE_MASKS_OFFSETS+(tile<<2));
             }
             else
                 mask_offset[2*i+1] = MASK_EMPTY;
@@ -2500,8 +2502,8 @@ bool check_guard_footprint(u8 g, s16 dx, s16 d2y)
     // Not tunnel I/O => we check collisions and regular exits for multiple py's
     for (i=0; i<FOOTPRINT_HEIGHT; i++)
     {
-        tile_mask = to_long(readword((u8*)fbuffer[LOADER], mask_offset[0]),
-            readword((u8*)fbuffer[LOADER], mask_offset[1]));
+        tile_mask = to_long(readword((uint8_t*)fbuffer[LOADER], mask_offset[0]),
+            readword((uint8_t*)fbuffer[LOADER], mask_offset[1]));
 
         // see low_level.h for the collisions macros
         if inverted_collision(footprint,tile_mask)
@@ -2525,7 +2527,7 @@ bool check_guard_footprint(u8 g, s16 dx, s16 d2y)
 
 
 // Called when switching prisoner
-void switch_nation(u8 new_nation)
+void switch_nation(uint8_t new_nation)
 {
     // if there was any end of ani function, execute it
     if (prisoner_ani.end_of_ani_function != NULL)
@@ -2545,22 +2547,22 @@ void switch_nation(u8 new_nation)
 }
 
 // Called when changing rooms
-void switch_room(s16 exit_nr, bool tunnel_io)
+void switch_room(int16_t exit_nr, bool tunnel_io)
 {
-    u16 exit_index;	// exit index in destination room
-    u16 tile_data = 0;
-    u32 u;
+    uint16_t exit_index;	// exit index in destination room
+    uint16_t tile_data = 0;
+    uint32_t u;
     bool found;
-    s16 pixel_x, pixel_y;
-    u8  bit_index;
+    int16_t pixel_x, pixel_y;
+    uint8_t bit_index;
 
     // Let's get through
     if (is_outside)
     {	// If we're on the compressed map, we need to read 2 words (out of 4)
         // from beginning of the ROOMS_MAP file
         offset = exit_nr << 3;	// skip 8 bytes
-        current_room_index = readword((u8*)fbuffer[tunnel_io?TUNNEL_IO:ROOMS], offset) & 0x7FF;
-        exit_index = readword((u8*)fbuffer[tunnel_io?TUNNEL_IO:ROOMS], offset+2);
+        current_room_index = readword((uint8_t*)fbuffer[tunnel_io?TUNNEL_IO:ROOMS], offset) & 0x7FF;
+        exit_index = readword((uint8_t*)fbuffer[tunnel_io?TUNNEL_IO:ROOMS], offset+2);
     }
     else
     {	// indoors => read from the ROOMS_EXIT_BASE data
@@ -2569,7 +2571,7 @@ void switch_room(s16 exit_nr, bool tunnel_io)
         // Now the real clever trick here is that the exit index of the room you
         // just left and the exit index of the one you go always match.
         // Thus, we know where we should get positioned on entering the room
-        current_room_index = readword((u8*)fbuffer[ROOMS], ROOMS_EXITS_BASE + offset
+        current_room_index = readword((uint8_t*)fbuffer[ROOMS], ROOMS_EXITS_BASE + offset
             + 2*exit_index);
     }
 
@@ -2589,13 +2591,13 @@ void switch_room(s16 exit_nr, bool tunnel_io)
 
         // If we're outside, we need to set the removable mask according to our data's MSB
         bit_index = (current_room_index >> 8) & 0x7C;
-        rem_bitmask = readlong((u8*)fbuffer[LOADER],  REMOVABLES_MASKS_START + bit_index);
+        rem_bitmask = readlong((uint8_t*)fbuffer[LOADER],  REMOVABLES_MASKS_START + bit_index);
 
         // Now, use the tile index (LSB) as an offset to our (x,y) pos
         // NB: The ground floor rooms are in [00-F8]
         offset = current_room_index & 0xF8;
-        tile_y = readword((u8*)fbuffer[tunnel_io?TUNNEL_IO:ROOMS], offset+4);
-        tile_x = readword((u8*)fbuffer[tunnel_io?TUNNEL_IO:ROOMS], offset+6);
+        tile_y = readword((uint8_t*)fbuffer[tunnel_io?TUNNEL_IO:ROOMS], offset+4);
+        tile_x = readword((uint8_t*)fbuffer[tunnel_io?TUNNEL_IO:ROOMS], offset+6);
 
         // Now that we're done, switch to our actual outbound marker
         current_room_index = ROOM_OUTSIDE;
@@ -2605,16 +2607,16 @@ void switch_room(s16 exit_nr, bool tunnel_io)
         if (!tunnel_io)
         {
             tile_data = ((readtile(tile_x,tile_y) & 0xFF) << 1) - 2;	// first exit tile is 1, not 0
-            offset = readword((u8*)fbuffer[LOADER], CMP_RABBIT_OFFSET + tile_data);
+            offset = readword((uint8_t*)fbuffer[LOADER], CMP_RABBIT_OFFSET + tile_data);
         }
     }
     else
     {	// going inside, or still inside
         // Get the room dimensions
-        offset = CRM_ROOMS_START + readlong((u8*)fbuffer[ROOMS], CRM_OFFSETS_START+4*current_room_index);
-        room_y = readword((u8*)fbuffer[ROOMS], offset);
+        offset = CRM_ROOMS_START + readlong((uint8_t*)fbuffer[ROOMS], CRM_OFFSETS_START+4*current_room_index);
+        room_y = readword((uint8_t*)fbuffer[ROOMS], offset);
         offset +=2;
-        room_x = readword((u8*)fbuffer[ROOMS], offset);
+        room_x = readword((uint8_t*)fbuffer[ROOMS], offset);
         offset +=2;
 
         // Read the tiles data
@@ -2623,7 +2625,7 @@ void switch_room(s16 exit_nr, bool tunnel_io)
         {
             for(tile_x=0; (tile_x<room_x)&&(!found); tile_x++)
             {
-                tile_data = readword((u8*)fbuffer[ROOMS], offset);
+                tile_data = readword((uint8_t*)fbuffer[ROOMS], offset);
                 if ((tile_data & 0xF) == exit_index)
                 {
                     found = true;
@@ -2649,9 +2651,9 @@ void switch_room(s16 exit_nr, bool tunnel_io)
             offset = 0;		// Should never fail (famous last words). Zero in case it does
             for (u=0; u<NB_CELLS_EXITS; u++)
             {
-                if (readword((u8*)fbuffer[LOADER], EXIT_CELLS_LIST + 2*u) == tile_data)
+                if (readword((uint8_t*)fbuffer[LOADER], EXIT_CELLS_LIST + 2*u) == tile_data)
                 {
-                    offset = readword((u8*)fbuffer[LOADER], HAT_RABBIT_OFFSET + 2*u);
+                    offset = readword((uint8_t*)fbuffer[LOADER], HAT_RABBIT_OFFSET + 2*u);
                     break;
                 }
             }
@@ -2661,8 +2663,8 @@ void switch_room(s16 exit_nr, bool tunnel_io)
     // Read the pixel adjustment
     if (!tunnel_io)
     {
-        pixel_x = (s16)(readword((u8*)fbuffer[LOADER], HAT_RABBIT_POS_START + offset+2));
-        pixel_y = (s16)(readword((u8*)fbuffer[LOADER], HAT_RABBIT_POS_START + offset)) + 32;
+        pixel_x = (int16_t)(readword((uint8_t*)fbuffer[LOADER], HAT_RABBIT_POS_START + offset+2));
+        pixel_y = (int16_t)(readword((uint8_t*)fbuffer[LOADER], HAT_RABBIT_POS_START + offset)) + 32;
     }
     else if (prisoner_state&STATE_TUNNELING)
     {	// Entering a tunnel
@@ -2686,7 +2688,7 @@ void switch_room(s16 exit_nr, bool tunnel_io)
 // The next 2 functions are called while displaying the go to / released from
 // solitary static screen, so that the prisoner position has been switched
 // when we fade in on the game
-void go_to_jail(u32 p)
+void go_to_jail(uint32_t p)
 {
     int prop;
 
@@ -2725,7 +2727,7 @@ void go_to_jail(u32 p)
     set_room_props();
 }
 
-void out_of_jail(u32 p)
+void out_of_jail(uint32_t p)
 {
     p_event[p].solitary_release = 0;
     guy(p).state &= ~STATE_IN_PRISON;
@@ -2740,7 +2742,7 @@ void out_of_jail(u32 p)
 
 // This next one is necessary so that we don't send the guard away after a pass request
 // until after we faded the game screen
-void require_pass(u32 p)
+void require_pass(uint32_t p)
 {
     int g;
 
@@ -2782,9 +2784,9 @@ void check_on_prisoners()
 {
     static int nb_escaped = 0;
     int p;
-    u16 i;
-    u16 authorized_id;
-    u8 room_desc_id;
+    uint16_t i;
+    uint16_t authorized_id;
+    uint8_t room_desc_id;
     int game_over_count, game_won_count;
 
     // Check escape condition (for current prisoner only)
@@ -2931,8 +2933,8 @@ void check_on_prisoners()
 // but rather than fixing the files, they patched them in the loader... go figure!
 void fix_files(bool reload)
 {
-    u8 i;
-    u32 mask;
+    uint8_t i;
+    uint32_t mask;
 
     //
     // Original game patch
@@ -2960,10 +2962,10 @@ void fix_files(bool reload)
     // the ass to handle, so we might as well take this opportunity to do a little patching of our own...
     for (i=9; i<16; i++)
     {	// Offset 0x280 is the intermediate right stairs landing
-        mask = readlong((u8*)fbuffer[LOADER], EXIT_MASKS_START + 0x280 + 4*i);
+        mask = readlong((uint8_t*)fbuffer[LOADER], EXIT_MASKS_START + 0x280 + 4*i);
         // eliminating the lower right section of the exit mask seems to do the job
         mask &= 0xFFFF8000;
-        writelong((u8*)fbuffer[LOADER], EXIT_MASKS_START + 0x280 + 4*i, mask);
+        writelong((uint8_t*)fbuffer[LOADER], EXIT_MASKS_START + 0x280 + 4*i, mask);
     }
 
     // The 3rd tunnel removable masks for overlays, on the compressed map, were not designed
@@ -2989,14 +2991,14 @@ void fix_files(bool reload)
 // Initalize the SFXs
 void set_sfxs()
 {
-    u16 i,j;
+    uint16_t i,j;
 
     // Initialize SFXs
     for (i=0; i<NB_SFXS; i++)
     {
         sfx[i].address   = SFX_ADDRESS_START + readword(fbuffer[LOADER], SFX_TABLE_START + 8*i);
         sfx[i].volume    = readbyte(fbuffer[LOADER], SFX_TABLE_START + 8*i+3);
-        sfx[i].frequency = (u16)(Period2Freq((float)readword(fbuffer[LOADER], SFX_TABLE_START + 8*i+4))/1.0);
+        sfx[i].frequency = (uint16_t)(Period2Freq((float)readword(fbuffer[LOADER], SFX_TABLE_START + 8*i+4))/1.0);
         sfx[i].length    = readword(fbuffer[LOADER], SFX_TABLE_START + 8*i+6);
 #if defined(WIN32)
         // Why, of course Microsoft had to use UNSIGNED for 8 bit WAV data but SIGNED for 16!
@@ -3004,7 +3006,7 @@ void set_sfxs()
         // We need to sign convert our 8 bit mono samples on Windows
         for (j=0; j<sfx[i].length; j++)
             writebyte(fbuffer[LOADER], sfx[i].address+j,
-                (u8) (readbyte(fbuffer[LOADER], sfx[i].address+j) + 0x80));
+                (uint8_t) (readbyte(fbuffer[LOADER], sfx[i].address+j) + 0x80));
 #elif defined(PSP)
         // On the PSP on the other hand, we must upconvert our 8 bit mono samples @ whatever frequency
         // to 16bit/44.1 kHz. The psp_upsample() routine from soundplayer is there for that.
