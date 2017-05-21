@@ -24,6 +24,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdbool.h>
 #if defined(WIN32)
 #include <windows.h>
 #include <gl/gl.h>

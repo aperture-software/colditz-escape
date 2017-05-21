@@ -25,6 +25,7 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+#include <stdbool.h>
 
 // Call once on startup to initialize video playback
 bool video_init();

@@ -70,12 +70,12 @@
 #endif
 
 // variables common to game & graphics
-extern u8	remove_props[CMP_MAP_WIDTH][CMP_MAP_HEIGHT];
-extern u8  overlay_order[MAX_OVERLAYS];
+extern uint8_t	remove_props[CMP_MAP_WIDTH][CMP_MAP_HEIGHT];
+extern uint8_t  overlay_order[MAX_OVERLAYS];
 extern int	currently_animated[MAX_ANIMATIONS];
-extern u16 room_x, room_y;
-extern s16 tile_x, tile_y;
-extern u32 offset;
+extern uint16_t room_x, room_y;
+extern int16_t tile_x, tile_y;
+extern uint32_t offset;
 
 // Whatever you do, you don't want local variables holding textures
 GLuint* cell_texid = NULL;
@@ -84,16 +84,16 @@ GLuint* chars_texid = NULL;
 GLuint render_texid;
 GLuint paused_texid[4];
 
-u16  nb_cells;
-s16	gl_off_x = 0, gl_off_y  = 0;	// GL display offsets
-s16  last_p_x, last_p_y;			// Stored positions
-u8* background_buffer = NULL;		// (re)used for static pictures
-u8  pause_rgb[3];					// colour for the pause screen borders
-u16  aPalette[32];					// Global palette (32 instead of 16, because
+uint16_t  nb_cells;
+int16_t	gl_off_x = 0, gl_off_y  = 0;	// GL display offsets
+int16_t  last_p_x, last_p_y;			// Stored positions
+uint8_t* background_buffer = NULL;		// (re)used for static pictures
+uint8_t  pause_rgb[3];					// colour for the pause screen borders
+uint16_t  aPalette[32];					// Global palette (32 instead of 16, because
                                     // we also use it to load 5 bpp IFF images
 s_sprite*	sprite;
 s_overlay*	overlay;
-u8			overlay_index;
+uint8_t			overlay_index;
 #if defined(WIN32)
 GLuint sp;							// Shader Program for zoom
 #endif
@@ -139,7 +139,7 @@ bool  enabled_menus[NB_MENUS][NB_MENU_ITEMS] = {
 // props handling, as if you dropped a prop in front of the chapel there
 // it would simply vanish!
 
-static const u16 props_tile [0x213] = {
+static const uint16_t props_tile [0x213] = {
 // Well, C doesn't have binary constants, so, for maintainability reasons,
 // we'll use fake "decimal binary", which we're gonna convert to proper
 // bitmasks at init time. That is, if we're ever gonna use the actual masks...
@@ -258,7 +258,7 @@ char *file2string(const char *path)
 }
 
 // Load and compile the HQnX shader
-bool compile_shader(u8 zoomfactor)
+bool compile_shader(uint8_t zoomfactor)
 {
     // The vertex shader
     char *vsSource;
@@ -386,7 +386,7 @@ void set_textures()
     //
     //
     // If you're really unhappy about this kind of practice, just allocate 512x512x3
-    background_buffer = (u8*) aligned_malloc(512*PSP_SCR_HEIGHT*3,16);
+    background_buffer = (uint8_t*) aligned_malloc(512*PSP_SCR_HEIGHT*3,16);
 //	background_buffer = (u8*) aligned_malloc(512*512*3,16);
     if (background_buffer == NULL)
         printf("Could not allocate buffer for static images display\n");
@@ -428,10 +428,10 @@ void set_textures()
 
 
 // Convert an Amiga 12 bit RGB colour palette to 16 bit GRAB
-void to_16bit_palette(u8 pal_index, u8 transparent_index, u8 io_file)
+void to_16bit_palette(uint8_t pal_index, uint8_t transparent_index, uint8_t io_file)
 {
-    u32 i;
-    u16 rgb, grab;
+    uint32_t i;
+    uint16_t rgb, grab;
 
     int palette_start = pal_index * 0x20;
 
@@ -463,13 +463,13 @@ void to_16bit_palette(u8 pal_index, u8 transparent_index, u8 io_file)
 // Convert a <bpp> bits line-interleaved source to 16 bit RGBA (GRAB) destination
 // bpp parameter = bits per pixels, a.k.a. colour depth
 // Assumes w to be a multiple of 8, and bpp < 8 as well
-void line_interleaved_to_wGRAB(u8* source, u8* dest, u16 w, u16 h, u8 bpp)
+void line_interleaved_to_wGRAB(uint8_t* source, uint8_t* dest, uint16_t w, uint16_t h, uint8_t bpp)
 {
-    u8 colour_index;
-    u32 i,j,l,pos;
+    uint8_t colour_index;
+    uint32_t i,j,l,pos;
     int k;
-    u32 wb;
-    u8 line_byte[8];
+    uint32_t wb;
+    uint8_t line_byte[8];
 
     // the width of interest to us is the one in bytes.
     wb = w/8;
@@ -505,13 +505,13 @@ void line_interleaved_to_wGRAB(u8* source, u8* dest, u16 w, u16 h, u8 bpp)
 
 // Convert a 1+4 bits (mask+colour) bitplane source
 // to 16 bit GRAB destination
-void bitplane_to_wGRAB(u8* source, u8* dest, u16 w, u16 ext_w, u16 h)
+void bitplane_to_wGRAB(uint8_t* source, uint8_t* dest, uint16_t w, uint16_t ext_w, uint16_t h)
 {
-    u16 bitplane_size;
-    u8  colour_index;
-    u16 i,j,k,wb,ext_wb;
-    u8  bitplane_byte[5], mask_byte;
-    u32 pos = 0;
+    uint16_t bitplane_size;
+    uint8_t  colour_index;
+    uint16_t i,j,k,wb,ext_wb;
+    uint8_t  bitplane_byte[5], mask_byte;
+    uint32_t pos = 0;
 
     wb = w/8;	// width in bytes
     ext_wb = ext_w/8;
@@ -544,7 +544,7 @@ void bitplane_to_wGRAB(u8* source, u8* dest, u16 w, u16 ext_w, u16 h)
             writeword(dest, pos, aPalette[colour_index] & ((mask_byte&0x80)?0xFFFF:0xFF0F));
             pos += 2;
             // Takes care of padding in width
-            while ((u16)(pos%(2*ext_w))>=(2*w))
+            while ((uint16_t)(pos%(2*ext_w))>=(2*w))
                 pos +=2;	// calloced to zero, so just skim
             mask_byte <<=1;
         }
@@ -553,9 +553,9 @@ void bitplane_to_wGRAB(u8* source, u8* dest, u16 w, u16 ext_w, u16 h)
 
 
 // Converts the room cells to RGB data we can handle
-void cells_to_wGRAB(u8* source, u8* dest)
+void cells_to_wGRAB(uint8_t* source, uint8_t* dest)
 {
-    u32 i;
+    uint32_t i;
 
     // Convert each 32x16x4bit (=256 bytes) cell to RGB
     for (i=0; i<nb_cells; i++)
@@ -563,7 +563,7 @@ void cells_to_wGRAB(u8* source, u8* dest)
         line_interleaved_to_wGRAB(source + (256*i), dest+(2*RGBA_SIZE*256*i), 32, 16, 4);
         glBindTexture(GL_TEXTURE_2D, cell_texid[i]);
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 32, 16, 0, GL_RGBA, GL_UNSIGNED_SHORT_4_4_4_4_REV,
-            ((u8*)rgbCells) + i*2*RGBA_SIZE*0x100);
+            ((uint8_t*)rgbCells) + i*2*RGBA_SIZE*0x100);
     }
 
 }
@@ -571,16 +571,16 @@ void cells_to_wGRAB(u8* source, u8* dest)
 // Create the sprites for the panel text characters
 void init_panel_chars()
 {
-    u8 c, y, x, m, b;
-    static u8 panel_chars[NB_PANEL_CHARS][8*8*2];
+    uint8_t c, y, x, m, b;
+    static uint8_t panel_chars[NB_PANEL_CHARS][8*8*2];
 
     // Take care of the menu marker character
     for (y = 0; y < PANEL_CHARS_H+1; y++)
         for (x=0; x<PANEL_CHARS_W; x++)
-            writeword((u8*)panel_chars[MENU_MARKER], y*16 + 2*x, 0xFFFF);
+            writeword((uint8_t*)panel_chars[MENU_MARKER], y*16 + 2*x, 0xFFFF);
     glBindTexture(GL_TEXTURE_2D, chars_texid[MENU_MARKER]);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, PANEL_CHARS_W, 8, 0, GL_RGBA,
-        GL_UNSIGNED_SHORT_4_4_4_4_REV, (u8*)panel_chars[MENU_MARKER]);
+        GL_UNSIGNED_SHORT_4_4_4_4_REV, (uint8_t*)panel_chars[MENU_MARKER]);
 
 
     for (c = 0; c < NB_PANEL_CHARS; c++)
@@ -591,7 +591,7 @@ void init_panel_chars()
 
         // first line is transparent
         for (x=0; x<PANEL_CHARS_W; x++)
-            writeword((u8*)panel_chars[c],2*x,GRAB_TRANSPARENT_COLOUR);
+            writeword((uint8_t*)panel_chars[c],2*x,GRAB_TRANSPARENT_COLOUR);
 
         // 6 lines of 1 byte each
         for (y = 1; y < PANEL_CHARS_H+1; y++)
@@ -601,27 +601,27 @@ void init_panel_chars()
             {	// each line is one byte exactly
                 if (b&m)
                     // The bits are inverted => anything set is to be transparent
-                    writeword((u8*)panel_chars[c], y*16 + 2*x, 0x0000);
+                    writeword((uint8_t*)panel_chars[c], y*16 + 2*x, 0x0000);
                 else
-                    writeword((u8*)panel_chars[c], y*16 + 2*x,
+                    writeword((uint8_t*)panel_chars[c], y*16 + 2*x,
                     // Respect the nice incremental colour graduation
                         PANEL_CHARS_GRAB_BASE + (y-1)*PANEL_CHARS_GRAB_INCR);
             }
         }
         // last line is transparent too
         for (x=0; x<PANEL_CHARS_W; x++)
-            writeword((u8*)panel_chars[c],y*16 + 2*x,GRAB_TRANSPARENT_COLOUR);
+            writeword((uint8_t*)panel_chars[c],y*16 + 2*x,GRAB_TRANSPARENT_COLOUR);
 
         // Convert to textures
         glBindTexture(GL_TEXTURE_2D, chars_texid[c]);
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, PANEL_CHARS_W, 8, 0, GL_RGBA,
-            GL_UNSIGNED_SHORT_4_4_4_4_REV, (u8*)panel_chars[c]);
+            GL_UNSIGNED_SHORT_4_4_4_4_REV, (uint8_t*)panel_chars[c]);
     }
 
 }
 
 // Get properties for panel sprites
-s_panel_sprite get_panel_sprite(u16 sprite_index)
+s_panel_sprite get_panel_sprite(uint16_t sprite_index)
 {
     static s_panel_sprite sp;
 
@@ -670,10 +670,10 @@ s_panel_sprite get_panel_sprite(u16 sprite_index)
 // Initialize the sprite array
 void init_sprites()
 {
-    u32 i = 2;	// We need to ignore the first word (nb of sprites)
-    u16 sprite_index = 0;
-    u16 sprite_w;	// width, in words
-    u32 sprite_address;
+    uint32_t i = 2;	// We need to ignore the first word (nb of sprites)
+    uint16_t sprite_index = 0;
+    uint16_t sprite_w;	// width, in words
+    uint32_t sprite_address;
 
     // Allocate the sprites and overlay arrays
     sprite = aligned_malloc(NB_SPRITES * sizeof(s_sprite), 16);
@@ -772,13 +772,13 @@ void init_sprites()
 void sprites_to_wGRAB()
 {
     // Fatigue bar base sprite colours (4_4_4_4 GRAB)
-    static const u16 fatigue_colour[8] = {0x29F0, 0x4BF0, 0x29F0, 0x06F0,
+    static const uint16_t fatigue_colour[8] = {0x29F0, 0x4BF0, 0x29F0, 0x06F0,
         0x16F1, GRAB_TRANSPARENT_COLOUR, GRAB_TRANSPARENT_COLOUR, GRAB_TRANSPARENT_COLOUR};
 
     // We'll use this 4x8 GRAB sprite as an indicator for guards fooled by a pass
     // Can't use it directly as it needs to be 16 bit aligned on PSP
     // Also padded to 8x8 because goddam PSP can't use anything less
-    static const u16 fooled_by_sprite[8][8] = {
+    static const uint16_t fooled_by_sprite[8][8] = {
         {0xbdf7,0xbdf7,0xbdf7,0xbdf7,0xff0f,0xff0f,0xff0f,0xff0f},
         {0xbdf7,0xbdf7,0x09f0,0xbdf7,0xff0f,0xff0f,0xff0f,0xff0f},
         {0xbdf7,0xbdf7,0xbdf7,0xbdf7,0xff0f,0xff0f,0xff0f,0xff0f},
@@ -789,9 +789,9 @@ void sprites_to_wGRAB()
         {0xff0f,0xff0f,0xff0f,0xff0f,0xff0f,0xff0f,0xff0f,0xff0f}
     };
 
-    u16 sprite_index;
-    u32 sprite_address;
-    u8* sbuffer;
+    uint16_t sprite_index;
+    uint32_t sprite_address;
+    uint8_t* sbuffer;
     int no_mask = 0;
     int x,y;
 
@@ -952,7 +952,7 @@ void display_sprite_linear(float x1, float y1, float w, float h, unsigned int te
 // Display all our overlays
 void display_overlays()
 {
-    u8 i, j;
+    uint8_t i, j;
 
     // OK, first we need to reorganize our overlays according to the z position
     for (i=0; i<overlay_index; i++)
@@ -978,13 +978,13 @@ void display_room()
 // Yup, no scrolling or anything: just plain unoptimized brute force...
 // But hey, the PSP can handle it, and so should a decent PC, so why bother?
 
-    u16 tile_data;
-    u32 raw_data;
-    u16 rem_offset;
-    s16 min_x, max_x, min_y, max_y;
-    u16 tile_tmp, nb_tiles;
-    u8  bit_index;
-    s16 pixel_x, pixel_y;
+    uint16_t tile_data;
+    uint32_t raw_data;
+    uint16_t rem_offset;
+    int16_t min_x, max_x, min_y, max_y;
+    uint16_t tile_tmp, nb_tiles;
+    uint8_t  bit_index;
+    int16_t pixel_x, pixel_y;
     int u;
 
     glColor3f(fade_value, fade_value, fade_value);
@@ -1055,7 +1055,7 @@ void display_room()
                  * o: door open flag
                  * x: exit lookup number (in exit map [1-8])
                 */
-                tile_data = readword((u8*)fbuffer[ROOMS], offset);
+                tile_data = readword((uint8_t*)fbuffer[ROOMS], offset);
 
                 display_sprite(pixel_x,pixel_y,32,16,
                     cell_texid[(tile_data>>7) + ((current_room_index>0x202)?0x1E0:0)]);
@@ -1117,8 +1117,8 @@ void display_room()
                  * NB: in the case of an exit (T TTTT TTTT < 0x900), IIII IIDD is the exit index
                  */
 
-                raw_data = readlong((u8*)fbuffer[COMPRESSED_MAP], offset);
-                tile_data = (u16)(raw_data>>1) & 0xFF80;
+                raw_data = readlong((uint8_t*)fbuffer[COMPRESSED_MAP], offset);
+                tile_data = (uint16_t)(raw_data>>1) & 0xFF80;
 
                 // For the time being, we'll reset the removable boolean for props
                 remove_props[tile_x][tile_y] = 0;
@@ -1135,12 +1135,12 @@ void display_room()
                 {
                     // The first word read is the number of overlapping tiles
                     // overlapping tiles occur when there might be a wall hiding a walkable section
-                    nb_tiles = readword((u8*)fbuffer[COMPRESSED_MAP], CMP_TILES_START+rem_offset);
+                    nb_tiles = readword((uint8_t*)fbuffer[COMPRESSED_MAP], CMP_TILES_START+rem_offset);
                     // The rest of the data is a tile index (FF80), a bit index (1F), and 2 bits unused.
                     // the later being used to check bits of an overlay bitmap longword
                     for (u=nb_tiles; u!=0; u--)
                     {
-                        tile_tmp = readword((u8*)fbuffer[COMPRESSED_MAP], CMP_TILES_START+rem_offset + 2*u);
+                        tile_tmp = readword((uint8_t*)fbuffer[COMPRESSED_MAP], CMP_TILES_START+rem_offset + 2*u);
                         bit_index = tile_tmp & 0x1F;
                         if ( (1<<bit_index) & rem_bitmask )
                         {
@@ -1302,7 +1302,7 @@ void display_tunnel_area()
 void display_panel()
 {
     float w, h;
-    u16 i, sid;
+    uint16_t i, sid;
 
     // Black rectangle (panel base) at the bottom
     glDisable(GL_TEXTURE_2D);		// Disable textures and set colour to black
@@ -1588,13 +1588,13 @@ void rescale_buffer()
 
 
 // Knowing the current FPS is useful for troubleshooting
-void display_fps(u64 frames_duration, u64 nb_frames)
+void display_fps(uint64_t frames_duration, uint64_t nb_frames)
 {
     char c;
     int	i;
     char  s_fps[10];
-    static u64 lf = 1000;
-    static u64 li = 1;
+    static uint64_t lf = 1000;
+    static uint64_t li = 1;
 
     if (frames_duration != 0)
     {
@@ -1655,8 +1655,8 @@ void display_menu_screen()
 {
     char c;
     int i, j, line;
-    u16 line_start;
-    u8  on_off_index;
+    uint16_t line_start;
+    uint8_t  on_off_index;
     const char* aperblurb[] = { " COLDITZ ESCAPE " VERSION ,
         " (C) APERTURE SOFTWARE 2009-2017", " HTTP://TINY.CC/COLDITZ-ESCAPE" };
 
@@ -1738,7 +1738,7 @@ void display_menu_screen()
     {
         if (aperblurb[line][0] == ' ')
         {	// A menu line starting with a space must be centered
-            line_start = (u16)((PSP_SCR_WIDTH-(strlen(aperblurb[line])+1)*8)/2)&(~7);
+            line_start = (uint16_t)((PSP_SCR_WIDTH-(strlen(aperblurb[line])+1)*8)/2)&(~7);
         }
         for (i=0; (c = aperblurb[line][i]); i++)
         {
@@ -1857,10 +1857,10 @@ bool load_iff(s_tex* tex)
 {
     bool got_cmap = false;
     bool got_body = false;
-    u16  i, w, h, y, powerized_w, bytes_per_line, plane;
-    u8	 nplanes, masking, compression, bytecount, bytedup;
-    u32  iff_tag, len;
-    u8   lbuffer[5][512/8];	// line buffer (5 bitplanes max, 512 pixels wide max)
+    uint16_t  i, w, h, y, powerized_w, bytes_per_line, plane;
+    uint8_t	 nplanes, masking, compression, bytecount, bytedup;
+    uint32_t  iff_tag, len;
+    uint8_t   lbuffer[5][512/8];	// line buffer (5 bitplanes max, 512 pixels wide max)
 
     powerized_w = powerize(tex->w);	// Should be 512 always, but let's be generic here
 
@@ -1974,9 +1974,9 @@ bool load_iff(s_tex* tex)
             len = freadlong(fd)/3;
             for (i=0; i<len; i++)
             {
-                aPalette[i]  = ((u16)freadbyte(fd) & 0xF0) << 4;	// Red
-                aPalette[i] |= ((u16)freadbyte(fd) & 0xF0) << 8;	// Green
-                aPalette[i] |= ((u16)freadbyte(fd) & 0xF0) >> 4;	// Blue
+                aPalette[i]  = ((uint16_t)freadbyte(fd) & 0xF0) << 4;	// Red
+                aPalette[i] |= ((uint16_t)freadbyte(fd) & 0xF0) << 8;	// Green
+                aPalette[i] |= ((uint16_t)freadbyte(fd) & 0xF0) >> 4;	// Blue
                 aPalette[i] |= 0x00F0;								// Alpha
             }
             got_cmap = true;
@@ -2023,7 +2023,7 @@ bool load_iff(s_tex* tex)
 
                 // OK, now we have our <nplanes> line buffers
                 // Let's recombine those bits, and convert to GRAB from our palette
-                line_interleaved_to_wGRAB((u8*)lbuffer,
+                line_interleaved_to_wGRAB((uint8_t*)lbuffer,
                     tex->buffer+powerized_w*y*2, powerized_w, 1, nplanes);
             }
 
@@ -2059,11 +2059,11 @@ bool load_iff(s_tex* tex)
 
 
 // Open and texturize a 16, 24 or 32 bpp RGB(A) RAW image
-bool load_raw_rgb(s_tex* tex, u8 pixel_size)
+bool load_raw_rgb(s_tex* tex, uint8_t pixel_size)
 {
-    u32 line_size, powerized_line_size;
+    uint32_t line_size, powerized_line_size;
     int i;
-    u8* line_start;
+    uint8_t* line_start;
 
     line_size = pixel_size*(tex->w);
     powerized_line_size = pixel_size*powerize(tex->w);
@@ -2121,9 +2121,9 @@ bool load_texture(s_tex* tex)
 bool iff_file = false;
 bool with_alpha = false;
 bool is_rgb4 = false;
-u32  file_size = 0;
-u8   pixel_size = 0;	// in bytes
-u16  powerized_w;
+uint32_t  file_size = 0;
+uint8_t   pixel_size = 0;	// in bytes
+uint16_t  powerized_w;
 
     // closest greater power of 2
     powerized_w = powerize(tex->w);
