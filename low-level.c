@@ -40,21 +40,21 @@
 
 // Some global variables
 int  underflow_flag = 0;
-u32	compressed_size, checksum;
+uint32_t	compressed_size, checksum;
 
 // For ppdepack
-u32 pp_shift_in;
-u32 pp_counter = 0;
-u8 *pp_source;
+uint32_t pp_shift_in;
+uint32_t pp_counter = 0;
+uint8_t *pp_source;
 
 
 // dammit %b should have been made a C standard by now!
 // <sigh> converts a 32 bit number to binary string then...
-const char *to_binary(u32 x)
+const char *to_binary(uint32_t x)
 {
     static char b[33];
-    u8 i;
-    u32 m;
+    uint8_t i;
+    uint32_t m;
     for (i=0,m=0x80000000; m!=0; i++,m>>=1)
         b[i] = (x&m)?'1':'0';
     b[i] = 0;
@@ -65,9 +65,9 @@ const char *to_binary(u32 x)
 // Power-of-two... err... ize!
 // We need this to change a dimension to the closest greater power of two
 // as pspgl can only deal with power of two dimensionned textures
-u16 powerize(u16 n)
+uint16_t powerize(uint16_t n)
 {
-    u16 retval;
+    uint16_t retval;
     int i, first_one, last_one;
 
     retval = n;	// left unchanged if already power of two
@@ -98,10 +98,10 @@ u16 powerize(u16 n)
  */
 
 // Get one bit and read ahead if needed
-u32 getbit(u32 *address, u32 *data)
+uint32_t getbit(uint32_t *address, uint32_t *data)
 {
     // Read one bit and rotate data
-    u32 bit = (*data) & 1;
+    uint32_t bit = (*data) & 1;
     (*data) >>= 1;
     if ((*data) == 0)
     {	// End of current bitstream? => read another longword
@@ -119,17 +119,17 @@ u32 getbit(u32 *address, u32 *data)
 }
 
 // Get sequence of streamsize bits (in reverse order)
-u32 getbitstream(u32 *address, u32 *data, u32 streamsize)
+uint32_t getbitstream(uint32_t *address, uint32_t *data, uint32_t streamsize)
 {
-    u32 bitstream = 0;
-    u32 i;
+    uint32_t bitstream = 0;
+    uint32_t i;
     for (i=0; i<streamsize; i++)
         bitstream = (bitstream<<1) | getbit (address, data);
     return bitstream;
 }
 
 // Decrement address by one byte and check for buffer underflow
-void decrement(u32 *address)
+void decrement(uint32_t *address)
 {
     if (underflow_flag)
         perr("uncompress(): Buffer underflow error.\n");
@@ -140,9 +140,9 @@ void decrement(u32 *address)
 }
 
 // Duplicate nb_bytes from address+offset to address
-void duplicate(u32 *address, u32 offset, u32 nb_bytes)
+void duplicate(uint32_t *address, uint32_t offset, uint32_t nb_bytes)
 {
-    u32 i;
+    uint32_t i;
     if (offset == 0)
         perr("uncompress(): WARNING - zero offset value found for duplication\n");
     for (i=0; i<nb_bytes; i++)
@@ -155,13 +155,13 @@ void duplicate(u32 *address, u32 offset, u32 nb_bytes)
 /*
  *	Colditz loader uncompression. Algorithm is Bytekiller 1.3
  */
-int uncompress(u32 expected_size)
+int uncompress(uint32_t expected_size)
 {
-    u32 source = LOADER_DATA_START;
-    u32 uncompressed_size, current;
-    u32 dest, offset;
-    u32 bit, nb_bits_to_process, nb_bytes_to_process;
-    u32 j;
+    uint32_t source = LOADER_DATA_START;
+    uint32_t uncompressed_size, current;
+    uint32_t dest, offset;
+    uint32_t bit, nb_bits_to_process, nb_bytes_to_process;
+    uint32_t j;
     compressed_size = readlong(mbuffer, source);
     source +=4;
     uncompressed_size = readlong(mbuffer, source);
@@ -175,7 +175,7 @@ int uncompress(u32 expected_size)
     source +=4;	// Keeping this last +/- 4 on source for clarity
 
     perrv("  Compressed size=%X, uncompressed size=%X\n",
-        (uint)compressed_size, (uint)uncompressed_size);
+        (unsigned int)compressed_size, (unsigned int)uncompressed_size);
 
     source += (compressed_size-4);	// We read compressed data (long) starting from the end
     dest = uncompressed_size-1;		// We fill the uncompressed data (byte) from the end too
@@ -217,7 +217,7 @@ int uncompress(u32 expected_size)
                 // would be taken care of by a 3 bit bitstream
                 for (j=0; j<nb_bytes_to_process; j++)
                 {	// Read and copy nb_bytes+1
-                    writebyte(fbuffer[LOADER], dest, (u8)getbitstream(&source, &current, 8));
+                    writebyte(fbuffer[LOADER], dest, (uint8_t)getbitstream(&source, &current, 8));
                     decrement(&dest);
                 }
 //                printb("  o mult=111: copied %d bytes to address %X\n", (int)nb_bytes_to_process, (uint)dest+1);
@@ -252,7 +252,7 @@ int uncompress(u32 expected_size)
                 nb_bytes_to_process = getbitstream(&source, &current, 3) + 1;
                 for (j=0; j<nb_bytes_to_process; j++)
                 {	// Read and copy nb_bytes+1
-                    writebyte(fbuffer[LOADER], dest, (u8)getbitstream(&source, &current, 8));
+                    writebyte(fbuffer[LOADER], dest, (uint8_t)getbitstream(&source, &current, 8));
                     decrement(&dest);
                 }
 //                printb("  o mult=00: copied 2 bytes to address %X\n", (uint)dest+1);
@@ -345,10 +345,10 @@ void aligned_free(void *ptr)
     free(malloc_ptr);
 }
 
-u32 get_bits(u32 n)
+uint32_t get_bits(uint32_t n)
 {
-    u32 result = 0;
-    u32 i;
+    uint32_t result = 0;
+    uint32_t i;
 
     for (i = 0; i < n; i++)
     {
@@ -385,15 +385,15 @@ u32 get_bits(u32 n)
 
 #define PP_BYTE_OUT(byte) do {                                 \
   if (out <= dest) return 0; /* output overflow */             \
-  *--out = ((u8)byte);                                         \
+  *--out = ((uint8_t)byte);                                         \
   written++;                                                   \
 } while (0)
 
 
-int ppDecrunch(u8 *src, u8 *dest, u8 *offset_lens, u32 src_len, u32 dest_len, u8 skip_bits)
+int ppDecrunch(uint8_t *src, uint8_t *dest, uint8_t *offset_lens, uint32_t src_len, uint32_t dest_len, uint8_t skip_bits)
 {
-  u8 *buf_src, *out, *dest_end, bits_left = 0, bit_cnt;
-  u32 bit_buffer = 0, x, todo, offbits, offset, written=0;
+  uint8_t *buf_src, *out, *dest_end, bits_left = 0, bit_cnt;
+  uint32_t bit_buffer = 0, x, todo, offbits, offset, written=0;
 
   if (src == NULL || dest == NULL || offset_lens == NULL) return 0;
 
@@ -423,11 +423,11 @@ int ppDecrunch(u8 *src, u8 *dest, u8 *offset_lens, u32 src_len, u32 dest_len, u8
     if (x == 3) {
       PP_READ_BITS(1, x);
       if (x==0) offbits = 7;
-      PP_READ_BITS((u8)offbits, offset);
+      PP_READ_BITS((uint8_t)offbits, offset);
       do { PP_READ_BITS(3, x); todo += x; } while (x == 7);
     }
     else {
-      PP_READ_BITS((u8)offbits, offset);
+      PP_READ_BITS((uint8_t)offbits, offset);
     }
     if ((out + offset) >= dest_end) return 0; /* match overflow */
     while (todo--) { x = out[offset]; PP_BYTE_OUT(x); }

@@ -28,6 +28,9 @@
 extern "C" {
 #endif
 
+#include <stdbool.h>
+#include <stdint.h>
+
 // General compilation options for the program
 #define CHEATMODE_ENABLED
 #define ANTI_TAMPERING_ENABLED
@@ -574,59 +577,59 @@ extern "C" {
 // Structure to hold the standard RGBA sprites
 typedef struct
 {
-	u16 w;
-	u16 h;
+	uint16_t w;
+	uint16_t h;
 	// Politicaly correct w & h (power of twos, to keep the PSP happy)
-	u16 corrected_w;
-	u16 corrected_h;
-	s16 x_offset;
-	s16 y_offset;
-	s16 z_offset;
-	u8* data;
+	uint16_t corrected_w;
+	uint16_t corrected_h;
+	int16_t x_offset;
+	int16_t y_offset;
+	int16_t z_offset;
+	uint8_t* data;
 } s_sprite;
 
 // for nonstandtard sprites (panel, etc)
 typedef struct
 {
-	u16 w;
-	u16 base;
-	u32 offset;
+	uint16_t w;
+	uint16_t base;
+	uint32_t offset;
 } s_panel_sprite;
 
 // For room overlays (props, bed, stairs, etc)
 typedef struct
 {
-	s16 x;
-	s16 y;
-	s16 z;
-	u8  sid;
+	int16_t x;
+	int16_t y;
+	int16_t z;
+	uint8_t  sid;
 } s_overlay;
 
 // Animated sprites data
 typedef struct
 {
-	u32	index;	// index for the ani in the LOADER table
-	s32	framecount;
-	u32 end_of_ani_parameter;
-	void (*end_of_ani_function)(u32);
+	uint32_t	index;	// index for the ani in the LOADER table
+	int32_t	framecount;
+	uint32_t end_of_ani_parameter;
+	void (*end_of_ani_function)(uint32_t);
 } s_animation;
 
 // Timed events
 typedef struct
 {
-	u64	expiration_time;
-	u32 parameter;
-	void (*function)(u32);
+	uint64_t	expiration_time;
+	uint32_t parameter;
+	void (*function)(uint32_t);
 } s_event;
 
 // Sound FXs
 typedef struct
 {
-	u32				address;
-	u16				length;
-	u16				psp_length;
-	u16				frequency;
-	u8				volume;
+	uint32_t				address;
+	uint16_t				length;
+	uint16_t				psp_length;
+	uint16_t				frequency;
+	uint8_t				volume;
 	short*			upconverted_address;
 	unsigned long	upconverted_length;
 } s_sfx;
@@ -634,17 +637,17 @@ typedef struct
 // Guybrushes (prisoners or guards)
 typedef struct
 {
-	u16				room;					// Room index
-	s16				px;
-	s16				p2y;
-	s16				speed;					// Walk = 1, Run = 2
+	uint16_t				room;					// Room index
+	int16_t				px;
+	int16_t				p2y;
+	int16_t				speed;					// Walk = 1, Run = 2
 	/* For animated overlays, direction is one of:
 	 *    3  2  4
 	 *    0  8  1
 	 *    6  5  7   */
-	s16				direction;
-	u16				state;					// Motion related state (see above)
-	u32				ext_bitmask;			// Removable walls bitmask
+	int16_t				direction;
+	uint16_t				state;					// Motion related state (see above)
+	uint32_t				ext_bitmask;			// Removable walls bitmask
 	s_animation		animation;
 	bool			reset_animation;
 	bool			is_dressed_as_guard;
@@ -653,13 +656,13 @@ typedef struct
 	bool			reinstantiate;
 	bool			resume_motion;
 	bool			blocked_by_prisoner;
-	u32				go_on;
-	u32				spent_in_room;
-	u16				wait;
-	s16				target;
-	s16				resume_px;
-	s16				resume_p2y;
-	s16				resume_direction;
+	uint32_t				go_on;
+	uint32_t				spent_in_room;
+	uint16_t				wait;
+	int16_t				target;
+	int16_t				resume_px;
+	int16_t				resume_p2y;
+	int16_t				resume_direction;
 	bool			fooled_by[NB_NATIONS];
 } s_guybrush;
 
@@ -674,9 +677,9 @@ typedef struct
 	bool killed;
 	bool escaped;
 	bool thrown_stone;
-	u64	 pass_grace_period_expires;
-	u32  fatigue;
-	u64  solitary_release;
+	uint64_t	 pass_grace_period_expires;
+	uint32_t  fatigue;
+	uint64_t  solitary_release;
 } s_prisoner_event;
 
 
@@ -729,40 +732,40 @@ extern bool		opt_glsl_enabled;
 extern bool		init_animations;
 extern bool		is_fire_pressed;
 extern bool		can_consume_key;
-extern u8		*mbuffer;	// Generic TMP buffer
-extern u8		*fbuffer[NB_FILES];
-extern u8		*rbuffer;
+extern uint8_t		*mbuffer;	// Generic TMP buffer
+extern uint8_t		*fbuffer[NB_FILES];
+extern uint8_t		*rbuffer;
 extern FILE		*fd;		// Generic file descriptor
-extern u8		*rgbCells;	// Cells table
-extern u8		*static_image_buffer;
-extern u8		props[NB_NATIONS][NB_PROPS];
-extern u8		selected_prop[NB_NATIONS];
+extern uint8_t		*rgbCells;	// Cells table
+extern uint8_t		*static_image_buffer;
+extern uint8_t		props[NB_NATIONS][NB_PROPS];
+extern uint8_t		selected_prop[NB_NATIONS];
 extern s_prisoner_event p_event[NB_NATIONS];
-extern u8		nb_room_props;
-extern u16		room_props[NB_OBSBIN];
-extern u8		over_prop, over_prop_id;
+extern uint8_t		nb_room_props;
+extern uint16_t		room_props[NB_OBSBIN];
+extern uint8_t		over_prop, over_prop_id;
 extern char		*status_message;
 extern int		status_message_priority;
-extern const s16 directions[3][3], dir_to_dx[9], dir_to_d2y[9], invert_dir[9];
-extern u8		hours_digit_h, hours_digit_l, minutes_digit_h, minutes_digit_l;
-extern u8		palette_index;	// Current palette
-extern u16		game_state;
+extern const int16_t directions[3][3], dir_to_dx[9], dir_to_d2y[9], invert_dir[9];
+extern uint8_t		hours_digit_h, hours_digit_l, minutes_digit_h, minutes_digit_l;
+extern uint8_t		palette_index;	// Current palette
+extern uint16_t		game_state;
 extern float	fade_value;
 extern int		current_picture;
-extern u16		nb_objects;
+extern uint16_t		nb_objects;
 extern char		*fname[NB_FILES];
-extern u32		fsize[NB_FILES];
+extern uint32_t		fsize[NB_FILES];
 extern char		*mod_name[NB_MODS];
 extern int		gl_width, gl_height;
-extern u8		current_nation;
+extern uint8_t		current_nation;
 extern char		nb_props_message[32];
-extern u64		game_time, last_atime, last_ptime, last_ctime, t_last;
+extern uint64_t		game_time, last_atime, last_ptime, last_ctime, t_last;
 extern s_event	events[NB_EVENTS];
 
 /*
  *	Prototypes
  */
-void static_screen(u8 iff_id, void (*func)(u32), u32 param);
+void static_screen(uint8_t iff_id, void (*func)(uint32_t), uint32_t param);
 
 
 #ifdef	__cplusplus

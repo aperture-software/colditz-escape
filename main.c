@@ -102,7 +102,7 @@ bool opt_halfsize				= false;
 // Who needs keys?
 bool opt_keymaster				= false;
 // "'coz this is triller!..."
-int opt_thrillerdance			= false;
+bool opt_thrillerdance			= false;
 // Force a specific sprite ID for our guy
 // NB: must be init to -1
 int opt_sid						= -1;
@@ -138,31 +138,31 @@ bool can_consume_key			= true;
 // File stuff
 FILE* fd					= NULL;
 char* fname[NB_FILES]		= FNAMES;			// file name(s)
-u32   fsize[NB_FILES]		= FSIZES;
-u8*   fbuffer[NB_FILES];
-u8*   rbuffer				= NULL;
-u8*   mbuffer				= NULL;
-u8*   rgbCells				= NULL;
-u8*   static_image_buffer   = NULL;
+uint32_t   fsize[NB_FILES]		= FSIZES;
+uint8_t*   fbuffer[NB_FILES];
+uint8_t*   rbuffer				= NULL;
+uint8_t*   mbuffer				= NULL;
+uint8_t*   rgbCells				= NULL;
+uint8_t*   static_image_buffer   = NULL;
 s_tex texture[NB_TEXTURES]	= TEXTURES;
 char* mod_name[NB_MODS]		= MOD_NAMES;
 const char confname[]		= "config.xml";
 #if defined(ANTI_TAMPERING_ENABLED)
-const u8 fmd5hash[NB_FILES][16] = FMD5HASHES;
+const uint8_t fmd5hash[NB_FILES][16] = FMD5HASHES;
 #endif
 
 
 // OpenGL window size
 int		gl_width, gl_height;
-s16		last_p_x = 0, last_p_y = 0;
-s16		dx = 0, d2y = 0;
-s16		jdx, jd2y;
+int16_t		last_p_x = 0, last_p_y = 0;
+int16_t		dx = 0, d2y = 0;
+int16_t		jdx, jd2y;
 // Key modifiers for glut
 int		glut_mod;
 
 // Key handling
 bool	key_down[256], key_readonce[256];
-static	__inline bool read_key_once(u8 k)
+static	__inline bool read_key_once(uint8_t k)
 {
     if (key_down[k])
     {
@@ -179,8 +179,8 @@ static	__inline bool read_key_once(u8 k)
 // We don't want to pollute the key_readonce table for cheat keys, yet
 // we need to check if the cheat keys have been pressed once
 bool key_cheat_readonce[256];
-u8 last_key_used = 0;
-static __inline bool read_cheat_key_once(u8 k)
+uint8_t last_key_used = 0;
+static __inline bool read_cheat_key_once(uint8_t k)
 {
     if (key_down[k])
     {
@@ -193,24 +193,24 @@ static __inline bool read_cheat_key_once(u8 k)
 }
 typedef struct
 {
-    u8  nb_keys;
-    u8  cur_pos;
-    u8* keys;
+    uint8_t  nb_keys;
+    uint8_t  cur_pos;
+    uint8_t* keys;
 } s_cheat_sequence;
 
 // Cheat definitions
-static u8 konami[]		= {SPECIAL_KEY_UP, SPECIAL_KEY_UP, SPECIAL_KEY_DOWN, SPECIAL_KEY_DOWN,
+static uint8_t konami[]		= {SPECIAL_KEY_UP, SPECIAL_KEY_UP, SPECIAL_KEY_DOWN, SPECIAL_KEY_DOWN,
                            SPECIAL_KEY_LEFT, SPECIAL_KEY_RIGHT, SPECIAL_KEY_LEFT, SPECIAL_KEY_RIGHT};
-static u8 namiko[]		= {SPECIAL_KEY_DOWN, SPECIAL_KEY_DOWN, SPECIAL_KEY_UP, SPECIAL_KEY_UP,
+static uint8_t namiko[]		= {SPECIAL_KEY_DOWN, SPECIAL_KEY_DOWN, SPECIAL_KEY_UP, SPECIAL_KEY_UP,
                            SPECIAL_KEY_RIGHT, SPECIAL_KEY_LEFT, SPECIAL_KEY_RIGHT, SPECIAL_KEY_LEFT};
 // NB: I have seen NO EVIDENCE WHATSOEVER in the disassembly that the first 3 cheats below were
 // ever implemented in the original game. But just for the sake of it...
-static u8 want_it_all[]	= "i want everything";
-static u8 keymaster[]	= "keymaster";
-static u8 die_die[]		= "die die die";
-static u8 no_cake[]		= "the cake is a lie";
-static u8 as_safe[]		= "safecracker";
-static u8 thriller[]	= "thrillerdance";
+static uint8_t want_it_all[]	= "i want everything";
+static uint8_t keymaster[]	= "keymaster";
+static uint8_t die_die[]		= "die die die";
+static uint8_t no_cake[]		= "the cake is a lie";
+static uint8_t as_safe[]		= "safecracker";
+static uint8_t thriller[]	= "thrillerdance";
 s_cheat_sequence cheat_sequence[] = {
     {SIZE_A(konami), 0, konami},
     {SIZE_A(want_it_all)-1, 0, want_it_all},
@@ -233,38 +233,38 @@ s_cheat_sequence cheat_sequence[] = {
 #endif
 
 bool		found;
-u64			game_time, program_time, last_atime, last_ptime, last_ctime;
-u64			t_last, t_status_message_timeout, transition_start;
-u64			picture_t;
+uint64_t			game_time, program_time, last_atime, last_ptime, last_ctime;
+uint64_t			t_last, t_status_message_timeout, transition_start;
+uint64_t			picture_t;
 char*		status_message;
 int			status_message_priority;
 s_event		events[NB_EVENTS];
 s_prisoner_event p_event[NB_NATIONS];
-u8			nb_room_props = 0;
-u8			props[NB_NATIONS][NB_PROPS];
-u8			selected_prop[NB_NATIONS];
-u16			room_props[NB_OBSBIN];
-u8			over_prop = 0, over_prop_id = 0;
+uint8_t			nb_room_props = 0;
+uint8_t			props[NB_NATIONS][NB_PROPS];
+uint8_t			selected_prop[NB_NATIONS];
+uint16_t			room_props[NB_OBSBIN];
+uint8_t			over_prop = 0, over_prop_id = 0;
 char		nb_props_message[32] = "\499 * ";
-u8			current_nation = 0;
-u16			game_state;
-u8			hours_digit_h, hours_digit_l, minutes_digit_h, minutes_digit_l;
-u8			tunexit_nr, tunexit_flags, tunnel_tool;
-u8*			iff_image;
-void		(*static_screen_func)(u32) = NULL;
+uint8_t			current_nation = 0;
+uint16_t			game_state;
+uint8_t			hours_digit_h, hours_digit_l, minutes_digit_h, minutes_digit_l;
+uint8_t			tunexit_nr, tunexit_flags, tunnel_tool;
+uint8_t*			iff_image;
+void		(*static_screen_func)(uint32_t) = NULL;
 void		(*restore_idle)(void) = NULL;
-u32			static_screen_param;
-u16			nb_objects;
-u8			palette_index = INITIAL_PALETTE_INDEX;
-u8			picture_state;
+uint32_t			static_screen_param;
+uint16_t			nb_objects;
+uint8_t			palette_index = INITIAL_PALETTE_INDEX;
+uint8_t			picture_state;
 // offsets to sprites according to joystick direction (dx,dy)
-const s16	directions[3][3] = { {3,2,4}, {0,8,1}, {6,5,7} };
+const int16_t	directions[3][3] = { {3,2,4}, {0,8,1}, {6,5,7} };
 // reverse table for dx and dy
-const s16	dir_to_dx[9]  = {-1, 1, 0, -1, 1, 0, -1, 1, 0};
-const s16	dir_to_d2y[9] = {0, 0, -1, -1, -1, 1, 1, 1, 0};
-const s16	invert_dir[9] = {1, 0, 5, 7, 6, 2, 4, 3, 8};
+const int16_t	dir_to_dx[9]  = {-1, 1, 0, -1, 1, 0, -1, 1, 0};
+const int16_t	dir_to_d2y[9] = {0, 0, -1, -1, -1, 1, 1, 1, 0};
+const int16_t	invert_dir[9] = {1, 0, 5, 7, 6, 2, 4, 3, 8};
 // The direct nation keys might not be sequencial on custom key mapping
-u8			key_nation[NB_NATIONS+2];
+uint8_t			key_nation[NB_NATIONS+2];
 
 
 /*
@@ -276,7 +276,7 @@ static void glut_idle_static_pic(void);
 // Update the game and program timers
 void update_timers()
 {
-    u64 register t, delta_t;
+    uint64_t register t, delta_t;
     // Find out how much time elapsed since last call
     t = mtime();
     delta_t = t - t_last;
@@ -346,11 +346,11 @@ static void glut_init()
 static void glut_display(void)
 {
     // For onscreen FPS debug
-    static u64	frames_duration = 0;
-    static u64  plast = 0;
-    static u64  nb_frames = 0;
-    static u64	lptime = 0;
-    static u64	ptime = 0;
+    static uint64_t	frames_duration = 0;
+    static uint64_t  plast = 0;
+    static uint64_t  nb_frames = 0;
+    static uint64_t	lptime = 0;
+    static uint64_t	ptime = 0;
 
     // Don't mess with our video buffer if we're suspended and diplay()
     // is called, as we may have debug printf (PSP) or video onscreen
@@ -432,8 +432,8 @@ static void glut_reshape (int w, int h)
 // As its names indicates
 void process_motion(void)
 {
-    s16 new_direction;
-    s16 exit_nr;
+    int16_t new_direction;
+    int16_t exit_nr;
 
     if (prisoner_state & MOTION_DISALLOWED)
     {	// Only a few states will allow motion
@@ -507,9 +507,9 @@ void process_motion(void)
  *	this function expects the guybrush index as well as the previous ani_index
  *	to be concatenated in the lower 2 bytes of the parameter
  */
-void restore_params(u32 param)
+void restore_params(uint32_t param)
 {
-    u8 brush, previous_index;
+    uint8_t brush, previous_index;
     // extract the guybrush index
     brush = param & 0xFF;
     // extract the previous animation index
@@ -534,10 +534,10 @@ void restore_params(u32 param)
 // Act on user input (keys, joystick)
 void user_input()
 {
-    u16 prop_offset;
-    u8  prop_id, direction, i, j;
-    s16 exit_nr;
-    u8  cur_prop;
+    uint16_t prop_offset;
+    uint8_t  prop_id, direction, i, j;
+    int16_t exit_nr;
+    uint8_t  cur_prop;
 
 #if !defined(PSP)
     // Hey, GLUT, where's my bleeping callback on Windows?
@@ -908,7 +908,7 @@ void user_input()
 // This is the main game loop
 static void glut_idle_game(void)
 {
-    u8 i;
+    uint8_t i;
 
     // Reset the motion
     dx = 0;
@@ -1461,7 +1461,7 @@ static bool video_initialized = false;
  *	The last 2 parameters are for a function callback while we are in
  *	the middle of a static picture
  */
-void static_screen(u8 picture_id, void (*func)(u32), u32 param)
+void static_screen(uint8_t picture_id, void (*func)(uint32_t), uint32_t param)
 {
     if (game_suspended)
         return;
@@ -1514,10 +1514,10 @@ void static_screen(u8 picture_id, void (*func)(u32), u32 param)
         key_cheat_readonce[key] = false;                            \
     }
 
-static void parse_xbox360_controller(uint buttonMask)
+static void parse_xbox360_controller(unsigned int buttonMask)
 {
     // Keep a copy of last mask to track button up
-    static uint last_buttonMask = 0;
+    static unsigned int last_buttonMask = 0;
 
     if (buttonMask != last_buttonMask)
     {
@@ -1540,7 +1540,7 @@ static void parse_xbox360_controller(uint buttonMask)
 #endif
 
 // Input handling
-static void glut_joystick(uint buttonMask, int x, int y, int z)
+static void glut_joystick(unsigned int buttonMask, int x, int y, int z)
 {
     // compute x and y displacements
     if (x>JOY_DEADZONE)
@@ -1581,14 +1581,14 @@ static void glut_joystick(uint buttonMask, int x, int y, int z)
 #define SET_MODS
 #endif
 
-static void glut_keyboard(u8 key, int x, int y)
+static void glut_keyboard(uint8_t key, int x, int y)
 {
     key_down[key] = true;
     last_key_used = key;
     SET_MODS;
 }
 
-static void glut_keyboard_up(u8 key, int x, int y)
+static void glut_keyboard_up(uint8_t key, int x, int y)
 {
     key_down[key] = false;
     key_readonce[key] = false;
@@ -1654,7 +1654,7 @@ int main (int argc, char *argv[])
     // Flags
     int opt_error = 0;	// getopt
     // General purpose
-    u32  i;
+    uint32_t  i;
 
 #if defined(PSP)
     setup_callbacks();
@@ -1777,7 +1777,7 @@ int main (int argc, char *argv[])
 
     // We're going to convert the cells array, from 2 pixels per byte (paletted)
     // to on RGB(A) word per pixel
-    rgbCells = (u8*) aligned_malloc(fsize[CELLS]*2*RGBA_SIZE, 16);
+    rgbCells = (uint8_t*) aligned_malloc(fsize[CELLS]*2*RGBA_SIZE, 16);
     if (rgbCells == NULL)
     {
         perr("Could not allocate RGB Cells buffers\n");

@@ -38,7 +38,7 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-
+#include <stdbool.h>
 
     bool audio_init();
     bool audio_release();

@@ -121,7 +121,7 @@ static RowData *m_CurrentRow;	// Pointer to the current row being played
 static bool m_bPlaying = false;	// Set to true when a mod is being played
 static bool m_bSet     = false;	// True when a mod has been set
 static bool no_audio   = true;	// Is the audio working
-static u8 *data;
+static uint8_t *data;
 int size = 0;
 
 

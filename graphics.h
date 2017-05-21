@@ -29,7 +29,7 @@ extern "C" {
 #endif
 
 // IFF tags & compression methods definitions
-#define MAKE_ID(a,b,c,d) ((u32) ((a)<<24 | (b)<<16 | (c)<<8 | (d)))
+#define MAKE_ID(a,b,c,d) ((uint32_t) ((a)<<24 | (b)<<16 | (c)<<8 | (d)))
 #define IFF_ILBM	MAKE_ID('I','L','B','M')
 #define IFF_FORM	MAKE_ID('F','O','R','M')
 #define IFF_BMHD	MAKE_ID('B','M','H','D')
@@ -47,10 +47,10 @@ extern "C" {
 typedef struct
 {
 	char* filename;
-	u16 w;
-	u16 h;
+	uint16_t w;
+	uint16_t h;
 	unsigned int texid;
-	u8* buffer;
+	uint8_t* buffer;
 } s_tex;
 
 
@@ -60,9 +60,9 @@ typedef struct
 extern s_tex		texture[NB_TEXTURES];
 extern s_sprite		*sprite;
 extern s_overlay	*overlay;
-extern u8			overlay_index;
-extern s16			gl_off_x, gl_off_y;
-extern s16			last_p_x, last_p_y;
+extern uint8_t			overlay_index;
+extern int16_t			gl_off_x, gl_off_y;
+extern int16_t			last_p_x, last_p_y;
 extern int			selected_menu_item, selected_menu;
 extern char*		menus[NB_MENUS][NB_MENU_ITEMS];
 extern bool			enabled_menus[NB_MENUS][NB_MENU_ITEMS];
@@ -71,8 +71,8 @@ extern bool			enabled_menus[NB_MENUS][NB_MENU_ITEMS];
  *	Public prototypes
  */
 void free_gfx();
-void to_16bit_palette(u8 palette_index, u8 transparent_index, u8 io_file);
-void cells_to_wGRAB(u8* source, u8* dest);
+void to_16bit_palette(uint8_t palette_index, uint8_t transparent_index, uint8_t io_file);
+void cells_to_wGRAB(uint8_t* source, uint8_t* dest);
 void display_sprite_linear(float x1, float y1, float w, float h, unsigned int texid) ;
 void display_room();
 void display_picture();
@@ -87,7 +87,7 @@ void init_sprites();
 void sprites_to_wGRAB();
 bool load_texture(s_tex *tex);
 void display_tunnel_area();
-void display_fps(u64 frames_duration, u64 nb_frames);
+void display_fps(uint64_t frames_duration, uint64_t nb_frames);
 bool init_shader();
 
 #ifdef	__cplusplus
