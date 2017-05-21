@@ -85,23 +85,20 @@ GLuint render_texid;
 GLuint paused_texid[4];
 
 u16  nb_cells;
-s16	gl_off_x = 0, gl_off_y  = 0;	// GL display offsets
+s16 gl_off_x = 0, gl_off_y  = 0;	// GL display offsets
 s16  last_p_x, last_p_y;			// Stored positions
 u8* background_buffer = NULL;		// (re)used for static pictures
 u8  pause_rgb[3];					// colour for the pause screen borders
 u16  aPalette[32];					// Global palette (32 instead of 16, because
-                                    // we also use it to load 5 bpp IFF images
+									// we also use it to load 5 bpp IFF images
 s_sprite*	sprite;
 s_overlay*	overlay;
 u8			overlay_index;
-#if defined(WIN32)
-GLuint sp;							// Shader Program for zoom
-#endif
 
 /*
  *	Menu variables & consts
  */
-int	  selected_menu_item, selected_menu;
+int  selected_menu_item, selected_menu;
 char save_list[NB_SAVEGAMES][20];
 char* menus[NB_MENUS][NB_MENU_ITEMS] = {
     {" MAIN MENU", "", "", "BACK TO GAME", "RESET GAME", "SAVE", "LOAD", "OPTIONS", "", "EXIT GAME"} ,
@@ -111,7 +108,11 @@ char* menus[NB_MENUS][NB_MENU_ITEMS] = {
     {" SAVE MENU", "", "", "BACK TO MAIN MENU", NULL, NULL, NULL, NULL, NULL, NULL},
     {" LOAD MENU", "", "", "BACK TO MAIN MENU", NULL, NULL, NULL, NULL, NULL, NULL} };
 char* on_off[3] = { "", ":ON", ":OFF"};
-char* smoothing[4] = { ":NONE", ":LINEAR", ":HQ2X"};
+char* smoothing[2+NB_SHADERS] = { ":NONE", ":LINEAR", ":HQ2X" };
+
+#if defined(WIN32)
+GLuint sp[NB_SHADERS];	// Shader Program for zoom
+#endif
 
 bool  enabled_menus[NB_MENUS][NB_MENU_ITEMS] = {
     { 0, 0, 0, 1, 1, 1, 1, 1, 0, 1 },
@@ -257,75 +258,61 @@ char *file2string(const char *path)
     return str;
 }
 
-// Load and compile the HQnX shader
-bool compile_shader(u8 zoomfactor)
+// Load and compile a GLSL shader
+bool compile_shader(int shaderindex)
 {
-    // The vertex shader
-    char *vsSource;
-    char *fsSource;
-    char shadername[20];
+    int i;
+    char* shader_type_def[2] = { "#define VERTEX", "#define FRAGMENT" };
+    char* source[2];
+    char shadername[64];
 
-    GLuint vs,				// Vertex Shader
-        fs,				// Fragment Shader
-        status;
+    GLenum shader_type[2] = { GL_VERTEX_SHADER, GL_FRAGMENT_SHADER };
+    GLuint shader[2], status;
 
-    if (zoomfactor <= 1 || zoomfactor >= 4)
-    // 2x, 3x, 4x only
+    sprintf(shadername, "SHADERS/%s.GLSL", &smoothing[2+shaderindex][1]);
+    if ((source[1] = file2string(shadername)) == NULL)
         return false;
 
-    sprintf(shadername, "shader-hq%dx.vert", zoomfactor);
-    if ((vsSource = file2string(shadername)) == NULL)
-        return false;
-    sprintf(shadername, "shader-hq%dx.frag", zoomfactor);
-    if ((fsSource = file2string(shadername)) == NULL)
-        return false;
-
-    vs = glCreateShader(GL_VERTEX_SHADER);
-    glShaderSource(vs, 1, &vsSource, NULL);
-    glCompileShader(vs);
-    glGetShaderiv(vs, GL_COMPILE_STATUS, &status);
-    if (status != GL_TRUE)
-    {	// Compilation error
-        perr("Error compiling Vertex shader:\n");
-        printLog(vs);
-        return false;
+    for (i = 0; i < 2; i++)
+    {
+        source[0] = shader_type_def[i];
+        shader[i] = glCreateShader(shader_type[i]);
+        glShaderSource(shader[i], 2, source, NULL);
+        glCompileShader(shader[i]);
+        glGetShaderiv(shader[i], GL_COMPILE_STATUS, &status);
+        if (status != GL_TRUE)
+        {	// Compilation error
+            perr("Error compiling %s %s shader:\n",
+                &smoothing[2+shaderindex][1], &shader_type_def[i][8]);
+            printLog(shader[i]);
+            return false;
+        }
     }
+    free(source[1]);
 
-    fs = glCreateShader(GL_FRAGMENT_SHADER);
-    glShaderSource(fs, 1, &fsSource, NULL);
-    glCompileShader(fs);
-    glGetShaderiv(fs, GL_COMPILE_STATUS, &status);
-    if (status != GL_TRUE)
-    {	// Compilation error
-        perr("Error compiling Fragment shader:\n");
-        printLog(fs);
-        return false;
-    }
-
-    free(vsSource);
-    free(fsSource);
-
-    sp = glCreateProgram();
-    glAttachShader(sp, vs);
-    glAttachShader(sp, fs);
-    glLinkProgram(sp);
-    glGetProgramiv(sp, GL_LINK_STATUS, &status);
+    sp[shaderindex] = glCreateProgram();
+    glAttachShader(sp[shaderindex], shader[0]);
+    glAttachShader(sp[shaderindex], shader[1]);
+    glLinkProgram(sp[shaderindex]);
+    glGetProgramiv(sp[shaderindex], GL_LINK_STATUS, &status);
     if (status != GL_TRUE)
     {	// Compilation error
         perr("Error linking shader program:\n");
-        printLog(sp);
+        printLog(sp[shaderindex]);
         return false;
     }
+    printb("Successfully loaded %s shader\n", &smoothing[2 + shaderindex][1]);
 
     return true;
 }
 
 // Init the shader. Returns false if an issue was encountered
-bool init_shader()
+bool init_shaders()
 {
+    int i;
     GLenum gl_err;
 
-    // Needs to intervene after glut_init
+    // Needs to happen after glut_init
     gl_err = glewInit();
     if (GLEW_OK != gl_err)
     {
@@ -335,17 +322,14 @@ bool init_shader()
     if (!GLEW_VERSION_2_0)
         return false;
 
-    // For now, only HQ2X **LITE** is available as HQnX GLSL shader,
-    // (and it's not doing as good a job as the **FULL** CPU HQ2X
-    // version -- which is too slow for our use) so 2x factor only.
-    // When someone actually bothers writing proper GLSL versions of
-    // **BOTH** HQ3X and HQ4X, we'll see about adding them
-    if (compile_shader(2))
+    for (i = 0; i < NB_SHADERS; i++)
     {
-        opt_glsl_enabled = true;
-        return true;
-    } else
-        return false;
+        if (!compile_shader(i))
+            return false;
+    }
+
+    opt_glsl_enabled = true;
+    return true;
 }
 #endif
 
@@ -1532,28 +1516,28 @@ void rescale_buffer()
 // forth with OpenGL for software HQ2X for instance is WAY TOO DARN SLOW!!!!)
 
 #if defined(WIN32)
-	GLint shaderSizeLocation;
+    GLint shaderSizeLocation;
 #endif
 
     if ((gl_width != PSP_SCR_WIDTH) && (gl_height != PSP_SCR_HEIGHT))
     {
-		glDisable(GL_BLEND);	// Better than having to use glClear()
+        glDisable(GL_BLEND);	// Better than having to use glClear()
 
         // If we don't set full luminosity, our menu will fade too
         glColor3f(1.0f, 1.0f, 1.0f);
 #if defined(WIN32)
-		if (opt_gl_smoothing >= 2)
-		{	// Use one of the HQ2X-HQ4X GLSL shaders
-			glUseProgram(sp);	// Apply GLSL shader
-			shaderSizeLocation = glGetUniformLocation(sp, "OGL2Size");
-			glUniform4f(shaderSizeLocation, PSP_SCR_WIDTH, PSP_SCR_HEIGHT, 0.0, 0.0);
-		}
+        if (opt_gl_smoothing >= 2)
+        {	// Use one of the GLSL shaders
+            glUseProgram(sp[opt_gl_smoothing-2]);	// Apply GLSL shader
+            shaderSizeLocation = glGetUniformLocation(sp[opt_gl_smoothing-2], "OGL2Size");
+            glUniform4f(shaderSizeLocation, PSP_SCR_WIDTH, PSP_SCR_HEIGHT, 0.0, 0.0);
+        }
 #endif
 
-		glBindTexture(GL_TEXTURE_2D, render_texid);
-		glCopyTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 0, 0, PSP_SCR_WIDTH, PSP_SCR_HEIGHT, 0);
+        glBindTexture(GL_TEXTURE_2D, render_texid);
+        glCopyTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 0, 0, PSP_SCR_WIDTH, PSP_SCR_HEIGHT, 0);
 
-		// Then we change our viewport to the actual screen size
+        // Then we change our viewport to the actual screen size
         glViewport(0, 0, gl_width, gl_height);
 
         // Now we change the projection, to the new dimensions
@@ -1568,8 +1552,8 @@ void rescale_buffer()
             display_sprite(0, gl_height, gl_width, -gl_height, render_texid);
 
 #if defined(WIN32)
-		if (opt_gl_smoothing >= 2)
-			glUseProgram(0);	// Stop applying shader
+        if (opt_gl_smoothing >= 2)
+            glUseProgram(0);	// Stop applying shader
 #endif
 
         // Finally, we restore the parameters

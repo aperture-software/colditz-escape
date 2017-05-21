@@ -2300,13 +2300,13 @@ s16 check_footprint(s16 dx, s16 d2y)
                                 animations[nb_animations].framecount = 0;
                                 animations[nb_animations].end_of_ani_function = &toggle_exit;
                                 animations[nb_animations].end_of_ani_parameter = exit_nr;
-								can_consume_key = false;	// Don't consume any more keys till door opened
+                                can_consume_key = false;	// Don't consume any more keys till door opened
                                 safe_nb_animations_increment();
                                 break;
                             default:	// not an exit we should animate
                                 // just enqueue the toggle exit event
                                 enqueue_event(&toggle_exit, exit_nr, 3*ANIMATION_INTERVAL);
-								can_consume_key = false;	// Don't consume any more keys till door opened
+                                can_consume_key = false;	// Don't consume any more keys till door opened
                                 break;
                             }
                             consume_prop();
@@ -2575,8 +2575,8 @@ void switch_room(s16 exit_nr, bool tunnel_io)
 
     // Since we're changing room, reset all animations...
     init_animations = true;
-	// and to be safe, make sure we can use keys
-	can_consume_key = true;
+    // and to be safe, make sure we can use keys
+    can_consume_key = true;
 
     exit_index++;	// zero based to one based
 //	printb("          to room[%X] (exit_index = %d)\n", current_room_index, exit_index);

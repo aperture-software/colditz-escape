@@ -122,10 +122,10 @@ extern "C" {
 // Couple differences between Win & PSP
 #if defined(PSP)
 #define S2_NAME					"STARTSCREEN2-PSP"
-#define APERTURE_VIDEO			"aperture.pmp"
+#define APERTURE_VIDEO			"INTRO.PMP"
 #else
 #define S2_NAME					"STARTSCREEN2"
-#define APERTURE_VIDEO			"aperture.avi"
+#define APERTURE_VIDEO			"INTRO.AVI"
 #endif
 #define TEXTURES				{	{ "PIC.1(SOLITARY)", 320, 192, 0, NULL },					\
 									{ "PIC.1(SOLITARY)FREE", 320, 192, 0, NULL },				\
@@ -146,10 +146,10 @@ extern "C" {
 									{ "STARTSCREEN4", 320, 200, 0, NULL },						\
 									{ "PIC.8(PASS)", 320, 192, 0, NULL },						\
 									{ "PIC.9(PAPERS)", 320, 192, 0, NULL },						\
-									{ "panel_base1.raw", 64, 32, 0, NULL},						\
-									{ "panel_base2.raw", 256, 32, 0, NULL},						\
-									{ "corner.raw", 74, 37, 0, NULL},							\
-									{ "tunnel-vision.raw", 128, 128, 0, NULL},					\
+									{ "PANELBASE1.RAW", 64, 32, 0, NULL},						\
+									{ "PANELBASE2.RAW", 256, 32, 0, NULL},						\
+									{ "CORNER.RAW", 74, 37, 0, NULL},							\
+									{ "TUNNELVISION.RAW", 128, 128, 0, NULL},					\
 								}
 
 // Handy identifier for images
@@ -290,6 +290,7 @@ extern "C" {
 #define NB_PANEL_SPRITES		(NB_PANEL_FLAGS+NB_PANEL_FACES+NB_PANEL_CLOCK_DIGITS+NB_PANEL_ITEMS+2)
 #define NB_EXTRA_SPRITES		2
 #define NB_SPRITES				(NB_STANDARD_SPRITES+NB_PANEL_SPRITES)
+#define NB_SHADERS				1
 // The fatigue bar base is the last sprite
 #define PANEL_FATIGUE_SPRITE	(NB_SPRITES-1)
 #define FOOLED_BY_SPRITE		(NB_SPRITES-2)
@@ -306,9 +307,9 @@ extern "C" {
 #define MESSAGE_BASE			0x00007F12
 #define EXIT_MESSAGE_BASE		MESSAGE_BASE
 #define PROPS_MESSAGE_BASE		(MESSAGE_BASE+16)
-#define	ROOM_DESC_BASE			0x0000BCB4
+#define ROOM_DESC_BASE			0x0000BCB4
 #define TUNNEL_MSG_ID			0x35
-#define	COURTYARD_MSG_ID		0x36
+#define COURTYARD_MSG_ID		0x36
 
 
 /*

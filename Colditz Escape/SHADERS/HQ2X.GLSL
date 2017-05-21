@@ -2,6 +2,32 @@
 // by guest(r) (guest.r@gmail.com)
 // License: GNU-GPL
 
+#if defined(VERTEX)
+
+uniform vec4 OGL2Size;
+
+void main()
+{
+	float x = 0.5 / OGL2Size.x;
+	float y = 0.5 / OGL2Size.y;
+	vec2 dg1 = vec2( x,y);
+	vec2 dg2 = vec2(-x,y);
+	vec2 dx = vec2(x,0.0);
+	vec2 dy = vec2(0.0,y);
+	gl_Position = gl_ModelViewProjectionMatrix * gl_Vertex;
+	gl_TexCoord[0] = gl_MultiTexCoord0;
+	gl_TexCoord[1].xy = gl_TexCoord[0].xy - dg1;
+	gl_TexCoord[1].zw = gl_TexCoord[0].xy - dy;
+	gl_TexCoord[2].xy = gl_TexCoord[0].xy - dg2;
+	gl_TexCoord[2].zw = gl_TexCoord[0].xy + dx;
+	gl_TexCoord[3].xy = gl_TexCoord[0].xy + dg1;
+	gl_TexCoord[3].zw = gl_TexCoord[0].xy + dy;
+	gl_TexCoord[4].xy = gl_TexCoord[0].xy + dg2;
+	gl_TexCoord[4].zw = gl_TexCoord[0].xy - dx;
+}
+
+#elif defined(FRAGMENT)
+
 uniform sampler2D OGL2Texture;
 
 const float mx = 0.325;      // start smoothing wt.
@@ -47,3 +73,5 @@ void main()
 
 	gl_FragColor.xyz=w1*c10+w2*c21+w3*c12+w4*c01+(1.0-w1-w2-w3-w4)*c11;
 }
+
+#endif

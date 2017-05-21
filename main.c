@@ -32,6 +32,7 @@
 #include <gl/gl.h>
 #include <gl/glu.h>
 #include "win32/glut.h"
+#include "win32/wglext.h"
 
 // Tell VC++ to include the GL libs
 #pragma comment(lib, "opengl32.lib")
@@ -296,6 +297,38 @@ void update_timers()
         game_time += delta_t;
 }
 
+#if defined(WIN32)
+// Returns true if WGL extension 'extension_name' is supported
+bool WGLExtensionSupported(const char *extension_name)
+{
+    PFNWGLGETEXTENSIONSSTRINGEXTPROC _wglGetExtensionsStringEXT = NULL;
+
+    // Get a pointer to wglGetExtensionsStringEXT function
+    _wglGetExtensionsStringEXT = (PFNWGLGETEXTENSIONSSTRINGEXTPROC)
+        wglGetProcAddress("wglGetExtensionsStringEXT");
+
+    return (strstr(_wglGetExtensionsStringEXT(), extension_name) != NULL);
+}
+
+// Force VSYNC
+bool force_vsync(void)
+{
+    PFNWGLSWAPINTERVALEXTPROC       wglSwapIntervalEXT = NULL;
+    PFNWGLGETSWAPINTERVALEXTPROC    wglGetSwapIntervalEXT = NULL;
+
+    if (!WGLExtensionSupported("WGL_EXT_swap_control"))
+        return false;
+
+    // Extension is supported, init pointers.
+    wglSwapIntervalEXT = (PFNWGLSWAPINTERVALEXTPROC)wglGetProcAddress("wglSwapIntervalEXT");
+
+    // A swap interval of 1 tells the GPU to wait for one v-blank
+    // before swapping the front and back buffers.
+    wglSwapIntervalEXT(1);
+
+    return true;
+}
+#endif
 
 /*
  *	GLUT event handlers
@@ -307,6 +340,11 @@ static void glut_init()
     glutInitWindowSize(gl_width, gl_height);
     glutInitWindowPosition(0, 0);
     glutCreateWindow(APPNAME);
+
+#if defined(WIN32)
+    if (!force_vsync())
+        printb("Could not force VSYNC");
+#endif
 
     glShadeModel(GL_SMOOTH);		// set by default
 
@@ -1033,7 +1071,7 @@ static void glut_idle_game(void)
 
 // Menu navigation
 #define TOG(option) {option=(option)?0:1; config_save=true;}
-#define ROT(option, nb_values) {option=(option+(key_down[SPECIAL_KEY_LEFT]?nb_values-1:1))%nb_values, config_save=true;}
+#define ROT(option, nb_values) {option=(option+(key_down[SPECIAL_KEY_LEFT]?(nb_values)-1:1))%(nb_values), config_save=true;}
 void process_menu()
 {
     bool cancel_selected = read_key_once(KEY_CANCEL);
@@ -1115,7 +1153,7 @@ void process_menu()
 // The following only make sense on Windows
 #if defined(WIN32)
             case MENU_SMOOTHING:
-                ROT(opt_gl_smoothing, (opt_glsl_enabled?3:2));
+                ROT(opt_gl_smoothing, 2+(opt_glsl_enabled?NB_SHADERS:0));
                 break;
             case MENU_FULLSCREEN:
                 TOG(opt_fullscreen);
@@ -1705,6 +1743,11 @@ int main (int argc, char *argv[])
     gl_height = (opt_halfsize?1:2)*PSP_SCR_HEIGHT;
 #endif
 
+#if defined(FORCE_VSYNC)
+    // This is supposed to help with VSYNC, but doesn't seem to do much
+    putenv((char *) "__GL_SYNC_TO_VBLANK=1");
+#endif
+
     // Well, we're supposed to call that blurb
     glutInit(&argc, argv);
 
@@ -1712,7 +1755,7 @@ int main (int argc, char *argv[])
     glut_init();
 
 #if defined(WIN32)
-    init_shader();
+    init_shaders();
 #endif
 
 //	remove(confname);

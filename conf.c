@@ -98,7 +98,7 @@ void set_xml_defaults()
         " display texturized picture corners, rather than black triangles ");
     SET_XML_NODE_DEFAULT(options, gl_smoothing, 0);
     SET_XML_NODE_COMMENT(options, gl_smoothing,
-        " type of graphic smoothing: none, linear, hq2x (Windows only) ");
+        " type of graphic smoothing: none, linear, hq2x, etc. (Windows only) ");
     SET_XML_NODE_DEFAULT(options, joy_deadzone, 450);
     SET_XML_NODE_COMMENT(options, joy_deadzone,
         " joystick deadzone");

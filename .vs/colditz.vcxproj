@@ -14,7 +14,6 @@
     <ProjectGuid>{DE0D60B9-EF9E-4F9A-9BE2-1645CF8AA184}</ProjectGuid>
     <RootNamespace>colditz</RootNamespace>
     <Keyword>Win32Proj</Keyword>
-    <WindowsTargetPlatformVersion>8.1</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
