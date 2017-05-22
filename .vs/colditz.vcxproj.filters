@@ -74,9 +74,6 @@
     <ClInclude Include="..\eschew\ConvertUTF.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\data-types.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="..\eschew\eschew.h">
       <Filter>Header Files</Filter>
     </ClInclude>

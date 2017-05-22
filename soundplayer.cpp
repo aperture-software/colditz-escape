@@ -52,11 +52,17 @@
 #include "win32/winXAudio2.h"
 #endif
 
-#include "data-types.h"
 #include "low-level.h"
 #include "soundplayer.h"
 #include "modplayeri.h"
 #include "modtables.h"
+
+#if !defined(min)
+#define min(a,b) (((a)<(b))?(a):(b))
+#endif
+#if !defined(max)
+#define max(a,b) (((a)>(b))?(a):(b))
+#endif
 
 // As a sample is being mixed into the buffer its position pointer is updated.
 // The position pointer is a 32-bit integer that is used to store a fixed-point

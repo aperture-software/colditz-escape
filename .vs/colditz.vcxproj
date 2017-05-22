@@ -130,7 +130,6 @@
     <ClInclude Include="..\cluck.h" />
     <ClInclude Include="..\colditz.h" />
     <ClInclude Include="..\conf.h" />
-    <ClInclude Include="..\data-types.h" />
     <ClInclude Include="..\eschew\ConvertUTF.h" />
     <ClInclude Include="..\eschew\eschew.h" />
     <ClInclude Include="..\game.h" />

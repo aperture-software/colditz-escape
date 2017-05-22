@@ -36,11 +36,10 @@
 #include <GL/glu.h>
 #include <GL/glut.h>
 #endif
-#include "data-types.h"
 /*
-	This constant *MUST* be defined before including eschew.h,
-	*IN* the source where you do the runtime initialization
-*/
+ * This constant *MUST* be defined before including eschew.h,
+ * *IN* the source where you do the runtime initialization
+ */
 #define INIT_XML_ACTUAL_INIT
 #include "eschew/eschew.h"
 #include "conf.h"
