@@ -46,7 +46,7 @@ extern "C" {
  */
 
 #define APPNAME					"Colditz Escape"
-#define VERSION					"1.0.88"
+#define VERSION					"1.0.90"
 
 /*
  *	Graphics
@@ -290,7 +290,7 @@ extern "C" {
 #define NB_PANEL_SPRITES		(NB_PANEL_FLAGS+NB_PANEL_FACES+NB_PANEL_CLOCK_DIGITS+NB_PANEL_ITEMS+2)
 #define NB_EXTRA_SPRITES		2
 #define NB_SPRITES				(NB_STANDARD_SPRITES+NB_PANEL_SPRITES)
-#define NB_SHADERS				1
+#define NB_SHADERS				4
 // The fatigue bar base is the last sprite
 #define PANEL_FATIGUE_SPRITE	(NB_SPRITES-1)
 #define FOOLED_BY_SPRITE		(NB_SPRITES-2)

@@ -21,8 +21,8 @@ Latest Automated Builds
 
 Below are self contained game archives, based on the very latest version of the code. Just extract these files, and you're good to go!
 
-* [__Windows__](https://ci.appveyor.com/api/projects/aperture-software/colditz-escape/artifacts/Colditz%20Escape.7z?job=Environment%3A%20WINDOWS%3DRelease)
-* [PSP](https://ci.appveyor.com/api/projects/aperture-software/colditz-escape/artifacts/Colditz%20Escape.7z?job=Environment%3A%20PSP%3DRelease) (Extract to `PSP\GAME\` on Memory Stick)
+* [__Windows__](https://ci.appveyor.com/api/projects/aperture-software/colditz-escape/artifacts/Colditz_Escape_(Windows).7z?job=Environment%3A%20WINDOWS%3DRelease "Colditz Escape (Windows).7z")
+* [PSP](https://ci.appveyor.com/api/projects/aperture-software/colditz-escape/artifacts/Colditz_Escape_(PSP).7z?job=Environment%3A%20PSP%3DRelease "Colditz Escape (PSP).7z") (Extract to `PSP\GAME\` on Memory Stick)
 
 Features that might be of interest to you within this source
 ------------------------------------------------------------

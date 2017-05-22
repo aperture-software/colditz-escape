@@ -108,7 +108,7 @@ char* menus[NB_MENUS][NB_MENU_ITEMS] = {
     {" SAVE MENU", "", "", "BACK TO MAIN MENU", NULL, NULL, NULL, NULL, NULL, NULL},
     {" LOAD MENU", "", "", "BACK TO MAIN MENU", NULL, NULL, NULL, NULL, NULL, NULL} };
 char* on_off[3] = { "", ":ON", ":OFF"};
-char* smoothing[2+NB_SHADERS] = { ":NONE", ":LINEAR", ":HQ2X" };
+char* smoothing[2+NB_SHADERS] = { ":NONE", ":LINEAR", ":HQ2X", ":HQ4X", ":5XBR", ":SABR" };
 
 #if defined(WIN32)
 GLuint sp[NB_SHADERS];	// Shader Program for zoom
@@ -1529,8 +1529,8 @@ void rescale_buffer()
         if (opt_gl_smoothing >= 2)
         {	// Use one of the GLSL shaders
             glUseProgram(sp[opt_gl_smoothing-2]);	// Apply GLSL shader
-            shaderSizeLocation = glGetUniformLocation(sp[opt_gl_smoothing-2], "OGL2Size");
-            glUniform4f(shaderSizeLocation, PSP_SCR_WIDTH, PSP_SCR_HEIGHT, 0.0, 0.0);
+            shaderSizeLocation = glGetUniformLocation(sp[opt_gl_smoothing-2], "TextureSize");
+            glUniform2f(shaderSizeLocation, PSP_SCR_WIDTH, PSP_SCR_HEIGHT);
         }
 #endif
 
