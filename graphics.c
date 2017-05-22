@@ -300,7 +300,7 @@ bool compile_shader(int shaderindex)
         printLog(sp[shaderindex]);
         return false;
     }
-    printb("Successfully loaded %s shader\n", &smoothing[2 + shaderindex][1]);
+    printb("Loaded %s shader\n", &smoothing[2 + shaderindex][1]);
 
     return true;
 }

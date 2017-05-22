@@ -151,7 +151,6 @@
     <ClInclude Include="..\win32\wglew.h" />
     <ClInclude Include="..\win32\winXAudio2.h" />
     <ClInclude Include="..\win32\wmp.h" />
-    <ClInclude Include="..\windows.h" />
     <ClInclude Include="resource.h" />
   </ItemGroup>
   <ItemGroup>

@@ -134,9 +134,6 @@
     <ClInclude Include="..\win32\wglew.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\windows.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="resource.h">
       <Filter>Header Files</Filter>
     </ClInclude>

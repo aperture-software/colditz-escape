@@ -296,7 +296,7 @@ void update_timers()
         game_time += delta_t;
 }
 
-#if defined(WIN32)
+#if !defined(PSP)
 // Returns true if WGL extension 'extension_name' is supported
 bool WGLExtensionSupported(const char *extension_name)
 {
@@ -340,7 +340,9 @@ static void glut_init()
     glutInitWindowPosition(0, 0);
     glutCreateWindow(APPNAME);
 
-#if defined(WIN32)
+#if !defined(PSP)
+    // Remove that pesky cursor
+    glutSetCursor(GLUT_CURSOR_NONE);
     if (!force_vsync())
         printb("Could not force VSYNC");
 #endif
