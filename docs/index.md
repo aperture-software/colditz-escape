@@ -21,10 +21,10 @@ Screenshots
 Installation
 ------------
 
- * Extract the zip content into the relevant directory (`PSP/GAME/` on PSP, any location on Windows). It should create a "Colditz" directory there
- * Launch the game (`colditz.exe` on Windows).
+ * Extract the 7z content into the relevant directory (`PSP/GAME/` on PSP, any location on Windows). It should create a `Colditz Escape/` directory there
+ * Launch the game (`COLDITZ.EXE` on Windows).
 
-Please see the FAQ for additional information.
+Please see the [FAQ](FAQ.md) for additional information.
 
 Controls
 --------
@@ -34,15 +34,15 @@ The controls can be modified by editing the `config.xml` file which is created w
 
 For the PSP, the direction is with the analog pad.
 
-Please see the FAQ for additional information.
+Please see the [FAQ](FAQ.md) for additional information.
 
 Downloads
 ---------
 
-* [PSP Executable](http://colditzescape.googlecode.com/files/Colditz%20Escape%21%200.9.4%20-%20PSP.zip) (2.2 MB),  v0.9.4
-* [Windows Executable](http://colditzescape.googlecode.com/files/Colditz%20Escape%21%200.9.4%20-%20WIN.zip) (2.4 MB), v.0.9.4
+* [Windows executable](https://storage.googleapis.com/google-code-archive-downloads/v2/code.google.com/colditzescape/Colditz%20Escape!%200.9.4%20-%20WIN.zip) (2.4 MB), v0.9.4
+* [PSP Executable](https://storage.googleapis.com/google-code-archive-downloads/v2/code.google.com/colditzescape/Colditz%20Escape!%200.9.4%20-%20PSP.zip) (2.2 MB), v0.9.4
 * [Sourcecode](https://github.com/aperture-software/colditz-escape/archive/v0.9.4.tar.gz), v0.9.4 (4.3 MB, also accessible through github)
-* The original game's [Reverse Engineered disassembly](https://sites.google.com/site/colditzescape/goodies/ReverseEngineeringAnalysis.7z?attredirects=0) (if you are actually deranged enough to want to look at this stuff)
+* The original game's [Reverse Engineered disassembly](https://storage.googleapis.com/google-code-archive-downloads/v2/code.google.com/colditzescape/ReverseEngineeringAnalysis.7z) (if you are actually deranged enough to want to look at this stuff)
 
 History
 -------

@@ -35,7 +35,7 @@ extern "C" {
 #define comp_readtile(x,y)			\
 	((uint32_t)(readlong((uint8_t*)fbuffer[COMPRESSED_MAP], ((y)*room_x+(x))*4) & 0x1FF00) >> 8)
 #define room_readtile(x,y)			\
-	((uint32_t)(readword((uint8_t*)(fbuffer[ROOMS]+offset),((y)*room_x+(x))*2) & 0xFF80) >> 7)
+	((uint32_t)(readword((uint8_t*)(fbuffer[ROOMS]+offset), ((y)*room_x+(x))*2) & 0xFF80) >> 7)
 #define readtile(x,y)				\
 	(is_outside?comp_readtile(x,y):room_readtile(x,y))
 
@@ -43,7 +43,7 @@ extern "C" {
 #define comp_readexit(x,y)			\
 	((uint32_t)(readlong((uint8_t*)fbuffer[COMPRESSED_MAP], ((y)*room_x+(x))*4) & 0x1F))
 #define room_readexit(x,y)			\
-	((uint32_t)(readword((uint8_t*)(fbuffer[ROOMS]+offset),((y)*room_x+(x))*2) & 0x1F))
+	((uint32_t)(readword((uint8_t*)(fbuffer[ROOMS]+offset), ((y)*room_x+(x))*2) & 0x1F))
 #define readexit(x,y)				\
 	(is_outside?comp_readexit(x,y):room_readexit(x,y))
 

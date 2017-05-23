@@ -49,7 +49,7 @@ extern "C" {
  */
 
 #define APPNAME					"Colditz Escape"
-#define VERSION					"1.0.94"
+#define VERSION					"1.0.95"
 
 /*
  *	Graphics

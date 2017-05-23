@@ -27,15 +27,16 @@ Below are self contained game archives, based on the very latest version of the 
 Features that might be of interest to you within this source
 ------------------------------------------------------------
 
-* Code for a simple directShow movie player for Windows (`/win32/wmp.[cpp|h]`)
+* Code for a simple directShow movie player for Windows ([`wmp.cpp`](win32/wmp.cpp))
 * Code for an [XAudio2](https://msdn.microsoft.com/en-us/library/windows/desktop/ee415813.aspx) sound player, with double  
-  buffered streaming capabilities, for Windows (`/win32/winXAudio2.[cpp|h]`)
-* Multiplatform wrapper for XML configuration files (`/conf.[c|h]` and `/eschew/`)
-* Code for onscreen message printout on PSP (`/psp/psp-printf.h`)
-* [IFF](http://en.wikipedia.org/wiki/Interchange_File_Format) image loader (`/graphics.c` &rarr; `load_iff()`)
-* RAW texture loader, with or without Alpha (`/graphics.c` &rarr; `load_raw_rgb()`)
-* OpenGL 2D rescale (`/graphics.c` &rarr; `rescale_buffer()`)
-* line/bitplane interleaved interleaved to RGBA texture conversion (`graphics.c` &rarr; `line_interleaved_to_wGRAB()` and `bitplane_to_wGRAB()`)
-* Bytekiller 1.3 decompression algorithm (`/low-level.c` &rarr; `uncompress()`)
-* PowerPacker decompression (`/low-level.c` &rarr; `ppDecrunch()`, courtesy of 'amigadepacker' by _Heikki Orsila_)
-* Generic HQ2X GLSL OpenGL Zoom shader 
+  buffered streaming capabilities, for Windows ([`winXAudio.cpp`](win32/winXAudio.cpp))
+* Multiplatform wrapper for XML configuration files ([`conf.c`](conf.c) and [Eschew](eschew/))
+* Code for onscreen message printout on PSP ([`psp-printf.h`](psp/psp-printf.h))
+* [IFF](http://en.wikipedia.org/wiki/Interchange_File_Format) image loader ([`graphics.c`](graphics.c) &rarr; `load_iff()`)
+* RAW texture loader, with or without Alpha ([`graphics.c`](graphics.c) &rarr; `load_raw_rgb()`)
+* OpenGL 2D rescale ([`graphics.c`](graphics.c) &rarr; `rescale_buffer()`)
+* line/bitplane interleaved interleaved to RGBA texture conversion ([`graphics.c`](graphics.c) `line_interleaved_to_wGRAB()` and `bitplane_to_wGRAB()`)
+* Bytekiller 1.3 decompression algorithm ([`low-level.c`](low-level.c) &rarr; `uncompress()`)
+* PowerPacker decompression ([`low-level.c`](low-level.c)  &rarr; `ppDecrunch()`, courtesy of 'amigadepacker' by _Heikki Orsila_)
+* Generic GLSL OpenGL zoom shaders ([HQ2X](Colditz Escape/SHADERS/HQ2X.GLSL), [HQ4X](Colditz Escape/SHADERS/HQ4X.GLSL),
+  [5XBR](Colditz Escape/SHADERS/5XBR.GLSL), [SABR](Colditz Escape/SHADERS/SABR.GLSL) in ([`graphics.c`](graphics.c) &rarr; `compile_shaders()`)

@@ -434,8 +434,9 @@ void newgame_init()
 
 // FOR DEBUG
 /*
-    guy(0).p2y += 300;
-    guy(0).room = 9;
+    guy(0).p2y += 220;
+    guy(0).px += 378;
+    guy(0).room = 320;
     guy(0).ext_bitmask = 0x8000001E;
     guy(0).is_dressed_as_guard = true;
     guy(1).px += 100;
@@ -2008,11 +2009,11 @@ void timed_events(uint16_t hours, uint16_t minutes_high, uint16_t minutes_low)
 // Makes use of exit_flags_offset which is a global variable
 void toggle_exit(uint32_t exit_nr)
 {
-    uint8_t	ROOMS_TUNIO;
+    uint8_t ROOMS_TUNIO;
     uint16_t exit_index;	// exit index in destination room
     uint16_t tile_data;
     bool found;
-    uint8_t	exit_flags;
+    uint8_t exit_flags;
     uint16_t target_room_index;
     // Don't use the globals here, or exit handling will go screwie!!!
     uint16_t _room_x, _room_y;
@@ -2115,7 +2116,7 @@ static __inline void get_tile_props(int16_t _tile_x, int16_t _tile_y, int index_
     // Be mindful that the _tile_x/y used here are not the global variables
     // as me might be doing a lookup right/down
     tile = readtile(_tile_x, _tile_y) + (in_tunnel?TUNNEL_TILE_ADDON:0);
-//	printb("got tile %04X\n", tile<<7);
+//	printb("readtile(%d, %d) = %04X\n", _tile_x, _tile_y, tile<<7);
     // Dunno why they reset the tile index for tunnels in the original game
 
     // Get the exit mask, if we stand on an exit
@@ -2155,6 +2156,7 @@ static __inline void get_tile_props(int16_t _tile_x, int16_t _tile_y, int index_
     else
         // Regular
         mask_offset[index_nr] = TILE_MASKS_START + readlong((uint8_t*)fbuffer[LOADER], TILE_MASKS_OFFSETS+(tile<<2));
+//	printb("mask_offset[%d] = %X\n", index_nr, mask_offset[index_nr]);
 }
 
 
@@ -2171,7 +2173,7 @@ int16_t check_footprint(int16_t dx, int16_t d2y)
     int16_t px, p2y;
     uint8_t exit_flags;
     uint8_t exit_nr;
-    char* debug_message = "WHY DO I HAVE TO INITIALIZE THIS CRAP?";
+    char debug_message[64];
 
     // Initialize a few values
     if (in_tunnel)
@@ -2180,14 +2182,15 @@ int16_t check_footprint(int16_t dx, int16_t d2y)
         footprint = SPRITE_FOOTPRINT;
     offset = 0;
     set_room_xy(current_room_index);
+//	printb("room_x = %d, room_y = %d\n", room_x, room_y);
 
     // Compute the tile on which we try to stand
     px = prisoner_x + dx - (in_tunnel?16:0);
     p2y = prisoner_2y + 2*d2y - 1;
     tile_y = p2y / 32;
     tile_x = px / 32;
-    // check if we are trying to overflow our room left or up
-    if ((px<0) || (p2y<0))
+    // check if we are trying to overflow our room size
+    if ((px<0) || (p2y<0) || (px>=(32*room_x-6)) || (p2y>=(32*room_y-6)))
         return 0;
 
     //
@@ -2238,7 +2241,7 @@ int16_t check_footprint(int16_t dx, int16_t d2y)
     exit_offset[1] += mask_y;
 
     footprint >>= (px & 0x0F);	// rotate our footprint according to our x pos
-///	printb("%s %s [%d]\n", to_binary(footprint), to_binary(footprint), (px&0x1f));
+//	printb("%s %s [%d]\n", to_binary(footprint), to_binary(footprint), (px&0x1f));
 
 
     // Not tunnel I/O => we check collisions and room IO for multiple py's
@@ -2250,8 +2253,8 @@ int16_t check_footprint(int16_t dx, int16_t d2y)
         exit_mask = to_long(readword((uint8_t*)fbuffer[LOADER], exit_offset[0]),
             readword((uint8_t*)fbuffer[LOADER], exit_offset[1]));
 
-///	printb("%s ",to_binary(exit_mask));
-///	printb("%s\n", to_binary(tile_mask));
+//	printb("%s ",to_binary(exit_mask));
+//	printb("%s\n", to_binary(tile_mask));
 
         // see low_level.h for the collisions macros
         if inverted_collision(footprint,tile_mask)
