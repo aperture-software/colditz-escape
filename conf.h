@@ -139,7 +139,9 @@ extern "C" {
 #define KEY_DIRECTION_DOWN			KEYVAL(key_direction_down, 0xf4)
 
 // XBox 360 Controller definitions
+#if defined(WIN32)
 #define XBOX360_CONTROLLER_SUPPORT
+#endif
 
 #define XBOX360_CONTROLLER_BUTTON_A		0x00000001
 #define XBOX360_CONTROLLER_BUTTON_B		0x00000002
