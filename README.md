@@ -39,4 +39,4 @@ Features that might be of interest to you within this source
 * Bytekiller 1.3 decompression algorithm ([`low-level.c`](low-level.c) &rarr; `uncompress()`)
 * PowerPacker decompression ([`low-level.c`](low-level.c)  &rarr; `ppDecrunch()`, courtesy of 'amigadepacker' by _Heikki Orsila_)
 * Generic GLSL OpenGL zoom shaders ([HQ2X](Colditz%20Escape/SHADERS/HQ2X.GLSL), [HQ4X](Colditz%20Escape/SHADERS/HQ4X.GLSL),
-  [5XBR](Colditz%20Escape/SHADERS/5XBR.GLSL), [SABR](Colditz%20Escape/SHADERS/SABR.GLSL) in ([`graphics.c`](graphics.c) &rarr; `compile_shaders()`)
+  [5XBR](Colditz%20Escape/SHADERS/5XBR.GLSL), [SABR](Colditz%20Escape/SHADERS/SABR.GLSL) in [`graphics.c`](graphics.c) &rarr; `compile_shaders()`)

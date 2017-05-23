@@ -1297,9 +1297,22 @@ static void glut_idle_static_pic(void)
         break;
     case PICTURE_FADE_IN_START:
         game_state |= GAME_STATE_STATIC_PIC;
-        if (paused)
+        if (paused) {
+#if defined(PSP)
+            // For some reason, the graphics on PSP are all garbled the first time
+            // we create the pause screen.
+            // And since I can't be bothered to try to figure the intricacies of
+            // GLUT/OpenGL on PSP any longer, just apply an obvious workaround.
+            static bool first_time = true;
+            if (first_time)
+            {
+                first_time = false;
+                create_pause_screen();
+            }
+#endif
             // We use the picture fade in to create the pause screen if paused
             create_pause_screen();
+        }
         else if (menu)
             picture_state++;	// Skip picture fade
         else

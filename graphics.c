@@ -370,7 +370,7 @@ void set_textures()
     //
     // If you're really unhappy about this kind of practice, just allocate 512x512x3
     background_buffer = (uint8_t*) aligned_malloc(512*PSP_SCR_HEIGHT*3,16);
-//	background_buffer = (u8*) aligned_malloc(512*512*3,16);
+//    background_buffer = (uint8_t*) aligned_malloc(512*512*3,16);
     if (background_buffer == NULL)
         printf("Could not allocate buffer for static images display\n");
 
@@ -1737,7 +1737,7 @@ void display_menu_screen()
 // The couple of routines below handle the 4-way split pause screen
 void create_pause_screen()
 {
-#define SPACER	8
+#define SPACER 8
     int i, restore_nation, restore_fade;
     float x,y,w,h;
 
