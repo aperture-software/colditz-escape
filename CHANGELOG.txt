@@ -1,12 +1,22 @@
-0.9.4: 2010.07.06
+v1.0: 2017.05.24
+   Fix an issue with doors not remaining open (with thanks to picryott)
+   Fix wrong boundary check on some rooms (with thanks to picryott)
+   Fix unwanted sprites when switching between walking and running
+   Fix fatigue not being decreased for non active prisoner
+   Fix initial pause screen not displaying correctly (PSP)
+   Add Xbox 360 Controller support (Windows)
+   Add HQ4X, 5XBR and SABR zoom shaders (Windows)
+   Make scrolling smoother by forcing VSYNC (Windows)
+   Other fixes and improvements
+v0.9.4: 2010.07.06
    Updated Eschew to v1.1 (fixes potential memory issues)
    Fixed a couple of memory leaks in Windows Audio
    Program now warns users if their version of DirectX is too old for WinXAudio2
    Acted on -Wshadow warnings
    Uses latest pspGL on PSP
-0.9.3: 2009.11.23
+v0.9.3: 2009.11.23
    HQ2X OpenGL Shader (+ GLEW) for GFX smoothing on Windows platforms
    Data files now included with binaries
    Fixed double key consumption
-0.9.2: 2009.08.17
+v0.9.2: 2009.08.17
    Initial Release!

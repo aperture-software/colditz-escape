@@ -1776,11 +1776,11 @@ int main (int argc, char *argv[])
     init_xml();
     if (!read_xml(confname))
     {	// config.xml not found => try to create one
-        printf("Could not open '%s' config file. Creating a new one...\n", confname);
+        printb("'%s' not found. Creating a new one...\n", confname);
         fflush(stdout);
         set_xml_defaults();
         if (!write_xml(confname))
-            perr("  ERROR.\n");
+            perr("Could not create '%s'\n", confname);
     }
     if (opt_original_mode)
     {

@@ -39,14 +39,15 @@ Please see the [FAQ](FAQ.md) for additional information.
 Downloads
 ---------
 
-* [Windows executable](https://storage.googleapis.com/google-code-archive-downloads/v2/code.google.com/colditzescape/Colditz%20Escape!%200.9.4%20-%20WIN.zip) (2.4 MB), v0.9.4
-* [PSP Executable](https://storage.googleapis.com/google-code-archive-downloads/v2/code.google.com/colditzescape/Colditz%20Escape!%200.9.4%20-%20PSP.zip) (2.2 MB), v0.9.4
-* [Sourcecode](https://github.com/aperture-software/colditz-escape/archive/v0.9.4.tar.gz), v0.9.4 (4.3 MB, also accessible through github)
-* The original game's [Reverse Engineered disassembly](https://storage.googleapis.com/google-code-archive-downloads/v2/code.google.com/colditzescape/ReverseEngineeringAnalysis.7z) (if you are actually deranged enough to want to look at this stuff)
+* [Windows executable](https://github.com/aperture-software/colditz-escape/releases/download/v1.0/Colditz_Escape_Windows.7z "Colditz Escape (Windows).7z"), v1.0
+* [PSP Executable](https://github.com/aperture-software/colditz-escape/releases/download/v1.0/Colditz_Escape_PSP.7z "Colditz Escape (PSP).7z"), v1.0
+* [Sourcecode](https://github.com/aperture-software/colditz-escape/archive/v1.0.tar.gz), v1.0 (Also accessible through [github](https://github.com/aperture-software/colditz-escape))
+* The original game's [Reverse Engineered disassembly](files/Reverse%20Engineering%20Analysis.7z) (if you are actually deranged enough to want to look at this stuff)
 
 History
 -------
 
+* v1.0   [2017.05.24]: Add XBox360 controller support, VSYNC and more shaders on Windows + fix various issues
 * v0.9.4 [2010.07.06]: Fixed memory leaks + various updates.
 * v0.9.3 [2009.11.23]: Minor bugfixes + new 2x GPU shader on Windows. Data files are now included in release.
 * v0.9.2 [2009.08.17]: First public release!

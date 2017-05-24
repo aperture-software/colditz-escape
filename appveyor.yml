@@ -23,13 +23,26 @@ build_script:
 - ps: |-
       if ($env:WINDOWS) {
         msbuild colditz.sln /m /p:Configuration=Release /logger:"C:\Program Files\AppVeyor\BuildAgent\Appveyor.MSBuildLogger.dll"
-        7z a "Colditz_Escape_(Windows).7z" "Colditz Escape" -x!"*/*.PMP"
+        7z a "Colditz_Escape_Windows.7z" "Colditz Escape" -x!"*/*.PMP"
       } elseif ($env:PSP) {
         $env:Path  += ";" + $env:APPVEYOR_BUILD_FOLDER + "\PSPSDK\bin"
         make release
-        7z a "Colditz_Escape_(PSP).7z" "Colditz Escape" -x!"*/*.AVI" -x!"*/SHADERS"
+        7z a "Colditz_Escape_PSP.7z" "Colditz Escape" -x!"*/*.AVI" -x!"*/SHADERS"
       }
 
 artifacts:
 - path: '*.7z'
   name: Colditz Escape
+
+deploy:
+  release: $(appveyor_repo_tag_name)
+  description: Colditz Escape $(appveyor_repo_tag_name)
+  provider: GitHub
+  auth_token: # GitHub token, encrypted from https://ci.appveyor.com/tools/encrypt
+    secure: 5NZvhqfqbVQHZ74SkiWihhvQiTAytO/M2KU4j9EBdkxWuY1Pr35ed5BFJ8ZGYAUV
+  artifact: /.*7z/
+  draft: false
+  prerelease: false
+  on:
+    branch: master
+    appveyor_repo_tag: true
