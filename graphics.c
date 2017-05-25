@@ -50,6 +50,10 @@
 #include <pspiofilemgr.h>
 #endif
 
+#if defined(linux)
+#include "GL/glut.h"
+#endif
+
 #include "low-level.h"
 #include "colditz.h"
 #include "eschew/eschew.h"
@@ -67,6 +71,11 @@
 #define stat	SceIoStat
 #define getstat	sceIoGetstat
 #endif
+
+#if defined(linux)
+#define getstat stat
+#endif
+
 
 // variables common to game & graphics
 extern uint8_t  remove_props[CMP_MAP_WIDTH][CMP_MAP_HEIGHT];
@@ -1501,7 +1510,7 @@ void display_panel()
 
 
 // Here is the long sought after "zooming the ****ing 2D colour buffer" function.
-// What a £$%^&*&^ing bore!!! And none of this crap works on PSP anyway unless you
+// What a ï¿½$%^&*&^ing bore!!! And none of this crap works on PSP anyway unless you
 // waste space in power of two sizes
 void rescale_buffer()
 {

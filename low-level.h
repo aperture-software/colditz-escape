@@ -48,6 +48,18 @@ static __inline u64 mtime(void)
 	sceRtcGetCurrentTick(&blahtime);
 	return blahtime/1000;
 }
+#elif defined(linux)
+#include "unistd.h" /* usleep*/
+#define msleep(msecs) usleep(1000*msecs)
+#include <time.h> /* clock_gettime */
+static __inline uint64_t mtime(void)
+{
+        struct timespec tp;
+        clock_gettime(CLOCK_MONOTONIC, &tp); //TODO : check for returned value
+        uint64_t result;
+        result=tp.tv_sec*1000+(tp.tv_nsec/1000000);
+        return result;
+}
 #else
 #include <unistd.h>
 #define	msleep(msecs) usleep(1000*msecs)
@@ -94,7 +106,12 @@ static __inline void psp_any_key()
 // no screen stdout => immediate exit
 #define FATAL			back_to_kernel()
 #endif
+
+#elif defined(linux)
+#define LEAVE			free_data(); exit(0)
+#define FATAL			free_data(); exit(1)
 #endif
+
 #define ERR_EXIT		do{if (fd!=NULL) fclose(fd); fflush(stdout); FATAL;}while(0)
 #if defined(PSP_ONSCREEN_STDOUT)
 #define perr(...)		printf(__VA_ARGS__)
