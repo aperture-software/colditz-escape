@@ -31,8 +31,8 @@
 #include <windows.h>
 #include <gl/gl.h>
 #include <gl/glu.h>
-#include "win32/glut.h"
-#include "win32/wglext.h"
+#include "glut/glut.h"
+#include "GL/wglext.h"
 
 // Tell VC++ to include the GL libs
 #pragma comment(lib, "opengl32.lib")

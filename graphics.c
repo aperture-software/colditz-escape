@@ -32,13 +32,12 @@
 #include <windows.h>
 // Well, since Microsoft PURPOSEFULLY refuse to update their '96 gl.h file...
 #define GLEW_STATIC
-#include "win32/glew.h"		// ...we'll use Glew for the OpenGL shader extension
-#include "win32/wglew.h"
+#include "GL/glew.h"		// ...we'll use Glew for the OpenGL shader extension
+#include "GL/wglew.h"
 #include <gl/gl.h>
 #include <gl/glu.h>
-#include "win32/glut.h"
-#endif
-#if defined(PSP)
+#include "glut/glut.h"
+#elif defined(PSP)
 #include <stdarg.h>
 #include <pspkernel.h>
 #include <pspdebug.h>

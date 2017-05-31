@@ -29,7 +29,7 @@
 #include <windows.h>
 #include <gl/gl.h>
 #include <gl/glu.h>
-#include "win32/glut.h"
+#include "glut/glut.h"
 #elif defined(PSP)
 #include <pspkernel.h>
 #include <GL/gl.h>
