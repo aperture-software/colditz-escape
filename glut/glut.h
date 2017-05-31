@@ -60,6 +60,7 @@ typedef unsigned short wchar_t;
 
 /* define APIENTRY and CALLBACK to null string if we aren't on Win32 */
 #if !defined(_WIN32)
+#undef APIENTRY
 #define APIENTRY
 #define GLUT_APIENTRY_DEFINED
 #define CALLBACK

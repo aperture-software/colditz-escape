@@ -1,4 +1,4 @@
-Makefile        eol=lf
+Makefile*       eol=lf
 *.sh            eol=lf
 *.sln           eol=crlf
 *.vcxproj*      eol=crlf

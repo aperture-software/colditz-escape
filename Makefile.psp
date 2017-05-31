@@ -2,9 +2,9 @@ TARGET          = colditz
 OBJS            = psp/psp-setup.o low-level.o soundplayer.o videoplayer.o md5.o game.o graphics.o eschew/ConvertUTF.o eschew/eschew.o conf.o main.o
 
 INCDIR          =
-CFLAGS          = -O3 -Wall -Wshadow -Wundef -Wunused -G0 -Xlinker -S -Xlinker -x
-CXXFLAGS        = $(CFLAGS) -fno-exceptions -fno-rtti
-ASFLAGS         = $(CFLAGS)
+CFLAGS         += -O3 -Wall -Wshadow -Wundef -Wunused -G0 -Xlinker -S -Xlinker -x
+CXXFLAGS       += $(CFLAGS) -fno-exceptions -fno-rtti
+ASFLAGS        += $(CFLAGS)
 
 LIBDIR          = ./libs
 FLAGS           =
