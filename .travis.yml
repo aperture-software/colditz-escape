@@ -1,0 +1,27 @@
+language: c
+
+matrix:
+  include:
+  - os: linux
+    dist: trusty
+    sudo: false
+    compiler: gcc
+
+addons:
+  apt:
+    packages:
+    - p7zip-full
+    - libgl1-mesa-dev
+    - libglu1-mesa-dev
+    - libxmu-dev
+    - libxi-dev
+    - libglew-dev
+    - libexpat-dev
+
+before_install:
+  - eval "${MATRIX_EVAL}"
+
+script:
+  - make release
+  - 7z a "Colditz_Escape_Linux.7z" "Colditz Escape"
+

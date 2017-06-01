@@ -1,7 +1,8 @@
 Colditz Escape
 ==============
 
-[![Build status](https://ci.appveyor.com/api/projects/status/sjm9b9rqjlh1pbqa?svg=true)](https://ci.appveyor.com/project/aperture-software/colditz-escape)
+[![Windows/PSP Build status](https://ci.appveyor.com/api/projects/status/sjm9b9rqjlh1pbqa?svg=true)](https://ci.appveyor.com/project/aperture-software/colditz-escape)
+[![Linux Build Status](https://travis-ci.org/aperture-software/colditz-escape.svg?branch=master)](https://travis-ci.org/aperture-software/colditz-escape)
 [![Licence](https://img.shields.io/badge/license-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0.en.html)
 
 ![Colditz Escape Logo](docs/pics/icon-256.png)

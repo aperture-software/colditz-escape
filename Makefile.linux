@@ -9,7 +9,8 @@ LD              = gcc
 CFLAGS         += -I. -O3 -Wall -Wshadow -Wundef -Wunused
 CXXFLAGS       += $(CFLAGS) -fno-exceptions -fno-rtti
 
-LIBS           += -lX11 -lXi -lXmu -lXext -lGL -lGLU -lglut -lGLEW -lexpat
+# Ubuntu is *VERY SENSITIVE* to the order in which these libs are specified
+LIBS           += -lglut -lX11 -lXi -lXmu -lXext -lGL -lGLU -lGLEW -lexpat
 LIBDIRS        += -L./glut
 
 LDFLAGS        += $(LIBDIRS) $(LIBS)
