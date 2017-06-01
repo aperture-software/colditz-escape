@@ -48,13 +48,7 @@
     <ClCompile Include="..\soundplayer.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\videoplayer.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="..\win32\winXAudio2.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="..\win32\wmp.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -107,9 +101,6 @@
     <ClInclude Include="..\modtables.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\psp\pmp.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="..\psp\psp-printf.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -119,13 +110,7 @@
     <ClInclude Include="..\soundplayer.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\videoplayer.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="..\win32\winXAudio2.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\win32\wmp.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\win32\glew.h">

@@ -31,7 +31,6 @@
 #include <windows.h>
 #include <GL/glu.h>
 #include "GL/wglext.h"
-
 // Tell VC++ to include the GL libs
 #pragma comment(lib, "opengl32.lib")
 #pragma comment(lib, "glu32.lib")
@@ -39,11 +38,8 @@
 #pragma comment(lib, "glew32s.lib")
 // Prevents a potential "LINK : fatal error LNK1104: cannot open file 'libc.lib'" error with Glew
 #pragma comment(linker, "/NODEFAULTLIB:libc.lib")
-// DirectShow movie player -> win32/wmp.cpp
-#pragma comment(lib, "strmiids.lib")
 // Expat lib for XML config file processing -> conf.c
 #pragma comment(lib, "libexpatMT.lib")
-
 #elif defined(PSP)
 #include <pspdebug.h>
 #include <pspdisplay.h>
@@ -54,7 +50,6 @@
 #include <pspaudiolib.h>
 #include "psp/psp-setup.h"
 #include "psp/psp-printf.h"
-#include "psp/pmp.h"
 #endif
 
 #include "getopt.h"
@@ -63,7 +58,6 @@
 #include "graphics.h"
 #include "game.h"
 #include "soundplayer.h"
-#include "videoplayer.h"
 #include "eschew/eschew.h"
 #include "conf.h"
 #include "anti-tampering.h"
@@ -114,13 +108,13 @@ bool game_suspended				= false;
 bool init_animations			= true;
 bool is_fire_pressed			= false;
 // Used for fade in/fade out of static images
-float fade_value				= 1.0f;
+float fade_value				= 0.0f;
 // false for fade in, true for fade out
 bool fade_out					= false;
 // Save config.xml?
 bool config_save				= false;
-// Is the GPU recent enough to support GLSL shaders (for HQ2X)
-bool opt_glsl_enabled			= false;
+// Is the GPU recent enough to support GLSL shaders
+bool opt_has_shaders			= false;
 // Prevents double consumption of keys while opening a door
 bool can_consume_key			= true;
 
@@ -303,23 +297,24 @@ bool WGLExtensionSupported(const char *extension_name)
     return (strstr(_wglGetExtensionsStringEXT(), extension_name) != NULL);
 }
 
-// Force VSYNC
-bool force_vsync(void)
+// Set VSYNC
+void set_vsync(bool enable)
 {
     PFNWGLSWAPINTERVALEXTPROC       wglSwapIntervalEXT = NULL;
     PFNWGLGETSWAPINTERVALEXTPROC    wglGetSwapIntervalEXT = NULL;
 
     if (!WGLExtensionSupported("WGL_EXT_swap_control"))
-        return false;
+    {
+        printb("VSYNC is not supported on this platform\n");
+        return;
+    }
 
     // Extension is supported, init pointers.
     wglSwapIntervalEXT = (PFNWGLSWAPINTERVALEXTPROC)wglGetProcAddress("wglSwapIntervalEXT");
 
     // A swap interval of 1 tells the GPU to wait for one v-blank
     // before swapping the front and back buffers.
-    wglSwapIntervalEXT(1);
-
-    return true;
+    wglSwapIntervalEXT(enable?1:0);
 }
 #endif
 
@@ -334,11 +329,9 @@ static void glut_init()
     glutInitWindowPosition(0, 0);
     glutCreateWindow(APPNAME);
 
-#if defined(WIN32)
+#if !defined(PSP)
     // Remove that pesky cursor
     glutSetCursor(GLUT_CURSOR_NONE);
-    if (!force_vsync())
-        printb("Could not force VSYNC");
 #endif
 
     glShadeModel(GL_SMOOTH);		// set by default
@@ -385,8 +378,8 @@ static void glut_display(void)
     static uint64_t lptime = 0;
     static uint64_t ptime = 0;
 
-    // Don't mess with our video buffer if we're suspended and diplay()
-    // is called, as we may have debug printf (PSP) or video onscreen
+    // Don't mess with our screen buffer if we're suspended and diplay()
+    // is called.
     if (game_suspended)
         return;
 
@@ -434,8 +427,8 @@ static void glut_display(void)
         }
     }
 
-#if defined (WIN32) || defined (__linux__)
-    // Rescale the screen on Windows and Linux
+#if !defined (PSP)
+    // Rescale the screen
     rescale_buffer();
 #endif
 
@@ -1142,13 +1135,16 @@ void process_menu()
                 TOG(opt_enhanced_guards);
                 TOG(opt_enhanced_tunnels);
                 break;
-            case MENU_SKIP_INTRO:
-                TOG(opt_skip_intro);
+// The following are platform specific
+#if defined(WIN32)
+            case MENU_VSYNC:
+                TOG(opt_vsync);
+                set_vsync(opt_vsync);
                 break;
-// The following only make sense on Windows
-#if defined(WIN32) || defined(__linux__)
+#endif
+#if !defined(PSP)
             case MENU_SMOOTHING:
-                ROT(opt_gl_smoothing, 2+(opt_glsl_enabled?NB_SHADERS:0));
+                ROT(opt_gl_smoothing, 2+(opt_has_shaders?NB_SHADERS:0));
                 break;
             case MENU_FULLSCREEN:
                 TOG(opt_fullscreen);
@@ -1450,50 +1446,18 @@ static void glut_idle_static_pic(void)
 }
 
 
-// And another one when the game is in suspended state (video, debug output)
+// And another one when the game is in suspended state (e.g. debug output)
 // that one can't be static as it needs to be defined externally
 void glut_idle_suspended(void)
 {
-static bool video_initialized = false;
 
 #if !defined(PSP)
     glutForceJoystickFunc();
 #endif
 
-    if (game_state & GAME_STATE_CUTSCENE)
-    {
-        if (!video_initialized)
-        {	// Start playing a video
-
-            // Clear our window background first (prevents transaparency)
-            glClear(GL_COLOR_BUFFER_BIT);
-            glutSwapBuffers();
-
-            if ((!video_init()) || (!video_play(APERTURE_VIDEO)))
-                // Don't bother the world if our video doesn't play
-                game_suspended = false;
-            else
-                video_initialized = true;
-        }
-
-        // check for the end of the playback
-        if (!video_isplaying())
-            game_suspended = 0;
-    }
-
     // If we didn't get out, wait for any key
     if ((!game_suspended) || read_key_once(last_key_used))
     {
-        if (game_state & GAME_STATE_CUTSCENE)
-        {
-            // Prevents unwanted transitions to transparent!
-            fade_value = 0.0f;
-            glClear(GL_COLOR_BUFFER_BIT);
-            glutSwapBuffers();
-            video_stop();
-            video_initialized = false;
-            game_state &= ~GAME_STATE_CUTSCENE;
-        }
         t_last = mtime();
         glutIdleFunc(restore_idle);
         game_suspended = false;
@@ -1751,8 +1715,8 @@ int main (int argc, char *argv[])
     gl_height = (opt_halfsize?1:2)*PSP_SCR_HEIGHT;
 #endif
 
-#if defined(FORCE_VSYNC)
-    // This is supposed to help with VSYNC, but doesn't seem to do much
+#if defined(__linux__)
+    // This is supposed to force VSYNC for nVidia cards on Linux
     putenv((char *) "__GL_SYNC_TO_VBLANK=1");
 #endif
 
@@ -1761,10 +1725,6 @@ int main (int argc, char *argv[])
 
     // Need to have a working GL before we proceed. This is our own init() function
     glut_init();
-
-#if defined(WIN32)
-    init_shaders();
-#endif
 
 //	remove(confname);
     init_xml();
@@ -1783,6 +1743,14 @@ int main (int argc, char *argv[])
         enabled_menus[MAIN_MENU][MENU_SAVE] = 0;
         enabled_menus[MAIN_MENU][MENU_LOAD] = 0;
     }
+#if !defined(PSP)
+    opt_has_shaders = init_shaders();
+    if (!opt_has_shaders)
+        opt_gl_smoothing = 0;
+#if defined(WIN32)
+    set_vsync(opt_vsync);
+#endif
+#endif
 
 #if !defined(PSP)
     if (opt_fullscreen)
@@ -1845,31 +1813,18 @@ int main (int argc, char *argv[])
     init_sprites();
     sprites_to_wGRAB();	// Must be called after init sprite
 
-    if (opt_skip_intro)
+    // We'll start with the Intro state
+    // DO NOT call static_screen() here, as it messes up with any earlier psp-printf
+    game_state = GAME_STATE_INTRO | GAME_STATE_STATIC_PIC | GAME_STATE_PICTURE_LOOP;
+    current_picture = INTRO_SCREEN_START;
+    picture_state = PICTURE_FADE_IN_START;
+    if (!load_texture(&texture[INTRO_SCREEN_START]))
     {
-        fade_value = 1.0f;
-        glColor3f(fade_value, fade_value, fade_value);
-        game_state = GAME_STATE_ACTION;
-        glutIdleFunc_save(glut_idle_game);
-        newgame_init();
+        perr("Could not load INTRO screen\n");
+        ERR_EXIT;
     }
-    else
-    {
-        // We'll start with the Intro state
-        // DO NOT call static_screen() here, as it messes up with any earlier psp-printf
-        game_state = GAME_STATE_INTRO | GAME_STATE_STATIC_PIC | GAME_STATE_PICTURE_LOOP | GAME_STATE_CUTSCENE;
-        current_picture = INTRO_SCREEN_START;
-        picture_state = PICTURE_FADE_IN_START;
-        if (!load_texture(&texture[INTRO_SCREEN_START]))
-        {
-            perr("Could not load INTRO screen\n");
-            ERR_EXIT;
-        }
-        glutIdleFunc(glut_idle_suspended);
-        restore_idle = glut_idle_static_pic;
-        game_suspended = true;
-        last_key_used = 0;
-    }
+    glutIdleFunc(glut_idle_static_pic);
+    last_key_used = 0;
 
     // Now we can proceed with setting up our display
     glutDisplayFunc(glut_display);

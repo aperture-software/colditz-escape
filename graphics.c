@@ -43,6 +43,7 @@
 #include <psp/psp-printf.h>
 #include <pspiofilemgr.h>
 #elif defined(__linux__)
+#include "GL/glew.h"
 #include "glut/glut.h"
 #endif
 
@@ -55,13 +56,13 @@
 
 // For the savefile modification times
 #if defined(WIN32)
-#define stat	_stat
-#define getstat	_stat
+#define stat    _stat
+#define getstat _stat
 // The timestamps returned in the stat structure are WRONG! on PSP
 // so we'll have to use the direct SCE functions
 #elif defined(PSP)
-#define stat	SceIoStat
-#define getstat	sceIoGetstat
+#define stat    SceIoStat
+#define getstat sceIoGetstat
 #elif defined(__linux__)
 #define getstat stat
 #endif
@@ -99,23 +100,25 @@ int  selected_menu_item, selected_menu;
 char save_list[NB_SAVEGAMES][20];
 char* menus[NB_MENUS][NB_MENU_ITEMS] = {
     {" MAIN MENU", "", "", "BACK TO GAME", "RESET GAME", "SAVE", "LOAD", "OPTIONS", "", "EXIT GAME"} ,
-    {" OPTIONS MENU", "", "", "BACK TO MAIN MENU", "SKIP INTRO     ", "PICTURE CORNERS",
-     "GFX SMOOTHING  ", "FULLSCREEN     ", "ENHANCEMENTS   ", "ORIGINAL MODE  " },
+    {" OPTIONS MENU", "", "", "BACK TO MAIN MENU", "FULLSCREEN     ", "VSYNC          ",
+     "GFX SMOOTHING  ", "PICTURE CORNERS", "ENHANCEMENTS   ", "ORIGINAL MODE  " },
      // The save slots of the following menus will be filled at runtime
     {" SAVE MENU", "", "", "BACK TO MAIN MENU", NULL, NULL, NULL, NULL, NULL, NULL},
     {" LOAD MENU", "", "", "BACK TO MAIN MENU", NULL, NULL, NULL, NULL, NULL, NULL} };
 char* on_off[3] = { "", ":ON", ":OFF"};
 char* smoothing[2+NB_SHADERS] = { ":NONE", ":LINEAR", ":HQ2X", ":HQ4X", ":5XBR", ":SABR" };
 
-#if defined(WIN32)
-GLuint sp[NB_SHADERS];	// Shader Program for zoom
+#if !defined(PSP)
+GLuint shader_program[NB_SHADERS];	// Shader Program for zoom
 #endif
 
 bool  enabled_menus[NB_MENUS][NB_MENU_ITEMS] = {
     { 0, 0, 0, 1, 1, 1, 1, 1, 0, 1 },
 #if defined(PSP)
     // Options like linear interprolation and fullscreen don't make sense on PSP
-    { 0, 0, 0, 1, 1, 1, 0, 0, 1, 1 },
+    { 0, 0, 0, 1, 0, 0, 0, 1, 1, 1 },
+#elif defined (__linux__)
+	{ 0, 0, 0, 1, 1, 0, 1, 1, 1, 1 },
 #else
     { 0, 0, 0, 1, 1, 1, 1, 1, 1, 1 },
 #endif
@@ -199,9 +202,9 @@ static const uint16_t props_tile [0x213] = {
 
 
 /*
- * Win32 OpenGL 2.0 Shader functions (hq2x "lite" 2x zoom)
+ * OpenGL 2.0 Shader functions
  */
-#if defined(WIN32)
+#if !defined(PSP)
 // Print GLSL compilation log errors
 void printLog(GLuint obj)
 {
@@ -220,25 +223,25 @@ void printLog(GLuint obj)
 // Convert a shader file to text
 char *file2string(const char *path)
 {
-    FILE *fd;
+    FILE *f;
     long len, r;
     char *str;
 
-    if (!(fd = fopen(path, "rb")))
+    if (!(f = fopen(path, "rb")))
     {
         fprintf(stderr, "Can't open shader file '%s' for reading\n", path);
         return NULL;
     }
 
-    fseek(fd, 0, SEEK_END);
-    len = ftell(fd);
+    fseek(f, 0, SEEK_END);
+    len = ftell(f);
     if (len <= 0)
     {
         fprintf(stderr, "Can't get the size of shader file '%s'\n", path);
         return NULL;
     }
 
-    fseek(fd, 0, SEEK_SET);
+    fseek(f, 0, SEEK_SET);
 
     if (!(str = malloc((len+2) * sizeof(char))))
     {
@@ -246,11 +249,11 @@ char *file2string(const char *path)
         return NULL;
     }
 
-    r = fread(str, sizeof(char), len, fd);
+    r = fread(str, sizeof(char), len, f);
     // Files without an ending CR will produce compilation errors
     str[r] = 0x0A;
     str[r+1] = '\0';
-    fclose(fd);
+    fclose(f);
 
     return str;
 }
@@ -264,7 +267,7 @@ bool compile_shader(int shaderindex)
     char shadername[64];
 
     GLenum shader_type[2] = { GL_VERTEX_SHADER, GL_FRAGMENT_SHADER };
-    GLuint shader[2], status;
+    GLint shader[2], status;
 
     sprintf(shadername, "SHADERS/%s.GLSL", &smoothing[2+shaderindex][1]);
     if ((source[1] = file2string(shadername)) == NULL)
@@ -274,7 +277,7 @@ bool compile_shader(int shaderindex)
     {
         source[0] = shader_type_def[i];
         shader[i] = glCreateShader(shader_type[i]);
-        glShaderSource(shader[i], 2, source, NULL);
+        glShaderSource(shader[i], 2, (const char**) source, NULL);
         glCompileShader(shader[i]);
         glGetShaderiv(shader[i], GL_COMPILE_STATUS, &status);
         if (status != GL_TRUE)
@@ -287,15 +290,15 @@ bool compile_shader(int shaderindex)
     }
     free(source[1]);
 
-    sp[shaderindex] = glCreateProgram();
-    glAttachShader(sp[shaderindex], shader[0]);
-    glAttachShader(sp[shaderindex], shader[1]);
-    glLinkProgram(sp[shaderindex]);
-    glGetProgramiv(sp[shaderindex], GL_LINK_STATUS, &status);
+    shader_program[shaderindex] = glCreateProgram();
+    glAttachShader(shader_program[shaderindex], shader[0]);
+    glAttachShader(shader_program[shaderindex], shader[1]);
+    glLinkProgram(shader_program[shaderindex]);
+    glGetProgramiv(shader_program[shaderindex], GL_LINK_STATUS, &status);
     if (status != GL_TRUE)
     {	// Compilation error
         perr("Error linking shader program:\n");
-        printLog(sp[shaderindex]);
+        printLog(shader_program[shaderindex]);
         return false;
     }
     printb("Loaded %s shader\n", &smoothing[2 + shaderindex][1]);
@@ -311,7 +314,7 @@ bool init_shaders()
 
     // Needs to happen after glut_init
     gl_err = glewInit();
-    if (GLEW_OK != gl_err)
+    if (gl_err != GLEW_OK)
     {
         perr("Error: %s\n", glewGetErrorString(gl_err));
         ERR_EXIT;
@@ -325,7 +328,6 @@ bool init_shaders()
             return false;
     }
 
-    opt_glsl_enabled = true;
     return true;
 }
 #endif
@@ -1511,7 +1513,7 @@ void rescale_buffer()
 // have to write your own shader (coz even with PCI-X, tranferring image data back and
 // forth with OpenGL for software HQ2X for instance is WAY TOO DARN SLOW!!!!)
 
-#if defined(WIN32)
+#if !defined(PSP)
     GLint shaderSizeLocation;
 #endif
 
@@ -1521,11 +1523,11 @@ void rescale_buffer()
 
         // If we don't set full luminosity, our menu will fade too
         glColor3f(1.0f, 1.0f, 1.0f);
-#if defined(WIN32)
+#if !defined(PSP)
         if (opt_gl_smoothing >= 2)
         {	// Use one of the GLSL shaders
-            glUseProgram(sp[opt_gl_smoothing-2]);	// Apply GLSL shader
-            shaderSizeLocation = glGetUniformLocation(sp[opt_gl_smoothing-2], "TextureSize");
+            glUseProgram(shader_program[opt_gl_smoothing-2]);	// Apply GLSL shader
+            shaderSizeLocation = glGetUniformLocation(shader_program[opt_gl_smoothing-2], "TextureSize");
             glUniform2f(shaderSizeLocation, PSP_SCR_WIDTH, PSP_SCR_HEIGHT);
         }
 #endif
@@ -1547,7 +1549,7 @@ void rescale_buffer()
         else
             display_sprite(0, gl_height, gl_width, -gl_height, render_texid);
 
-#if defined(WIN32)
+#if !defined(PSP)
         if (opt_gl_smoothing >= 2)
             glUseProgram(0);	// Stop applying shader
 #endif
@@ -1571,7 +1573,7 @@ void rescale_buffer()
 void display_fps(uint64_t frames_duration, uint64_t nb_frames)
 {
     char c;
-    int	i;
+    int i;
     char  s_fps[10];
     static uint64_t lf = 1000;
     static uint64_t li = 1;
@@ -1685,8 +1687,8 @@ void display_menu_screen()
                 case MENU_ENHANCEMENTS:
                     on_off_index = opt_enhanced_guards?1:2;
                     break;
-                case MENU_SKIP_INTRO:
-                    on_off_index = opt_skip_intro?1:2;
+                case MENU_VSYNC:
+                    on_off_index = opt_vsync?1:2;
                     break;
                 case MENU_FULLSCREEN:
                     on_off_index = opt_fullscreen?1:2;

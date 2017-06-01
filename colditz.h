@@ -49,7 +49,7 @@ extern "C" {
  */
 
 #define APPNAME					"Colditz Escape"
-#define VERSION					"1.0.102"
+#define VERSION					"1.0.103"
 
 /*
  *	Graphics
@@ -338,10 +338,10 @@ extern "C" {
 #define MENU_EXIT				9
 // Items for the options menu
 #define MENU_BACK_TO_MAIN		3
-#define MENU_SKIP_INTRO			4
-#define MENU_PICTURE_CORNERS	5
+#define MENU_FULLSCREEN			4
+#define MENU_VSYNC				5
 #define MENU_SMOOTHING			6
-#define MENU_FULLSCREEN			7
+#define MENU_PICTURE_CORNERS	7
 #define MENU_ENHANCEMENTS		8
 #define MENU_ORIGINAL_MODE		9
 
@@ -554,8 +554,7 @@ extern "C" {
 #define GAME_STATE_GAME_OVER	16
 #define GAME_STATE_GAME_WON		32
 #define GAME_STATE_PICTURE_LOOP	64
-#define GAME_STATE_CUTSCENE		128
-#define GAME_STATE_MENU			256
+#define GAME_STATE_MENU			128
 
 // States for the displaying of static pictures
 #define GAME_FADE_OUT_START		0
@@ -727,7 +726,7 @@ extern bool		opt_thrillerdance;
 extern bool		opt_no_guards;
 extern bool		opt_meh;
 extern bool		opt_haunted_castle;
-extern bool		opt_glsl_enabled;
+extern bool		opt_has_shaders;
 
 // Global variables
 extern bool				init_animations;

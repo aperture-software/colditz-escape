@@ -169,7 +169,7 @@ extern "C" {
 #define opt_picture_corners			XML_VALUE(options, picture_corners)
 #define opt_enhanced_guards			XML_VALUE(options, enhanced_guards)
 #define opt_enhanced_tunnels		XML_VALUE(options, enhanced_tunnels)
-#define opt_skip_intro				XML_VALUE(options, skip_intro)
+#define opt_vsync					XML_VALUE(options, vsync)
 #define opt_gl_smoothing			XML_VALUE(options, gl_smoothing)
 #define opt_fullscreen				XML_VALUE(options, fullscreen)
 #define JOY_DEADZONE				XML_VALUE(options, joy_deadzone)
@@ -189,7 +189,7 @@ SET_XML_ROOT(config)
 
 // General program options
 DEFINE_XML_NODES(options_nodes,
-				 skip_intro,
+				 vsync,
 				 enhanced_guards,
 				 enhanced_tunnels,
 				 picture_corners,

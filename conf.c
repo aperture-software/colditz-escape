@@ -77,10 +77,12 @@ void set_xml_defaults()
 "       [Right Trigger] = Mouse Right (see above for the actual code) ")
 
     // Set defaults values. Can be skipped if relying on the external XML
-    SET_XML_NODE_DEFAULT(options, skip_intro, false);
+    SET_XML_NODE_DEFAULT(options, vsync, true);
+    SET_XML_NODE_COMMENT(options, vsync,
+        " enable VSYNC ");
     SET_XML_NODE_DEFAULT(options, fullscreen, false);
     SET_XML_NODE_COMMENT(options, fullscreen,
-        " resize to fullscreen (Windows only) ");
+        " resize to fullscreen ");
     SET_XML_NODE_DEFAULT(options, enhanced_guards, true);
     SET_XML_NODE_COMMENT(options, enhanced_guards,
         " have guards remember when they've seen a pass ");
@@ -90,9 +92,13 @@ void set_xml_defaults()
     SET_XML_NODE_DEFAULT(options, picture_corners, true);
     SET_XML_NODE_COMMENT(options, picture_corners,
         " display texturized picture corners, rather than black triangles ");
+#if defined(PSP)
     SET_XML_NODE_DEFAULT(options, gl_smoothing, 0);
+#else
+    SET_XML_NODE_DEFAULT(options, gl_smoothing, 5);
+#endif
     SET_XML_NODE_COMMENT(options, gl_smoothing,
-        " type of graphic smoothing: none, linear, hq2x, etc. (Windows only) ");
+        " type of graphic smoothing: none, linear, hq2x, hq4x, 5xbr, sabr ");
     SET_XML_NODE_DEFAULT(options, joy_deadzone, 450);
     SET_XML_NODE_COMMENT(options, joy_deadzone,
         " joystick deadzone");

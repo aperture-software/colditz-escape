@@ -23,11 +23,11 @@ build_script:
 - ps: |-
       if ($env:WINDOWS) {
         msbuild colditz.sln /m /p:Configuration=Release /logger:"C:\Program Files\AppVeyor\BuildAgent\Appveyor.MSBuildLogger.dll"
-        7z a "Colditz_Escape_Windows.7z" "Colditz Escape" -x!"*/*.PMP"
+        7z a "Colditz_Escape_Windows.7z" "Colditz Escape"
       } elseif ($env:PSP) {
         $env:Path  += ";" + $env:APPVEYOR_BUILD_FOLDER + "\PSPSDK\bin"
         make -f Makefile.psp release
-        7z a "Colditz_Escape_PSP.7z" "Colditz Escape" -x!"*/*.AVI" -x!"*/SHADERS"
+        7z a "Colditz_Escape_PSP.7z" "Colditz Escape" -x!"*/SHADERS"
       }
 
 artifacts:

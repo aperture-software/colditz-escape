@@ -1,15 +1,15 @@
 TARGET          = colditz
-OBJS            = conf.o game.o graphics.o low-level.o main.o md5.o soundplayer.o videoplayer.o eschew/ConvertUTF.o eschew/eschew.o
+OBJS            = conf.o game.o graphics.o low-level.o main.o md5.o soundplayer.o eschew/ConvertUTF.o eschew/eschew.o
 DEPS            = glut/libglut.a
 
 CC              = gcc
 CXX             = g++
 LD              = gcc
 
-CFLAGS         += -I. -I/usr/include -O3 -Wall -Wshadow -Wundef -Wunused
+CFLAGS         += -I. -O3 -Wall -Wshadow -Wundef -Wunused
 CXXFLAGS       += $(CFLAGS) -fno-exceptions -fno-rtti
 
-LIBS           += -lX11 -lXi -lXmu -lXext -lGL -lGLU -lglut -lexpat
+LIBS           += -lX11 -lXi -lXmu -lXext -lGL -lGLU -lglut -lGLEW -lexpat
 LIBDIRS        += -L./glut
 
 LDFLAGS        += $(LIBDIRS) $(LIBS)

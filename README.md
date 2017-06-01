@@ -27,7 +27,6 @@ Below are self contained game archives, based on the very latest version of the 
 Features that might be of interest to you within this source
 ------------------------------------------------------------
 
-* Code for a simple directShow movie player for Windows ([`wmp.cpp`](win32/wmp.cpp))
 * Code for an [XAudio2](https://msdn.microsoft.com/en-us/library/windows/desktop/ee415813.aspx) sound player, with double
   buffered streaming capabilities, for Windows ([`winXAudio.cpp`](win32/winXAudio.cpp))
 * Multiplatform wrapper for XML configuration files ([`conf.c`](conf.c) and [Eschew](eschew/))
