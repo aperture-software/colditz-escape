@@ -10,7 +10,7 @@ CFLAGS         += -I. -O3 -Wall -Wshadow -Wundef -Wunused
 CXXFLAGS       += $(CFLAGS) -fno-exceptions -fno-rtti
 
 # Ubuntu is *VERY SENSITIVE* to the order in which these libs are specified
-LIBS           += -lglut -lX11 -lXi -lXmu -lXext -lGL -lGLU -lGLEW -lexpat
+LIBS           += -lglut -lX11 -lXi -lXmu -lXext -lGL -lGLU -lGLEW -lexpat -lasound
 LIBDIRS        += -L./glut
 
 LDFLAGS        += $(LIBDIRS) $(LIBS)

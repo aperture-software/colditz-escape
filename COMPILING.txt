@@ -24,7 +24,7 @@ LINUX (gcc)
 ===========
 
 Make sure you have gcc and the following packages installed:
-  libgl1-mesa-dev and libglu1-mesa-dev libxmu-dev libxi-dev libglew-dev libexpat-dev
+  libgl1-mesa-dev libglu1-mesa-dev libxmu-dev libxi-dev libglew-dev libexpat-dev libasound-dev
 Run 'make release'
 
 PSP (PSP SDK):

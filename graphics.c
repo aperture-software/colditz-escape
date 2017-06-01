@@ -1584,7 +1584,7 @@ void display_fps(uint64_t frames_duration, uint64_t nb_frames)
         li = nb_frames;
     }
 
-    sprintf(s_fps, "%3lldFPS", li*1000/lf);
+    sprintf(s_fps, "%3lldFPS", (unsigned long long) li*1000LL/lf);
 
     glColor3f(0.3f, 0.4f, 1.0f);
 

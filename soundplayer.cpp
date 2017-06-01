@@ -32,13 +32,6 @@
 #include <stdio.h>
 #include <string.h>
 
-#if defined(PSP)
-#include <pspkernel.h>
-#include <pspaudio.h>
-#include <pspaudiolib.h>
-#include "psp/psp-printf.h"
-#endif
-
 #if defined(WIN32)
 #include <windows.h>
 // If you don't include initguid.h before xaudio2.h, you'll get
@@ -50,6 +43,13 @@
 #include <mmsystem.h>
 #include <conio.h>
 #include "win32/winXAudio2.h"
+#elif defined(PSP)
+#include <pspkernel.h>
+#include <pspaudio.h>
+#include <pspaudiolib.h>
+#include "psp/psp-printf.h"
+#elif defined(__linux__)
+#include <alsa/asoundlib.h>
 #endif
 
 #include "low-level.h"
@@ -130,6 +130,10 @@ static bool no_audio   = true;	// Is the audio working
 static uint8_t *data;
 int size = 0;
 
+#if defined(__linux__)
+static snd_pcm_t *pcm = NULL;
+#define PCM_DEVICE "default"
+#endif
 
 
 //////////////////////////////////////////////////////////////////////
@@ -149,6 +153,12 @@ static void*			loop_addr;
 bool play_sample(int channel, unsigned int volume, void *address, unsigned int length,
                  unsigned int frequency, unsigned int bits_per_sample, bool loop)
 {
+#if defined(__linux__)
+    unsigned int status, tmp;
+    snd_pcm_hw_params_t *params;
+    snd_pcm_uframes_t i, frames;
+#endif
+
     if (no_audio)
         return false;
 
@@ -214,6 +224,52 @@ bool play_sample(int channel, unsigned int volume, void *address, unsigned int l
     }
     winXAudio2SetVoiceVolume(play_channel, (float) volume/AMIGA_VOLUME_MAX);
     winXAudio2StartVoice(play_channel);
+#elif defined(__linux__)
+    /* Allocate parameters object and fill it with default values */
+    snd_pcm_hw_params_alloca(&params);
+    snd_pcm_hw_params_any(pcm, params);
+
+    /* Set parameters to 8-bit unsigned mono */
+    status = snd_pcm_hw_params_set_format(pcm, params, SND_PCM_FORMAT_U8);
+    if (status < 0)
+    {
+        fprintf(stderr, "Could not set format: %s\n", snd_strerror(status));
+        return false;
+    }
+    status = snd_pcm_hw_params_set_channels(pcm, params, 1);
+    if (status < 0)
+    {
+        fprintf(stderr, "Could not set channel to mono: %s\n", snd_strerror(status));
+        return false;
+    }
+    status = snd_pcm_hw_params_set_rate_near(pcm, params, &frequency, 0);
+    if (status < 0)
+    {
+        fprintf(stderr, "Could not set rate to %d Hz: %s\n", frequency, snd_strerror(status));
+        return false;
+    }
+    status = snd_pcm_hw_params(pcm, params);
+    if (status < 0)
+    {
+        fprintf(stderr, "Could not set hardware parameters: %s\n", snd_strerror(status));
+        return false;
+    }
+
+    /* Write the sample data */
+    snd_pcm_hw_params_get_period_size(params, &frames, 0);
+    for (i=0; i<(snd_pcm_uframes_t)length; i+=frames)
+    {
+        status = snd_pcm_writei(pcm, (const void*)((uintptr_t)address + i), min(frames, ((snd_pcm_uframes_t)length)-i));
+        if (status ==  (unsigned int)-EPIPE)
+        {
+            snd_pcm_prepare(pcm);
+        }
+        else if (status < 0)
+        {
+            printf("Could not write to PCM device. %s\n", snd_strerror(status));
+        }
+    }
+    snd_pcm_drain(pcm);
 #endif
     return true;
 }
@@ -322,15 +378,24 @@ static void LoopCallback(void *_buf2, unsigned int length, void *pdata)
 // Initialize the audio engine
 bool audio_init()
 {
- if (!audio_release())
-     fprintf(stderr, "audio_release error\n");
+#if defined(__linux__)
+    unsigned int status;
+#endif
+    if (!audio_release())
+        fprintf(stderr, "audio_release error\n");
 #if defined(PSP)
     if (pspAudioInit())
         return false;
-#endif
-#if defined(WIN32)
+#elif defined(WIN32)
     if (!winXAudio2Init())
         return false;
+#elif defined(__linux__)
+    status = snd_pcm_open(&pcm, PCM_DEVICE, SND_PCM_STREAM_PLAYBACK, 0);
+    if (status < 0)
+    {
+        fprintf(stderr, "Could not open '%s' PCM device: %s\n", PCM_DEVICE, snd_strerror(status));
+        return false;
+    }
 #endif
     no_audio = false;
     return true;
@@ -342,10 +407,12 @@ bool audio_release()
 {
 #if defined(PSP)
     pspAudioEnd();
-#endif
-#if defined(WIN32)
+#elif defined(WIN32)
     if (!winXAudio2Release())
         return false;
+#elif defined(__linux__)
+    if (pcm != NULL)
+        snd_pcm_close(pcm);
 #endif
     return true;
 }

@@ -17,6 +17,7 @@ addons:
     - libxi-dev
     - libglew-dev
     - libexpat-dev
+    - libasound-dev
 
 before_install:
   - eval "${MATRIX_EVAL}"

@@ -2992,10 +2992,7 @@ void fix_files(bool reload)
 // Initalize the SFXs
 void set_sfxs()
 {
-    uint16_t i;
-#if defined(WIN32) || defined(PSP)
-    uint16_t j;
-#endif
+    uint16_t i, j;
 
     // Initialize SFXs
     for (i=0; i<NB_SFXS; i++)
@@ -3004,20 +3001,27 @@ void set_sfxs()
         sfx[i].volume    = readbyte(fbuffer[LOADER], SFX_TABLE_START + 8*i+3);
         sfx[i].frequency = (uint16_t)(Period2Freq((float)readword(fbuffer[LOADER], SFX_TABLE_START + 8*i+4))/1.0);
         sfx[i].length    = readword(fbuffer[LOADER], SFX_TABLE_START + 8*i+6);
-#if defined(WIN32)
+#if defined(WIN32) || defined(__linux__)
         // Why, of course Microsoft had to use UNSIGNED for 8 bit WAV data but SIGNED for 16!
         // (Whereas Commodore et al. did the LOGICAL thing of using signed ALWAYS)
-        // We need to sign convert our 8 bit mono samples on Windows
+        // We need to sign convert our 8 bit mono samples on Windows.
+        // Likewise, it looks like ALSA is broken on Linux and treats SND_PCM_FORMAT_S8 the
+        // same as SND_PCM_FORMAT_U8...
         for (j=0; j<sfx[i].length; j++)
-            writebyte(fbuffer[LOADER], sfx[i].address+j,
-                (uint8_t) (readbyte(fbuffer[LOADER], sfx[i].address+j) + 0x80));
+        {
+            uint8_t s = (uint8_t)(readbyte(fbuffer[LOADER], sfx[i].address + j) + 0x80);
+#if defined(__linux__)
+            // We have no volume control for Linux, and the SFX_FOOTSTEPS is way too loud
+            if (i == SFX_FOOTSTEPS)
+                s /= 3;
+#endif
+            writebyte(fbuffer[LOADER], sfx[i].address+j, s);
+        }
 #elif defined(PSP)
         // On the PSP on the other hand, we must upconvert our 8 bit mono samples @ whatever frequency
         // to 16bit/44.1 kHz. The psp_upsample() routine from soundplayer is there for that.
         psp_upsample(&(sfx[i].upconverted_address), &(sfx[i].upconverted_length),
             (char*)(fbuffer[LOADER] + sfx[i].address), sfx[i].length, sfx[i].frequency);
-#elif defined(__linux__)
-#warning No SFX playout for linux
 #else
 #error No SFX playout for this platform
 #endif
@@ -3043,14 +3047,12 @@ void play_sfx(int sfx_id)
 {
     if (opt_thrillerdance)
         return;
-#if defined(WIN32)
+#if defined(WIN32) || defined(__linux__)
     play_sample(-1, sfx[sfx_id].volume, fbuffer[LOADER] + sfx[sfx_id].address,
         sfx[sfx_id].length, sfx[sfx_id].frequency, 8, false);
 #elif defined(PSP)
     play_sample(-1, sfx[sfx_id].volume, sfx[sfx_id].upconverted_address,
         sfx[sfx_id].upconverted_length, PLAYBACK_FREQ, 16, false);
-#elif defined(__linux__)
-#warning No SFX playout for linux
 #else
 #error No SFX playout for this platform
 #endif
@@ -3062,12 +3064,10 @@ void play_cluck()
     if (opt_thrillerdance)
         return;
     msleep(120);
-#if defined(WIN32)
+#if defined(WIN32) || defined(__linux__)
     play_sample(-1, 60, cluck_sfx, sizeof(cluck_sfx), 8000, 8, false);
 #elif defined(PSP)
     play_sample(-1, 60, upcluck, upcluck_len, PLAYBACK_FREQ, 16, false);
-#elif defined(__linux__)
-#warning No SFX playout for linux
 #else
 #error No SFX playout for this platform
 #endif
@@ -3082,12 +3082,10 @@ static bool is_playing = false;
         stop_loop();
     else
     {
-#if defined(WIN32)
+#if defined(WIN32) || defined(__linux__)
         play_sample(-1, 60, thriller_sfx, sizeof(thriller_sfx), 8000, 8, true);
 #elif defined(PSP)
         play_sample(-1, 60, upthrill, upthrill_len, PLAYBACK_FREQ, 16, true);
-#elif defined(__linux__)
-#warning No SFX playout for linux
 #else
 #error No SFX playout for this platform
 #endif
