@@ -23,6 +23,12 @@
 
 #pragma once
 
+#if defined(PSP)
+#include <GL/glut.h>
+#else
+#include "glut/glut.h"
+#endif
+
 #ifdef	__cplusplus
 extern "C" {
 #endif

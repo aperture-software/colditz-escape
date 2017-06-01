@@ -31,7 +31,7 @@ extern "C" {
 // Define our msleep function
 #if defined(WIN32)
 #define msleep(msecs) Sleep(msecs)
-#include <Windows.h>
+#include <windows.h>
 static __inline uint64_t mtime(void)
 {	// Because MS uses a 32 bit value, this counter will reset every 49 days or so
 	// Hope you won't be playing the game while it resets...
@@ -42,15 +42,22 @@ static __inline uint64_t mtime(void)
 #include <psprtc.h>
 #include <pspctrl.h>
 #define msleep(msecs) sceKernelDelayThread(1000*msecs)
-static __inline u64 mtime(void)
+static __inline uint64_t mtime(void)
 {
-	u64 blahtime;
-	sceRtcGetCurrentTick(&blahtime);
-	return blahtime/1000;
+	uint64_t current_tick;
+	sceRtcGetCurrentTick(&current_tick);
+	return current_tick/1000;
 }
-#else
+#elif defined(__linux__)
 #include <unistd.h>
-#define	msleep(msecs) usleep(1000*msecs)
+#include <time.h>
+#define msleep(msecs) usleep(1000*msecs)
+static __inline uint64_t mtime(void)
+{
+	struct timespec tp;
+	clock_gettime(CLOCK_MONOTONIC, &tp); //TODO : check for returned value
+	return ((uint64_t)tp.tv_sec)*1000LL + ((uint64_t)tp.tv_nsec)/1000000LL;
+}
 #endif
 
 
@@ -94,6 +101,9 @@ static __inline void psp_any_key()
 // no screen stdout => immediate exit
 #define FATAL			back_to_kernel()
 #endif
+#elif defined(__linux__)
+#define LEAVE			free_data(); exit(0)
+#define FATAL			free_data(); exit(1)
 #endif
 #define ERR_EXIT		do{if (fd!=NULL) fclose(fd); fflush(stdout); FATAL;}while(0)
 #if defined(PSP_ONSCREEN_STDOUT)

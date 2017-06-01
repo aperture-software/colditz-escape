@@ -27,14 +27,8 @@
 #include <stdbool.h>
 #if defined(WIN32)
 #include <windows.h>
-#include <gl/gl.h>
-#include <gl/glu.h>
-#include "glut/glut.h"
 #elif defined(PSP)
 #include <pspkernel.h>
-#include <GL/gl.h>
-#include <GL/glu.h>
-#include <GL/glut.h>
 #endif
 /*
  * This constant *MUST* be defined before including eschew.h,

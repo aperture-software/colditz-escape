@@ -29,15 +29,12 @@
 
 #if defined(WIN32)
 #include <windows.h>
-#include <gl/gl.h>
-#include <gl/glu.h>
-#include "glut/glut.h"
+#include <GL/glu.h>
 #include "GL/wglext.h"
 
 // Tell VC++ to include the GL libs
 #pragma comment(lib, "opengl32.lib")
 #pragma comment(lib, "glu32.lib")
-#pragma comment(lib, "glut32.lib")
 // Glew is only required for the GLSL HQnX shaders
 #pragma comment(lib, "glew32s.lib")
 // Prevents a potential "LINK : fatal error LNK1104: cannot open file 'libc.lib'" error with Glew
@@ -54,9 +51,6 @@
 #include <psppower.h>
 #include <pspgu.h>
 #include <psprtc.h>
-#include <GL/gl.h>
-#include <GL/glu.h>
-#include <GL/glut.h>
 #include <pspaudiolib.h>
 #include "psp/psp-setup.h"
 #include "psp/psp-printf.h"
@@ -296,7 +290,7 @@ void update_timers()
         game_time += delta_t;
 }
 
-#if !defined(PSP)
+#if defined(WIN32)
 // Returns true if WGL extension 'extension_name' is supported
 bool WGLExtensionSupported(const char *extension_name)
 {
@@ -340,7 +334,7 @@ static void glut_init()
     glutInitWindowPosition(0, 0);
     glutCreateWindow(APPNAME);
 
-#if !defined(PSP)
+#if defined(WIN32)
     // Remove that pesky cursor
     glutSetCursor(GLUT_CURSOR_NONE);
     if (!force_vsync())
@@ -400,7 +394,7 @@ static void glut_display(void)
     glClear(GL_COLOR_BUFFER_BIT);
 
     // Display either the current game frame or a static picture
-    if ((game_state & GAME_STATE_STATIC_PIC) && (!menu))
+    if ((game_state & GAME_STATE_STATIC_PIC) && (!game_menu))
     {
         if (paused)
             display_pause_screen();
@@ -414,7 +408,7 @@ static void glut_display(void)
             display_tunnel_area();
         display_panel();
         // Should we display the game menu?
-        if ((menu) && (picture_state != GAME_FADE_IN) )
+        if ((game_menu) && (picture_state != GAME_FADE_IN) )
             display_menu_screen();
     }
 
@@ -440,8 +434,8 @@ static void glut_display(void)
         }
     }
 
-#if defined (WIN32)
-    // Rescale the screen on Windows
+#if defined (WIN32) || defined (__linux__)
+    // Rescale the screen on Windows and Linux
     rescale_buffer();
 #endif
 
@@ -1152,7 +1146,7 @@ void process_menu()
                 TOG(opt_skip_intro);
                 break;
 // The following only make sense on Windows
-#if defined(WIN32)
+#if defined(WIN32) || defined(__linux__)
             case MENU_SMOOTHING:
                 ROT(opt_gl_smoothing, 2+(opt_glsl_enabled?NB_SHADERS:0));
                 break;
@@ -1239,7 +1233,7 @@ static void glut_idle_static_pic(void)
 {
     float min_fade;
 
-    min_fade = (menu)?MIN_MENU_FADE:0.0f;
+    min_fade = (game_menu)?MIN_MENU_FADE:0.0f;
     // As usual, we'll need the current time value for a bunch of stuff
     update_timers();
 
@@ -1247,7 +1241,7 @@ static void glut_idle_static_pic(void)
     glutForceJoystickFunc();
 #endif
 
-    if (menu)
+    if (game_menu)
         process_menu();
 
     if ((intro) && read_key_once(last_key_used))
@@ -1313,7 +1307,7 @@ static void glut_idle_static_pic(void)
             // We use the picture fade in to create the pause screen if paused
             create_pause_screen();
         }
-        else if (menu)
+        else if (game_menu)
             picture_state++;	// Skip picture fade
         else
         {
@@ -1350,7 +1344,7 @@ static void glut_idle_static_pic(void)
     case PICTURE_FADE_IN:
         break;
     case PICTURE_WAIT_START:
-        if ((!paused) && (!menu))
+        if ((!paused) && (!game_menu))
         {
             // Set the timeout start for pictures
             picture_t = program_time;
@@ -1367,7 +1361,7 @@ static void glut_idle_static_pic(void)
         picture_state++;
         break;
     case PICTURE_WAIT:
-        if (menu)
+        if (game_menu)
         {
             if (read_key_once(KEY_ESCAPE))
             {
@@ -1434,7 +1428,7 @@ static void glut_idle_static_pic(void)
         game_state |= GAME_STATE_ACTION;
         if (paused)
             game_state &= ~GAME_STATE_PAUSED;
-        if (menu)
+        if (game_menu)
             game_state &= ~GAME_STATE_MENU;
         // Set glut_idle to our main game loop
         glutIdleFunc_save(glut_idle_game);

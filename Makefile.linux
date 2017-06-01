@@ -1,0 +1,35 @@
+TARGET          = colditz
+OBJS            = conf.o game.o graphics.o low-level.o main.o md5.o soundplayer.o videoplayer.o eschew/ConvertUTF.o eschew/eschew.o
+DEPS            = glut/libglut.a
+
+CC              = gcc
+CXX             = g++
+LD              = gcc
+
+CFLAGS         += -I. -I/usr/include -O3 -Wall -Wshadow -Wundef -Wunused
+CXXFLAGS       += $(CFLAGS) -fno-exceptions -fno-rtti
+
+LIBS           += -lX11 -lXi -lXmu -lXext -lGL -lGLU -lglut -lexpat
+LIBDIRS        += -L./glut
+
+LDFLAGS        += $(LIBDIRS) $(LIBS)
+
+.o: %.c
+	$(CC) $(CFLAGS) -c $< -o $@
+
+all: $(DEPS) $(TARGET)
+
+$(DEPS):
+	$(MAKE) -Cglut libglut.a
+
+$(TARGET): $(OBJS)
+	$(LD) -o $(TARGET) $(OBJS) $(LDFLAGS)
+
+clean:
+	$(RM) $(OBJS) $(TARGET)
+
+superclean: clean
+	$(MAKE) -Cglut clean
+
+release: all
+	cp colditz "Colditz Escape"

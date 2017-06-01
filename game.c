@@ -1413,7 +1413,7 @@ void clear_pursuit(uint32_t p)
 
 
 // These helper functions are used by guard_in_pursuit() & move_guards()
-static __inline bool guard_close_by(i, pos_x, pos_2y)
+static __inline bool guard_close_by(unsigned int i, int16_t pos_x, int16_t pos_2y)
 {
 int16_t dx, dy;
     dx = pos_x+16 - guard(i).px;
@@ -1425,7 +1425,7 @@ int16_t dx, dy;
 }
 
 
-static __inline bool guard_collision(i, pos_x, pos_2y)
+static __inline bool guard_collision(unsigned int i, int16_t pos_x, int16_t pos_2y)
 {
 int16_t dx, dy;
     dx = pos_x+16 - guard(i).px;
@@ -3014,6 +3014,8 @@ void set_sfxs()
         // to 16bit/44.1 kHz. The psp_upsample() routine from soundplayer is there for that.
         psp_upsample(&(sfx[i].upconverted_address), &(sfx[i].upconverted_length),
             (char*)(fbuffer[LOADER] + sfx[i].address), sfx[i].length, sfx[i].frequency);
+#elif defined(__linux__)
+#warning No SFX playout for linux
 #else
 #error No SFX playout for this platform
 #endif
@@ -3045,6 +3047,8 @@ void play_sfx(int sfx_id)
 #elif defined(PSP)
     play_sample(-1, sfx[sfx_id].volume, sfx[sfx_id].upconverted_address,
         sfx[sfx_id].upconverted_length, PLAYBACK_FREQ, 16, false);
+#elif defined(__linux__)
+#warning No SFX playout for linux
 #else
 #error No SFX playout for this platform
 #endif
@@ -3060,6 +3064,8 @@ void play_cluck()
     play_sample(-1, 60, cluck_sfx, sizeof(cluck_sfx), 8000, 8, false);
 #elif defined(PSP)
     play_sample(-1, 60, upcluck, upcluck_len, PLAYBACK_FREQ, 16, false);
+#elif defined(__linux__)
+#warning No SFX playout for linux
 #else
 #error No SFX playout for this platform
 #endif
@@ -3078,6 +3084,8 @@ static bool is_playing = false;
         play_sample(-1, 60, thriller_sfx, sizeof(thriller_sfx), 8000, 8, true);
 #elif defined(PSP)
         play_sample(-1, 60, upthrill, upthrill_len, PLAYBACK_FREQ, 16, true);
+#elif defined(__linux__)
+#warning No SFX playout for linux
 #else
 #error No SFX playout for this platform
 #endif

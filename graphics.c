@@ -34,19 +34,16 @@
 #define GLEW_STATIC
 #include "GL/glew.h"		// ...we'll use Glew for the OpenGL shader extension
 #include "GL/wglew.h"
-#include <gl/gl.h>
-#include <gl/glu.h>
-#include "glut/glut.h"
 #elif defined(PSP)
 #include <stdarg.h>
 #include <pspkernel.h>
 #include <pspdebug.h>
 #include <pspgu.h>
-#include <GL/gl.h>
-#include <GL/glu.h>
 #include <GL/glut.h>
 #include <psp/psp-printf.h>
 #include <pspiofilemgr.h>
+#elif defined(__linux__)
+#include "glut/glut.h"
 #endif
 
 #include "low-level.h"
@@ -65,6 +62,8 @@
 #elif defined(PSP)
 #define stat	SceIoStat
 #define getstat	sceIoGetstat
+#elif defined(__linux__)
+#define getstat stat
 #endif
 
 // variables common to game & graphics
@@ -1500,7 +1499,7 @@ void display_panel()
 
 
 // Here is the long sought after "zooming the ****ing 2D colour buffer" function.
-// What a �$%^&*&^ing bore!!! And none of this crap works on PSP anyway unless you
+// What a Â£$%^&*&^ing bore!!! And none of this crap works on PSP anyway unless you
 // waste space in power of two sizes
 void rescale_buffer()
 {

@@ -49,7 +49,7 @@ extern "C" {
  */
 
 #define APPNAME					"Colditz Escape"
-#define VERSION					"1.0.98"
+#define VERSION					"1.0.101"
 
 /*
  *	Graphics
@@ -709,7 +709,7 @@ typedef struct
 #define game_over			(game_state & GAME_STATE_GAME_OVER)
 #define intro				(game_state & GAME_STATE_INTRO)
 #define game_won			(game_state & GAME_STATE_GAME_WON)
-#define menu				(game_state & GAME_STATE_MENU)
+#define game_menu			(game_state & GAME_STATE_MENU)
 
 
 /*

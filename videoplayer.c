@@ -73,4 +73,26 @@ bool video_isplaying()
 {
     return pmp_isplaying();
 }
+#elif defined(__linux__)
+bool video_init()
+{
+    return true;
+}
+
+bool video_play(char* filename)
+{
+    return false;
+}
+
+void video_stop()
+{
+    /* */
+}
+
+// Check if playback is still running
+bool video_isplaying()
+{
+    return false;
+}
+
 #endif

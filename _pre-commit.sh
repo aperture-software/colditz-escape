@@ -35,6 +35,6 @@ sed -i -e "s/@@MICRO@@/$MICRO/g" cmd.sed
 # Run sed to update the nano version, and add the modified files
 sed -b -i -f cmd.sed colditz.rc
 sed -i -f cmd.sed colditz.h
-sed -i -f cmd.sed Makefile
-git add colditz.rc colditz.h Makefile
+sed -i -f cmd.sed Makefile.psp
+git add colditz.rc colditz.h Makefile.psp
 rm cmd.sed
