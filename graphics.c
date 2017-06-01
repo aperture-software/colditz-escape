@@ -490,12 +490,11 @@ void bitplane_to_wGRAB(uint8_t* source, uint8_t* dest, uint16_t w, uint16_t ext_
 {
     uint16_t bitplane_size;
     uint8_t  colour_index;
-    uint16_t i,j,k,wb,ext_wb;
+    uint16_t i,j,k,wb;
     uint8_t  bitplane_byte[5], mask_byte;
     uint32_t pos = 0;
 
     wb = w/8;	// width in bytes
-    ext_wb = ext_w/8;
     bitplane_size = h*wb;
 
     for (i=0; i<bitplane_size; i++)
@@ -2100,8 +2099,6 @@ bool load_raw_rgb(s_tex* tex, uint8_t pixel_size)
 bool load_texture(s_tex* tex)
 {
 bool iff_file = false;
-bool with_alpha = false;
-bool is_rgb4 = false;
 uint32_t file_size = 0;
 uint8_t  pixel_size = 0;	// in bytes
 uint16_t powerized_w;
@@ -2133,27 +2130,7 @@ uint16_t powerized_w;
         file_size = ftell(fd);
 
         pixel_size = file_size/((tex->w)*(tex->h));
-        switch(pixel_size)
-        {
-        case 2:	// 4 bpp GRAB
-            is_rgb4 = true;
-            with_alpha = true;
-            break;
-        case 3:	// 8 bpp RGB
-            is_rgb4 = false;
-            with_alpha = false;
-            break;
-        case 4: // 8 bpp RGBA
-            is_rgb4 = false;
-            with_alpha = true;
-            break;
-        default:
-            printf("Improper RAW file size for %s\n", tex->filename);
-            return false;
-            break;
-        }
-
-        if (pixel_size*(tex->w)*(tex->h) != file_size)
+        if ((pixel_size < 2) || (pixel_size > 4) || (pixel_size*(tex->w)*(tex->h) != file_size))
         {
             printf("Improper RAW file size for %s\n", tex->filename);
             return false;

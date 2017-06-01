@@ -2363,14 +2363,13 @@ int16_t check_footprint(int16_t dx, int16_t d2y)
 int16_t check_tunnel_io()
 {
     uint8_t u;
-    int16_t px, p2y;
+    int16_t px;
     uint8_t exit_flags;
     uint8_t exit_nr;
 
     // Compute the tile on which we try to stand
     // tile_x and tile_y from previous check_footprint() call are still relevant
     px = prisoner_x - (in_tunnel?16:0);
-    p2y = prisoner_2y - 1;
 
     // Check if we are standing on a tunnel exit and set the global variables accordingly
     // If a tunnel exit tool is set, we have a winner
@@ -2993,7 +2992,10 @@ void fix_files(bool reload)
 // Initalize the SFXs
 void set_sfxs()
 {
-    uint16_t i,j;
+    uint16_t i;
+#if defined(WIN32) || defined(PSP)
+    uint16_t j;
+#endif
 
     // Initialize SFXs
     for (i=0; i<NB_SFXS; i++)

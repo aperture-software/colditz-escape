@@ -427,7 +427,6 @@ static void XMLCALL copy_comments(void *userData, const char *s)
 static void XMLCALL start(void *userData, const char *name, const char **attr)
 {
 	Parseinfo *inf = (Parseinfo *) userData;
-	xml_node node;
 	int i;
 	inf->stack[inf->depth].name = strdup(name);
 	// Whitespace, until proven otherwise
@@ -450,7 +449,6 @@ static void XMLCALL start(void *userData, const char *name, const char **attr)
 			}
 			else
 			{
-				node = STACK_NODE(inf->depth-1)->value[i];
 				STACK_NODE(inf->depth) = get_sibling(STACK_NODE(inf->depth-1)->value[i], attr);
 			}
 		}
@@ -471,7 +469,6 @@ static void XMLCALL assign(void *userData, const char *name)
 {
 	int i;
 	UTF16 utf16;
-	size_t consumed;
 	Parseinfo *inf = (Parseinfo *) userData;
 	xml_boolean tmp_bool;
 
@@ -528,7 +525,7 @@ static void XMLCALL assign(void *userData, const char *name)
 		// BYTE types
 		case t_xml_unsigned_char:
 		case t_xml_char:
-			consumed = single_utf8_to_utf16((UTF8*)inf->value, &utf16);
+			(void)(single_utf8_to_utf16((UTF8*)inf->value, &utf16));
 			if (utf16 > 0x100)
 				fprintf(stderr, "eschew.assign: Truncated Unicode value to fit single byte\n");
 			XML_CAST_TO_BYTE(STACK_NODE(inf->depth-1)->value, i, utf16&0xFF,
