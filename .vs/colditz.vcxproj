@@ -122,8 +122,11 @@
     <ClCompile Include="..\main.c" />
     <ClCompile Include="..\md5.c" />
     <ClCompile Include="..\psp\psp-setup.c" />
-    <ClCompile Include="..\soundplayer.cpp" />
-    <ClCompile Include="..\win32\winXAudio2.cpp" />
+    <ClCompile Include="..\soundplayer.c">
+      <CompileAs Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">CompileAsCpp</CompileAs>
+      <CompileAs Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">CompileAsCpp</CompileAs>
+    </ClCompile>
+    <ClCompile Include="..\windows\audio.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\anti-tampering.h" />
@@ -136,18 +139,17 @@
     <ClInclude Include="..\getopt.h" />
     <ClInclude Include="..\getopt_int.h" />
     <ClInclude Include="..\gettext.h" />
+    <ClInclude Include="..\glut\glut.h" />
     <ClInclude Include="..\graphics.h" />
     <ClInclude Include="..\low-level.h" />
     <ClInclude Include="..\md5.h" />
-    <ClInclude Include="..\modplayeri.h" />
-    <ClInclude Include="..\modtables.h" />
     <ClInclude Include="..\psp\psp-printf.h" />
     <ClInclude Include="..\psp\psp-setup.h" />
     <ClInclude Include="..\soundplayer.h" />
-    <ClInclude Include="..\win32\glew.h" />
-    <ClInclude Include="..\win32\glut.h" />
-    <ClInclude Include="..\win32\wglew.h" />
-    <ClInclude Include="..\win32\winXAudio2.h" />
+    <ClInclude Include="..\soundtables.h" />
+    <ClInclude Include="..\GL\glew.h" />
+    <ClInclude Include="..\GL\wglew.h" />
+    <ClInclude Include="..\windows\audio.h" />
     <ClInclude Include="resource.h" />
   </ItemGroup>
   <ItemGroup>

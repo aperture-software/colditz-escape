@@ -3,7 +3,6 @@ OBJS            = conf.o game.o graphics.o low-level.o main.o md5.o soundplayer.
 DEPS            = glut/libglut.a
 
 CC              = gcc
-CXX             = g++
 LD              = gcc
 
 CFLAGS         += -I. -O3 -Wall -Wshadow -Wundef -Wunused

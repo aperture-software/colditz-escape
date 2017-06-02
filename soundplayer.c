@@ -17,7 +17,7 @@
  *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  *
  *  ---------------------------------------------------------------------------
- *  soundplayer.cpp: SFX and MOD Player Implementation in C++ for PSP and Win
+ *  soundplayer.cpp: SFX and MOD Player Implementation
  *  Copied almost 100% from PSP SDK's "PSP ModPlayer v1.0" by adresd:
  *     http://svn.pspdev.org/listing.php?repname=pspware&path=%2Ftrunk%2FPSPMediaCenter%2Fcodec%2Fmod%2F&rev=0&sc=0
  *  ---------------------------------------------------------------------------
@@ -42,20 +42,21 @@
 #include <shellapi.h>
 #include <mmsystem.h>
 #include <conio.h>
-#include "win32/winXAudio2.h"
+#include "windows/audio.h"
 #elif defined(PSP)
 #include <pspkernel.h>
 #include <pspaudio.h>
 #include <pspaudiolib.h>
 #include "psp/psp-printf.h"
 #elif defined(__linux__)
+#define ALSA_PCM_NEW_HW_PARAMS_API
+#define ALSA_PCM_NEW_SW_PARAMS_API
 #include <alsa/asoundlib.h>
 #endif
 
 #include "low-level.h"
 #include "soundplayer.h"
-#include "modplayeri.h"
-#include "modtables.h"
+#include "soundtables.h"
 
 #if !defined(min)
 #define min(a,b) (((a)<(b))?(a):(b))
@@ -71,7 +72,7 @@
 #define FRAC_BITS 10
 
 // MAximum number of channels we'll handle
-#define NB_CHANNELS	4
+#define NB_CHANNELS 4
 
 #define AMIGA_VOLUME_MAX 64
 
@@ -128,11 +129,15 @@ static bool m_bPlaying = false;	// Set to true when a mod is being played
 static bool m_bSet     = false;	// True when a mod has been set
 static bool no_audio   = true;	// Is the audio working
 static uint8_t *data;
-int size = 0;
 
 #if defined(__linux__)
-static snd_pcm_t *pcm = NULL;
-#define PCM_DEVICE "default"
+/* Mostly from http://www.alsa-project.org/alsa-doc/alsa-lib/_2test_2pcm_8c-example.html */
+static snd_pcm_t *handle[NB_CHANNELS] = { 0 };          /* Try to open one PCM device for each channel */
+static unsigned int buffer_time[NB_CHANNELS];           /* Ring buffer length, in us */
+static unsigned int period_time[NB_CHANNELS];           /* Period time, in us */
+static snd_pcm_sframes_t buffer_size[NB_CHANNELS];
+static snd_pcm_sframes_t period_size[NB_CHANNELS];
+//static snd_output_t *output = NULL;
 #endif
 
 
@@ -148,21 +153,152 @@ static unsigned long	loop_pos;
 static unsigned long	loop_len;
 static void*			loop_addr;
 
+#if defined(__linux__)
+static int snd_pcm_set_hwparams(int channel, unsigned int frequency)
+{
+    int err, dir;
+    unsigned int rrate = frequency;
+    buffer_time[channel] = 500000;
+    period_time[channel] = 100000;
+    snd_pcm_uframes_t size;
+    snd_pcm_hw_params_t *params;
+
+    /* Choose all parameters */
+    snd_pcm_hw_params_alloca(&params);
+    err = snd_pcm_hw_params_any(handle[channel], params);
+    if (err < 0)
+    {
+        fprintf(stderr, "Broken configuration for playback: no configurations available: %s\n", snd_strerror(err));
+        return err;
+    }
+    /* Set hardware resampling */
+    err = snd_pcm_hw_params_set_rate_resample(handle[channel], params, 1);
+    if (err < 0)
+    {
+        fprintf(stderr, "Resampling setup failed for playback: %s\n", snd_strerror(err));
+        return err;
+    }
+    /* Set the interleaved read/write format (even as our samples are mono) */
+    err = snd_pcm_hw_params_set_access(handle[channel], params, SND_PCM_ACCESS_RW_INTERLEAVED);
+    if (err < 0)
+    {
+        fprintf(stderr, "Access type not available for playback: %s\n", snd_strerror(err));
+        return err;
+    }
+    /* Set the sample format */
+    err = snd_pcm_hw_params_set_format(handle[channel], params, SND_PCM_FORMAT_U8);
+    if (err < 0)
+    {
+        fprintf(stderr, "Sample format not available for playback: %s\n", snd_strerror(err));
+        return err;
+    }
+    /* Set the count of channels to mono */
+    err = snd_pcm_hw_params_set_channels(handle[channel], params, 1);
+    if (err < 0)
+    {
+        fprintf(stderr, "Mono playback is not available: %s\n", snd_strerror(err));
+        return err;
+    }
+    /* Set the stream rate */
+    err = snd_pcm_hw_params_set_rate_near(handle[channel], params, &rrate, 0);
+    if (err < 0)
+    {
+        fprintf(stderr, "Rate %iHz not available for playback: %s\n", frequency, snd_strerror(err));
+        return err;
+    }
+    if (rrate != frequency)
+    {
+        fprintf(stderr, "Rate doesn't match (requested %iHz, got %iHz)\n", frequency, rrate);
+        return -EINVAL;
+    }
+    /* Set the buffer time */
+    err = snd_pcm_hw_params_set_buffer_time_near(handle[channel], params, &buffer_time[channel], &dir);
+    if (err < 0)
+    {
+        fprintf(stderr, "Unable to set buffer time %u for playback on channel %i: %s\n", buffer_time[channel], channel, snd_strerror(err));
+        return err;
+    }
+    err = snd_pcm_hw_params_get_buffer_size(params, &size);
+    if (err < 0)
+    {
+        fprintf(stderr, "Unable to get buffer size for playback: %s\n", snd_strerror(err));
+        return err;
+    }
+    buffer_size[channel] = size;
+    /* Set the period time */
+    err = snd_pcm_hw_params_set_period_time_near(handle[channel], params, &period_time[channel], &dir);
+    if (err < 0)
+    {
+        fprintf(stderr, "Unable to set period time %u for playback on channel %i: %s\n", period_time[channel], channel, snd_strerror(err));
+        return err;
+    }
+    err = snd_pcm_hw_params_get_period_size(params, &size, &dir);
+    if (err < 0)
+    {
+        fprintf(stderr, "Unable to get period size for playback: %s\n", snd_strerror(err));
+        return err;
+    }
+    period_size[channel] = size;
+//printf("period_size[%d] = %d, buffer_size[%d] = %d\n", channel, size, channel, buffer_size[channel]);
+    /* Write the parameters to device */
+    err = snd_pcm_hw_params(handle[channel], params);
+    if (err < 0)
+    {
+        fprintf(stderr, "Unable to set hw params for playback on channel %i: %s\n", channel, snd_strerror(err));
+        return err;
+    }
+    return 0;
+}
+
+static int snd_pcm_set_swparams(int channel)
+{
+    int err;
+    snd_pcm_sw_params_t *params;
+
+    /* Get the current swparams */
+    snd_pcm_sw_params_alloca(&params);
+    err = snd_pcm_sw_params_current(handle[channel], params);
+    if (err < 0) {
+        fprintf(stderr, "Unable to determine current swparams for playback: %s\n", snd_strerror(err));
+        return err;
+    }
+    /* Start the transfer when the buffer is almost full: (buffer_size / avail_min) * avail_min */
+    err = snd_pcm_sw_params_set_start_threshold(handle[channel], params,
+        (buffer_size[channel] / period_size[channel]) * period_size[channel]);
+    if (err < 0) {
+        fprintf(stderr, "Unable to set start threshold mode for playback: %s\n", snd_strerror(err));
+        return err;
+    }
+    /* Allow the transfer when at least period_size samples can be processed */
+    err = snd_pcm_sw_params_set_avail_min(handle[channel], params, period_size[channel]);
+    if (err < 0) {
+        fprintf(stderr, "Unable to set avail min for playback: %s\n", snd_strerror(err));
+        return err;
+    }
+    /* write the parameters to the playback device */
+    err = snd_pcm_sw_params(handle[channel], params);
+    if (err < 0) {
+        fprintf(stderr, "Unable to set sw params for playback: %s\n", snd_strerror(err));
+        return err;
+    }
+    return 0;
+}
+#endif
+
 // Play a MONO, possibly looping, sound sample. channel = -1 => autoallocated
 // NB: the PSP is limited to 64 KB for non looping samples
 bool play_sample(int channel, unsigned int volume, void *address, unsigned int length,
                  unsigned int frequency, unsigned int bits_per_sample, bool loop)
 {
+    int play_channel;
 #if defined(__linux__)
-    unsigned int status, tmp;
-    snd_pcm_hw_params_t *params;
-    snd_pcm_uframes_t i, frames;
+    unsigned int err;
+    snd_pcm_uframes_t i;
 #endif
 
     if (no_audio)
         return false;
 
-    int play_channel;
     if (channel == -1)
     {
         play_channel = sfx_channel;
@@ -225,51 +361,19 @@ bool play_sample(int channel, unsigned int volume, void *address, unsigned int l
     winXAudio2SetVoiceVolume(play_channel, (float) volume/AMIGA_VOLUME_MAX);
     winXAudio2StartVoice(play_channel);
 #elif defined(__linux__)
-    /* Allocate parameters object and fill it with default values */
-    snd_pcm_hw_params_alloca(&params);
-    snd_pcm_hw_params_any(pcm, params);
-
-    /* Set parameters to 8-bit unsigned mono */
-    status = snd_pcm_hw_params_set_format(pcm, params, SND_PCM_FORMAT_U8);
-    if (status < 0)
-    {
-        fprintf(stderr, "Could not set format: %s\n", snd_strerror(status));
+    if ((snd_pcm_set_hwparams(play_channel, frequency) < 0)) // || (snd_pcm_set_swparams(play_channel) < 0))
         return false;
-    }
-    status = snd_pcm_hw_params_set_channels(pcm, params, 1);
-    if (status < 0)
-    {
-        fprintf(stderr, "Could not set channel to mono: %s\n", snd_strerror(status));
-        return false;
-    }
-    status = snd_pcm_hw_params_set_rate_near(pcm, params, &frequency, 0);
-    if (status < 0)
-    {
-        fprintf(stderr, "Could not set rate to %d Hz: %s\n", frequency, snd_strerror(status));
-        return false;
-    }
-    status = snd_pcm_hw_params(pcm, params);
-    if (status < 0)
-    {
-        fprintf(stderr, "Could not set hardware parameters: %s\n", snd_strerror(status));
-        return false;
-    }
 
     /* Write the sample data */
-    snd_pcm_hw_params_get_period_size(params, &frames, 0);
-    for (i=0; i<(snd_pcm_uframes_t)length; i+=frames)
+    for (i=0; i<(snd_pcm_uframes_t)length; i+=period_size[play_channel])
     {
-        status = snd_pcm_writei(pcm, (const void*)((uintptr_t)address + i), min(frames, ((snd_pcm_uframes_t)length)-i));
-        if (status ==  (unsigned int)-EPIPE)
-        {
-            snd_pcm_prepare(pcm);
-        }
-        else if (status < 0)
-        {
-            printf("Could not write to PCM device. %s\n", snd_strerror(status));
-        }
+        if ((err = snd_pcm_writei(handle[play_channel], (const void*)((uintptr_t)address + i),
+                   min(period_size[play_channel], ((snd_pcm_uframes_t)length)-i))) == (unsigned int)-EPIPE)
+            snd_pcm_prepare(handle[play_channel]);
+        else if (err < 0)
+            fprintf(stderr, "Could not write to PCM device. %s\n", snd_strerror(err));
     }
-    snd_pcm_drain(pcm);
+//    snd_pcm_drain(pcm[play_channel]);
 #endif
     return true;
 }
@@ -351,11 +455,12 @@ static void ModPlayCallback(void *_buf2, unsigned int length, void *pdata)
 
 static void LoopCallback(void *_buf2, unsigned int length, void *pdata)
 {
+register unsigned int i;
 #if defined(WIN32)
     // 8 bit mono is fine
     unsigned char* _addr = (unsigned char*)loop_addr;
     unsigned char* _buf = (unsigned char*)_buf2;
-    for (register unsigned int i=0; i<length; i++)
+    for (i=0; i<length; i++)
     {
         _buf[i] = _addr[loop_pos];
         loop_pos = (loop_pos+1)%loop_len;
@@ -364,7 +469,7 @@ static void LoopCallback(void *_buf2, unsigned int length, void *pdata)
     // 16 bit Stereo only
     short* _addr = (short*)loop_addr;
     short* _buf  = (short*)_buf2;
-    for (register unsigned int i=0; i<length; i++)
+    for (i=0; i<length; i++)
     {
         // 16 bit Mono -> 16 bit Stereo
         _buf[2*i] = _addr[loop_pos];
@@ -379,7 +484,10 @@ static void LoopCallback(void *_buf2, unsigned int length, void *pdata)
 bool audio_init()
 {
 #if defined(__linux__)
-    unsigned int status;
+    snd_ctl_t *ctl_pcm = NULL;
+    snd_ctl_card_info_t *info;
+    const char *name, *alsa_name = "default";
+    unsigned int i, err;
 #endif
     if (!audio_release())
         fprintf(stderr, "audio_release error\n");
@@ -390,11 +498,36 @@ bool audio_init()
     if (!winXAudio2Init())
         return false;
 #elif defined(__linux__)
-    status = snd_pcm_open(&pcm, PCM_DEVICE, SND_PCM_STREAM_PLAYBACK, 0);
-    if (status < 0)
+    name = getenv("ALSA_NAME");
+    if (name != NULL)
+        alsa_name = name;
+
+    snd_ctl_card_info_alloca(&info);
+    if ((err = snd_ctl_open(&ctl_pcm, alsa_name, 0)) < 0)
+        fprintf(stderr, "Could not open sound control: %s\n", snd_strerror(err));
+    else if ((err = snd_ctl_card_info(ctl_pcm, info)) < 0)
     {
-        fprintf(stderr, "Could not open '%s' PCM device: %s\n", PCM_DEVICE, snd_strerror(status));
-        return false;
+        printf("Could not obtain sound control info: %s\n", snd_strerror(err));
+        snd_ctl_card_info_clear(info);
+    }
+    if (ctl_pcm != NULL)
+        snd_ctl_close(ctl_pcm);
+
+    name = snd_ctl_card_info_get_name(info);
+    printf("Using %s's \"%s\" for audio output\n", name, alsa_name);
+
+    for (i=0; i<NB_CHANNELS; i++)
+    {
+        if ((err = snd_pcm_open(&handle[i], alsa_name, SND_PCM_STREAM_PLAYBACK, SND_PCM_NONBLOCK)) < 0)
+        {
+            fprintf(stderr, "Could not open PCM channel %d: %s\n", i, snd_strerror(err));
+            return false;
+        }
+        if ((err = snd_pcm_nonblock(handle[i], 0)) <0)
+        {
+            fprintf(stderr, "Could not set non-blocking mode: %s\n", snd_strerror(err));
+            return false;
+        }
     }
 #endif
     no_audio = false;
@@ -411,8 +544,16 @@ bool audio_release()
     if (!winXAudio2Release())
         return false;
 #elif defined(__linux__)
-    if (pcm != NULL)
-        snd_pcm_close(pcm);
+    unsigned i;
+    for (i=0; i<NB_CHANNELS; i++)
+    {
+        if (handle[i] != NULL)
+        {
+            snd_pcm_drop(handle[i]);
+            snd_pcm_close(handle[i]);
+            handle[i] = NULL;
+        }
+    }
 #endif
     return true;
 }
@@ -477,8 +618,8 @@ bool is_mod_playing()
 //  has returned the buffer at 'data' will not be needed again.
 bool mod_init(char *filename)
 {
-    int i, numpatterns, row, note;
-    int index = 0;
+    int i, numpatterns, row, note, size = 0;
+    int modindex = 0;
     int numsamples;
     char modname[21];
     FILE* fd;
@@ -540,10 +681,10 @@ bool mod_init(char *filename)
     m_TrackDat = (TrackData *) malloc(m_TrackDat_num * sizeof(TrackData));
 
     // Get the name
-    memcpy(modname, &data[index], 20);
+    memcpy(modname, &data[modindex], 20);
     modname[20] = 0;
     strcpy(m_szName, modname);
-    index += 20;
+    modindex += 20;
 
     // Read in all the instrument headers - mod files have 31, sample #0 is ignored
     m_Samples_num = numsamples;
@@ -555,21 +696,21 @@ bool mod_init(char *filename)
     // all kind of bad things can happen on Win32!!!
     for (i = 1; i < numsamples; i++) {
         // Read the sample name
-        memcpy(m_Samples[i].szName, &data[index], 22);
-        index += 22;
+        memcpy(m_Samples[i].szName, &data[modindex], 22);
+        modindex += 22;
         // Read remaining info about sample
-        m_Samples[i].nLength = ReadModWord(data, index);
-        index += 2;
-        m_Samples[i].nFineTune = (int) (unsigned char) *(data + index);
-        index++;
+        m_Samples[i].nLength = ReadModWord(data, modindex);
+        modindex += 2;
+        m_Samples[i].nFineTune = (int) (unsigned char) *(data + modindex);
+        modindex++;
         if (m_Samples[i].nFineTune > 7)
             m_Samples[i].nFineTune -= 16;
-        m_Samples[i].nVolume = (int) (unsigned char) *(data + index);
-        index++;
-        m_Samples[i].nLoopStart = ReadModWord(data, index);
-        index += 2;
-        m_Samples[i].nLoopLength = ReadModWord(data, index);
-        index += 2;
+        m_Samples[i].nVolume = (int) (unsigned char) *(data + modindex);
+        modindex++;
+        m_Samples[i].nLoopStart = ReadModWord(data, modindex);
+        modindex += 2;
+        m_Samples[i].nLoopLength = ReadModWord(data, modindex);
+        modindex += 2;
         m_Samples[i].nLoopEnd = m_Samples[i].nLoopStart + m_Samples[i].nLoopLength;
 
         // Fix loop end in case it goes too far
@@ -578,9 +719,9 @@ bool mod_init(char *filename)
     }
 
     // Read in song data
-    m_nSongLength = (int) (unsigned char) *(data + index);
-    index++;
-    index++;			// Skip over this byte, it's no longer used
+    m_nSongLength = (int) (unsigned char) *(data + modindex);
+    modindex++;
+    modindex++;			// Skip over this byte, it's no longer used
 
     numpatterns = 0;
     m_nOrders_num = 128;
@@ -588,13 +729,13 @@ bool mod_init(char *filename)
     if (m_nOrders == NULL)
         return false;
     for (i = 0; i < 128; i++) {
-        m_nOrders[i] = (int) (unsigned char) *(data + index);
-        index++;
+        m_nOrders[i] = (int) (unsigned char) *(data + modindex);
+        modindex++;
         if (m_nOrders[i] > numpatterns)
             numpatterns = m_nOrders[i];
     }
     numpatterns++;
-    index += 4;			// skip over the identifier
+    modindex += 4;			// skip over the identifier
 
     // Load in the pattern data
     m_Patterns_num = numpatterns;
@@ -616,11 +757,11 @@ bool mod_init(char *filename)
             for (note = 0; note < m_nNumTracks; note++) {
                 int b0, b1, b2, b3, period;
                 // Get the 4 bytes for this note
-                b0 = (int) (unsigned char) *(data + index);
-                b1 = (int) (unsigned char) *(data + index + 1);
-                b2 = (int) (unsigned char) *(data + index + 2);
-                b3 = (int) (unsigned char) *(data + index + 3);
-                index += 4;
+                b0 = (int) (unsigned char) *(data + modindex);
+                b1 = (int) (unsigned char) *(data + modindex + 1);
+                b2 = (int) (unsigned char) *(data + modindex + 2);
+                b3 = (int) (unsigned char) *(data + modindex + 3);
+                modindex += 4;
 
                 // Parse them
                 period = ((b0 & 0x0F) << 8) | b1;
@@ -645,9 +786,9 @@ bool mod_init(char *filename)
         memset(m_Samples[i].data, 0, m_Samples[i].data_length + 1);
 
         if (m_Samples[i].nLength) {
-            memcpy(&m_Samples[i].data[0], &data[index], m_Samples[i].nLength);
+            memcpy(&m_Samples[i].data[0], &data[modindex], m_Samples[i].nLength);
         }
-        index += m_Samples[i].nLength;
+        modindex += m_Samples[i].nLength;
 
         // Duplicate the last byte, we'll need an extra one in order to safely anti-alias
         length = m_Samples[i].nLength;
@@ -1356,9 +1497,9 @@ static void SetMasterVolume(int volume)
 // They're also stored at half their actual value, thus doubling their range.
 // This function accepts a pointer to such a word and returns it's integer value
 // NOTE: relic from pc testing.
-static int ReadModWord(unsigned char *buffer, int index)
+static int ReadModWord(unsigned char *buffer, int pos)
 {
-    int byte1 = (int) (unsigned char) *(buffer + index);
-    int byte2 = (int) (unsigned char) *(buffer + index + 1);
+    int byte1 = (int) (unsigned char) *(buffer + pos);
+    int byte2 = (int) (unsigned char) *(buffer + pos + 1);
     return ((byte1 * 256) + byte2) * 2;
 }

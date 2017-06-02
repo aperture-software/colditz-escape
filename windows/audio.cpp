@@ -17,7 +17,7 @@
  *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  *
  *  ---------------------------------------------------------------------------
- *  winXAudio2.cpp: XAudio2 engine wrapper, with double buffered
+ *  audio.cpp: XAudio2 engine wrapper, with double buffered
  *  streaming capabilities through Voice Callbacks
  *  ---------------------------------------------------------------------------
  */
@@ -36,20 +36,19 @@
 #include <shellapi.h>
 #include <mmsystem.h>
 #include <conio.h>
-#include "winXAudio2.h"
+#include "audio.h"
 
 // Max number of voices (aka "channels") we can handle
-#define NB_VOICES_MAX		4
+#define NB_VOICES_MAX       4
 // We'll use double buffering to fill our data for callbacks
-#define NB_BUFFERS			2
+#define NB_BUFFERS          2
 // Buffer size, in bytes
-#define BUFFER_SIZE			65536
+#define BUFFER_SIZE         65536
 
 // XAudio2 global variables
-static IXAudio2*				pXAudio2 = NULL;
-static IXAudio2MasteringVoice*	pMasteringVoice = NULL;
-static IXAudio2SourceVoice*		pSourceVoice[NB_VOICES_MAX] =
-                                {NULL, NULL, NULL, NULL};
+static IXAudio2*                pXAudio2 = NULL;
+static IXAudio2MasteringVoice*  pMasteringVoice = NULL;
+static IXAudio2SourceVoice*     pSourceVoice[NB_VOICES_MAX] = { NULL, NULL, NULL, NULL };
 
 static bool XAudio2Init	= false;
 static bool voice_in_use[NB_VOICES_MAX];
@@ -66,15 +65,15 @@ static XAUDIO2_BUFFER x2buffer[NB_VOICES_MAX][NB_BUFFERS];
 class VoiceCallback : public IXAudio2VoiceCallback
 {
 private:
-    int						_voice;
-    winXAudio2Callback_t	_callback;
-    void*					_pdata;
-    bool					_even_buffer;
+    int                     _voice;
+    winXAudio2Callback_t    _callback;
+    void*                   _pdata;
+    bool                    _even_buffer;
     // buffer size, in number of samples
-    unsigned long			_audio_sample_size;
+    unsigned long           _audio_sample_size;
 public:
-//	XAUDIO2_BUFFER			x2buffer[NB_BUFFERS];
-    BYTE*					buffer;
+//	XAUDIO2_BUFFER          x2buffer[NB_BUFFERS];
+    BYTE*                   buffer;
     VoiceCallback(int voice, winXAudio2Callback_t callback, void* pdata, unsigned long audio_sample_size)
     {
         _voice = voice;
@@ -132,8 +131,7 @@ public:
 
 
 // This is the handle for our instanciated callbacks
-static VoiceCallback*	pVoiceCallback[NB_VOICES_MAX] =
-                        {NULL, NULL, NULL, NULL};
+static VoiceCallback* pVoiceCallback[NB_VOICES_MAX] = { NULL, NULL, NULL, NULL };
 
 
 // Initialize the XAudio2 engine for playback
@@ -181,9 +179,9 @@ int i;
 // Kill the XAudio2 Engine
 bool winXAudio2Release()
 {
-	int i;
-	for (i=0; i<NB_VOICES_MAX; i++)
-		SAFE_DELETE(pVoiceCallback[i]);
+    int i;
+    for (i=0; i<NB_VOICES_MAX; i++)
+        SAFE_DELETE(pVoiceCallback[i]);
     if (XAudio2Init)
     {
         SAFE_RELEASE( pXAudio2 );
