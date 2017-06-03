@@ -40,8 +40,8 @@
 #include <pspdebug.h>
 #include <pspgu.h>
 #include <GL/glut.h>
-#include <psp/psp-printf.h>
 #include <pspiofilemgr.h>
+#include "psp/printf.h"
 #elif defined(__linux__)
 #include "GL/glew.h"
 #include "glut/glut.h"

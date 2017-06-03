@@ -1,5 +1,5 @@
 TARGET          = colditz
-OBJS            = conf.o game.o graphics.o low-level.o main.o md5.o soundplayer.o eschew/ConvertUTF.o eschew/eschew.o
+OBJS            = conf.o game.o graphics.o low-level.o main.o md5.o soundplayer.o linux/audio_backend.o eschew/ConvertUTF.o eschew/eschew.o
 DEPS            = glut/libglut.a
 
 CC              = gcc

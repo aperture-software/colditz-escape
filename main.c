@@ -48,8 +48,8 @@
 #include <pspgu.h>
 #include <psprtc.h>
 #include <pspaudiolib.h>
-#include "psp/psp-setup.h"
-#include "psp/psp-printf.h"
+#include "psp/setup.h"
+#include "psp/printf.h"
 #endif
 
 #include "getopt.h"
@@ -1814,7 +1814,7 @@ int main (int argc, char *argv[])
     sprites_to_wGRAB();	// Must be called after init sprite
 
     // We'll start with the Intro state
-    // DO NOT call static_screen() here, as it messes up with any earlier psp-printf
+    // DO NOT call static_screen() here, as it messes up with any earlier psp/printf
     game_state = GAME_STATE_INTRO | GAME_STATE_STATIC_PIC | GAME_STATE_PICTURE_LOOP;
     current_picture = INTRO_SCREEN_START;
     picture_state = PICTURE_FADE_IN_START;

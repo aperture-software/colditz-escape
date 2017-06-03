@@ -17,7 +17,7 @@
  *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  *
  *  ---------------------------------------------------------------------------
- *  audio.cpp: XAudio2 engine wrapper, with double buffered
+ *  audio_backend.cpp: XAudio2 engine wrapper, with double buffered
  *  streaming capabilities through Voice Callbacks
  *  ---------------------------------------------------------------------------
  */
@@ -25,7 +25,6 @@
 // Remove some annoying warnings
 #define _WIN32_DCOM
 #pragma warning(disable:4995)
-#define IGNORE_RETVAL(expr) do { (void)(expr); } while(0)
 
 #include <windows.h>
 // If you don't include that initguid.h before xaudio2.h, you'll get
@@ -36,7 +35,30 @@
 #include <shellapi.h>
 #include <mmsystem.h>
 #include <conio.h>
-#include "audio.h"
+#include "audio_backend.h"
+
+#if (_WIN32_WINNT >= 0x0602 /*_WIN32_WINNT_WIN8*/)
+#include <xaudio2.h>
+#pragma comment(lib,"xaudio2.lib")
+#else
+#include <C:\Program Files (x86)\Microsoft DirectX SDK (June 2010)\Include\comdecl.h>
+#include <C:\Program Files (x86)\Microsoft DirectX SDK (June 2010)\Include\xaudio2.h>
+#endif
+
+// Windows XAudio2 Helper macros
+#ifndef SAFE_DELETE
+#define SAFE_DELETE(p)          { if(p) { delete (p); (p)=NULL; } }
+#endif
+#ifndef SAFE_DELETE_ARRAY
+#define SAFE_DELETE_ARRAY(p)    { if(p) { delete[] (p); (p)=NULL; } }
+#endif
+#ifndef SAFE_RELEASE
+#define SAFE_RELEASE(p)         { if(p) { (p)->Release(); (p)=NULL; } }
+#endif
+#ifndef SAFE_FREE
+#define SAFE_FREE(p)            { if(p) { free(p); (p)=NULL; } }
+#endif
+#define IGNORE_RETVAL(expr)     do { (void)(expr); } while(0)
 
 // Max number of voices (aka "channels") we can handle
 #define NB_VOICES_MAX       4
@@ -50,7 +72,7 @@ static IXAudio2*                pXAudio2 = NULL;
 static IXAudio2MasteringVoice*  pMasteringVoice = NULL;
 static IXAudio2SourceVoice*     pSourceVoice[NB_VOICES_MAX] = { NULL, NULL, NULL, NULL };
 
-static bool XAudio2Init	= false;
+static bool XAudio2Init = false;
 static bool voice_in_use[NB_VOICES_MAX];
 static bool voice_set_up[NB_VOICES_MAX];
 
@@ -66,7 +88,7 @@ class VoiceCallback : public IXAudio2VoiceCallback
 {
 private:
     int                     _voice;
-    winXAudio2Callback_t    _callback;
+    AudioVoiceCallback_t    _callback;
     void*                   _pdata;
     bool                    _even_buffer;
     // buffer size, in number of samples
@@ -74,7 +96,7 @@ private:
 public:
 //	XAUDIO2_BUFFER          x2buffer[NB_BUFFERS];
     BYTE*                   buffer;
-    VoiceCallback(int voice, winXAudio2Callback_t callback, void* pdata, unsigned long audio_sample_size)
+    VoiceCallback(int voice, AudioVoiceCallback_t callback, void* pdata, unsigned long audio_sample_size)
     {
         _voice = voice;
         _callback = callback;
@@ -129,13 +151,11 @@ public:
     STDMETHOD_(void, OnVoiceError)(void * pBufferContext, HRESULT Error) { }
 };
 
-
 // This is the handle for our instanciated callbacks
 static VoiceCallback* pVoiceCallback[NB_VOICES_MAX] = { NULL, NULL, NULL, NULL };
 
-
 // Initialize the XAudio2 engine for playback
-bool winXAudio2Init()
+bool audio_backend_init(void)
 {
 int i;
 
@@ -175,9 +195,8 @@ int i;
     return true;
 }
 
-
 // Kill the XAudio2 Engine
-bool winXAudio2Release()
+bool audio_backend_release(void)
 {
     int i;
     for (i=0; i<NB_VOICES_MAX; i++)
@@ -191,10 +210,9 @@ bool winXAudio2Release()
     return true;
 }
 
-
 // Setup a voice (channel) for a static audio buffer (eg. static sample of fixed size)
-bool winXAudio2SetVoice(int voice, BYTE* audioData, int audioSize, unsigned int frequency,
-                        unsigned int bits_per_sample, bool stereo)
+bool audio_backend_set_voice(int voice, void* data, int size, unsigned int frequency,
+                             unsigned int bits_per_sample, bool stereo)
 {
 
     if ((voice<0) || (voice>(NB_VOICES_MAX-1)))
@@ -234,8 +252,8 @@ bool winXAudio2SetVoice(int voice, BYTE* audioData, int audioSize, unsigned int 
 
     // Submit the wave sample data using an XAUDIO2_BUFFER structure
     XAUDIO2_BUFFER x2buffer = {0};
-    x2buffer.AudioBytes = audioSize;
-    x2buffer.pAudioData = audioData;
+    x2buffer.AudioBytes = size;
+    x2buffer.pAudioData = (BYTE*) data;
     x2buffer.Flags = XAUDIO2_END_OF_STREAM;
 
     if( FAILED( pSourceVoice[voice]->SubmitSourceBuffer( &x2buffer ) ) )
@@ -250,22 +268,20 @@ bool winXAudio2SetVoice(int voice, BYTE* audioData, int audioSize, unsigned int 
     return true;
 }
 
-
-bool winXAudio2SetVoiceVolume(int voice, float volume)
+bool audio_backend_set_voice_volume(int voice, float volume)
 {
      if( FAILED( pSourceVoice[voice]->SetVolume(volume) ) )
          return false;
      return true;
 }
 
-
 // Setup a voice (channel) for a dynamic audio buffer (eg. streaming)
 // Requires a pointer to the callback function that fills the streaming buffer
-bool winXAudio2SetVoiceCallback(int voice, winXAudio2Callback_t callback, void * pdata,
-                                unsigned int frequency, unsigned int bits_per_sample, bool stereo)
+bool audio_backend_set_voice_callback(int voice, AudioVoiceCallback_t callback, void * pdata,
+                                      unsigned int frequency, unsigned int bits_per_sample, bool stereo)
 {
-unsigned long	audio_sample_size;
-unsigned char	nb_channels;
+unsigned long audio_sample_size;
+unsigned char nb_channels;
 
     if ((voice<0) || (voice>(NB_VOICES_MAX-1)))
     {
@@ -312,9 +328,8 @@ unsigned char	nb_channels;
     return true;
 }
 
-
 // Start playout of a previously initialized voice
-bool winXAudio2StartVoice(int voice)
+bool audio_backend_start_voice(int voice)
 {
     if (!voice_set_up[voice])
     {
@@ -331,9 +346,8 @@ bool winXAudio2StartVoice(int voice)
     return true;
 }
 
-
 // Stop playout
-bool winXAudio2StopVoice(int voice)
+bool audio_backend_stop_voice(int voice)
 {
     if (!voice_in_use[voice])
         return false;
@@ -343,13 +357,12 @@ bool winXAudio2StopVoice(int voice)
     return true;
 }
 
-
 // Release the voice
-bool winXAudio2ReleaseVoice(int voice)
+bool audio_backend_release_voice(int voice)
 {
     if (!voice_set_up[voice])
         return false;
-    winXAudio2StopVoice(voice);
+    audio_backend_stop_voice(voice);
     pSourceVoice[voice]->DestroyVoice();
     pSourceVoice[voice] = NULL;
     voice_set_up[voice] = false;

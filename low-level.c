@@ -30,7 +30,7 @@
 #include <string.h>
 #if defined(PSP)
 #include <psptypes.h>
-#include <psp/psp-printf.h>
+#include "psp/printf.h"
 #endif
 
 #include "colditz.h"

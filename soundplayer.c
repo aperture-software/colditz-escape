@@ -31,30 +31,8 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-
-#if defined(WIN32)
-#include <windows.h>
-// If you don't include initguid.h before xaudio2.h, you'll get
-// error LNK2001: unresolved external symbol _CLSID_XAudio2
-#include <initguid.h>
-#include <xaudio2.h>
-#include <strsafe.h>
-#include <shellapi.h>
-#include <mmsystem.h>
-#include <conio.h>
-#include "windows/audio.h"
-#elif defined(PSP)
-#include <pspkernel.h>
-#include <pspaudio.h>
-#include <pspaudiolib.h>
-#include "psp/psp-printf.h"
-#elif defined(__linux__)
-#define ALSA_PCM_NEW_HW_PARAMS_API
-#define ALSA_PCM_NEW_SW_PARAMS_API
-#include <alsa/asoundlib.h>
-#endif
-
 #include "low-level.h"
+#include "audio_backend.h"
 #include "soundplayer.h"
 #include "soundtables.h"
 
@@ -71,7 +49,7 @@
 // for the fractional part.
 #define FRAC_BITS 10
 
-// MAximum number of channels we'll handle
+// Maximum number of channels we'll handle
 #define NB_CHANNELS 4
 
 #define AMIGA_VOLUME_MAX 64
@@ -130,17 +108,6 @@ static bool m_bSet     = false;	// True when a mod has been set
 static bool no_audio   = true;	// Is the audio working
 static uint8_t *data;
 
-#if defined(__linux__)
-/* Mostly from http://www.alsa-project.org/alsa-doc/alsa-lib/_2test_2pcm_8c-example.html */
-static snd_pcm_t *handle[NB_CHANNELS] = { 0 };          /* Try to open one PCM device for each channel */
-static unsigned int buffer_time[NB_CHANNELS];           /* Ring buffer length, in us */
-static unsigned int period_time[NB_CHANNELS];           /* Period time, in us */
-static snd_pcm_sframes_t buffer_size[NB_CHANNELS];
-static snd_pcm_sframes_t period_size[NB_CHANNELS];
-//static snd_output_t *output = NULL;
-#endif
-
-
 //////////////////////////////////////////////////////////////////////
 // These are the public functions
 //////////////////////////////////////////////////////////////////////
@@ -153,148 +120,12 @@ static unsigned long	loop_pos;
 static unsigned long	loop_len;
 static void*			loop_addr;
 
-#if defined(__linux__)
-static int snd_pcm_set_hwparams(int channel, unsigned int frequency)
-{
-    int err, dir;
-    unsigned int rrate = frequency;
-    buffer_time[channel] = 500000;
-    period_time[channel] = 100000;
-    snd_pcm_uframes_t size;
-    snd_pcm_hw_params_t *params;
-
-    /* Choose all parameters */
-    snd_pcm_hw_params_alloca(&params);
-    err = snd_pcm_hw_params_any(handle[channel], params);
-    if (err < 0)
-    {
-        fprintf(stderr, "Broken configuration for playback: no configurations available: %s\n", snd_strerror(err));
-        return err;
-    }
-    /* Set hardware resampling */
-    err = snd_pcm_hw_params_set_rate_resample(handle[channel], params, 1);
-    if (err < 0)
-    {
-        fprintf(stderr, "Resampling setup failed for playback: %s\n", snd_strerror(err));
-        return err;
-    }
-    /* Set the interleaved read/write format (even as our samples are mono) */
-    err = snd_pcm_hw_params_set_access(handle[channel], params, SND_PCM_ACCESS_RW_INTERLEAVED);
-    if (err < 0)
-    {
-        fprintf(stderr, "Access type not available for playback: %s\n", snd_strerror(err));
-        return err;
-    }
-    /* Set the sample format */
-    err = snd_pcm_hw_params_set_format(handle[channel], params, SND_PCM_FORMAT_U8);
-    if (err < 0)
-    {
-        fprintf(stderr, "Sample format not available for playback: %s\n", snd_strerror(err));
-        return err;
-    }
-    /* Set the count of channels to mono */
-    err = snd_pcm_hw_params_set_channels(handle[channel], params, 1);
-    if (err < 0)
-    {
-        fprintf(stderr, "Mono playback is not available: %s\n", snd_strerror(err));
-        return err;
-    }
-    /* Set the stream rate */
-    err = snd_pcm_hw_params_set_rate_near(handle[channel], params, &rrate, 0);
-    if (err < 0)
-    {
-        fprintf(stderr, "Rate %iHz not available for playback: %s\n", frequency, snd_strerror(err));
-        return err;
-    }
-    if (rrate != frequency)
-    {
-        fprintf(stderr, "Rate doesn't match (requested %iHz, got %iHz)\n", frequency, rrate);
-        return -EINVAL;
-    }
-    /* Set the buffer time */
-    err = snd_pcm_hw_params_set_buffer_time_near(handle[channel], params, &buffer_time[channel], &dir);
-    if (err < 0)
-    {
-        fprintf(stderr, "Unable to set buffer time %u for playback on channel %i: %s\n", buffer_time[channel], channel, snd_strerror(err));
-        return err;
-    }
-    err = snd_pcm_hw_params_get_buffer_size(params, &size);
-    if (err < 0)
-    {
-        fprintf(stderr, "Unable to get buffer size for playback: %s\n", snd_strerror(err));
-        return err;
-    }
-    buffer_size[channel] = size;
-    /* Set the period time */
-    err = snd_pcm_hw_params_set_period_time_near(handle[channel], params, &period_time[channel], &dir);
-    if (err < 0)
-    {
-        fprintf(stderr, "Unable to set period time %u for playback on channel %i: %s\n", period_time[channel], channel, snd_strerror(err));
-        return err;
-    }
-    err = snd_pcm_hw_params_get_period_size(params, &size, &dir);
-    if (err < 0)
-    {
-        fprintf(stderr, "Unable to get period size for playback: %s\n", snd_strerror(err));
-        return err;
-    }
-    period_size[channel] = size;
-//printf("period_size[%d] = %d, buffer_size[%d] = %d\n", channel, size, channel, buffer_size[channel]);
-    /* Write the parameters to device */
-    err = snd_pcm_hw_params(handle[channel], params);
-    if (err < 0)
-    {
-        fprintf(stderr, "Unable to set hw params for playback on channel %i: %s\n", channel, snd_strerror(err));
-        return err;
-    }
-    return 0;
-}
-
-static int snd_pcm_set_swparams(int channel)
-{
-    int err;
-    snd_pcm_sw_params_t *params;
-
-    /* Get the current swparams */
-    snd_pcm_sw_params_alloca(&params);
-    err = snd_pcm_sw_params_current(handle[channel], params);
-    if (err < 0) {
-        fprintf(stderr, "Unable to determine current swparams for playback: %s\n", snd_strerror(err));
-        return err;
-    }
-    /* Start the transfer when the buffer is almost full: (buffer_size / avail_min) * avail_min */
-    err = snd_pcm_sw_params_set_start_threshold(handle[channel], params,
-        (buffer_size[channel] / period_size[channel]) * period_size[channel]);
-    if (err < 0) {
-        fprintf(stderr, "Unable to set start threshold mode for playback: %s\n", snd_strerror(err));
-        return err;
-    }
-    /* Allow the transfer when at least period_size samples can be processed */
-    err = snd_pcm_sw_params_set_avail_min(handle[channel], params, period_size[channel]);
-    if (err < 0) {
-        fprintf(stderr, "Unable to set avail min for playback: %s\n", snd_strerror(err));
-        return err;
-    }
-    /* write the parameters to the playback device */
-    err = snd_pcm_sw_params(handle[channel], params);
-    if (err < 0) {
-        fprintf(stderr, "Unable to set sw params for playback: %s\n", snd_strerror(err));
-        return err;
-    }
-    return 0;
-}
-#endif
-
 // Play a MONO, possibly looping, sound sample. channel = -1 => autoallocated
 // NB: the PSP is limited to 64 KB for non looping samples
 bool play_sample(int channel, unsigned int volume, void *address, unsigned int length,
                  unsigned int frequency, unsigned int bits_per_sample, bool loop)
 {
     int play_channel;
-#if defined(__linux__)
-    unsigned int err;
-    snd_pcm_uframes_t i;
-#endif
 
     if (no_audio)
         return false;
@@ -320,61 +151,25 @@ bool play_sample(int channel, unsigned int volume, void *address, unsigned int l
     }
 
 #if defined(PSP)
-    if (frequency != PLAYBACK_FREQ)
-    {
-        fprintf(stderr, "play_sfx: frequency must be %d for PSP SFX\n", PLAYBACK_FREQ);
-        return false;
-    }
-    if (bits_per_sample != 16)
-    {
-        fprintf(stderr, "play_sfx: samples must be 16 bit for PSP SFX\n");
-        return false;
-    }
-    if ((!loop) && (length >= PSP_AUDIO_SAMPLE_MAX))
-    {
-        fprintf(stderr, "play_sfx: Cannot play samples of more than %d bytes\n", PSP_AUDIO_SAMPLE_MAX);
-        return false;
-    }
-    // Release channel if needed
-    sceAudioChRelease(play_channel);
-    if (loop)
-        pspAudioSetChannelCallback(loop_channel, LoopCallback, NULL);
-    else
-    {
-        sceAudioChReserve(play_channel, length, PSP_AUDIO_FORMAT_MONO);
-        sceAudioOutput(play_channel, PSP_AUDIO_VOLUME_MAX, address);
-    }
-    sceAudioChangeChannelVolume(play_channel, volume * PSP_VOLUME_MAX/AMIGA_VOLUME_MAX, volume * PSP_VOLUME_MAX/AMIGA_VOLUME_MAX);
-#elif defined(WIN32)
-    winXAudio2ReleaseVoice(play_channel);
+    // We upconverted the samples to 16-bit for PSP usage
+    bits_per_sample = 16;
+#endif
+
+    audio_backend_release_voice(play_channel);
     // Our SFXs are always mono
     if (loop)
     {
-        if (!winXAudio2SetVoiceCallback(loop_channel, LoopCallback, NULL, frequency, bits_per_sample, false))
+        if (!audio_backend_set_voice_callback(loop_channel, LoopCallback, NULL, frequency, bits_per_sample, false))
             return false;
     }
     else
     {
-        if (!winXAudio2SetVoice(play_channel, (BYTE*) address, length, frequency, bits_per_sample, false))
+        if (!audio_backend_set_voice(play_channel, address, length, frequency, bits_per_sample, false))
             return false;
     }
-    winXAudio2SetVoiceVolume(play_channel, (float) volume/AMIGA_VOLUME_MAX);
-    winXAudio2StartVoice(play_channel);
-#elif defined(__linux__)
-    if ((snd_pcm_set_hwparams(play_channel, frequency) < 0)) // || (snd_pcm_set_swparams(play_channel) < 0))
-        return false;
+    audio_backend_set_voice_volume(play_channel, (float) volume/AMIGA_VOLUME_MAX);
+    audio_backend_start_voice(play_channel);
 
-    /* Write the sample data */
-    for (i=0; i<(snd_pcm_uframes_t)length; i+=period_size[play_channel])
-    {
-        if ((err = snd_pcm_writei(handle[play_channel], (const void*)((uintptr_t)address + i),
-                   min(period_size[play_channel], ((snd_pcm_uframes_t)length)-i))) == (unsigned int)-EPIPE)
-            snd_pcm_prepare(handle[play_channel]);
-        else if (err < 0)
-            fprintf(stderr, "Could not write to PCM device. %s\n", snd_strerror(err));
-    }
-//    snd_pcm_drain(pcm[play_channel]);
-#endif
     return true;
 }
 
@@ -387,16 +182,13 @@ void stop_loop()
     if (loop_channel == -1)
         return;
 
-#if defined(PSP)
-    pspAudioSetChannelCallback(loop_channel, 0, 0);
-#elif defined(WIN32)
-    winXAudio2StopVoice(loop_channel);
-    winXAudio2ReleaseVoice(loop_channel);
-#endif
+    audio_backend_stop_voice(loop_channel);
+    audio_backend_release_voice(loop_channel);
     loop_channel = -1;
 }
 
 #if defined(PSP)
+#include <pspaudio.h>   // PSP_AUDIO_SAMPLE_ALIGN()
 // This upconverts an 8 bit PCM file @ any frequency to 16 bit/PLAYBACK_FREQ
 bool psp_upsample(short **upconverted_address, unsigned long *upconverted_length, char *src_sample,
                   unsigned long src_numsamples, unsigned short src_frequency)
@@ -437,7 +229,6 @@ bool psp_upsample(short **upconverted_address, unsigned long *upconverted_length
 }
 #endif
 
-
 static void ModPlayCallback(void *_buf2, unsigned int length, void *pdata)
 {
     short *_buf = (short *)_buf2;
@@ -452,20 +243,10 @@ static void ModPlayCallback(void *_buf2, unsigned int length, void *pdata)
     }
 }
 
-
 static void LoopCallback(void *_buf2, unsigned int length, void *pdata)
 {
 register unsigned int i;
-#if defined(WIN32)
-    // 8 bit mono is fine
-    unsigned char* _addr = (unsigned char*)loop_addr;
-    unsigned char* _buf = (unsigned char*)_buf2;
-    for (i=0; i<length; i++)
-    {
-        _buf[i] = _addr[loop_pos];
-        loop_pos = (loop_pos+1)%loop_len;
-    }
-#elif defined(PSP)
+#if defined(PSP)
     // 16 bit Stereo only
     short* _addr = (short*)loop_addr;
     short* _buf  = (short*)_buf2;
@@ -476,88 +257,34 @@ register unsigned int i;
         _buf[2*i+1] = _addr[loop_pos];
         loop_pos = (loop_pos+1)%loop_len;
     }
+#else
+    // 8 bit mono is fine
+    unsigned char* _addr = (unsigned char*)loop_addr;
+    unsigned char* _buf = (unsigned char*)_buf2;
+    for (i=0; i<length; i++)
+    {
+        _buf[i] = _addr[loop_pos];
+        loop_pos = (loop_pos+1)%loop_len;
+    }
 #endif
 }
-
 
 // Initialize the audio engine
 bool audio_init()
 {
-#if defined(__linux__)
-    snd_ctl_t *ctl_pcm = NULL;
-    snd_ctl_card_info_t *info;
-    const char *name, *alsa_name = "default";
-    unsigned int i, err;
-#endif
     if (!audio_release())
         fprintf(stderr, "audio_release error\n");
-#if defined(PSP)
-    if (pspAudioInit())
+    if (!audio_backend_init())
         return false;
-#elif defined(WIN32)
-    if (!winXAudio2Init())
-        return false;
-#elif defined(__linux__)
-    name = getenv("ALSA_NAME");
-    if (name != NULL)
-        alsa_name = name;
-
-    snd_ctl_card_info_alloca(&info);
-    if ((err = snd_ctl_open(&ctl_pcm, alsa_name, 0)) < 0)
-        fprintf(stderr, "Could not open sound control: %s\n", snd_strerror(err));
-    else if ((err = snd_ctl_card_info(ctl_pcm, info)) < 0)
-    {
-        printf("Could not obtain sound control info: %s\n", snd_strerror(err));
-        snd_ctl_card_info_clear(info);
-    }
-    if (ctl_pcm != NULL)
-        snd_ctl_close(ctl_pcm);
-
-    name = snd_ctl_card_info_get_name(info);
-    printf("Using %s's \"%s\" for audio output\n", name, alsa_name);
-
-    for (i=0; i<NB_CHANNELS; i++)
-    {
-        if ((err = snd_pcm_open(&handle[i], alsa_name, SND_PCM_STREAM_PLAYBACK, SND_PCM_NONBLOCK)) < 0)
-        {
-            fprintf(stderr, "Could not open PCM channel %d: %s\n", i, snd_strerror(err));
-            return false;
-        }
-        if ((err = snd_pcm_nonblock(handle[i], 0)) <0)
-        {
-            fprintf(stderr, "Could not set non-blocking mode: %s\n", snd_strerror(err));
-            return false;
-        }
-    }
-#endif
     no_audio = false;
     return true;
 }
 
-
 // Release the audio engine
 bool audio_release()
 {
-#if defined(PSP)
-    pspAudioEnd();
-#elif defined(WIN32)
-    if (!winXAudio2Release())
-        return false;
-#elif defined(__linux__)
-    unsigned i;
-    for (i=0; i<NB_CHANNELS; i++)
-    {
-        if (handle[i] != NULL)
-        {
-            snd_pcm_drop(handle[i]);
-            snd_pcm_close(handle[i]);
-            handle[i] = NULL;
-        }
-    }
-#endif
-    return true;
+    return audio_backend_release();
 }
-
 
 // Terminate MOD playout
 void mod_release()
@@ -569,12 +296,7 @@ void mod_release()
         return;
 
     mod_stop();
-#if defined(PSP)
-    pspAudioSetChannelCallback(mod_channel, 0, 0);
-#endif
-#if defined(WIN32)
-    winXAudio2ReleaseVoice(mod_channel);
-#endif
+    audio_backend_release_voice(mod_channel);
 
     if (!m_bSet)
         return;
@@ -651,14 +373,10 @@ bool mod_init(char *filename)
     } else 	// we couldn't open the file
         return false;
 
-#if defined(PSP)
-    pspAudioSetChannelCallback(mod_channel, ModPlayCallback, NULL);
-#elif defined(WIN32)
     // Release the voice first
-    winXAudio2ReleaseVoice(0);
-    if (!winXAudio2SetVoiceCallback(mod_channel, ModPlayCallback, NULL, PLAYBACK_FREQ, 16, true))
+    audio_backend_release_voice(0);
+    if (!audio_backend_set_voice_callback(mod_channel, ModPlayCallback, NULL, PLAYBACK_FREQ, 16, true))
         return false;
-#endif
 
     BPM_RATE = 130;
     //  Set default settings
@@ -851,22 +569,14 @@ bool mod_play()
     m_CurrentRow = &m_Patterns[m_nOrders[m_nOrder]].row[m_nRow];
     m_nTick = 0;
 
-
     m_bPlaying = true;
-
-#if defined(WIN32)
-    winXAudio2StartVoice(0);
-#endif
-
-    return true;
+    return audio_backend_start_voice(0);
 }
-
 
 void mod_pause()
 {
     m_bPlaying = !m_bPlaying;
 }
-
 
 bool mod_stop()
 {
@@ -874,12 +584,8 @@ bool mod_stop()
         return false;
 
     m_bPlaying = false;
-#if defined(WIN32)
-    winXAudio2StopVoice(0);
-#endif
-    return true;
+    return audio_backend_stop_voice(0);
 }
-
 
 //////////////////////////////////////////////////////////////////////
 // Functions - Local and not public

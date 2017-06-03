@@ -1,6 +1,6 @@
 /*
  *  Colditz Escape - Rewritten Engine for "Escape From Colditz"
- *  copyright (C) 2008-2009 Aperture Software
+ *  copyright (C) 2008-2017 Aperture Software
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -17,15 +17,15 @@
  *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  *
  *  ---------------------------------------------------------------------------
- *  psp-setup.c: PSP callbacks initialization
+ *  setup.c: PSP callbacks initialization
  *  ---------------------------------------------------------------------------
  */
 #if defined(PSP)
 #include <pspkerneltypes.h>
 #include <pspuser.h>
 #include <stdio.h>
-#include "psp-setup.h"
-#include "psp-printf.h"
+#include "setup.h"
+#include "printf.h"
 
 // Define the module info section
 PSP_MODULE_INFO("colditz", 0, 1, 1);
@@ -44,7 +44,6 @@ int exit_callback (int arg1, int arg2, void *common)
     return 0;
 }
 
-
 int update_thread (SceSize args, void *argp)
 {
     int cbid = sceKernelCreateCallback("Exit Callback", exit_callback, NULL);
@@ -53,7 +52,6 @@ int update_thread (SceSize args, void *argp)
     return 0;
 }
 
-
 void setup_callbacks (void)
 {
     int id;
@@ -61,7 +59,6 @@ void setup_callbacks (void)
     if ((id = sceKernelCreateThread("update_thread", update_thread, 0x11, 0xFA0, 0, 0)) >= 0)
         sceKernelStartThread(id, 0, 0);
 }
-
 
 void back_to_kernel (void)
 {

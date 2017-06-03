@@ -42,13 +42,10 @@
     <ClCompile Include="..\md5.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\psp\psp-setup.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="..\soundplayer.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\windows\audio.cpp">
+    <ClCompile Include="..\windows\audio_backend.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -92,12 +89,6 @@
     <ClInclude Include="..\md5.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\psp\psp-printf.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\psp\psp-setup.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="..\soundplayer.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -113,10 +104,10 @@
     <ClInclude Include="..\soundtables.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\windows\audio.h">
+    <ClInclude Include="..\glut\glut.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\glut\glut.h">
+    <ClInclude Include="..\audio_backend.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

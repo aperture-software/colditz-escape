@@ -33,7 +33,7 @@
 #include <stdarg.h>
 #include <pspkernel.h>
 #include <pspdebug.h>
-#include <psp/psp-printf.h>
+#include "psp/printf.h"
 #endif
 
 #include "low-level.h"

@@ -121,15 +121,15 @@
     <ClCompile Include="..\low-level.c" />
     <ClCompile Include="..\main.c" />
     <ClCompile Include="..\md5.c" />
-    <ClCompile Include="..\psp\psp-setup.c" />
     <ClCompile Include="..\soundplayer.c">
       <CompileAs Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">CompileAsCpp</CompileAs>
       <CompileAs Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">CompileAsCpp</CompileAs>
     </ClCompile>
-    <ClCompile Include="..\windows\audio.cpp" />
+    <ClCompile Include="..\windows\audio_backend.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\anti-tampering.h" />
+    <ClInclude Include="..\audio_backend.h" />
     <ClInclude Include="..\cluck.h" />
     <ClInclude Include="..\colditz.h" />
     <ClInclude Include="..\conf.h" />
@@ -143,13 +143,10 @@
     <ClInclude Include="..\graphics.h" />
     <ClInclude Include="..\low-level.h" />
     <ClInclude Include="..\md5.h" />
-    <ClInclude Include="..\psp\psp-printf.h" />
-    <ClInclude Include="..\psp\psp-setup.h" />
     <ClInclude Include="..\soundplayer.h" />
     <ClInclude Include="..\soundtables.h" />
     <ClInclude Include="..\GL\glew.h" />
     <ClInclude Include="..\GL\wglew.h" />
-    <ClInclude Include="..\windows\audio.h" />
     <ClInclude Include="resource.h" />
   </ItemGroup>
   <ItemGroup>
