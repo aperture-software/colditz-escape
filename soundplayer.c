@@ -88,17 +88,17 @@ static int m_Samples_num;
 static Sample *m_Samples;
 
 // The following variables are maintained and updated by the tracker during playback
-static int m_nSpeed;		// Speed of mod being played
-static int m_nOrder;		// Current order being played
-static int m_nRow;		// Current row being played
-static int m_nTick;		// Current tick number (there are "m_nSpeed"
-// ticks between each row)
-static int BPM_RATE;		// Adjusted master BPM for refresh rate
-static int m_nBPM;		// Beats-per-minute...controls length of
-// each tick
-static int m_nSamplesLeft;	// Number of samples left to mix for the
-// current tick
-static int m_nNumTracks;	// Number of tracks in this mod
+static int m_nSpeed;			// Speed of mod being played
+static int m_nOrder;			// Current order being played
+static int m_nRow;				// Current row being played
+static int m_nTick;				// Current tick number (there are "m_nSpeed"
+								// ticks between each row)
+static int BPM_RATE;			// Adjusted master BPM for refresh rate
+static int m_nBPM;				// Beats-per-minute...controls length of
+								// each tick
+static int m_nSamplesLeft;		// Number of samples left to mix for the
+								// current tick
+static int m_nNumTracks;		// Number of tracks in this mod
 
 static int m_TrackDat_num;
 static TrackData *m_TrackDat;	// Stores info for each track being played

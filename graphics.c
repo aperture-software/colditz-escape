@@ -345,8 +345,9 @@ void free_gfx()
     SAFREE(texture[PICTURE_CORNER].buffer);
     SAFREE(texture[TUNNEL_VISION].buffer);
     SAFREE(rgbCells);
-    for (i = 0; i < NB_SPRITES; i++)
-        SAFREE(sprite[i].data);
+    if (sprite != NULL)
+        for (i = 0; i < NB_SPRITES; i++)
+            SAFREE(sprite[i].data);
     SAFREE(sprite);
     SAFREE(overlay);
 }

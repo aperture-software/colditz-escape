@@ -27,6 +27,7 @@ extern "C" {
 #endif
 
 #include <stdint.h>
+#include <stdbool.h>
 
 // Define our msleep function
 #if defined(WIN32)
@@ -60,7 +61,6 @@ static __inline uint64_t mtime(void)
 }
 #endif
 
-
 // Some fixes for windows
 #if defined(WIN32) || defined(__MSDOS__)
 #define NULL_FD fopen("NUL", "w")
@@ -68,12 +68,7 @@ static __inline uint64_t mtime(void)
 #define NULL_FD fopen("/dev/null", "w")
 #endif
 
-// On Windows and PSP, exiting the application will automatically free allocated memory blocks
-// so we don't bother freeing any buffers here
-#if defined(WIN32)
-#define LEAVE			free_data(); exit(0)
-#define FATAL			free_data(); exit(1)
-#elif defined(PSP)
+#if defined(PSP)
 #define LEAVE			free_data(); back_to_kernel()
 #if defined(PSP_ONSCREEN_STDOUT)
 // No immediate exit on PSP as we might want to display the error
@@ -101,11 +96,15 @@ static __inline void psp_any_key()
 // no screen stdout => immediate exit
 #define FATAL			back_to_kernel()
 #endif
-#elif defined(__linux__)
+#else
 #define LEAVE			free_data(); exit(0)
 #define FATAL			free_data(); exit(1)
 #endif
-#define ERR_EXIT		do{if (fd!=NULL) fclose(fd); fflush(stdout); FATAL;}while(0)
+#define ERR_EXIT		do {if (fd!=NULL) fclose(fd); fflush(stdout); FATAL;} while(0)
+
+extern bool opt_verbose;
+extern bool opt_debug;
+
 #if defined(PSP_ONSCREEN_STDOUT)
 #define perr(...)		printf(__VA_ARGS__)
 #else
@@ -121,8 +120,8 @@ static __inline void psp_any_key()
 #define SIZE_A(ar)		(sizeof(ar)/sizeof(ar[0]))
 
 // dealloc macros
-#define SFREE(p)		do{free(p);p=NULL;}while(0)
-#define SAFREE(p)		do{aligned_free(p);p=NULL;}while(0)
+#define SFREE(p)		do {free(p); p=NULL;} while(0)
+#define SAFREE(p)		do {aligned_free(p); p=NULL;} while(0)
 
 // concatenate 2 words into a long
 #define to_long(msw,lsw)			\

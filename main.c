@@ -129,7 +129,7 @@ bool can_consume_key			= true;
 FILE* fd					= NULL;
 char* fname[NB_FILES]		= FNAMES;		// file name(s)
 uint32_t fsize[NB_FILES]	= FSIZES;
-uint8_t* fbuffer[NB_FILES];
+uint8_t* fbuffer[NB_FILES] = { NULL };
 uint8_t* rbuffer			= NULL;
 uint8_t* mbuffer			= NULL;
 uint8_t* rgbCells			= NULL;
@@ -1663,6 +1663,13 @@ int __stdcall WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 int main (int argc, char *argv[])
 #endif
 {
+#if defined(DEBUG_ENABLED)
+    const char* getopt_str = "hbnvs:";
+    const char* usage = "[-h][-b][-n][-v][-s <sprite_id>]";
+#else
+    const char* getopt_str = "hnv";
+    const char* usage = "[-h][-n][-v]";
+#endif
     // Flags
     int opt_error = 0;	// getopt
     // General purpose
@@ -1678,7 +1685,7 @@ int main (int argc, char *argv[])
         fbuffer[i] = NULL;
 
     // Process commandline options (works for PSP too with psplink)
-    while ((i = getopt (argc, argv, "hbnvs:")) != -1)
+    while ((i = getopt (argc, argv, getopt_str)) != -1)
         switch (i)
     {
         case 'n':		// Skip intro
@@ -1695,7 +1702,7 @@ int main (int argc, char *argv[])
             IGNORE_RETVAL(sscanf(optarg, ("%x"), &opt_sid));
             break;
 #endif
-        case 'h':		// Half size on Windows
+        case 'h':		// Half size
             opt_halfsize = true;
             break;
         default:		// Unknown option
@@ -1708,7 +1715,7 @@ int main (int argc, char *argv[])
 #endif
     if ( ((argc-optind) > 3) || opt_error)
     {
-        printf("usage: %s\n\n", argv[0]);
+        printf("usage: %s %s\n\n", argv[0], usage);
         ERR_EXIT;
     }
 

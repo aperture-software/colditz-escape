@@ -29,6 +29,7 @@
 #include <pspaudio.h>
 #include <pspaudiolib.h>
 #include "psp/printf.h"
+#include "low-level.h"
 #include "audio_backend.h"
 
 #define PSP_PLAYBACK_FREQ 44100
@@ -49,17 +50,17 @@ bool audio_backend_set_voice(int voice, void* data, int size, unsigned int frequ
 {
     if (frequency != PSP_PLAYBACK_FREQ)
     {
-        fprintf(stderr, "play_sfx: frequency must be %d for PSP SFX\n", PSP_PLAYBACK_FREQ);
+        perr("audio_backend_set_voice: frequency must be %d for PSP SFX\n", PSP_PLAYBACK_FREQ);
         return false;
     }
     if (bits_per_sample != 16)
     {
-        fprintf(stderr, "play_sfx: samples must be 16 bit for PSP SFX\n");
+        perr("play_sfx: samples must be 16 bit for PSP SFX\n");
         return false;
     }
     if (size >= PSP_AUDIO_SAMPLE_MAX)
     {
-        fprintf(stderr, "play_sfx: Cannot play samples of more than %d bytes\n", PSP_AUDIO_SAMPLE_MAX);
+        perr("audio_backend_set_voice: Cannot play samples of more than %d bytes\n", PSP_AUDIO_SAMPLE_MAX);
         return false;
     }
     if (sceAudioChReserve(voice, size, PSP_AUDIO_FORMAT_MONO) < 0)
@@ -74,12 +75,12 @@ bool audio_backend_set_voice_callback(int voice, audio_backend_voice_callback_t 
 {
     if (frequency != PSP_PLAYBACK_FREQ)
     {
-        fprintf(stderr, "play_sfx: frequency must be %d for PSP SFX\n", PSP_PLAYBACK_FREQ);
+        perr("audio_backend_set_voice_callback: frequency must be %d for PSP SFX\n", PSP_PLAYBACK_FREQ);
         return false;
     }
     if (bits_per_sample != 16)
     {
-        fprintf(stderr, "play_sfx: samples must be 16 bit for PSP SFX\n");
+        perr("audio_backend_set_voice_callback: samples must be 16 bit for PSP SFX\n");
         return false;
     }
     pspAudioSetChannelCallback(voice, callback, NULL);

@@ -3013,7 +3013,7 @@ void set_sfxs()
 #if defined(__linux__)
             // We have no volume control for Linux, and the SFX_FOOTSTEPS is way too loud
             if (i == SFX_FOOTSTEPS)
-                s /= 4;
+                s /= 8;
 #endif
             writebyte(fbuffer[LOADER], sfx[i].address+j, s);
         }

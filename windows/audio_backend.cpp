@@ -35,6 +35,7 @@
 #include <shellapi.h>
 #include <mmsystem.h>
 #include <conio.h>
+#include "low-level.h"
 #include "audio_backend.h"
 
 #if (_WIN32_WINNT >= 0x0602 /*_WIN32_WINNT_WIN8*/)
@@ -111,7 +112,7 @@ public:
             x2buffer[_voice][1].AudioBytes = BUFFER_SIZE;
         }
         else
-            fprintf(stderr, "audio_backend: Could not allocate buffers!\n");
+            perr("audio_backend: Could not allocate buffers!\n");
     }
     ~VoiceCallback()
     {
@@ -142,7 +143,7 @@ public:
     // The ProcessingPassStart callback is a good way of finding if our fillout calls are fast enough
     STDMETHOD_(void, OnVoiceProcessingPassStart)(UINT32 BytesRequired) {
         if (BytesRequired != 0)
-            fprintf(stderr, "audio_backend: Voice %d is starving for %d bytes!\n", _voice, BytesRequired);
+            perr("audio_backend: Voice %d is starving for %d bytes!\n", _voice, BytesRequired);
     }
 
     // Unused methods are stubs
@@ -171,7 +172,7 @@ int i;
     IGNORE_RETVAL( CoInitializeEx( NULL, COINIT_MULTITHREADED ));
     if( FAILED( XAudio2Create(&pXAudio2, 0) ) )
     {
-        fprintf(stderr, "audio_backend_init: Failed to init XAudio2 engine\n");
+        perr("audio_backend_init: Failed to init XAudio2 engine\n");
         MessageBox(NULL, "Audio could not be initialized (WinXAudio2).\n"
             "Please make sure you have a recent version of DirectX installed.",
             "Audio Initialization Failure", MB_ICONSTOP);
@@ -183,7 +184,7 @@ int i;
     pMasteringVoice = NULL;
     if( FAILED( pXAudio2->CreateMasteringVoice( &pMasteringVoice ) ) )
     {
-        fprintf(stderr, "audio_backend_init: Failed to create mastering voice\n");
+        perr("audio_backend_init: Failed to create mastering voice\n");
         SAFE_RELEASE( pXAudio2 );
         CoUninitialize();
         return false;
@@ -221,12 +222,12 @@ bool audio_backend_set_voice(int voice, void* data, int size, unsigned int frequ
 
     if ((voice<0) || (voice>(NB_VOICES-1)))
     {
-        fprintf(stderr, "audio_backend_set_voice: Voice ID must be in [0-%d]\n", (NB_VOICES-1));
+        perr("audio_backend_set_voice: Voice ID must be in [0-%d]\n", (NB_VOICES-1));
         return false;
     }
     if (voice_in_use[voice])
     {
-        fprintf(stderr, "audio_backend_set_voice: Voice %d already in use\n", voice);
+        perr("audio_backend_set_voice: Voice %d already in use\n", voice);
         return false;
     }
 
@@ -244,7 +245,7 @@ bool audio_backend_set_voice(int voice, void* data, int size, unsigned int frequ
     SAFE_DELETE(pSourceVoice[voice]);
     if( FAILED( pXAudio2->CreateSourceVoice( &pSourceVoice[voice], pwfx) ) )
     {
-        fprintf(stderr, "audio_backend_set_voice: Error creating source voice\n");
+        perr("audio_backend_set_voice: Error creating source voice\n");
         SAFE_DELETE_ARRAY(pwfx);
         return false;
     }
@@ -261,7 +262,7 @@ bool audio_backend_set_voice(int voice, void* data, int size, unsigned int frequ
 
     if( FAILED( pSourceVoice[voice]->SubmitSourceBuffer( &x2buffer ) ) )
     {
-        fprintf(stderr, "audio_backend_set_voice: Error submitting source buffer\n");
+        perr("audio_backend_set_voice: Error submitting source buffer\n");
         pSourceVoice[voice]->DestroyVoice();
         return false;
     }
@@ -288,12 +289,12 @@ unsigned char nb_channels;
 
     if ((voice<0) || (voice>(NB_VOICES-1)))
     {
-        fprintf(stderr, "audio_backend_set_voice_callback: Voice ID must be in [0-%d]\n", (NB_VOICES-1));
+        perr("audio_backend_set_voice_callback: Voice ID must be in [0-%d]\n", (NB_VOICES-1));
         return false;
     }
     if (voice_in_use[voice])
     {
-        fprintf(stderr, "audio_backend_set_voice_callback: Voice %d already in use\n", voice);
+        perr("audio_backend_set_voice_callback: Voice %d already in use\n", voice);
         return false;
     }
 
@@ -319,14 +320,13 @@ unsigned char nb_channels;
     if( FAILED( pXAudio2->CreateSourceVoice( &pSourceVoice[voice], pwfx,
         0, XAUDIO2_DEFAULT_FREQ_RATIO, pVoiceCallback[voice], NULL, NULL) ) )
     {
-        fprintf(stderr, "audio_backend_set_voice_callback: Error creating source voice\n" );
+        perr("audio_backend_set_voice_callback: Error creating source voice\n" );
         SAFE_DELETE_ARRAY(pwfx);
         return false;
     }
     SAFE_DELETE_ARRAY(pwfx);
 
     voice_set_up[voice] = true;
-
     return true;
 }
 
@@ -335,7 +335,7 @@ bool audio_backend_start_voice(int voice)
 {
     if (!voice_set_up[voice])
     {
-        fprintf(stderr, "audio_backend_start_voice: Voice %d has not been initialized\n", voice);
+        perr("audio_backend_start_voice: Voice %d has not been initialized\n", voice);
         return false;
     }
 

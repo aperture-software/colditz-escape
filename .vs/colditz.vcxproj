@@ -121,10 +121,7 @@
     <ClCompile Include="..\low-level.c" />
     <ClCompile Include="..\main.c" />
     <ClCompile Include="..\md5.c" />
-    <ClCompile Include="..\soundplayer.c">
-      <CompileAs Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">CompileAsCpp</CompileAs>
-      <CompileAs Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">CompileAsCpp</CompileAs>
-    </ClCompile>
+    <ClCompile Include="..\soundplayer.c" />
     <ClCompile Include="..\windows\audio_backend.cpp" />
   </ItemGroup>
   <ItemGroup>
