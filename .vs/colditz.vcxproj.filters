@@ -104,9 +104,6 @@
     <ClInclude Include="..\soundtables.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\glut\glut.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="..\audio_backend.h">
       <Filter>Header Files</Filter>
     </ClInclude>

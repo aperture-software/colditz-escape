@@ -1,14 +1,14 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 15
-VisualStudioVersion = 15.0.26430.4
+VisualStudioVersion = 15.0.26430.12
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "colditz", ".vs\colditz.vcxproj", "{DE0D60B9-EF9E-4F9A-9BE2-1645CF8AA184}"
 	ProjectSection(ProjectDependencies) = postProject
-		{CE81641E-636F-4703-B21E-CF914D548B28} = {CE81641E-636F-4703-B21E-CF914D548B28}
+		{75B56C0C-C3CF-4513-B225-E2895CFBC7FF} = {75B56C0C-C3CF-4513-B225-E2895CFBC7FF}
 	EndProjectSection
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "glut32", ".vs\glut.vcxproj", "{CE81641E-636F-4703-B21E-CF914D548B28}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "freeglut", ".vs\freeglut.vcxproj", "{75B56C0C-C3CF-4513-B225-E2895CFBC7FF}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -22,10 +22,10 @@ Global
 		{DE0D60B9-EF9E-4F9A-9BE2-1645CF8AA184}.Release|Win32.ActiveCfg = Release|Win32
 		{DE0D60B9-EF9E-4F9A-9BE2-1645CF8AA184}.Release|Win32.Build.0 = Release|Win32
 		{DE0D60B9-EF9E-4F9A-9BE2-1645CF8AA184}.Release|Win32.Deploy.0 = Release|Win32
-		{CE81641E-636F-4703-B21E-CF914D548B28}.Debug|Win32.ActiveCfg = Debug|Win32
-		{CE81641E-636F-4703-B21E-CF914D548B28}.Debug|Win32.Build.0 = Debug|Win32
-		{CE81641E-636F-4703-B21E-CF914D548B28}.Release|Win32.ActiveCfg = Release|Win32
-		{CE81641E-636F-4703-B21E-CF914D548B28}.Release|Win32.Build.0 = Release|Win32
+		{75B56C0C-C3CF-4513-B225-E2895CFBC7FF}.Debug|Win32.ActiveCfg = Debug|Win32
+		{75B56C0C-C3CF-4513-B225-E2895CFBC7FF}.Debug|Win32.Build.0 = Debug|Win32
+		{75B56C0C-C3CF-4513-B225-E2895CFBC7FF}.Release|Win32.ActiveCfg = Release|Win32
+		{75B56C0C-C3CF-4513-B225-E2895CFBC7FF}.Release|Win32.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

@@ -54,7 +54,7 @@
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
       <Optimization>Disabled</Optimization>
-      <PreprocessorDefinitions>WIN32;_CONSOLE;XML_STATIC;_CRT_SECURE_NO_DEPRECATE;_CRT_NONSTDC_NO_DEPRECATE;_DEBUG;DEBUG_ENABLED;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;FREEGLUT_STATIC;_CONSOLE;XML_STATIC;_CRT_SECURE_NO_DEPRECATE;_CRT_NONSTDC_NO_DEPRECATE;_DEBUG;DEBUG_ENABLED;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
       <EnableEnhancedInstructionSet>StreamingSIMDExtensions2</EnableEnhancedInstructionSet>
       <FloatingPointModel>Fast</FloatingPointModel>
@@ -85,7 +85,7 @@
       <InlineFunctionExpansion>Default</InlineFunctionExpansion>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
-      <PreprocessorDefinitions>WIN32;_CONSOLE;XML_STATIC;_CRT_SECURE_NO_DEPRECATE;_CRT_NONSTDC_NO_DEPRECATE;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;FREEGLUT_STATIC;_CONSOLE;XML_STATIC;_CRT_SECURE_NO_DEPRECATE;_CRT_NONSTDC_NO_DEPRECATE;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <BasicRuntimeChecks>Default</BasicRuntimeChecks>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <EnableEnhancedInstructionSet>StreamingSIMDExtensions2</EnableEnhancedInstructionSet>
@@ -136,7 +136,6 @@
     <ClInclude Include="..\getopt.h" />
     <ClInclude Include="..\getopt_int.h" />
     <ClInclude Include="..\gettext.h" />
-    <ClInclude Include="..\glut\glut.h" />
     <ClInclude Include="..\graphics.h" />
     <ClInclude Include="..\low-level.h" />
     <ClInclude Include="..\md5.h" />
@@ -147,15 +146,15 @@
     <ClInclude Include="resource.h" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="glut.vcxproj">
-      <Project>{ce81641e-636f-4703-b21e-cf914d548b28}</Project>
-    </ProjectReference>
-  </ItemGroup>
-  <ItemGroup>
     <ResourceCompile Include="..\colditz.rc" />
   </ItemGroup>
   <ItemGroup>
     <Image Include="..\colditz.ico" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="freeglut.vcxproj">
+      <Project>{75b56c0c-c3cf-4513-b225-e2895cfbc7ff}</Project>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

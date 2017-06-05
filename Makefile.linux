@@ -9,8 +9,8 @@ CFLAGS         += -I. -O3 -Wall -Wshadow -Wundef -Wunused
 CXXFLAGS       += $(CFLAGS) -fno-exceptions -fno-rtti
 
 # Ubuntu is *VERY SENSITIVE* to the order in which these libs are specified
-LIBS           += -lglut -lX11 -lXi -lXmu -lXext -lGL -lGLU -lGLEW -lexpat -lasound -lpthread
-LIBDIRS        += -L./glut
+LIBS           += -lfreeglut -lX11 -lXi -lXmu -lXext -lGL -lGLU -lGLEW -lexpat -lasound -lpthread -lm
+LIBDIRS        += -L./freeglut
 
 LDFLAGS        += $(LIBDIRS) $(LIBS)
 
@@ -20,7 +20,7 @@ LDFLAGS        += $(LIBDIRS) $(LIBS)
 all: $(DEPS) $(TARGET)
 
 $(DEPS):
-	$(MAKE) -Cglut libglut.a
+	$(MAKE) -Cfreeglut libfreeglut.a
 
 $(TARGET): $(OBJS)
 	$(LD) -o $(TARGET) $(OBJS) $(LDFLAGS)
@@ -29,7 +29,7 @@ clean:
 	$(RM) $(OBJS) $(TARGET)
 
 superclean: clean
-	$(MAKE) -Cglut clean
+	$(MAKE) -Cfreeglut clean
 
 release: all
 	cp colditz "Colditz Escape"

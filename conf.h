@@ -26,7 +26,7 @@
 #if defined(PSP)
 #include <GL/glut.h>
 #else
-#include "glut/glut.h"
+#include "GL/freeglut.h"
 #endif
 
 #ifdef	__cplusplus
@@ -145,7 +145,7 @@ extern "C" {
 #define KEY_DIRECTION_DOWN			KEYVAL(key_direction_down, 0xf4)
 
 // XBox 360 Controller definitions
-#if defined(WIN32)
+#if !defined(PSP)
 #define XBOX360_CONTROLLER_SUPPORT
 #endif
 

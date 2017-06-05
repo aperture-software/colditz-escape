@@ -44,7 +44,7 @@
 #include "psp/printf.h"
 #elif defined(__linux__)
 #include "GL/glew.h"
-#include "glut/glut.h"
+#include "GL/freeglut.h"
 #endif
 
 #include "low-level.h"
@@ -1206,15 +1206,17 @@ void display_picture()
     // The image
     glBegin(GL_TRIANGLE_FAN);
         glTexCoord2f(0.0f, 0.0f);
-        glVertex2f((PSP_SCR_WIDTH-texture[current_picture].w)/2, (PSP_SCR_HEIGHT-texture[current_picture].h)/2);
+        glVertex2f((GLfloat)(PSP_SCR_WIDTH-texture[current_picture].w)/2,
+            (GLfloat)(PSP_SCR_HEIGHT-texture[current_picture].h)/2);
         glTexCoord2f(1.0f, 0.0f);
-        glVertex2f(512 + (PSP_SCR_WIDTH-texture[current_picture].w)/2, (PSP_SCR_HEIGHT-texture[current_picture].h)/2);
+        glVertex2f((GLfloat)(512 + (PSP_SCR_WIDTH-texture[current_picture].w)/2),
+            (GLfloat)(PSP_SCR_HEIGHT-texture[current_picture].h)/2);
         glTexCoord2f(1.0, 1.0);
-        glVertex2f(512 + (PSP_SCR_WIDTH-texture[current_picture].w)/2,
-            powerize(texture[current_picture].h) + (PSP_SCR_HEIGHT-texture[current_picture].h)/2);
+        glVertex2f((GLfloat)(512 + (PSP_SCR_WIDTH-texture[current_picture].w)/2),
+            (GLfloat)(powerize(texture[current_picture].h) + (PSP_SCR_HEIGHT-texture[current_picture].h)/2));
         glTexCoord2f(0.0, 1.0);
-        glVertex2f((PSP_SCR_WIDTH-texture[current_picture].w)/2,
-            powerize(texture[current_picture].h) + (PSP_SCR_HEIGHT-texture[current_picture].h)/2);
+        glVertex2f((GLfloat)(PSP_SCR_WIDTH-texture[current_picture].w)/2,
+            (GLfloat)powerize(texture[current_picture].h) + (PSP_SCR_HEIGHT-texture[current_picture].h)/2);
     glEnd();
 }
 
@@ -1738,7 +1740,8 @@ void display_menu_screen()
 void create_pause_screen()
 {
 #define SPACER 8
-    int i, restore_nation, restore_fade;
+    int i, restore_nation;
+    float restore_fade;
     float x,y,w,h;
 
     restore_fade = fade_value;
@@ -1760,7 +1763,7 @@ void create_pause_screen()
         display_room();
         // Copy the section of interest into one of our four paused textures
         glBindTexture(GL_TEXTURE_2D, paused_texid[i]);
-        glCopyTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, x, y, w, h, 0);
+        glCopyTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, (GLint)x, (GLint)y, (GLsizei)w, (GLsizei)h, 0);
     }
     current_nation = restore_nation;
     fade_value = restore_fade;
@@ -1781,8 +1784,8 @@ void display_pause_screen()
 
         j = (2*(i+1) + i/2)%4;	// we need to display in 2, 0, 3, 1 order because of texture
                                 // overlap correction due to having to use powerized ones on PSP
-        x = (j%2)*(PSP_SCR_WIDTH/2) + SPACER + x_shift[j%2] + 0.5;
-        y = (j/2)*(PSP_SCR_HEIGHT/2) + (PSP_SCR_HEIGHT/2) - SPACER + y_shift[j/2] + 0.5;
+        x = (j%2)*(PSP_SCR_WIDTH/2) + SPACER + x_shift[j%2] + 0.5f;
+        y = (j/2)*(PSP_SCR_HEIGHT/2) + (PSP_SCR_HEIGHT/2) - SPACER + y_shift[j/2] + 0.5f;
         glDisable(GL_BLEND);	// textures won't appear on PSP without blend disabled (but works on Windows)
         display_sprite(x, y, powerize(w), -powerize(h), paused_texid[j]);
         glEnable(GL_BLEND);

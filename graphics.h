@@ -68,7 +68,7 @@ extern bool			enabled_menus[NB_MENUS][NB_MENU_ITEMS];
 void free_gfx();
 void to_16bit_palette(uint8_t palette_index, uint8_t transparent_index, uint8_t io_file);
 void cells_to_wGRAB(uint8_t* source, uint8_t* dest);
-void display_sprite_linear(float x1, float y1, float w, float h, unsigned int texid) ;
+void display_sprite_linear(float x1, float y1, float w, float h, unsigned int texid);
 void display_room();
 void display_picture();
 void display_panel();
