@@ -63,7 +63,8 @@ void fgPlatformInitialize( const char* displayName )
         wc.cbClsExtra     = 0;
         wc.cbWndExtra     = 0;
         wc.hInstance      = fgDisplay.pDisplay.Instance;
-        wc.hIcon          = LoadIcon( fgDisplay.pDisplay.Instance, _T("GLUT_ICON") );
+        /* Don't use "GLUT_ICON" but instead force the (usual) ID of the first icon resource */
+        wc.hIcon          = LoadIcon( fgDisplay.pDisplay.Instance, MAKEINTRESOURCE(101));
 
 #if defined(_WIN32_WCE)
         wc.style          = CS_HREDRAW | CS_VREDRAW;
