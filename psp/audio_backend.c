@@ -69,7 +69,7 @@ bool audio_backend_set_voice(int voice, void* data, int size, unsigned int frequ
     return true;
 }
 
-bool audio_backend_set_voice_callback(int voice, AudioVoiceCallback_t callback, void* pdata,
+bool audio_backend_set_voice_callback(int voice, audio_backend_voice_callback_t callback, void* pdata,
                                       unsigned int frequency, unsigned int bits_per_sample, bool stereo)
 {
     if (frequency != PSP_PLAYBACK_FREQ)

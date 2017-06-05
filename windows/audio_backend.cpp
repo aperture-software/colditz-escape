@@ -61,7 +61,7 @@
 #define IGNORE_RETVAL(expr)     do { (void)(expr); } while(0)
 
 // Max number of voices (aka "channels") we can handle
-#define NB_VOICES_MAX       4
+#define NB_VOICES           4
 // We'll use double buffering to fill our data for callbacks
 #define NB_BUFFERS          2
 // Buffer size, in bytes
@@ -70,33 +70,33 @@
 // XAudio2 global variables
 static IXAudio2*                pXAudio2 = NULL;
 static IXAudio2MasteringVoice*  pMasteringVoice = NULL;
-static IXAudio2SourceVoice*     pSourceVoice[NB_VOICES_MAX] = { NULL, NULL, NULL, NULL };
+static IXAudio2SourceVoice*     pSourceVoice[NB_VOICES] = { NULL, NULL, NULL, NULL };
 
 static bool XAudio2Init = false;
-static bool voice_in_use[NB_VOICES_MAX];
-static bool voice_set_up[NB_VOICES_MAX];
+static bool voice_in_use[NB_VOICES];
+static bool voice_set_up[NB_VOICES];
 
 // Wanna have fun and waste one day debugging unexplainable crashes in Xaudio2 DLLs? Then just make
 // x2buffer[NB_BUFFERS] a *PUBLIC* member of the VoiceCallBack class below and see what happens...
 // Oh, and don't ask me why setting a buffer pointer as a public member of said class is no
 // problemo, while an XAUDIO2_BUFFER (which is just a glorified buffer pointer struct anyway) isn't.
-static XAUDIO2_BUFFER x2buffer[NB_VOICES_MAX][NB_BUFFERS];
+static XAUDIO2_BUFFER x2buffer[NB_VOICES][NB_BUFFERS];
 
 // To setup buffer callbacks, we first create an override
 // of the virtual IXAudio2VoiceCallback class
 class VoiceCallback : public IXAudio2VoiceCallback
 {
 private:
-    int                     _voice;
-    AudioVoiceCallback_t    _callback;
-    void*                   _pdata;
-    bool                    _even_buffer;
+    int                             _voice;
+    audio_backend_voice_callback_t  _callback;
+    void*                           _pdata;
+    bool                            _even_buffer;
     // buffer size, in number of samples
-    unsigned long           _audio_sample_size;
+    unsigned long                   _audio_sample_size;
 public:
-//	XAUDIO2_BUFFER          x2buffer[NB_BUFFERS];
-    BYTE*                   buffer;
-    VoiceCallback(int voice, AudioVoiceCallback_t callback, void* pdata, unsigned long audio_sample_size)
+//	XAUDIO2_BUFFER                  x2buffer[NB_BUFFERS];
+    BYTE*                           buffer;
+    VoiceCallback(int voice, audio_backend_voice_callback_t callback, void* pdata, unsigned long audio_sample_size)
     {
         _voice = voice;
         _callback = callback;
@@ -104,10 +104,14 @@ public:
         _audio_sample_size = audio_sample_size;
         _even_buffer = true;
         buffer = (BYTE*) malloc(NB_BUFFERS*BUFFER_SIZE);
-        x2buffer[_voice][0].pAudioData = buffer;
-        x2buffer[_voice][0].AudioBytes = BUFFER_SIZE;
-        x2buffer[_voice][1].pAudioData = buffer + BUFFER_SIZE;
-        x2buffer[_voice][1].AudioBytes = BUFFER_SIZE;
+        if (buffer != NULL) {
+            x2buffer[_voice][0].pAudioData = buffer;
+            x2buffer[_voice][0].AudioBytes = BUFFER_SIZE;
+            x2buffer[_voice][1].pAudioData = buffer + BUFFER_SIZE;
+            x2buffer[_voice][1].AudioBytes = BUFFER_SIZE;
+        }
+        else
+            fprintf(stderr, "audio_backend: Could not allocate buffers!\n");
     }
     ~VoiceCallback()
     {
@@ -129,7 +133,7 @@ public:
         // update the next buffer we'll submit
         int buffer_to_fill = _even_buffer?1:0;
         // Call the user defined callback function
-        _callback( (void*)x2buffer[_voice][buffer_to_fill].pAudioData, _audio_sample_size, NULL);
+        _callback( (void*)x2buffer[_voice][buffer_to_fill].pAudioData, _audio_sample_size, _pdata);
         // Enqueue the new buffer
         pSourceVoice[_voice]->SubmitSourceBuffer( &(x2buffer[_voice][buffer_to_fill]) );
         _even_buffer = !_even_buffer;
@@ -138,7 +142,7 @@ public:
     // The ProcessingPassStart callback is a good way of finding if our fillout calls are fast enough
     STDMETHOD_(void, OnVoiceProcessingPassStart)(UINT32 BytesRequired) {
         if (BytesRequired != 0)
-            fprintf(stderr, "winXAudio2: Voice[%d] is starving for %d bytes!\n", _voice, BytesRequired);
+            fprintf(stderr, "audio_backend: Voice %d is starving for %d bytes!\n", _voice, BytesRequired);
     }
 
     // Unused methods are stubs
@@ -146,13 +150,13 @@ public:
     // "error C2695: overriding virtual function differs only by calling convention"
     STDMETHOD_(void, OnStreamEnd)() { };
     STDMETHOD_(void, OnVoiceProcessingPassEnd)() { }
-    STDMETHOD_(void, OnBufferEnd)(void * pBufferContext)    { }
-    STDMETHOD_(void, OnLoopEnd)(void * pBufferContext) {    }
+    STDMETHOD_(void, OnBufferEnd)(void * pBufferContext) { }
+    STDMETHOD_(void, OnLoopEnd)(void * pBufferContext) { }
     STDMETHOD_(void, OnVoiceError)(void * pBufferContext, HRESULT Error) { }
 };
 
 // This is the handle for our instanciated callbacks
-static VoiceCallback* pVoiceCallback[NB_VOICES_MAX] = { NULL, NULL, NULL, NULL };
+static VoiceCallback* pVoiceCallback[NB_VOICES] = { NULL, NULL, NULL, NULL };
 
 // Initialize the XAudio2 engine for playback
 bool audio_backend_init(void)
@@ -167,7 +171,7 @@ int i;
     IGNORE_RETVAL( CoInitializeEx( NULL, COINIT_MULTITHREADED ));
     if( FAILED( XAudio2Create(&pXAudio2, 0) ) )
     {
-        fprintf(stderr, "winXAudio2Init: Failed to init XAudio2 engine\n");
+        fprintf(stderr, "audio_backend_init: Failed to init XAudio2 engine\n");
         MessageBox(NULL, "Audio could not be initialized (WinXAudio2).\n"
             "Please make sure you have a recent version of DirectX installed.",
             "Audio Initialization Failure", MB_ICONSTOP);
@@ -179,13 +183,13 @@ int i;
     pMasteringVoice = NULL;
     if( FAILED( pXAudio2->CreateMasteringVoice( &pMasteringVoice ) ) )
     {
-        fprintf(stderr, "winXAudio2Init: Failed to create mastering voice\n");
+        fprintf(stderr, "audio_backend_init: Failed to create mastering voice\n");
         SAFE_RELEASE( pXAudio2 );
         CoUninitialize();
         return false;
     }
 
-    for (i=0; i<NB_VOICES_MAX; i++)
+    for (i=0; i<NB_VOICES; i++)
     {
         voice_in_use[i] = false;
         voice_set_up[i] = false;
@@ -199,7 +203,7 @@ int i;
 bool audio_backend_release(void)
 {
     int i;
-    for (i=0; i<NB_VOICES_MAX; i++)
+    for (i=0; i<NB_VOICES; i++)
         SAFE_DELETE(pVoiceCallback[i]);
     if (XAudio2Init)
     {
@@ -215,15 +219,14 @@ bool audio_backend_set_voice(int voice, void* data, int size, unsigned int frequ
                              unsigned int bits_per_sample, bool stereo)
 {
 
-    if ((voice<0) || (voice>(NB_VOICES_MAX-1)))
+    if ((voice<0) || (voice>(NB_VOICES-1)))
     {
-        fprintf(stderr, "winXAudio2SetVoice: Voice ID must be in [0-%d]\n", (NB_VOICES_MAX-1));
+        fprintf(stderr, "audio_backend_set_voice: Voice ID must be in [0-%d]\n", (NB_VOICES-1));
         return false;
     }
-
     if (voice_in_use[voice])
     {
-        fprintf(stderr, "winXAudio2SetVoice: Voice %d already in use\n", voice);
+        fprintf(stderr, "audio_backend_set_voice: Voice %d already in use\n", voice);
         return false;
     }
 
@@ -241,7 +244,7 @@ bool audio_backend_set_voice(int voice, void* data, int size, unsigned int frequ
     SAFE_DELETE(pSourceVoice[voice]);
     if( FAILED( pXAudio2->CreateSourceVoice( &pSourceVoice[voice], pwfx) ) )
     {
-        fprintf(stderr, "winXAudio2SetVoice: Error creating source voice\n");
+        fprintf(stderr, "audio_backend_set_voice: Error creating source voice\n");
         SAFE_DELETE_ARRAY(pwfx);
         return false;
     }
@@ -258,7 +261,7 @@ bool audio_backend_set_voice(int voice, void* data, int size, unsigned int frequ
 
     if( FAILED( pSourceVoice[voice]->SubmitSourceBuffer( &x2buffer ) ) )
     {
-        fprintf(stderr, "winXAudio2SetVoice: Error submitting source buffer\n");
+        fprintf(stderr, "audio_backend_set_voice: Error submitting source buffer\n");
         pSourceVoice[voice]->DestroyVoice();
         return false;
     }
@@ -277,21 +280,20 @@ bool audio_backend_set_voice_volume(int voice, float volume)
 
 // Setup a voice (channel) for a dynamic audio buffer (eg. streaming)
 // Requires a pointer to the callback function that fills the streaming buffer
-bool audio_backend_set_voice_callback(int voice, AudioVoiceCallback_t callback, void * pdata,
+bool audio_backend_set_voice_callback(int voice, audio_backend_voice_callback_t callback, void * pdata,
                                       unsigned int frequency, unsigned int bits_per_sample, bool stereo)
 {
 unsigned long audio_sample_size;
 unsigned char nb_channels;
 
-    if ((voice<0) || (voice>(NB_VOICES_MAX-1)))
+    if ((voice<0) || (voice>(NB_VOICES-1)))
     {
-        fprintf(stderr, "winXAudio2SetVoiceCallback: Voice ID must be in [0-%d]\n", (NB_VOICES_MAX-1));
+        fprintf(stderr, "audio_backend_set_voice_callback: Voice ID must be in [0-%d]\n", (NB_VOICES-1));
         return false;
     }
-
     if (voice_in_use[voice])
     {
-        fprintf(stderr, "winXAudio2SetVoiceCallback: Voice %d already in use\n", voice);
+        fprintf(stderr, "audio_backend_set_voice_callback: Voice %d already in use\n", voice);
         return false;
     }
 
@@ -317,7 +319,7 @@ unsigned char nb_channels;
     if( FAILED( pXAudio2->CreateSourceVoice( &pSourceVoice[voice], pwfx,
         0, XAUDIO2_DEFAULT_FREQ_RATIO, pVoiceCallback[voice], NULL, NULL) ) )
     {
-        fprintf(stderr, "winXAudio2SetVoiceCallback: Error creating source voice\n" );
+        fprintf(stderr, "audio_backend_set_voice_callback: Error creating source voice\n" );
         SAFE_DELETE_ARRAY(pwfx);
         return false;
     }
@@ -333,7 +335,7 @@ bool audio_backend_start_voice(int voice)
 {
     if (!voice_set_up[voice])
     {
-        fprintf(stderr, "winXAudio2StartVoice: voice %d has not been initialized\n", voice);
+        fprintf(stderr, "audio_backend_start_voice: Voice %d has not been initialized\n", voice);
         return false;
     }
 

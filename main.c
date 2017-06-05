@@ -77,6 +77,8 @@ int debug_flag					= 0;
 bool opt_verbose				= false;
 // Console debug
 bool opt_debug					= false;
+// Skip intro
+bool opt_skip_intro				= false;
 // Additional oncreen debug info
 bool opt_onscreen_debug			= false;
 bool opt_display_fps			= false;
@@ -1676,14 +1678,17 @@ int main (int argc, char *argv[])
         fbuffer[i] = NULL;
 
     // Process commandline options (works for PSP too with psplink)
-    while ((i = getopt (argc, argv, "hvbs:")) != -1)
+    while ((i = getopt (argc, argv, "hbnvs:")) != -1)
         switch (i)
     {
+        case 'n':		// Skip intro
+            opt_skip_intro = true; 
+            break;
         case 'v':		// Print verbose messages
             opt_verbose = true;
             break;
 #if defined(DEBUG_ENABLED)
-        case 'b':       // Debug mode
+        case 'b':		// Debug mode
             opt_debug = true;
             break;
         case 's':		// debug SID (sprite) test
@@ -1813,18 +1818,29 @@ int main (int argc, char *argv[])
     init_sprites();
     sprites_to_wGRAB();	// Must be called after init sprite
 
+    if (opt_skip_intro)
+    {
+        fade_value = 1.0f;
+        glColor3f(fade_value, fade_value, fade_value);
+        game_state = GAME_STATE_ACTION;
+        glutIdleFunc_save(glut_idle_game);
+        newgame_init();
+    }
+    else
+    {
     // We'll start with the Intro state
     // DO NOT call static_screen() here, as it messes up with any earlier psp/printf
-    game_state = GAME_STATE_INTRO | GAME_STATE_STATIC_PIC | GAME_STATE_PICTURE_LOOP;
-    current_picture = INTRO_SCREEN_START;
-    picture_state = PICTURE_FADE_IN_START;
-    if (!load_texture(&texture[INTRO_SCREEN_START]))
-    {
-        perr("Could not load INTRO screen\n");
-        ERR_EXIT;
+        game_state = GAME_STATE_INTRO | GAME_STATE_STATIC_PIC | GAME_STATE_PICTURE_LOOP;
+        current_picture = INTRO_SCREEN_START;
+        picture_state = PICTURE_FADE_IN_START;
+        if (!load_texture(&texture[INTRO_SCREEN_START]))
+        {
+            perr("Could not load INTRO screen\n");
+            ERR_EXIT;
+        }
+        glutIdleFunc(glut_idle_static_pic);
+        last_key_used = 0;
     }
-    glutIdleFunc(glut_idle_static_pic);
-    last_key_used = 0;
 
     // Now we can proceed with setting up our display
     glutDisplayFunc(glut_display);

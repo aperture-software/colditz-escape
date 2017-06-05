@@ -31,14 +31,14 @@ extern "C" {
 
 // typedef for our callback function. This callback is setup to be compatible
 // with the PSP Audio callbacks
-typedef void(* AudioVoiceCallback_t)(void *buf, unsigned int reqn, void *pdata);
+typedef void(* audio_backend_voice_callback_t)(void *buf, unsigned int reqn, void *pdata);
 
 // Public functions
 bool audio_backend_init(void);
 bool audio_backend_set_voice(int voice, void* data, int size, unsigned int frequency,
                              unsigned int bits_per_sample, bool stereo);
-bool audio_backend_set_voice_callback(int voice, AudioVoiceCallback_t callback, void* pdata,
-                                     unsigned int frequency, unsigned int bits_per_sample, bool stereo);
+bool audio_backend_set_voice_callback(int voice, audio_backend_voice_callback_t callback, void* pdata,
+                                      unsigned int frequency, unsigned int bits_per_sample, bool stereo);
 bool audio_backend_release(void);
 bool audio_backend_start_voice(int voice);
 bool audio_backend_stop_voice(int voice);

@@ -27,6 +27,7 @@ build_script:
       } elseif ($env:PSP) {
         $env:Path  += ";" + $env:APPVEYOR_BUILD_FOLDER + "\PSPSDK\bin"
         make -f Makefile.psp release
+        if ($LASTEXITCODE -ne 0) { throw }
         7z a "Colditz_Escape_PSP.7z" "Colditz Escape" -x!"*/SHADERS"
       }
 

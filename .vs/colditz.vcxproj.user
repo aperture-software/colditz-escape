@@ -4,7 +4,7 @@
     <LocalDebuggerCommand>$(SolutionDir)Colditz Escape\colditz.exe</LocalDebuggerCommand>
     <LocalDebuggerWorkingDirectory>$(SolutionDir)Colditz Escape</LocalDebuggerWorkingDirectory>
     <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
-    <LocalDebuggerCommandArguments>-v -b</LocalDebuggerCommandArguments>
+    <LocalDebuggerCommandArguments>-v -b -n</LocalDebuggerCommandArguments>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LocalDebuggerCommand>$(SolutionDir)Colditz Escape\colditz.exe</LocalDebuggerCommand>

@@ -60,7 +60,7 @@
 //////////////////////////////////////////////////////////////////////
 static void SetMasterVolume(int volume);
 static int  ReadModWord(unsigned char *data, int index);
-static void DoTremalo(int track);
+static void DoTremolo(int track);
 static void DoVibrato(int track);
 static void DoPorta(int track);
 static void SlideVolume(int track, int amount);
@@ -1076,7 +1076,7 @@ static void UpdateEffects()
 
             // Tremolo
         case 0x07:
-            DoTremalo(track);
+            DoTremolo(track);
             break;
 
             // Pan
@@ -1168,7 +1168,7 @@ static void DoVibrato(int track)
     }
 }
 
-static void DoTremalo(int track)
+static void DoTremolo(int track)
 {
     int vib = m_TrackDat[track].tremdep * sintab[m_TrackDat[track].sinepos] >> 6;	// div64
     if (m_TrackDat[track].sineneg == 0) {
