@@ -9,7 +9,7 @@ OBJS    += x11/fg_glutfont_definitions_x11.o x11/fg_init_x11.o x11/fg_input_devi
 OBJS    += x11/fg_joystick_x11.o x11/fg_main_x11.o x11/fg_menu_x11.o x11/fg_spaceball_x11.o
 OBJS    += x11/fg_state_x11.o x11/fg_state_x11_glx.o x11/fg_structure_x11.o x11/fg_window_x11.o
 OBJS    += x11/fg_window_x11_glx.o x11/fg_xinput_x11.o
-CFLAGS  += -I. -I.. -w -O3
+CFLAGS  += -DENHANCED_XBOX_360_CONTROLLER_SUPPORT -I. -I.. -w -O3
 
 all: $(TARGET)
 

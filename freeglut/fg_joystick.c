@@ -935,6 +935,28 @@ void fgJoystickPollWindow( SFG_Window* window )
         {
             fghJoystickRead( fgJoystick[ident], &buttons, axes );
 
+#if defined(ENHANCED_XBOX_360_CONTROLLER_SUPPORT)
+            if (axes[6] < -0.5f)
+                buttons |= 0x10000000;  // DPAD Left
+            else if (axes[6] > 0.5f)
+                buttons |= 0x20000000;  // DPAD Right
+#if !defined(__linux__)
+            if (axes[7] > 0.5f)
+                buttons |= 0x80000000;  // DPAD Up
+            else if (axes[7] < -0.5f)
+                buttons |= 0x40000000;  // DPAD Down
+#else
+            // The Linux axis for Up/Down is inverted for some reason
+            if (axes[7] < -0.5f)
+                buttons |= 0x80000000;  // DPAD Up
+            else if (axes[7] > 0.5f)
+                buttons |= 0x40000000;  // DPAD Down
+            // Also collapse axes #2 & #5 into #2 as done on Windows
+            axes[2] = (axes[2] - axes[5]) / 2.0f;
+#endif
+
+#endif
+
             if( !fgJoystick[ident]->error )
                 INVOKE_WCB( *window, Joystick,
                             ( buttons,
