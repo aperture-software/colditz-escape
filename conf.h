@@ -1,6 +1,6 @@
 /*
  *  Colditz Escape - Rewritten Engine for "Escape From Colditz"
- *  copyright (C) 2008-2009 Aperture Software
+ *  copyright (C) 2008-2017 Aperture Software
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -17,7 +17,7 @@
  *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  *
  *  ---------------------------------------------------------------------------
- *  conf.h: XML/Eschew configuration wrapper. Also user input definitions
+ *  conf.h: Iniparser configuration wrapper. Also user input definitions
  *  ---------------------------------------------------------------------------
  */
 
@@ -202,8 +202,6 @@ static __inline uint8_t read_keyval(const char* keyname, int fallback)
 #define XBOX360_CONTROLLER_DPAD_DOWN	0x40000000
 #define XBOX360_CONTROLLER_DPAD_RIGHT	0x20000000
 #define XBOX360_CONTROLLER_DPAD_LEFT	0x10000000
-
-
 
 #define GET_CONFIG_BOOLEAN(section, option) iniparser_getboolean(config, #section ":" #option, false)
 #define GET_CONFIG_INTEGER(section, option) iniparser_getint(config, #section ":" #option, 0)

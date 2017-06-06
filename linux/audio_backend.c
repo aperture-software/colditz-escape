@@ -42,7 +42,7 @@
 // We'll use double buffering to fill our data for callbacks
 #define NB_BUFFERS          2
 // We'll set our buffer size as a multiple of period_size
-#define NB_PERIODS          8
+#define NB_PERIODS          4
 #define BUFFER_SIZE(voice)  (NB_PERIODS * period_size[voice])
 
 #if !defined(min)
@@ -77,8 +77,8 @@ static int snd_pcm_set_hwparams(int voice, unsigned int frequency, unsigned int 
 {
     int err, dir;
     unsigned int rrate = frequency;
-    buffer_time[voice] = 5000000;
-    period_time[voice] = 500000;
+    buffer_time[voice] = 1000000;
+    period_time[voice] = 250000;
     snd_pcm_uframes_t size;
     snd_pcm_hw_params_t *params;
 

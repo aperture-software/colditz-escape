@@ -17,7 +17,7 @@
  *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  *
  *  ---------------------------------------------------------------------------
- *  conf.c: XML/Eschew configuration wrapper
+ *  conf.c: Iniparser configuration wrapper
  *  ---------------------------------------------------------------------------
  */
 
@@ -83,7 +83,8 @@ static __inline void set_key_default(const char* optname, enum keys key)
 {
     char str[] = "'0'";
     // If possible, insert the character rather than its hex value
-    if ((key_default[key] >= 0x20) && (key_default[key] <= 0x7E))
+    // Do *NOT* include space as it is ignored by the parser, even if in quotes
+    if ((key_default[key] >= 0x21) && (key_default[key] <= 0x7E))
     {
         str[1] = key_default[key];
         iniparser_set(config, optname, str);
