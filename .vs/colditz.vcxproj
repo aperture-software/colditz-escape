@@ -64,7 +64,7 @@
       <DebugInformationFormat>EditAndContinue</DebugInformationFormat>
       <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
       <EnableParallelCodeGeneration>true</EnableParallelCodeGeneration>
-      <AdditionalIncludeDirectories>$(SolutionDir);$(SolutionDir)\glut;</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir);$(SolutionDir)\windows;$(SolutionDir)\glut;</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <AdditionalLibraryDirectories>..\libs;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
@@ -94,7 +94,7 @@
       <WarningLevel>Level3</WarningLevel>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
       <EnableParallelCodeGeneration>true</EnableParallelCodeGeneration>
-      <AdditionalIncludeDirectories>$(SolutionDir);$(SolutionDir)\glut;</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir);$(SolutionDir)\windows;$(SolutionDir)\glut;</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <AdditionalLibraryDirectories>..\libs;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
@@ -113,11 +113,11 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="..\conf.c" />
-    <ClCompile Include="..\eschew\ConvertUTF.c" />
-    <ClCompile Include="..\eschew\eschew.c" />
+    <ClCompile Include="..\dictionary.c" />
     <ClCompile Include="..\game.c" />
     <ClCompile Include="..\getopt.c" />
     <ClCompile Include="..\graphics.c" />
+    <ClCompile Include="..\iniparser.c" />
     <ClCompile Include="..\low-level.c" />
     <ClCompile Include="..\main.c" />
     <ClCompile Include="..\md5.c" />
@@ -130,19 +130,20 @@
     <ClInclude Include="..\cluck.h" />
     <ClInclude Include="..\colditz.h" />
     <ClInclude Include="..\conf.h" />
-    <ClInclude Include="..\eschew\ConvertUTF.h" />
-    <ClInclude Include="..\eschew\eschew.h" />
+    <ClInclude Include="..\dictionary.h" />
     <ClInclude Include="..\game.h" />
     <ClInclude Include="..\getopt.h" />
     <ClInclude Include="..\getopt_int.h" />
     <ClInclude Include="..\gettext.h" />
     <ClInclude Include="..\graphics.h" />
+    <ClInclude Include="..\iniparser.h" />
     <ClInclude Include="..\low-level.h" />
     <ClInclude Include="..\md5.h" />
     <ClInclude Include="..\soundplayer.h" />
     <ClInclude Include="..\soundtables.h" />
     <ClInclude Include="..\GL\glew.h" />
     <ClInclude Include="..\GL\wglew.h" />
+    <ClInclude Include="..\windows\unistd.h" />
     <ClInclude Include="resource.h" />
   </ItemGroup>
   <ItemGroup>

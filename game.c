@@ -42,7 +42,6 @@
 #include "graphics.h"
 #include "game.h"
 #include "cluck.h"
-#include "eschew/eschew.h"
 #include "conf.h"
 
 
@@ -125,7 +124,7 @@ const uint8_t looping_animation[NB_ANIMATED_SPRITES] =
 // Uncompress the PowerPacked LOADTUNE.MUS if needed
 void depack_loadtune()
 {
-    size_t read;
+    size_t size;
     uint32_t length;
     uint8_t *ppbuffer, *buffer;
 
@@ -153,11 +152,11 @@ void depack_loadtune()
     }
 
     // So far so good
-    read = fread (ppbuffer, 1, PP_LOADTUNE_SIZE, fd);
+    size = fread(ppbuffer, 1, PP_LOADTUNE_SIZE, fd);
     fclose(fd);
 
     // Is it the file we are looking for?
-    if (read != PP_LOADTUNE_SIZE)
+    if (size != PP_LOADTUNE_SIZE)
     {
         printf("  '%s': Unexpected file size or read error\n", PP_LOADTUNE_NAME);
         free(ppbuffer); return;
@@ -192,8 +191,8 @@ void depack_loadtune()
         free(buffer); return;
     }
 
-    read = fwrite (buffer, 1, length, fd);
-    if (read != length)
+    size = fwrite (buffer, 1, length, fd);
+    if (size != length)
         printf("  '%s': write error.\n", mod_name[0]);
 
     printf("  DONE.\n\n");
@@ -206,7 +205,7 @@ void depack_loadtune()
 void free_data()
 {
     int i;
-    free_xml();
+    free_conf();
     free_gfx();
     for (i=0; i<NB_FILES; i++)
         SAFREE(fbuffer[i]);
@@ -216,7 +215,7 @@ void free_data()
 // Initial file loader
 void load_all_files()
 {
-    size_t read;
+    size_t size;
     uint16_t i;
     int compressed_loader = 0;
 
@@ -259,8 +258,8 @@ void load_all_files()
                     ERR_EXIT;
                 }
 
-                read = fread (mbuffer, 1, ALT_LOADER_SIZE, fd);
-                if ((read != ALT_LOADER_SIZE) && (read != ALT_LOADER_SIZE2))
+                size = fread (mbuffer, 1, ALT_LOADER_SIZE, fd);
+                if ((size != ALT_LOADER_SIZE) && (size != ALT_LOADER_SIZE2))
                 {
                     printf("  '%s': Unexpected file size or read error\n", ALT_LOADER);
                     ERR_EXIT;
@@ -274,7 +273,7 @@ void load_all_files()
                     ERR_EXIT;
                 }
 
-                if (read == ALT_LOADER_SIZE2)   // SKR_COLD NTSC FIX, with one byte diff
+                if (size == ALT_LOADER_SIZE2)   // SKR_COLD NTSC FIX, with one byte diff
                     writebyte(fbuffer[LOADER], 0x1b36, 0x67);
 
                 printf("  OK.\n  Now saving file as '%s'\n",fname[LOADER]);
@@ -285,8 +284,8 @@ void load_all_files()
                 }
 
                 // Write file
-                read = fwrite (fbuffer[LOADER], 1, fsize[LOADER], fd);
-                if (read != fsize[LOADER])
+                size = fwrite (fbuffer[LOADER], 1, fsize[LOADER], fd);
+                if (size != fsize[LOADER])
                 {
                     printf("  '%s': Unexpected file size or write error\n", fname[LOADER]);
                     ERR_EXIT;
@@ -301,8 +300,8 @@ void load_all_files()
         if (!((i == LOADER) && (compressed_loader)))
         {
             printv("Reading file '%s'...\n", fname[i]);
-            read = fread (fbuffer[i], 1, fsize[i], fd);
-            if (read != fsize[i])
+            size = fread (fbuffer[i], 1, fsize[i], fd);
+            if (size != fsize[i])
             {
                 printf("'%s': Unexpected file size or read error\n", fname[i]);
                 ERR_EXIT;
@@ -321,7 +320,7 @@ void load_all_files()
 // Reload the files for a game restart
 void reload_files()
 {
-    size_t read;
+    size_t size;
     uint32_t i;
 
     for (i=0; i<NB_FILES_TO_RELOAD; i++)
@@ -334,8 +333,8 @@ void reload_files()
         }
         // Read file
         printv("Reloading file '%s'...\n", fname[i]);
-        read = fread (fbuffer[i], 1, fsize[i], fd);
-        if (read != fsize[i])
+        size = fread (fbuffer[i], 1, fsize[i], fd);
+        if (size != fsize[i])
         {
             perrv ("fread()");
             printf("'%s': Unexpected file size or read error\n", fname[i]);

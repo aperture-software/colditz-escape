@@ -49,7 +49,6 @@
 
 #include "low-level.h"
 #include "colditz.h"
-#include "eschew/eschew.h"
 #include "conf.h"
 #include "graphics.h"
 #include "game.h"

@@ -24,120 +24,121 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdbool.h>
-#if defined(WIN32)
-#include <windows.h>
-#elif defined(PSP)
-#include <pspkernel.h>
-#endif
-/*
- * This constant *MUST* be defined before including eschew.h,
- * *IN* the source where you do the runtime initialization
- */
-#define INIT_XML_ACTUAL_INIT
-#include "eschew/eschew.h"
+#include "low-level.h"
 #include "conf.h"
 
-
-void init_xml()
-{
-	// The second part of a node table init MUST occur at runtime
-	INIT_XML_TABLE(config);
-	INIT_XML_TABLE(options);
-#if defined(PSP)
-	INIT_XML_TABLE(controls_target_psp);
+dictionary* config = NULL;
+#if !defined(PSP)
+uint8_t key_default[KEY_MAX] = { 
+    '5', 0x00, 0x1b, ' ',
+    SPECIAL_KEY_F5, SPECIAL_KEY_F9, SPECIAL_KEY_F10,
+    '4', '6', '8', '2',
+    SPECIAL_KEY_LEFT, SPECIAL_KEY_RIGHT, SPECIAL_KEY_UP, SPECIAL_KEY_DOWN,
+    0x00, 0x00,
+    SPECIAL_KEY_F1, SPECIAL_KEY_F2, SPECIAL_KEY_F3, SPECIAL_KEY_F4 };
 #else
-	INIT_XML_TABLE(controls_target_windows);
+uint8_t key_default[KEY_MAX] = {
+    'x', 0x00, 'a', 'o',
+    's', 'q', 'd',
+    0x00, 0x00, 0x00, 0x00,
+    SPECIAL_LEFT_MOUSE_BUTTON,  SPECIAL_RIGHT_MOUSE_BUTTON, SPECIAL_KEY_UP, SPECIAL_KEY_DOWN,
+    SPECIAL_KEY_LEFT, SPECIAL_KEY_RIGHT,
+    0x00, 0x00, 0x00, 0x00 };
 #endif
+
+void free_conf(void)
+{
+    iniparser_freedict(config);
+    config = NULL;
 }
 
-void set_xml_defaults()
+bool read_conf(const char* filename)
 {
-    SET_XML_NODE_COMMENT(config, controls, " About our key mappings:\n"
-"       Standard key = regular (lowercase) ASCII code\n"
-"       0x7F         = Del\n"
-"       [0x80-0x8B]  = [F1-F12]\n"
-"       [0x8C-0x8F]  = [Left, Up, Right, Down]\n"
-"       [0x90-0x94]  = [PgUp, PgDn, Home, End, Insert]\n"
-"       [0x95-0x97]  = [Shift, Ctrl, Alt] (*)\n"
-"       [0x98-0x9A]  = [Mouse Left, Mouse Middle, Mouse Right]\n"
-"       [0xE0-0xFF]  = [Reserved - DO NOT USE]\n"
-"       (*) Because of GLUT's limitations, these key events are ONLY detected\n"
-"       in conjuction with other keypresses, and cannot be used as standalone\n"
-"       see https://www.opengl.org/resources/libraries/glut/spec3/node73.html\n\n"
-"       Now with regards to the PSP GLUT key mappings conversions\n"
-"       [X] = 'x'\n"
-"       [O] = 'o'\n"
-"       [Square] = 'q'\n"
-"       [Triangle] = 'd'\n"
-"       [Select] = 's'\n"
-"       [Start] = 'a'\n"
-"       [Left, Up, Right, Down] = same as above\n"
-"       [Left Trigger] = Mouse Left (see above for the actual code)\n"
-"       [Right Trigger] = Mouse Right (see above for the actual code) ")
-
-    // Set defaults values. Can be skipped if relying on the external XML
-    SET_XML_NODE_DEFAULT(options, vsync, true);
-    SET_XML_NODE_COMMENT(options, vsync,
-        " enable VSYNC ");
-    SET_XML_NODE_DEFAULT(options, fullscreen, false);
-    SET_XML_NODE_COMMENT(options, fullscreen,
-        " resize to fullscreen ");
-    SET_XML_NODE_DEFAULT(options, enhanced_guards, true);
-    SET_XML_NODE_COMMENT(options, enhanced_guards,
-        " have guards remember when they've seen a pass ");
-    SET_XML_NODE_DEFAULT(options, enhanced_tunnels, true);
-    SET_XML_NODE_COMMENT(options, enhanced_tunnels,
-        " limited field of vision in tunnels ");
-    SET_XML_NODE_DEFAULT(options, picture_corners, true);
-    SET_XML_NODE_COMMENT(options, picture_corners,
-        " display texturized picture corners, rather than black triangles ");
-#if defined(PSP)
-    SET_XML_NODE_DEFAULT(options, gl_smoothing, 0);
-#else
-    SET_XML_NODE_DEFAULT(options, gl_smoothing, 5);
-#endif
-    SET_XML_NODE_COMMENT(options, gl_smoothing,
-        " type of graphic smoothing: none, linear, hq2x, hq4x, 5xbr, sabr ");
-    SET_XML_NODE_DEFAULT(options, joy_deadzone, 450);
-    SET_XML_NODE_COMMENT(options, joy_deadzone,
-        " joystick deadzone");
-    SET_XML_NODE_DEFAULT(options, original_mode, false);
-    SET_XML_NODE_COMMENT(options, original_mode,
-        " Bwak! Bwaaak! Chicken!!! ");
-
-
-#if defined(PSP)
-#define SET_CONTROLS_DEFAULT(key, val1, val2) 							\
-    SET_XML_NODE_DEFAULT(controls_target_psp, key, val1)
-#else
-#define SET_CONTROLS_DEFAULT(key, val1, val2) 							\
-    SET_XML_NODE_DEFAULT(controls_target_windows, key, val2)
-#endif
-
-    // The order is PSP, WIN
-    SET_CONTROLS_DEFAULT(key_action, 'x', '5');
-    SET_CONTROLS_DEFAULT(key_cancel, 0, 0);
-    SET_CONTROLS_DEFAULT(key_toggle_walk_run, 'o', ' ');
-    SET_CONTROLS_DEFAULT(key_pause, 's', SPECIAL_KEY_F5);
-    SET_CONTROLS_DEFAULT(key_sleep, 'q', SPECIAL_KEY_F9);
-    SET_CONTROLS_DEFAULT(key_stooge, 'd', SPECIAL_KEY_F10);
-    SET_CONTROLS_DEFAULT(key_direction_left, 0, '4');
-    SET_CONTROLS_DEFAULT(key_direction_right, 0, '6');
-    SET_CONTROLS_DEFAULT(key_direction_up, 0, '8');
-    SET_CONTROLS_DEFAULT(key_direction_down, 0, '2');
-    SET_CONTROLS_DEFAULT(key_inventory_cycle_left, SPECIAL_LEFT_MOUSE_BUTTON, SPECIAL_KEY_LEFT);
-    SET_CONTROLS_DEFAULT(key_inventory_cycle_right, SPECIAL_RIGHT_MOUSE_BUTTON, SPECIAL_KEY_RIGHT);
-    SET_CONTROLS_DEFAULT(key_pickup, SPECIAL_KEY_UP, SPECIAL_KEY_UP);
-    SET_CONTROLS_DEFAULT(key_dropdown, SPECIAL_KEY_DOWN, SPECIAL_KEY_DOWN);
-    SET_CONTROLS_DEFAULT(key_escape, 'a', 0x1b);
-    SET_CONTROLS_DEFAULT(key_prisoners_cycle_left, SPECIAL_KEY_LEFT, 0);
-    SET_CONTROLS_DEFAULT(key_prisoners_cycle_right, SPECIAL_KEY_RIGHT, 0);
-    SET_CONTROLS_DEFAULT(key_select_british, 0, SPECIAL_KEY_F1);
-    SET_CONTROLS_DEFAULT(key_select_french, 0, SPECIAL_KEY_F2);
-    SET_CONTROLS_DEFAULT(key_select_american, 0, SPECIAL_KEY_F3);
-    SET_CONTROLS_DEFAULT(key_select_polish, 0, SPECIAL_KEY_F4);
-
-    // Debug
-//  PRINT_XML_TABLE(controls_target_windows);
+    config = iniparser_load(filename);
+    return (config != NULL);
 }
+
+bool write_conf(const char* filename)
+{
+    FILE* fd;
+
+    if (config == NULL)
+        return false;
+
+    // NULL or empty string => use stdout
+    if ((filename == NULL) || (strlen(filename) == 0))
+        fd = stdout;
+    else if ((fd = fopen(filename, "w")) == NULL)
+    {
+        perr("Could not save '%s'\n", filename);
+        return false;
+    }
+    iniparser_dump_ini(config, fd);
+    if (fd != stdout)
+        fclose(fd);
+    return true;
+}
+
+static __inline void set_key_default(const char* optname, enum keys key)
+{
+    char str[] = "'0'";
+    // If possible, insert the character rather than its hex value
+    if ((key_default[key] >= 0x20) && (key_default[key] <= 0x7E))
+    {
+        str[1] = key_default[key];
+        iniparser_set(config, optname, str);
+    }
+    else
+        iniparser_set_char(config, optname, key_default[key]);
+}
+
+#define SET_KEY_DEFAULT(key) set_key_default("controls:" # key, key)
+
+bool set_conf_defaults(void)
+{
+    config = dictionary_new(0);
+    if (config == NULL)
+        return false;
+
+    // Options
+    iniparser_set(config, "options", NULL);
+    iniparser_set(config, "options:vsync", "1");
+    iniparser_set(config, "options:fullscreen", "0");
+    iniparser_set(config, "options:enhanced_guards", "1");
+    iniparser_set(config, "options:enhanced_tunnels", "1");
+    iniparser_set(config, "options:picture_corners", "1");
+    iniparser_set(config, "options:joy_deadzone", "450");
+    iniparser_set(config, "options:original_mode", "0");
+#if defined(PSP)
+    iniparser_set(config, "options:gl_smoothing", "0");
+#else
+    iniparser_set(config, "options:gl_smoothing", "5");
+#endif
+
+    // Controls
+    iniparser_set(config, "controls", NULL);
+    SET_KEY_DEFAULT(key_action);
+    SET_KEY_DEFAULT(key_cancel);
+    SET_KEY_DEFAULT(key_escape);
+    SET_KEY_DEFAULT(key_toggle_walk_run);
+    SET_KEY_DEFAULT(key_pause);
+    SET_KEY_DEFAULT(key_sleep);
+    SET_KEY_DEFAULT(key_stooge);
+    SET_KEY_DEFAULT(key_direction_left);
+    SET_KEY_DEFAULT(key_direction_right);
+    SET_KEY_DEFAULT(key_direction_up);
+    SET_KEY_DEFAULT(key_direction_down);
+    SET_KEY_DEFAULT(key_inventory_left);
+    SET_KEY_DEFAULT(key_inventory_right);
+    SET_KEY_DEFAULT(key_inventory_pickup);
+    SET_KEY_DEFAULT(key_inventory_dropdown);
+    SET_KEY_DEFAULT(key_prisoner_left);
+    SET_KEY_DEFAULT(key_prisoner_right);
+    SET_KEY_DEFAULT(key_prisoner_british);
+    SET_KEY_DEFAULT(key_prisoner_french);
+    SET_KEY_DEFAULT(key_prisoner_american);
+    SET_KEY_DEFAULT(key_prisoner_polish);
+
+    return true;
+}
+

@@ -24,93 +24,54 @@ LINUX (gcc)
 ===========
 
 Make sure you have gcc and the following packages installed:
-  libgl1-mesa-dev libglu1-mesa-dev libxmu-dev libxi-dev libglew-dev libexpat-dev libasound-dev
+  libgl1-mesa-dev libglu1-mesa-dev libxmu-dev libxi-dev libglew-dev libasound-dev
 Run 'make release'
 
 PSP (PSP SDK):
 ==============
 
-For PSP you will need the following libraries:
-- pspgl (which includes glut)
-- pmp 
-- expat
-
-precompiled versions of expat (libexpat.a) and pmp (libpmp.a) are provided in
-the libs/ directory. Any recent version of the PSP SDK should come with pspGL.
-
-
-COMMON (optional):
-==================
-
-If you want to update Expat, you'll need to recompile libexpatMT.lib (WIN) / 
-libexpat.a (PSP) and on Windows, you must add XML_STATIC in the C/C++ 
-PreProcessor Definitions. 
-You will also need to set the Multi-threaded (/MT) static flag instead of 
-Multi-threaded DLL (/MD) in Configuration Properties -> C/C++
--> Code Generation -> Runtime Library
-Precompiled versions of these libraries are provided in the libs/ directory
-
-Important note: Because I'll be darned before I agree with the XML comitee's 
-extreme shortsightedness that some chars in [00-7F] should be illegal, 
-especially when we want to define our input keys in the XML conf file, the 
-libexpat we use was *TWEAKED* to accept ANY [00-7F] char without barfing.
-To do that, the asciitab.h file of libexpat had all its BT_NONXML changed to 
-BT_OTHER before compiling.
-
-If you don't want to have to tweak expat, you can modifie eschew.c to convert 
-integer strings to unsigned char rather than simply read the value, and modify 
-the config.xml
-
-The Expat sources can be found it at: 
-http://nds.cmamod.com/psp/Expat.2.01.win32_msys_bin.zip
-For PSP recompilation, use the expat_config.h in extras/
-
+Use any recent version of the PSP SDK and run 'make release'
 
 DIRECTORY STRUCTURE AND FILE DESCRIPTION:
 =========================================
 
 src/
-  +--- .vs/                      [Visual Studio 2015 project files]
-  +--- bin/                      [Additional binaries required at runtime]
-        +--- aperture.avi        Aperture Software Intro movie - Windows version
-        +--- aperture.pmp        Aperture Software Intro movie - PSP version
-        +--- corner.raw          16 bit GRAB raw image for the picture corner
-        +--- panel_base1.raw     16 bit GRAB raw image for the panel, part 1
-        +--- panel_base2.raw     16 bit GRAB raw image for the panel, part 2
-        +--- shader-hq2x.frag    Fragment and Vertex GLSL OpenGL 2.0 shaders for
-        +--- shader-hq2x.vert    the HQ2X "lite" zooming function by guest(r)
+  +--- .vs/                      [Visual Studio 2017 project files]
+  +--- Colditz Escape/           [Runtime binaries]
+        +--- SHADERS/            Various zoom OpenGL shaders
+        +--- CORNER.RAW          16 bit GRAB raw image for the picture corner
+        +--- PANELBASE1.RAW      16 bit GRAB raw image for the panel, part 1
+        +--- PANELBASE2.RAW      16 bit GRAB raw image for the panel, part 2
         +--- STARTSCREEN2-PSP    IFF detailing the controls for the PSP
-        +--- tunnel-vision.raw   16 bit GRAB raw image for the tunnel shadows
-  +--- eschew/                   [See http://code.google.com/p/eschew/]
-  +--- extras/                   [Additional licenses and files]
-  +--- glut/                     [GLUT static library files]
+        +--- TUNNELVISION.RAW    16 bit GRAB raw image for the tunnel shadows
+        +--- (...)               Original Amiga files
+  +--- docs/                     [Documentation, licenses and additional files]
+  +--- freeglut/                 [A *MODIFIED* version of FreeGLUT]
+  +--- GL/                       [FreeGLUT and GL headers]
   +--- libs/                     [Additional libraries required for compilation]
         +--- glew32s.lib         Static win32 version of the Glew library (v1.5.1)
-        +--- libexpat.a          Slightly modified Expat library for the PSP
-        +--- libexpatMT.a        Slightly modified Expat library for Windows
-        +--- libpmp.a            PMP (Video playout) library for the PSP
+  +--- linux/                    [Linux specific sourcefiles]
+        +--- audio_backend.c     ALSA-based audio backend implementation
   +--- psp/                      [PSP specific sourcefiles]
-        +--- pmp.h               PMP header file
-        +--- psp-printf.h        Custom onscreen printf for the PSP
-        +--- psp-setup.c         Standard PSP callbacks initialization
-        +--- psp-setup.h             "           "           "
-  +--- win32/                    [Windows specific sourcefiles]
-        +--- glut.h              GLUT header
-        +--- glew.h              Glew (OpenGL Extension Wrangler Library) header
-        +--- wglew.h             files (v1.5.1)
-        +--- winXAudio2.cpp      XAudio2 engine wrapper, with double buffered
-        +--- winXAudio2.h         streaming capabilities through Voice Callbacks
-        +--- wmp.cpp             Simple Windows directShow Movie Player
-        +--- wmp.h                   "           "           "
+        +--- audio_backend.c     PSP audio backend implementation
+        +--- printf.h            Custom onscreen printf for the PSP
+        +--- setup.c             Standard PSP callbacks initialization
+        +--- setup.h                 "           "           "
+  +--- windows/                  [Windows specific sourcefiles]
+        +--- audio_backend.c     XAudio2-based audio backend implementation
+        +--- unisdt.h            A dummy unisdt.h to keep ndevilla's iniparser happy
   +--- anti-tampering.h          MD5sums and inline checking of the data files
   +--- CHANGELOG.txt             Change Log
   +--- cluck.h                   Additional (non ORG) SFXs
   +--- colditz.h                 Main constants and structures definition
-  +--- colditz.sln               Visual Studio 2015 Solution file
+  +--- colditz.ico               Windows game icon
+  +--- colditz.rc                Windows resource file
+  +--- colditz.sln               Visual Studio 2017 Solution file
   +--- COMPILING.txt             This file
-  +--- conf.c                    Eschew wrapper for the config.xml ini file with
-  +--- conf.h                     declarations for options and key mappings
-  +--- data-types.h              Type definitions for u8 -> u64, bool, etc.
+  +--- conf.c                    Wrapper for the config.ini file with
+  +--- conf.h                      declarations for options and key mappings
+  +--- dictionary.c              Ini file handling, taken from:
+  +--- dictionary.h                https://github.com/ndevilla/iniparser
   +--- game.c                    Game runtime subroutines
   +--- game.h                    Game runtime header, with some inline functions
   +--- getopt.c                  GNU Getopt for commandline options processing
@@ -120,16 +81,17 @@ src/
   +--- graphics.c                Game Graphics runtime subroutines
   +--- graphics.h                Game Graphics runtime header
   +--- icon1.png                 PSP EBOOT icon
+  +--- iniparser.c               Ini file handling, taken from:
+  +--- iniparser.h                 https://github.com/ndevilla/iniparser
   +--- LICENSING.txt             Licensing notes
   +--- low-level.c               Low level functions, with files decompression
-  +--- low-level.h                and bit/byte manipulations
+  +--- low-level.h                 and bit/byte manipulations
   +--- main.c                    Top level program, including GLUT functions
-  +--- Makefile                  PSP Makefile
+  +--- Makefile                  Dispatch Makefile
+  +--- Makefile.linux            Linux Makefile
+  +--- Makefile.psp              PSP Makefile
   +--- md5.c                     MD5 checksum functions
   +--- md5.h                         "           "   
-  +--- modplayeri.h              PSP (and now Windows) Amiga MOD player header
-  +--- modtables.h                   "           "           "
-  +--- soundplayer.cpp           MOD + SFX wrapper & player
+  +--- soundplayer.c             MOD + SFX wrapper & player
   +--- soundplayer.h                 "           "
-  +--- videoplayer.c             Video player wrapper
-  +--- videoplayer.h                 "           "
+  +--- soundtables.h                 "           "

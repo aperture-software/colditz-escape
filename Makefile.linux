@@ -1,5 +1,5 @@
 TARGET          = colditz
-OBJS            = conf.o game.o graphics.o low-level.o main.o md5.o soundplayer.o linux/audio_backend.o eschew/ConvertUTF.o eschew/eschew.o
+OBJS            = conf.o dictionary.o game.o graphics.o getopt.o iniparser.o low-level.o main.o md5.o soundplayer.o linux/audio_backend.o
 DEPS            = glut/libglut.a
 
 CC              = gcc
@@ -9,7 +9,7 @@ CFLAGS         += -I. -O3 -Wall -Wshadow -Wundef -Wunused
 CXXFLAGS       += $(CFLAGS) -fno-exceptions -fno-rtti
 
 # Ubuntu is *VERY SENSITIVE* to the order in which these libs are specified
-LIBS           += -lfreeglut -lX11 -lXi -lXmu -lXext -lGL -lGLU -lGLEW -lexpat -lasound -lpthread -lm
+LIBS           += -lfreeglut -lX11 -lXi -lXmu -lXext -lGL -lGLU -lGLEW -lasound -lpthread -lm
 LIBDIRS        += -L./freeglut
 
 LDFLAGS        += $(LIBDIRS) $(LIBS)

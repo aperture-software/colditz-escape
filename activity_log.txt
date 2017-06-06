@@ -1,6 +1,13 @@
 Colditz Escape - Activity Log
 
 [MAIN]
+-M drop Expat and use an INI file [DONE]
+-M Switch to FreeGLUT on Windows and Linux [DONE]
+-M Abstract the audio subsystems [DONE]
+-m drop intro video and video playout
+-M Linux support [DONE]
+-m Xbox 360 Controller support [DONE]
+-m Fix some longstanding bugs
 -M overlay depth [DONE]
 -m walking on tunnel exits [DONE]
 -M timer [DONE]

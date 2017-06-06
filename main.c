@@ -38,8 +38,6 @@
 #pragma comment(lib, "glew32s.lib")
 // Prevents a potential "LINK : fatal error LNK1104: cannot open file 'libc.lib'" error with Glew
 #pragma comment(linker, "/NODEFAULTLIB:libc.lib")
-// Expat lib for XML config file processing -> conf.c
-#pragma comment(lib, "libexpatMT.lib")
 #elif defined(PSP)
 #include <pspdebug.h>
 #include <pspdisplay.h>
@@ -58,7 +56,6 @@
 #include "graphics.h"
 #include "game.h"
 #include "soundplayer.h"
-#include "eschew/eschew.h"
 #include "conf.h"
 #include "anti-tampering.h"
 
@@ -136,7 +133,7 @@ uint8_t* rgbCells			= NULL;
 uint8_t* static_image_buffer = NULL;
 s_tex texture[NB_TEXTURES]	= TEXTURES;
 char* mod_name[NB_MODS]		= MOD_NAMES;
-const char confname[]		= "config.xml";
+const char confname[]		= "config.ini";
 #if defined(ANTI_TAMPERING_ENABLED)
 const uint8_t fmd5hash[NB_FILES][16] = FMD5HASHES;
 #endif
@@ -1060,8 +1057,17 @@ static void glut_idle_game(void)
 }
 
 // Menu navigation
-#define TOG(option) {option=(option)?0:1; config_save=true;}
-#define ROT(option, nb_values) {option=(option+(key_down[SPECIAL_KEY_LEFT]?(nb_values)-1:1))%(nb_values), config_save=true;}
+#define TOGGLE_OPTION(section, option) {                                        \
+    bool opt = !iniparser_getboolean(config, #section ":" #option, false);      \
+    iniparser_set(config, #section ":" #option, opt?"1":"0");                   \
+    config_save=true; }
+#define ROTATE_OPTION(section, option, nb_values) {                             \
+    char val_str[2] = { '0', 0 };                                               \
+    int val = iniparser_getint(config, #section ":" #option, 2);                \
+    val= (val+(key_down[SPECIAL_KEY_LEFT]?(nb_values)-1:1))%(nb_values);        \
+    val_str[0] = '0'+val; iniparser_set(config, #section ":" #option, val_str); \
+    config_save = true; }
+
 void process_menu()
 {
     bool cancel_selected = read_key_once(KEY_CANCEL);
@@ -1114,7 +1120,7 @@ void process_menu()
                 selected_menu_item = FIRST_MENU_ITEM;
                 break;
             case MENU_EXIT:
-                if ((config_save) && (!write_xml(confname)))
+                if ((config_save) && (!write_conf(confname)))
                     perr("Error rewritting %s.\n", confname);
                 LEAVE;
                 break;
@@ -1128,28 +1134,28 @@ void process_menu()
             switch(selected_menu_item)
             {
             case MENU_BACK_TO_MAIN:
-                if ((config_save) && (!write_xml(confname)))
+                if ((config_save) && (!write_conf(confname)))
                     perr("Error rewritting %s.\n", confname);
                 selected_menu = MAIN_MENU;
                 selected_menu_item = FIRST_MENU_ITEM;
                 break;
             case MENU_ENHANCEMENTS:
-                TOG(opt_enhanced_guards);
-                TOG(opt_enhanced_tunnels);
+                TOGGLE_OPTION(options, enhanced_guards);
+                TOGGLE_OPTION(options, enhanced_tunnels);
                 break;
 // The following are platform specific
 #if defined(WIN32)
             case MENU_VSYNC:
-                TOG(opt_vsync);
+                TOGGLE_OPTION(options, vsync);
                 set_vsync(opt_vsync);
                 break;
 #endif
 #if !defined(PSP)
             case MENU_SMOOTHING:
-                ROT(opt_gl_smoothing, 2+(opt_has_shaders?NB_SHADERS:0));
+                ROTATE_OPTION(options, gl_smoothing, 2+(opt_has_shaders?NB_SHADERS:0));
                 break;
             case MENU_FULLSCREEN:
-                TOG(opt_fullscreen);
+                TOGGLE_OPTION(options, fullscreen);
                 if (opt_fullscreen)
                 {
                     old_w = gl_width;
@@ -1161,14 +1167,14 @@ void process_menu()
                 break;
 #endif
             case MENU_PICTURE_CORNERS:
-                TOG(opt_picture_corners);
+                TOGGLE_OPTION(options, picture_corners);
                 break;
             case MENU_ORIGINAL_MODE:
-                TOG(opt_original_mode);
+                TOGGLE_OPTION(options, original_mode);
                 if (opt_original_mode)
                 {
-                    opt_enhanced_guards = false;
-                    opt_enhanced_tunnels = false;
+                    SET_CONFIG_BOOLEAN(options, enhanced_guards, false);
+                    SET_CONFIG_BOOLEAN(options, enhanced_tunnels, false);
                     enabled_menus[OPTIONS_MENU][MENU_ENHANCEMENTS] = 0;
                     enabled_menus[MAIN_MENU][MENU_SAVE] = 0;
                     enabled_menus[MAIN_MENU][MENU_LOAD] = 0;
@@ -1363,7 +1369,7 @@ static void glut_idle_static_pic(void)
         {
             if (read_key_once(KEY_ESCAPE))
             {
-                if ((config_save) && (!write_xml(confname)))
+                if ((config_save) && (!write_conf(confname)))
                     perr("Error rewritting %s.\n", confname);
                 picture_state = GAME_FADE_IN_START;
             }
@@ -1542,8 +1548,8 @@ static void parse_xbox360_controller(unsigned int buttonMask)
         ASSIGN_X360(KEY_INVENTORY_RIGHT, XBOX360_CONTROLLER_DPAD_RIGHT);
         ASSIGN_X360(KEY_TOGGLE_WALK_RUN, XBOX360_CONTROLLER_BUTTON_RT);
         ASSIGN_X360(KEY_STOOGE, XBOX360_CONTROLLER_BUTTON_LT);
-        ASSIGN_X360(KEY_PRISONERS_LEFT, XBOX360_CONTROLLER_BUTTON_LB);
-        ASSIGN_X360(KEY_PRISONERS_RIGHT, XBOX360_CONTROLLER_BUTTON_RB);
+        ASSIGN_X360(KEY_PRISONER_LEFT, XBOX360_CONTROLLER_BUTTON_LB);
+        ASSIGN_X360(KEY_PRISONER_RIGHT, XBOX360_CONTROLLER_BUTTON_RB);
         ASSIGN_X360(KEY_ESCAPE, XBOX360_CONTROLLER_BUTTON_START);
         ASSIGN_X360(KEY_PAUSE, XBOX360_CONTROLLER_BUTTON_BACK);
         last_buttonMask = buttonMask;
@@ -1739,18 +1745,22 @@ int main (int argc, char *argv[])
     glut_init();
 
 //	remove(confname);
-    init_xml();
-    if (!read_xml(confname))
-    {	// config.xml not found => try to create one
+    if (!read_conf(confname))
+    {	// config.ini not found => try to create one
         printb("'%s' not found. Creating a new one...\n", confname);
         fflush(stdout);
-        set_xml_defaults();
-        if (!write_xml(confname))
+        if (!set_conf_defaults())
+        {
+            perr("Could not set configuration defaults\n");
+        }
+        else if (!write_conf(confname))
+        {
             perr("Could not create '%s'\n", confname);
+        }
     }
     if (opt_original_mode)
     {
-        opt_enhanced_guards = false;
+        SET_CONFIG_BOOLEAN(options, enhanced_guards, false);
         enabled_menus[OPTIONS_MENU][MENU_ENHANCEMENTS] = 0;
         enabled_menus[MAIN_MENU][MENU_SAVE] = 0;
         enabled_menus[MAIN_MENU][MENU_LOAD] = 0;
@@ -1758,7 +1768,7 @@ int main (int argc, char *argv[])
 #if !defined(PSP)
     opt_has_shaders = init_shaders();
     if (!opt_has_shaders)
-        opt_gl_smoothing = 0;
+        SET_CONFIG_BOOLEAN(options, gl_smoothing, 0);
 #if defined(WIN32)
     set_vsync(opt_vsync);
 #endif
@@ -1770,12 +1780,12 @@ int main (int argc, char *argv[])
 #endif
 
     // Now that we have our config set, we can initialize some controls values
-    key_nation[0] = KEY_BRITISH;
-    key_nation[1] = KEY_FRENCH;
-    key_nation[2] = KEY_AMERICAN;
-    key_nation[3] = KEY_POLISH;
-    key_nation[4] = KEY_PRISONERS_LEFT;
-    key_nation[5] = KEY_PRISONERS_RIGHT;
+    key_nation[0] = KEY_PRISONER_BRITISH;
+    key_nation[1] = KEY_PRISONER_FRENCH;
+    key_nation[2] = KEY_PRISONER_AMERICAN;
+    key_nation[3] = KEY_PRISONER_POLISH;
+    key_nation[4] = KEY_PRISONER_LEFT;
+    key_nation[5] = KEY_PRISONER_RIGHT;
 
     // Load the data. If it's the first time the game is ran, we might have
     // to uncompress LOADTUNE.MUS (PowerPack) and SKR_COLD (custom compression)

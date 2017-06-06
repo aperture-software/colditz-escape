@@ -23,15 +23,13 @@ Latest Automated Builds
 Below are self contained game archives, based on the very latest version of the code. Just extract these files, and you're good to go!
 
 * [__Windows__](https://ci.appveyor.com/api/projects/aperture-software/colditz-escape/artifacts/Colditz_Escape_Windows.7z?job=Environment%3A%20WINDOWS%3DRelease "Colditz Escape (Windows).7z")
+* Linux (Coming soon)
 * [PSP](https://ci.appveyor.com/api/projects/aperture-software/colditz-escape/artifacts/Colditz_Escape_PSP.7z?job=Environment%3A%20PSP%3DRelease "Colditz Escape (PSP).7z") (Extract to `PSP\GAME\` on Memory Stick)
 
 Features that might be of interest to you within this source
 ------------------------------------------------------------
 
-* Code for an [XAudio2](https://msdn.microsoft.com/en-us/library/windows/desktop/ee415813.aspx) sound player, with double
-  buffered streaming capabilities, for Windows ([`winXAudio.cpp`](win32/winXAudio.cpp))
-* Multiplatform wrapper for XML configuration files ([`conf.c`](conf.c) and [Eschew](eschew/))
-* Code for onscreen message printout on PSP ([`psp-printf.h`](psp/psp-printf.h))
+* Code for a cross-platform abstracted sound player that includes Windows (Xaudio2), Linux (ALSA/PulseAudio) and PSP.
 * [IFF](http://en.wikipedia.org/wiki/Interchange_File_Format) image loader ([`graphics.c`](graphics.c) &rarr; `load_iff()`)
 * RAW texture loader, with or without Alpha ([`graphics.c`](graphics.c) &rarr; `load_raw_rgb()`)
 * OpenGL 2D rescale ([`graphics.c`](graphics.c) &rarr; `rescale_buffer()`)

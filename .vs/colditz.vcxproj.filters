@@ -18,12 +18,6 @@
     <ClCompile Include="..\conf.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\eschew\ConvertUTF.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="..\eschew\eschew.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="..\game.c">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -48,6 +42,12 @@
     <ClCompile Include="..\windows\audio_backend.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\dictionary.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\iniparser.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\anti-tampering.h">
@@ -60,12 +60,6 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\conf.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\eschew\ConvertUTF.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\eschew\eschew.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\game.h">
@@ -105,6 +99,15 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\audio_backend.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\dictionary.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\iniparser.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\windows\unistd.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

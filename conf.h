@@ -23,6 +23,9 @@
 
 #pragma once
 
+#include <stdbool.h>
+#include "iniparser.h"
+
 #if defined(PSP)
 #include <GL/glut.h>
 #else
@@ -32,6 +35,8 @@
 #ifdef	__cplusplus
 extern "C" {
 #endif
+
+extern dictionary* config;
 
 /////////////////////////////////////////////////////////////////////////////////
 // Custom key mappings
@@ -115,34 +120,66 @@ extern "C" {
 #define SPECIAL_MIDDLE_MOUSE_BUTTON	(GLUT_MIDDLE_BUTTON - GLUT_LEFT_BUTTON + SPECIAL_MOUSE_BUTTON_BASE)
 #define SPECIAL_RIGHT_MOUSE_BUTTON	(GLUT_RIGHT_BUTTON - GLUT_LEFT_BUTTON + SPECIAL_MOUSE_BUTTON_BASE)
 
-#if defined(PSP)
-#define KEYVAL(key, fallback)		(XML_VALUE(controls_target_psp, key)?XML_VALUE(controls_target_psp, key):fallback)
-#else
-#define KEYVAL(key, fallback)		(XML_VALUE(controls_target_windows, key)?XML_VALUE(controls_target_windows, key):fallback)
-#endif
+enum keys {
+    key_action = 0,
+    key_cancel,
+    key_escape,
+    key_toggle_walk_run,
+    key_pause,
+    key_sleep,
+    key_stooge,
+    key_direction_left,
+    key_direction_right,
+    key_direction_up,
+    key_direction_down,
+    key_inventory_left,
+    key_inventory_right,
+    key_inventory_pickup,
+    key_inventory_dropdown,
+    key_prisoner_left,
+    key_prisoner_right,
+    key_prisoner_british,
+    key_prisoner_french,
+    key_prisoner_american,
+    key_prisoner_polish,
+    KEY_MAX
+};
+
+extern uint8_t key_default[KEY_MAX];
+
+static __inline uint8_t read_keyval(const char* keyname, int fallback)
+{
+    const char* str = iniparser_getstring(config, keyname, "0");
+    // Straight characters are enclosed in single quotes
+    if (str[0] == '\'')
+        return (uint8_t)str[1];
+    // Not a straight char => hex or integer value
+    return (uint8_t)iniparser_getint(config, keyname, fallback);
+}
+#define KEYVAL(key) read_keyval("controls:" #key, 0xe0 + key)
 
 // Short(?)cut defines for the main program
-#define KEY_ACTION					KEYVAL(key_action, 0xe0)
-#define KEY_CANCEL					KEYVAL(key_cancel, 0xe1)
-#define KEY_TOGGLE_WALK_RUN			KEYVAL(key_toggle_walk_run, 0xe2)
-#define KEY_PAUSE					KEYVAL(key_pause, 0xe3)
-#define KEY_INVENTORY_LEFT			KEYVAL(key_inventory_cycle_left, 0xe4)
-#define KEY_INVENTORY_RIGHT			KEYVAL(key_inventory_cycle_right, 0xe5)
-#define KEY_INVENTORY_PICKUP		KEYVAL(key_pickup, 0xe6)
-#define KEY_INVENTORY_DROP			KEYVAL(key_dropdown, 0xe7)
-#define KEY_SLEEP					KEYVAL(key_sleep, 0xe8)
-#define KEY_STOOGE					KEYVAL(key_stooge, 0xe9)
-#define KEY_ESCAPE					KEYVAL(key_escape, 0xea)
-#define KEY_PRISONERS_LEFT			KEYVAL(key_prisoners_cycle_left, 0xeb)
-#define KEY_PRISONERS_RIGHT			KEYVAL(key_prisoners_cycle_right, 0xec)
-#define KEY_BRITISH					KEYVAL(key_select_british, 0xed)
-#define KEY_FRENCH					KEYVAL(key_select_french, 0xee)
-#define KEY_AMERICAN				KEYVAL(key_select_american, 0x0ef)
-#define KEY_POLISH					KEYVAL(key_select_polish, 0xf0)
-#define KEY_DIRECTION_LEFT			KEYVAL(key_direction_left, 0xf1)
-#define KEY_DIRECTION_RIGHT			KEYVAL(key_direction_right, 0xf2)
-#define KEY_DIRECTION_UP			KEYVAL(key_direction_up, 0xf3)
-#define KEY_DIRECTION_DOWN			KEYVAL(key_direction_down, 0xf4)
+#define KEY_ACTION					KEYVAL(key_action)
+#define KEY_CANCEL					KEYVAL(key_cancel)
+#define KEY_TOGGLE_WALK_RUN			KEYVAL(key_toggle_walk_run)
+#define KEY_PAUSE					KEYVAL(key_pause)
+#define KEY_INVENTORY_LEFT			KEYVAL(key_inventory_left)
+#define KEY_INVENTORY_RIGHT			KEYVAL(key_inventory_right)
+#define KEY_INVENTORY_PICKUP		KEYVAL(key_inventory_pickup)
+#define KEY_INVENTORY_DROP			KEYVAL(key_inventory_dropdown)
+#define KEY_SLEEP					KEYVAL(key_sleep)
+#define KEY_STOOGE					KEYVAL(key_stooge)
+#define KEY_ESCAPE					KEYVAL(key_escape)
+#define KEY_PRISONER_LEFT			KEYVAL(key_prisoner_left)
+#define KEY_PRISONER_RIGHT			KEYVAL(key_prisoner_right)
+#define KEY_PRISONER_BRITISH		KEYVAL(key_prisoner_british)
+#define KEY_PRISONER_FRENCH			KEYVAL(key_prisoner_french)
+#define KEY_PRISONER_AMERICAN		KEYVAL(key_prisoner_american)
+#define KEY_PRISONER_POLISH			KEYVAL(key_prisoner_polish)
+#define KEY_DIRECTION_LEFT			KEYVAL(key_direction_left)
+#define KEY_DIRECTION_RIGHT			KEYVAL(key_direction_right)
+#define KEY_DIRECTION_UP			KEYVAL(key_direction_up)
+#define KEY_DIRECTION_DOWN			KEYVAL(key_direction_down)
 
 // XBox 360 Controller definitions
 #if !defined(PSP)
@@ -166,70 +203,43 @@ extern "C" {
 #define XBOX360_CONTROLLER_DPAD_RIGHT	0x20000000
 #define XBOX360_CONTROLLER_DPAD_LEFT	0x10000000
 
-#define opt_picture_corners			XML_VALUE(options, picture_corners)
-#define opt_enhanced_guards			XML_VALUE(options, enhanced_guards)
-#define opt_enhanced_tunnels		XML_VALUE(options, enhanced_tunnels)
-#define opt_vsync					XML_VALUE(options, vsync)
-#define opt_gl_smoothing			XML_VALUE(options, gl_smoothing)
-#define opt_fullscreen				XML_VALUE(options, fullscreen)
-#define JOY_DEADZONE				XML_VALUE(options, joy_deadzone)
-#define opt_original_mode			XML_VALUE(options, original_mode)
 
-/////////////////////////////////////////////////////////////////////////////////
-// XML tables definitions
-//
 
-// root node
-DEFINE_XML_NODES(config_nodes,
-				 runtime,
-				 options,
-				 controls)
-CREATE_XML_TABLE(config, config_nodes, xml_node)
-SET_XML_ROOT(config)
+#define GET_CONFIG_BOOLEAN(section, option) iniparser_getboolean(config, #section ":" #option, false)
+#define GET_CONFIG_INTEGER(section, option) iniparser_getint(config, #section ":" #option, 0)
+#define SET_CONFIG_BOOLEAN(section, option, value) iniparser_set(config, #section ":" #option, value?"1":"0");
+#define SET_CONFIG_INTEGER_ZERO(section, option, value) iniparser_set(config, #section ":" #option, "0");
 
-// General program options
-DEFINE_XML_NODES(options_nodes,
-				 vsync,
-				 enhanced_guards,
-				 enhanced_tunnels,
-				 picture_corners,
-				 gl_smoothing,
-				 fullscreen,
-				 joy_deadzone,
-				 original_mode)
-CREATE_XML_TABLE(options, options_nodes, xml_int)
+#define opt_picture_corners			GET_CONFIG_BOOLEAN(options, picture_corners)
+#define opt_enhanced_guards			GET_CONFIG_BOOLEAN(options, enhanced_guards)
+#define opt_enhanced_tunnels		GET_CONFIG_BOOLEAN(options, enhanced_tunnels)
+#define opt_vsync					GET_CONFIG_BOOLEAN(options, vsync)
+#define opt_gl_smoothing			GET_CONFIG_INTEGER(options, gl_smoothing)
+#define opt_fullscreen				GET_CONFIG_BOOLEAN(options, fullscreen)
+#define JOY_DEADZONE				GET_CONFIG_INTEGER(options, joy_deadzone)
+#define opt_original_mode			GET_CONFIG_BOOLEAN(options, original_mode)
 
-// User input mappings
-DEFINE_XML_NODES(controls_nodes,
-				 key_action,
-				 key_cancel,
-				 key_toggle_walk_run,
-				 key_pause,
-				 key_sleep,
-				 key_stooge,
-				 key_direction_left,
-				 key_direction_right,
-				 key_direction_up,
-				 key_direction_down,
-				 key_inventory_cycle_left,
-				 key_inventory_cycle_right,
-				 key_pickup,
-				 key_dropdown,
-				 key_escape,
-				 key_prisoners_cycle_left,
-				 key_prisoners_cycle_right,
-				 key_select_british,
-				 key_select_french,
-				 key_select_american,
-				 key_select_polish)
-#if defined(PSP)
-CREATE_XML_TABLE(controls_target_psp, controls_nodes, xml_unsigned_char)
-#else
-CREATE_XML_TABLE(controls_target_windows, controls_nodes, xml_unsigned_char)
-#endif
+/*
+ * Set the internal config to default
+ */
+bool set_conf_defaults(void);
 
-void init_xml();
-void set_xml_defaults();
+/*
+ * Open and parse the ini file "filename"
+ * Returns true on success, false otherwise
+ */
+bool read_conf(const char* filename);
+
+/*
+ * Write the ini file "filename" using the current dictionary
+ * Returns true on success, false otherwise
+ */
+bool write_conf(const char* filename);
+
+/*
+ * Free dynamically allocated data that needs to be released
+ */
+void free_conf(void);
 
 #ifdef	__cplusplus
 }
