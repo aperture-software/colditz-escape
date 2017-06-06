@@ -1798,7 +1798,7 @@ int main (int argc, char *argv[])
 
     // Set global variables
     t_last = mtime();
-    srand(t_last);
+    srand((unsigned int)t_last);
     program_time = 0;
     game_time = 0;
 

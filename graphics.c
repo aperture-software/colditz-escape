@@ -1181,7 +1181,7 @@ void display_message(char string[])
     }
     while ((c = string[i++]))
     {
-        display_sprite(PANEL_MESSAGE_X+8*pos, PANEL_MESSAGE_Y,
+        display_sprite((float)(PANEL_MESSAGE_X+8*pos), PANEL_MESSAGE_Y,
             PANEL_CHARS_W, PANEL_CHARS_CORRECTED_H, chars_texid[c-0x20]);
         pos++;
     }
@@ -1444,8 +1444,8 @@ void display_panel()
                 ((guy(i).state & STATE_IN_PURSUIT) && ((game_time/1000)%2)))
                 sid = PANEL_FACE_IN_PRISON;
         }
-        display_sprite(PANEL_FACES_X+i*PANEL_FACES_W, PANEL_TOP_Y,
-            sprite[sid].w, sprite[sid].h, sprite_texid[sid]);
+        display_sprite((float)(PANEL_FACES_X+i*PANEL_FACES_W), (float)PANEL_TOP_Y,
+            (float)sprite[sid].w, (float)sprite[sid].h, sprite_texid[sid]);
     }
 
     // Display the currently selected nation's flag
@@ -1479,8 +1479,9 @@ void display_panel()
             sprite[sid].w, sprite[sid].h, sprite_texid[sid]);
 
     // Display the fatigue bar
-    display_sprite(PANEL_FATIGUE_X, PANEL_FATIGUE_Y,
-        (prisoner_fatigue>>0xB), sprite[PANEL_FATIGUE_SPRITE].h, sprite_texid[PANEL_FATIGUE_SPRITE]);
+    display_sprite((float)PANEL_FATIGUE_X, (float)PANEL_FATIGUE_Y,
+        (float)(prisoner_fatigue>>0xB), (float)sprite[PANEL_FATIGUE_SPRITE].h,
+        sprite_texid[PANEL_FATIGUE_SPRITE]);
 
     // Display close by prop or motion indicator
     if (over_prop_id)
@@ -1548,9 +1549,9 @@ void rescale_buffer()
 
         // OK, now we can display the whole texture
         if (opt_gl_smoothing == 1)
-            display_sprite_linear(0, gl_height, gl_width, -gl_height, render_texid);
+            display_sprite_linear(0.0f, (float)gl_height, (float)gl_width, (float)-gl_height, render_texid);
         else
-            display_sprite(0, gl_height, gl_width, -gl_height, render_texid);
+            display_sprite(0.0f, (float)gl_height, (float)gl_width, (float)-gl_height, render_texid);
 
 #if !defined(PSP)
         if (opt_gl_smoothing >= 2)
@@ -1592,8 +1593,8 @@ void display_fps(uint64_t frames_duration, uint64_t nb_frames)
     glColor3f(0.3f, 0.4f, 1.0f);
 
     for (i=0; (c = s_fps[i]); i++)
-        display_sprite(PSP_SCR_WIDTH-50+8*i, 2,
-            PANEL_CHARS_W, PANEL_CHARS_CORRECTED_H, chars_texid[c-0x20]);
+        display_sprite((float)(PSP_SCR_WIDTH-50+8*i), 2.0f,
+            (float)PANEL_CHARS_W, (float)PANEL_CHARS_CORRECTED_H, chars_texid[c-0x20]);
 
     glColor3f(fade_value, fade_value, fade_value);
 }
@@ -1667,8 +1668,8 @@ void display_menu_screen()
         {
             for (i=0; (c = menus[selected_menu][line][i]); i++)
             {
-                display_sprite(line_start+16*i, 32+16*line,
-                    2*PANEL_CHARS_W, 2*PANEL_CHARS_CORRECTED_H, chars_texid[c-0x20]);
+                display_sprite((float)(line_start+16*i), (float)(32+16*line),
+                    2.0f*PANEL_CHARS_W, 2.0f*PANEL_CHARS_CORRECTED_H, chars_texid[c-0x20]);
             }
         }
         else
@@ -1679,8 +1680,8 @@ void display_menu_screen()
             if (line == MENU_SMOOTHING)
             {	// This one has multiple values
                 for (j=0; (c = smoothing[opt_gl_smoothing][j]); i++,j++)
-                    display_sprite(line_start+16*i, 32+16*line,
-                        2*PANEL_CHARS_W, 2*PANEL_CHARS_CORRECTED_H, chars_texid[c-0x20]);
+                    display_sprite((float)(line_start+16*i), (float)(32+16*line),
+                        2.0f*PANEL_CHARS_W, 2.0f*PANEL_CHARS_CORRECTED_H, chars_texid[c-0x20]);
             }
             else
             {
@@ -1707,15 +1708,15 @@ void display_menu_screen()
                     break;
                 }
                 for (j=0; (c = on_off[on_off_index][j]); i++,j++)
-                    display_sprite(line_start+16*i, 32+16*line,
-                        2*PANEL_CHARS_W, 2*PANEL_CHARS_CORRECTED_H, chars_texid[c-0x20]);
+                    display_sprite((float)(line_start+16*i), (float)(32+16*line),
+                        2.0f*PANEL_CHARS_W, 2.0f*PANEL_CHARS_CORRECTED_H, chars_texid[c-0x20]);
             }
         }
     }
     // Selection cursor
     glColor4f(1.0f, 1.0f, 1.0f, 1.0f-fade_value+MIN_MENU_FADE);
-    display_sprite(line_start-20, 32+16*selected_menu_item,
-        2*PANEL_CHARS_W, 2*PANEL_CHARS_CORRECTED_H, chars_texid[MENU_MARKER]);
+    display_sprite((float)(line_start-20), (float)(32+16*selected_menu_item),
+        2.0f*PANEL_CHARS_W, 2.0f*PANEL_CHARS_CORRECTED_H, chars_texid[MENU_MARKER]);
 
     // Display our blurb
     glColor4f(0.3f, 0.4f, 1.0f, 1.0f-fade_value+MIN_MENU_FADE-0.2f);
@@ -1727,8 +1728,8 @@ void display_menu_screen()
         }
         for (i=0; (c = aperblurb[line][i]); i++)
         {
-            display_sprite(line_start+8*i, 212+10*line,
-                PANEL_CHARS_W, PANEL_CHARS_CORRECTED_H, chars_texid[c-0x20]);
+            display_sprite((float)(line_start+8*i), (float)(212+10*line),
+                (float)PANEL_CHARS_W, (float)PANEL_CHARS_CORRECTED_H, chars_texid[c-0x20]);
         }
     }
 
@@ -1787,14 +1788,15 @@ void display_pause_screen()
         x = (j%2)*(PSP_SCR_WIDTH/2) + SPACER + x_shift[j%2] + 0.5f;
         y = (j/2)*(PSP_SCR_HEIGHT/2) + (PSP_SCR_HEIGHT/2) - SPACER + y_shift[j/2] + 0.5f;
         glDisable(GL_BLEND);	// textures won't appear on PSP without blend disabled (but works on Windows)
-        display_sprite(x, y, powerize(w), -powerize(h), paused_texid[j]);
+        display_sprite(x, y, (float)powerize((uint16_t)w),(float)-powerize((uint16_t)h), paused_texid[j]);
         glEnable(GL_BLEND);
 
         // Draw the border
         glDisable(GL_TEXTURE_2D);	// F...ing openGL a...oles!!! Why is it that as soon as you have textures
                                     // enabled, you cannot draw plain COLOURED primitives any longer?!?
                                     // took me days to figure this crap!!!
-        glColor3ub(pause_rgb[RED]*fade_value, pause_rgb[GREEN]*fade_value, pause_rgb[BLUE]*fade_value);
+        glColor3ub((GLubyte)(pause_rgb[RED]*fade_value), (GLubyte)(pause_rgb[GREEN]*fade_value),
+            (GLubyte)(pause_rgb[BLUE]*fade_value));
         glBegin(GL_LINE_STRIP);		// doesn't look like pspGL handles LINE_LOOP
             glVertex2f(x, y);
             glVertex2f(x+w, y);
