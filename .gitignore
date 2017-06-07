@@ -20,7 +20,8 @@
 *.zip
 *.7z
 colditz
-config.ini
+colditz.ini
 EBOOT.PBP
 Debug
 Release
+.amend

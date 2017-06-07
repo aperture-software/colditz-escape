@@ -21,8 +21,8 @@ Screenshots
 Installation
 ------------
 
- * Extract the 7z content into the relevant directory (`PSP/GAME/` on PSP, any location on Windows). It should create a `Colditz Escape/` directory there
- * Launch the game (`COLDITZ.EXE` on Windows).
+ * Extract the 7z content into the relevant directory (`PSP/GAME/` on PSP, any location on other platforms). It should create a `Colditz Escape/` directory there
+ * Launch the game (`COLDITZ.EXE` on Windows, `./colditz` on Linux).
 
 Please see the [FAQ](FAQ.md) for additional information.
 
@@ -39,14 +39,16 @@ Please see the [FAQ](FAQ.md) for additional information.
 Downloads
 ---------
 
-* [Windows executable](https://github.com/aperture-software/colditz-escape/releases/download/v1.0/Colditz_Escape_Windows.7z "Colditz Escape (Windows).7z"), v1.0
-* [PSP Executable](https://github.com/aperture-software/colditz-escape/releases/download/v1.0/Colditz_Escape_PSP.7z "Colditz Escape (PSP).7z"), v1.0
-* [Sourcecode](https://github.com/aperture-software/colditz-escape/archive/v1.0.tar.gz), v1.0 (Also accessible through [github](https://github.com/aperture-software/colditz-escape))
+* [Windows binaries](https://github.com/aperture-software/colditz-escape/releases/download/v1.1/Colditz_Escape_Windows.7z "Colditz Escape (Windows).7z"), v1.1
+* [Linux binaries (__x86_64__)](https://github.com/aperture-software/colditz-escape/releases/download/v1.1/Colditz_Escape_Linux.7z "Colditz Escape (Linux).7z"), v1.1
+* [PSP binaries](https://github.com/aperture-software/colditz-escape/releases/download/v1.1/Colditz_Escape_PSP.7z "Colditz Escape (PSP).7z"), v1.1
+* [Sourcecode](https://github.com/aperture-software/colditz-escape/archive/v1.1.tar.gz), v1.1 (Also accessible through [github](https://github.com/aperture-software/colditz-escape))
 * The original game's [Reverse Engineered disassembly](files/Reverse%20Engineering%20Analysis.7z) (if you are actually deranged enough to want to look at this stuff)
 
 History
 -------
 
+* v1.1   [2017.06.07]: Add Linux support (with major thanks to __picryott__) + overall codebase cleanup
 * v1.0   [2017.05.24]: Add XBox360 controller support, VSYNC and more shaders on Windows + fix various issues
 * v0.9.4 [2010.07.06]: Fixed memory leaks + various updates.
 * v0.9.3 [2009.11.23]: Minor bugfixes + new 2x GPU shader on Windows. Data files are now included in release.

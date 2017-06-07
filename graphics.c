@@ -1750,6 +1750,12 @@ void create_pause_screen()
 
 void display_pause_screen()
 {
+// FreeGLUT on Windows eats part of our top border - correct it
+#if defined(WIN32)
+#define FG_CORRECT 1
+#else
+#define FG_CORRECT 0
+#endif
     int i, j;
     static float x_shift[2] = {7.0f, -7.0f};
     static float y_shift[2] = {7.0f, -7.0f};
@@ -1801,8 +1807,8 @@ void display_pause_screen()
     glBegin(GL_TRIANGLE_FAN);
         glVertex2f(0, 0);
         glVertex2f(PSP_SCR_WIDTH, 0);
-        glVertex2f(PSP_SCR_WIDTH, y-h);
-        glVertex2f(0, y-h);
+        glVertex2f(PSP_SCR_WIDTH, y-h-FG_CORRECT);
+        glVertex2f(0, y-h-FG_CORRECT);
     glEnd();
 
     glBegin(GL_TRIANGLE_FAN);

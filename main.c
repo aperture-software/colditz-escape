@@ -127,7 +127,7 @@ uint8_t* rgbCells			= NULL;
 uint8_t* static_image_buffer = NULL;
 s_tex texture[NB_TEXTURES]	= TEXTURES;
 char* mod_name[NB_MODS]		= MOD_NAMES;
-const char confname[]		= "config.ini";
+const char confname[]		= "colditz.ini";
 #if defined(ANTI_TAMPERING_ENABLED)
 const uint8_t fmd5hash[NB_FILES][16] = FMD5HASHES;
 #endif
@@ -1740,7 +1740,7 @@ int main (int argc, char *argv[])
 
 //	remove(confname);
     if (!read_conf(confname))
-    {	// config.ini not found => try to create one
+    {	// config file not found => try to create one
         printb("'%s' not found. Creating a new one...\n", confname);
         fflush(stdout);
         if (!set_conf_defaults())

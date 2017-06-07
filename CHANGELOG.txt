@@ -1,3 +1,8 @@
+v1.1: 2017.06.07
+   Add Linux support (with major thanks to picryott)
+   Switch to FreeGLUT
+   Switch to a config.ini
+   Drop intro video & video playout support
 v1.0: 2017.05.24
    Fix an issue with doors not remaining open (with thanks to picryott)
    Fix wrong boundary check on some rooms (with thanks to picryott)
