@@ -24,13 +24,9 @@
 #pragma once
 
 #include <stdbool.h>
-#include "iniparser.h"
-
-#if defined(PSP)
 #include <GL/glut.h>
-#else
-#include "GL/freeglut.h"
-#endif
+
+#include "iniparser.h"
 
 #ifdef	__cplusplus
 extern "C" {

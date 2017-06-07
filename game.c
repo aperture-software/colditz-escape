@@ -30,10 +30,7 @@
 #if defined(WIN32)
 #include <windows.h>
 #elif defined(PSP)
-#include <stdarg.h>
-#include <pspkernel.h>
-#include <pspdebug.h>
-#include "psp/printf.h"
+#include "psp/setup.h"
 #endif
 
 #include "low-level.h"

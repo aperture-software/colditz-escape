@@ -33,11 +33,15 @@ extern "C" {
 #if defined(WIN32)
 #define msleep(msecs) Sleep(msecs)
 #include <windows.h>
+#include <mmsystem.h>
 static __inline uint64_t mtime(void)
 {	// Because MS uses a 32 bit value, this counter will reset every 49 days or so
-	// Hope you won't be playing the game while it resets...
-	return timeGetTime();
+	// Hope you won't be playing the game while it resets... Also, do NOT be tempted
+	// to use GetTickCount64() here as it only gets updated about once in 15ms (!).
+	return (uint64_t) timeGetTime();
 }
+#define stat _stat
+#define getstat _stat
 #elif defined(PSP)
 #include <pspthreadman.h>
 #include <psprtc.h>
@@ -49,6 +53,8 @@ static __inline uint64_t mtime(void)
 	sceRtcGetCurrentTick(&current_tick);
 	return current_tick/1000;
 }
+#define stat SceIoStat
+#define getstat sceIoGetstat
 #elif defined(__linux__)
 #include <unistd.h>
 #include <time.h>
@@ -59,6 +65,7 @@ static __inline uint64_t mtime(void)
 	clock_gettime(CLOCK_MONOTONIC, &tp); //TODO : check for returned value
 	return ((uint64_t)tp.tv_sec)*1000LL + ((uint64_t)tp.tv_nsec)/1000000LL;
 }
+#define getstat stat
 #endif
 
 // Some fixes for windows

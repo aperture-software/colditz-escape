@@ -28,14 +28,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#if defined(PSP)
-#include <psptypes.h>
-#include "psp/printf.h"
-#endif
 
 #include "colditz.h"
 #include "low-level.h"
-
 
 // Some global variables
 int underflow_flag = 0;

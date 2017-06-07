@@ -20,6 +20,8 @@
  *  setup.h: PSP callbacks initialization
  *  ---------------------------------------------------------------------------
  */
+#include <pspkernel.h>
+
 #pragma once
 
 #ifdef	__cplusplus

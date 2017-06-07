@@ -39,13 +39,7 @@
 // Prevents a potential "LINK : fatal error LNK1104: cannot open file 'libc.lib'" error with Glew
 #pragma comment(linker, "/NODEFAULTLIB:libc.lib")
 #elif defined(PSP)
-#include <pspdebug.h>
-#include <pspdisplay.h>
-#include <pspctrl.h>
 #include <psppower.h>
-#include <pspgu.h>
-#include <psprtc.h>
-#include <pspaudiolib.h>
 #include "psp/setup.h"
 #include "psp/printf.h"
 #endif

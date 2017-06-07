@@ -28,43 +28,22 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
-#if defined(WIN32)
-#include <windows.h>
-// Well, since Microsoft PURPOSEFULLY refuse to update their '96 gl.h file...
-#define GLEW_STATIC
-#include "GL/glew.h"		// ...we'll use Glew for the OpenGL shader extension
-#include "GL/wglew.h"
-#elif defined(PSP)
-#include <stdarg.h>
-#include <pspkernel.h>
-#include <pspdebug.h>
-#include <pspgu.h>
-#include <GL/glut.h>
-#include <pspiofilemgr.h>
-#include "psp/printf.h"
-#elif defined(__linux__)
-#include "GL/glew.h"
-#include "GL/freeglut.h"
+#if defined(PSP)
+#include "psp/setup.h"
 #endif
+
+#define GLEW_STATIC
+// On non-PSP systems, we'll use Glew for the OpenGL shader extension
+#if !defined(PSP)
+#include "GL/glew.h"
+#endif
+#include <GL/glut.h>
 
 #include "low-level.h"
 #include "colditz.h"
 #include "conf.h"
 #include "graphics.h"
 #include "game.h"
-
-// For the savefile modification times
-#if defined(WIN32)
-#define stat    _stat
-#define getstat _stat
-// The timestamps returned in the stat structure are WRONG! on PSP
-// so we'll have to use the direct SCE functions
-#elif defined(PSP)
-#define stat    SceIoStat
-#define getstat sceIoGetstat
-#elif defined(__linux__)
-#define getstat stat
-#endif
 
 // variables common to game & graphics
 extern uint8_t  remove_props[CMP_MAP_WIDTH][CMP_MAP_HEIGHT];

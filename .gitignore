@@ -4,7 +4,6 @@
 *.elf
 *.exe
 *.idb
-*.ini
 *.ipch
 *.lib
 *.ncb
@@ -21,7 +20,7 @@
 *.zip
 *.7z
 colditz
-config.xml
+config.ini
 EBOOT.PBP
 Debug
 Release
