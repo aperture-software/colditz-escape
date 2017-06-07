@@ -677,23 +677,22 @@ static line_status iniparser_line(
         strstrip(section);
         strlwc(section, section, len);
         sta = LINE_SECTION ;
-    } else if (sscanf (line, "%[^=] = \"%[^\"]\"", key, value) == 2
-           ||  sscanf (line, "%[^=] = '%[^\']'",   key, value) == 2) {
-        /* Usual key=value with quotes, with or without comments */
+    } else if (sscanf (line, "%[^=] = \"%[^\"]\"", key, value) == 2) {
+        /* Usual key=value with double quotes, with or without comments */
         strstrip(key);
         strlwc(key, key, len);
-        /* Don't strip spaces from values surrounded with quotes */
+        /* Don't strip spaces from values surrounded with double quotes */
         sta = LINE_VALUE ;
     } else if (sscanf (line, "%[^=] = %[^;#]", key, value) == 2) {
-        /* Usual key=value without quotes, with or without comments */
+        /* Usual key=value without double quotes, with or without comments */
         strstrip(key);
         strlwc(key, key, len);
         strstrip(value);
         /*
-         * sscanf cannot handle '' or "" as empty values
+         * sscanf cannot handle "" as empty values
          * this is done here
          */
-        if (!strcmp(value, "\"\"") || (!strcmp(value, "''"))) {
+        if (!strcmp(value, "\"\"")) {
             value[0]=0 ;
         }
         sta = LINE_VALUE ;

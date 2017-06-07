@@ -1752,6 +1752,7 @@ int main (int argc, char *argv[])
             perr("Could not create '%s'\n", confname);
         }
     }
+//  dictionary_dump(config, stdout);
     if (opt_original_mode)
     {
         SET_CONFIG_BOOLEAN(options, enhanced_guards, false);
