@@ -1967,7 +1967,7 @@ bool load_iff(s_tex* tex)
                             if (bytecount < 128)
                             {
                                 bytecount++;
-                                fread(&lbuffer[plane][i], 1, bytecount, fd);
+                                IGNORE_RETVAL(fread(&lbuffer[plane][i], 1, bytecount, fd));
                                 i += bytecount;
                             }
                             else if (bytecount > 128)
@@ -1984,7 +1984,7 @@ bool load_iff(s_tex* tex)
                     }
                     else
                         // Uncompressed
-                        fread(&lbuffer[plane][0], 1, bytes_per_line, fd);
+                        IGNORE_RETVAL(fread(&lbuffer[plane][0], 1, bytes_per_line, fd));
                 }
 
                 // OK, now we have our <nplanes> line buffers

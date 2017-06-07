@@ -109,6 +109,12 @@ static __inline void psp_any_key()
 #endif
 #define ERR_EXIT		do {if (fd!=NULL) fclose(fd); fflush(stdout); FATAL;} while(0)
 
+#if (defined(__GNUC__) && (__GNUC__ >= 4) && (__GNUC_MINOR__ >= 4))
+# define IGNORE_RETVAL(x) (__extension__ ({ __typeof__ (x) __x = (x); (void) __x; }))
+#else
+# define IGNORE_RETVAL(x) ((void) (x))
+#endif
+
 extern bool opt_verbose;
 extern bool opt_debug;
 
@@ -155,7 +161,7 @@ static __inline uint32_t freadlong(FILE* f)
 	uint32_t r = 0;
 	for (i=0; i<4; i++)
 	{
-		fread(&b, 1, 1, f);
+		IGNORE_RETVAL(fread(&b, 1, 1, f));
 		r <<= 8;
 		r |= b;
 	}
@@ -187,7 +193,7 @@ static __inline uint16_t freadword(FILE* f)
 	uint16_t r = 0;
 	for (i=0; i<2; i++)
 	{
-		fread(&b, 1, 1, f);
+		IGNORE_RETVAL(fread(&b, 1, 1, f));
 		r <<= 8;
 		r |= b;
 	}
@@ -208,7 +214,7 @@ static __inline uint8_t readbyte(uint8_t* buffer, uint32_t addr)
 static __inline uint8_t freadbyte(FILE* f)
 {
 	uint8_t b = 0;
-	fread(&b, 1, 1, f);
+	IGNORE_RETVAL(fread(&b, 1, 1, f));
 	return b;
 }
 

@@ -59,7 +59,6 @@
 #ifndef SAFE_FREE
 #define SAFE_FREE(p)            { if(p) { free(p); (p)=NULL; } }
 #endif
-#define IGNORE_RETVAL(expr)     do { (void)(expr); } while(0)
 
 // Max number of voices (aka "channels") we can handle
 #define NB_VOICES           4

@@ -363,7 +363,7 @@ bool mod_init(char *filename)
         data = (unsigned char *) malloc(size + 8);
         if (data != NULL) {	// Read file in
             memset(data, 0, size + 8);
-            fread(data, 1, size, fd);
+            IGNORE_RETVAL(fread(data, 1, size, fd));
         } else {
             fclose(fd);
             return false;

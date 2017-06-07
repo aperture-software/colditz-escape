@@ -35,8 +35,6 @@ extern "C" {
 #define CHEATMODE_ENABLED
 #define ANTI_TAMPERING_ENABLED
 
-#define IGNORE_RETVAL(expr) do { (void)(expr); } while(0)
-
 /*
  *	LIST OF ABREVIATIONS:
  *	CRM = Colditz Room Maps => data used for inside rooms
@@ -49,7 +47,7 @@ extern "C" {
  */
 
 #define APPNAME					"Colditz Escape"
-#define VERSION					"1.0.117"
+#define VERSION					"1.0.118"
 
 /*
  *	Graphics

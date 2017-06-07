@@ -17,12 +17,12 @@ LDFLAGS        += $(LIBDIRS) $(LIBS)
 .o: %.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
-all: $(DEPS) $(TARGET)
+all: $(TARGET)
 
 $(DEPS):
 	$(MAKE) -Cfreeglut libfreeglut.a
 
-$(TARGET): $(OBJS)
+$(TARGET): $(DEPS) $(OBJS)
 	$(LD) -o $(TARGET) $(OBJS) $(LDFLAGS)
 
 clean:

@@ -542,7 +542,7 @@ bool audio_backend_stop_voice(int voice)
         }
         else
         {
-            write(snd_pcm_poll_thread_data[voice].fd, &val, sizeof(val));
+            IGNORE_RETVAL(write(snd_pcm_poll_thread_data[voice].fd, &val, sizeof(val)));
             pthread_join(snd_pcm_poll_thread_id[voice], NULL);
         }
     }
