@@ -38,11 +38,11 @@ uint8_t key_default[KEY_MAX] = {
     SPECIAL_KEY_F1, SPECIAL_KEY_F2, SPECIAL_KEY_F3, SPECIAL_KEY_F4 };
 #else
 uint8_t key_default[KEY_MAX] = {
-    'x', 0x00, 'a', 'o',
-    's', 'q', 'd',
+    'x', 'o', 'a', 'o',
+    's', 'd', 'q',
     0x00, 0x00, 0x00, 0x00,
-    SPECIAL_LEFT_MOUSE_BUTTON,  SPECIAL_RIGHT_MOUSE_BUTTON, SPECIAL_KEY_UP, SPECIAL_KEY_DOWN,
-    SPECIAL_KEY_LEFT, SPECIAL_KEY_RIGHT,
+    SPECIAL_KEY_LEFT, SPECIAL_KEY_RIGHT, SPECIAL_KEY_UP, SPECIAL_KEY_DOWN,
+    SPECIAL_LEFT_MOUSE_BUTTON, SPECIAL_RIGHT_MOUSE_BUTTON,
     0x00, 0x00, 0x00, 0x00 };
 #endif
 
