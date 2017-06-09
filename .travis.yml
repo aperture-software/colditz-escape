@@ -23,7 +23,8 @@ addons:
     - libasound-dev
 
 before_install:
-  - eval "${MATRIX_EVAL}"
+  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install glew p7zip; fi
 
 script:
   - make release
+  - 7z a "Colditz_Escape_${TRAVIS_OS_NAME}.7z" "Colditz Escape"

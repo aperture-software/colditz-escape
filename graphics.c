@@ -34,7 +34,7 @@
 
 #define GLEW_STATIC
 // On non-PSP systems, we'll use Glew for the OpenGL shader extension
-#if !defined(PSP) && !defined(__APPLE__)
+#if !defined(PSP)
 #include "GL/glew.h"
 #endif
 #include <GL/glut.h>
@@ -183,7 +183,7 @@ static const uint16_t props_tile [0x213] = {
 /*
  * OpenGL 2.0 Shader functions
  */
-#if !defined(PSP) && !defined(__APPLE__)
+#if !defined(PSP)
 // Print GLSL compilation log errors
 void printLog(GLuint obj)
 {

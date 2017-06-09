@@ -8,7 +8,7 @@ LD              = gcc
 CFLAGS         += -I. -O3 -Wall -Wshadow -Wundef -Wunused
 CXXFLAGS       += $(CFLAGS) -fno-exceptions -fno-rtti
 
-LIBS           += -lfreeglut -lX11 -lXi -lXmu -lXext -lGL -lGLU
+LIBS           += -lfreeglut -lX11 -lXi -lXmu -lXext -lGL -lGLU -lGLEW
 LIBDIRS        += -L./freeglut -L/opt/X11/lib
 
 LDFLAGS        += $(LIBDIRS) $(LIBS)

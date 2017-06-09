@@ -109,7 +109,7 @@ bool set_conf_defaults(void)
     iniparser_set(config, "options:picture_corners", "1");
     iniparser_set(config, "options:joy_deadzone", "450");
     iniparser_set(config, "options:original_mode", "0");
-#if defined(PSP) || defined(__APPLE__)
+#if defined(PSP)
     iniparser_set(config, "options:gl_smoothing", "0");
 #else
     iniparser_set(config, "options:gl_smoothing", "5");

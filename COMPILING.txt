@@ -25,13 +25,19 @@ LINUX (gcc)
 
 Make sure you have gcc and the following packages installed:
   libgl1-mesa-dev libglu1-mesa-dev libxmu-dev libxi-dev libglew-dev libasound-dev
-Run 'make release'
+Then run:
+  make release
 
 OSX (Xcode)
 ===========
 
-You have XCode and XQuartz (https://www.xquartz.org/) installed
-Run 'make release'
+You should have XCode, XQuartz (which you can download from https://www.xquartz.org/)
+and GLEW installed.
+Note that if needed, you can install GLEW by running the following:
+  ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)" < /dev/null 2> /dev/null
+  brew install glew
+Once you have the prerequisites, simply run:
+  make release
 
 PSP (PSP SDK):
 ==============
