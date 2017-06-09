@@ -26,7 +26,6 @@ s/^[ \t]*PRODUCTVERSION[ \t]*\([0-9]*\),\([0-9]*\),[0-9]*,\(.*\)/ PRODUCTVERSION
 s/^\([ \t]*\)VALUE[ \t]*"FileVersion",[ \t]*"\(.*\)\..*"/\1VALUE "FileVersion", "\2.@@MICRO@@"/
 s/^\([ \t]*\)VALUE[ \t]*"ProductVersion",[ \t]*"\(.*\)\..*"/\1VALUE "ProductVersion", "\2.@@MICRO@@"/
 s/^#define VERSION\(.*\)"\(.*\)\..*".*/#define VERSION\1"\2.@@MICRO@@"/
-s/^PSP_EBOOT_TITLE\(.*\)v\([0-9]*\).\([0-9]*\).[0-9]*/PSP_EBOOT_TITLE\1v\2.\3.@@MICRO@@/
 _EOF
 
 # First run sed to substitute our variable in the sed command file
@@ -35,6 +34,5 @@ sed -i -e "s/@@MICRO@@/$MICRO/g" cmd.sed
 # Run sed to update the nano version, and add the modified files
 sed -b -i -f cmd.sed colditz.rc
 sed -i -f cmd.sed colditz.h
-sed -i -f cmd.sed Makefile.psp
-git add colditz.rc colditz.h Makefile.psp
+git add colditz.rc colditz.h
 rm cmd.sed

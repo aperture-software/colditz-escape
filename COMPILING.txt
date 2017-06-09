@@ -54,6 +54,8 @@ src/
         +--- audio_backend.c     ALSA-based audio backend implementation
   +--- psp/                      [PSP specific sourcefiles]
         +--- audio_backend.c     PSP audio backend implementation
+        +--- icon.png            PSP EBOOT icon
+        +--- pic1.png            PSP EBOOT screen
         +--- printf.h            Custom onscreen printf for the PSP
         +--- setup.c             Standard PSP callbacks initialization
         +--- setup.h                 "           "           "
@@ -80,7 +82,6 @@ src/
   +--- gettext.h                     "           "           "
   +--- graphics.c                Game Graphics runtime subroutines
   +--- graphics.h                Game Graphics runtime header
-  +--- icon1.png                 PSP EBOOT icon
   +--- iniparser.c               Ini file handling, taken from:
   +--- iniparser.h                 https://github.com/ndevilla/iniparser
   +--- LICENSING.txt             Licensing notes
