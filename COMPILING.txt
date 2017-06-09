@@ -27,6 +27,12 @@ Make sure you have gcc and the following packages installed:
   libgl1-mesa-dev libglu1-mesa-dev libxmu-dev libxi-dev libglew-dev libasound-dev
 Run 'make release'
 
+OSX (Xcode)
+===========
+
+You have XCode and XQuartz (https://www.xquartz.org/) installed
+Run 'make release'
+
 PSP (PSP SDK):
 ==============
 
@@ -52,6 +58,8 @@ src/
         +--- glew32s.lib         Static win32 version of the Glew library (v1.5.1)
   +--- linux/                    [Linux specific sourcefiles]
         +--- audio_backend.c     ALSA-based audio backend implementation
+  +--- osx/                      [OSX specific sourcefiles]
+        +--- audio_backend.c     Core Audio backend implementation
   +--- psp/                      [PSP specific sourcefiles]
         +--- audio_backend.c     PSP audio backend implementation
         +--- icon.png            PSP EBOOT icon
@@ -90,6 +98,7 @@ src/
   +--- main.c                    Top level program, including GLUT functions
   +--- Makefile                  Dispatch Makefile
   +--- Makefile.linux            Linux Makefile
+  +--- Makefile.osx              OSX Makefile
   +--- Makefile.psp              PSP Makefile
   +--- md5.c                     MD5 checksum functions
   +--- md5.h                         "           "   

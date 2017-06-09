@@ -26,6 +26,7 @@
 extern "C" {
 #endif
 
+#include <stdio.h>
 #include <stdint.h>
 #include <stdbool.h>
 
@@ -64,6 +65,18 @@ static __inline uint64_t mtime(void)
 	struct timespec tp;
 	clock_gettime(CLOCK_MONOTONIC, &tp); //TODO : check for returned value
 	return ((uint64_t)tp.tv_sec)*1000LL + ((uint64_t)tp.tv_nsec)/1000000LL;
+}
+#define getstat stat
+#elif defined(__APPLE__)
+#include <unistd.h>
+#include <time.h>
+#include <sys/time.h>
+#define msleep(msecs) usleep(1000*msecs)
+static __inline uint64_t mtime(void)
+{
+	struct timeval t0;
+	gettimeofday(&t0, 0);
+	return (t0.tv_sec * 1000ULL) + (t0.tv_usec / 1000ULL);
 }
 #define getstat stat
 #endif

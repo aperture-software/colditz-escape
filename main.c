@@ -1760,7 +1760,7 @@ int main (int argc, char *argv[])
         enabled_menus[MAIN_MENU][MENU_SAVE] = 0;
         enabled_menus[MAIN_MENU][MENU_LOAD] = 0;
     }
-#if !defined(PSP)
+#if !defined(PSP) && !defined(__APPLE__)
     opt_has_shaders = init_shaders();
     if (!opt_has_shaders)
         SET_CONFIG_BOOLEAN(options, gl_smoothing, 0);

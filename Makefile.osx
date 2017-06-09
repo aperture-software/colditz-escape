@@ -1,0 +1,34 @@
+TARGET          = colditz
+OBJS            = conf.o dictionary.o game.o graphics.o getopt.o iniparser.o low-level.o main.o md5.o soundplayer.o osx/audio_backend.o
+DEPS            = glut/libglut.a
+
+CC              = gcc
+LD              = gcc
+
+CFLAGS         += -I. -O3 -Wall -Wshadow -Wundef -Wunused
+CXXFLAGS       += $(CFLAGS) -fno-exceptions -fno-rtti
+
+LIBS           += -lfreeglut -lX11 -lXi -lXmu -lXext -lGL -lGLU
+LIBDIRS        += -L./freeglut -L/opt/X11/lib
+
+LDFLAGS        += $(LIBDIRS) $(LIBS)
+
+.o: %.c
+	$(CC) $(CFLAGS) -c $< -o $@
+
+all: $(TARGET)
+
+$(DEPS):
+	$(MAKE) -Cfreeglut libfreeglut.a
+
+$(TARGET): $(DEPS) $(OBJS)
+	$(LD) -o $(TARGET) $(OBJS) $(LDFLAGS)
+
+clean:
+	$(RM) $(OBJS) $(TARGET)
+
+superclean: clean
+	$(MAKE) -Cfreeglut clean
+
+release: all
+	cp colditz "Colditz Escape"

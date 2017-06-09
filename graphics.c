@@ -34,7 +34,7 @@
 
 #define GLEW_STATIC
 // On non-PSP systems, we'll use Glew for the OpenGL shader extension
-#if !defined(PSP)
+#if !defined(PSP) && !defined(__APPLE__)
 #include "GL/glew.h"
 #endif
 #include <GL/glut.h>
@@ -95,8 +95,9 @@ bool  enabled_menus[NB_MENUS][NB_MENU_ITEMS] = {
 #if defined(PSP)
     // Options like linear interprolation and fullscreen don't make sense on PSP
     { 0, 0, 0, 1, 0, 0, 0, 1, 1, 1 },
-#elif defined (__linux__)
-	{ 0, 0, 0, 1, 1, 0, 1, 1, 1, 1 },
+#elif defined (__linux__) || defined (__APPLE__)
+    // No VSYNC on Linux or OSX
+    { 0, 0, 0, 1, 1, 0, 1, 1, 1, 1 },
 #else
     { 0, 0, 0, 1, 1, 1, 1, 1, 1, 1 },
 #endif
@@ -182,7 +183,7 @@ static const uint16_t props_tile [0x213] = {
 /*
  * OpenGL 2.0 Shader functions
  */
-#if !defined(PSP)
+#if !defined(PSP) && !defined(__APPLE__)
 // Print GLSL compilation log errors
 void printLog(GLuint obj)
 {

@@ -2,7 +2,7 @@ Colditz Escape
 ==============
 
 [![Windows/PSP Build status](https://ci.appveyor.com/api/projects/status/sjm9b9rqjlh1pbqa?svg=true)](https://ci.appveyor.com/project/aperture-software/colditz-escape)
-[![Linux Build Status](https://travis-ci.org/aperture-software/colditz-escape.svg?branch=master)](https://travis-ci.org/aperture-software/colditz-escape)
+[![Linux/OSX Build Status](https://travis-ci.org/aperture-software/colditz-escape.svg?branch=master)](https://travis-ci.org/aperture-software/colditz-escape)
 [![Licence](https://img.shields.io/badge/license-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0.en.html)
 
 ![Colditz Escape Logo](docs/pics/icon-256.png)
@@ -24,7 +24,7 @@ Below are self contained game archives, based on the very latest version of the 
 
 * [__Windows__](https://ci.appveyor.com/api/projects/aperture-software/colditz-escape/artifacts/Colditz_Escape_Windows.7z?job=Environment%3A%20WINDOWS%3DRelease "Colditz Escape (Windows).7z")
 * [PSP](https://ci.appveyor.com/api/projects/aperture-software/colditz-escape/artifacts/Colditz_Escape_PSP.7z?job=Environment%3A%20PSP%3DRelease "Colditz Escape (PSP).7z") (Extract to `PSP\GAME\` on Memory Stick)
-* Linux users are encouraged to build from source, by cloning this repository uing `git`, or using the [latest x86_64 binary release](https://github.com/aperture-software/colditz-escape/releases/download/v1.1/Colditz_Escape_Linux.7z)
+* Linux and OSX: Unfortunately, Travis CI does not provide the ability to access the build artifacts from their servers... But you can still build from source (`make release`), by cloning this repository using `git`.
 
 Features that might be of interest to you within this source
 ------------------------------------------------------------

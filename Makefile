@@ -10,3 +10,6 @@ endif
 ifeq ($(uname_S), Linux)
     include Makefile.linux
 endif
+ifeq ($(uname_S), Darwin)
+    include Makefile.osx
+endif
