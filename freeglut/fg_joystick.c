@@ -4,6 +4,7 @@
  * Joystick handling code
  *
  * Copyright (c) 1999-2000 Pawel W. Olszta. All Rights Reserved.
+ * Copyright (c) 2017 Aperture Software
  * Written by Steve Baker, <sjbaker1@airmail.net>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
@@ -276,9 +277,9 @@ static int fghJoystickInitializeHID(struct os_specific_s *os,
 /*
  * Functions associated with the "jsJoystick" class in PLIB
  */
-#if TARGET_HOST_MAC_OSX
+#if defined(MAC_OSX_JOYSTICK_SUPPORT)
 #define K_NUM_DEVICES   32
-int numDevices;
+int numDevices = -1;
 io_object_t ioDevices[K_NUM_DEVICES];
 
 static void fghJoystickFindDevices ( SFG_Joystick* joy, mach_port_t );
@@ -286,7 +287,7 @@ static CFDictionaryRef fghJoystickGetCFProperties ( SFG_Joystick* joy, io_object
 
 static void fghJoystickEnumerateElements ( SFG_Joystick* joy, CFTypeRef element );
 /* callback for CFArrayApply */
-static void fghJoystickElementEnumerator ( SFG_Joystick* joy, void *element, void* vjs );
+static void fghJoystickElementEnumerator ( const void *element, void* vjs );
 
 static void fghJoystickAddAxisElement ( SFG_Joystick* joy, CFDictionaryRef axis );
 static void fghJoystickAddButtonElement ( SFG_Joystick* joy, CFDictionaryRef button );
@@ -396,11 +397,11 @@ static void fghJoystickRead( SFG_Joystick* joy, int* buttons, float* axes )
  */
 
 
-#if TARGET_HOST_MAC_OSX
+#if defined(MAC_OSX_JOYSTICK_SUPPORT)
 /** open the IOKit connection, enumerate all the HID devices, add their
 interface references to the static array. We then use the array index
 as the device number when we come to open() the joystick. */
-static int fghJoystickFindDevices ( SFG_Joystick *joy, mach_port_t masterPort )
+static void fghJoystickFindDevices ( SFG_Joystick *joy, mach_port_t masterPort )
 {
     CFMutableDictionaryRef hidMatch = NULL;
     IOReturn rv = kIOReturnSuccess;
@@ -420,7 +421,7 @@ static int fghJoystickFindDevices ( SFG_Joystick *joy, mach_port_t masterPort )
     /* iterate */
     while ((ioDev = IOIteratorNext(hidIterator))) {
         /* filter out keyboard and mouse devices */
-        CFDictionaryRef properties = getCFProperties(ioDev);
+        CFDictionaryRef properties = fghJoystickGetCFProperties(joy, ioDev);
         long usage, page;
 
         CFTypeRef refPage = CFDictionaryGetValue (properties, CFSTR(kIOHIDPrimaryUsagePageKey));
@@ -433,7 +434,7 @@ static int fghJoystickFindDevices ( SFG_Joystick *joy, mach_port_t masterPort )
                             (usage == kHIDUsage_GD_Joystick)
                          || (usage == kHIDUsage_GD_GamePad)
                          || (usage == kHIDUsage_GD_MultiAxisController)
-                         || (usage == kHIDUsage_GD_Hatswitch) /* last two necessary ? */
+                         || (usage == kHIDUsage_GD_Hatswitch) ) )/* last two necessary ? */
             /* add it to the array */
             ioDevices[numDevices++] = ioDev;
     }
@@ -477,63 +478,109 @@ static CFDictionaryRef fghJoystickGetCFProperties ( SFG_Joystick *joy, io_object
     return cfProperties;
 }
 
-static void fghJoystickElementEnumerator ( SFG_Joystick *joy, void *element, void* vjs )
+static void fghJoystickElementEnumerator ( const void *element, void* vjs )
 {
-      if (CFGetTypeID((CFTypeRef) element) != CFDictionaryGetTypeID()) {
-            fgError ( "%s", "element enumerator passed non-dictionary value");
-            return;
+    SFG_Joystick *joy = (SFG_Joystick*) vjs;
+    long type;
+    CFIndex num_keys;
+    CFNumberRef ref;
+
+    if (CFGetTypeID((CFTypeRef) element) != CFDictionaryGetTypeID()) {
+        fgError ( "%s", "element enumerator passed non-dictionary value");
+        return;
     }
 
-      static_cast<jsJoystick*>(vjs)->parseElement ( (CFDictionaryRef) element );
+    /* Sanity checks */
+    ref = CFDictionaryGetValue((CFDictionaryRef)element, CFSTR(kIOHIDElementTypeKey));
+    if ( (ref == 0) || (CFGetTypeID(ref) != CFNumberGetTypeID()) ) {
+        fgError ( "%s", "cannot locate HID Type in element enumerator");
+        return;
+    }
+
+    /* Read the element type */
+    CFNumberGetValue((CFNumberRef)ref, kCFNumberLongType, &type);
+    switch(type) {
+    case kIOHIDElementTypeCollection:
+        ref = CFDictionaryGetValue((CFDictionaryRef)element, CFSTR("Elements"));
+        if (ref == 0) {
+            fgWarning ( "%s", "Empty HID collection ignored");
+            return;
+        }
+        fghJoystickEnumerateElements(joy, ref);
+        return;
+    case kIOHIDElementTypeInput_Misc:
+    case kIOHIDElementTypeInput_Axis:
+        fghJoystickAddAxisElement(joy, element);
+        return;
+    case kIOHIDElementTypeInput_Button:
+        fghJoystickAddButtonElement(joy, element);
+        return;
+    default:
+        fgWarning ( "%s", "Unsupported HID element");
+        return;
+    }
+
+//      static_cast<jsJoystick*>(vjs)->parseElement ( (CFDictionaryRef) element );
 }
 
 /** element enumerator function : pass NULL for top-level*/
 static void fghJoystickEnumerateElements ( SFG_Joystick *joy, CFTypeRef element )
 {
-      FREEGLUT_INTERNAL_ERROR_EXIT( (CFGetTypeID(element) == CFArrayGetTypeID(),
-                                    "Joystick element type mismatch",
-                                    "fghJoystickEnumerateElements" );
+    FREEGLUT_INTERNAL_ERROR_EXIT( (CFGetTypeID(element) == CFArrayGetTypeID()),
+                                  "Joystick element type mismatch",
+                                  "fghJoystickEnumerateElements" );
 
-      CFRange range = {0, CFArrayGetCount ((CFArrayRef)element)};
-      CFArrayApplyFunction((CFArrayRef) element, range,
-            &fghJoystickElementEnumerator, joy );
+    CFRange range = {0, CFArrayGetCount ((CFArrayRef)element)};
+    CFArrayApplyFunction((CFArrayRef) element, range,
+          &fghJoystickElementEnumerator, joy );
 }
 
 static void fghJoystickAddAxisElement ( SFG_Joystick *joy, CFDictionaryRef axis )
 {
-    long cookie, lmin, lmax;
+    SInt32 cookie, lmin, lmax;
     int index = joy->num_axes++;
+
+//  CFShow(axis);
 
     CFNumberGetValue ((CFNumberRef)
         CFDictionaryGetValue ( axis, CFSTR(kIOHIDElementCookieKey) ),
-        kCFNumberLongType, &cookie);
+        kCFNumberSInt32Type, &cookie);
 
     joy->pJoystick.axisCookies[index] = (IOHIDElementCookie) cookie;
 
     CFNumberGetValue ((CFNumberRef)
         CFDictionaryGetValue ( axis, CFSTR(kIOHIDElementMinKey) ),
-        kCFNumberLongType, &lmin);
+        kCFNumberSInt32Type, &lmin);
 
     CFNumberGetValue ((CFNumberRef)
         CFDictionaryGetValue ( axis, CFSTR(kIOHIDElementMaxKey) ),
-        kCFNumberLongType, &lmax);
+        kCFNumberSInt32Type, &lmax);
 
-    joy->min[index] = lmin;
-    joy->max[index] = lmax;
+    joy->min[index] = (float)lmin;
+    joy->max[index] = (float)lmax;
     joy->dead_band[index] = 0.0;
     joy->saturate[index] = 1.0;
     joy->center[index] = (lmax + lmin) * 0.5;
+
+    /* Flag this device as usable since we have at least one axis */
+    joy->error = GL_FALSE;
 }
 
 static void fghJoystickAddButtonElement ( SFG_Joystick *joy, CFDictionaryRef button )
 {
-    long cookie;
+    SInt32 cookie;
+
+//  CFShow(button);
+
     CFNumberGetValue ((CFNumberRef)
             CFDictionaryGetValue ( button, CFSTR(kIOHIDElementCookieKey) ),
-            kCFNumberLongType, &cookie);
+            kCFNumberSInt32Type, &cookie);
 
-    joy->pJoystick.buttonCookies[num_buttons++] = (IOHIDElementCookie) cookie;
+    joy->pJoystick.buttonCookies[joy->num_buttons++] = (IOHIDElementCookie) cookie;
     /* anything else for buttons? */
+
+    /* Flag this device as usable since we have at least one button */
+    joy->error = GL_FALSE;
 }
 
 static void fghJoystickAddHatElement ( SFG_Joystick *joy, CFDictionaryRef button )
@@ -701,7 +748,7 @@ void fgPlatformJoystickClose ( int ident )
 }
 #endif
 
-#if TARGET_HOST_MAC_OSX
+#if defined(MAC_OSX_JOYSTICK_SUPPORT)
 void fgPlatformJoystickRawRead( SFG_Joystick* joy, int* buttons, float* axes )
 {
     int i;
@@ -763,7 +810,7 @@ void fgPlatformJoystickOpen( SFG_Joystick* joy )
     pluginResult = ( *plugin )->QueryInterface(
         plugin,
         CFUUIDGetUUIDBytes(kIOHIDDeviceInterfaceID),
-        &( LPVOID )joy->pJoystick.hidDev
+        &joy->pJoystick.hidDev
     );
 
     if( pluginResult != S_OK )
@@ -781,12 +828,12 @@ void fgPlatformJoystickOpen( SFG_Joystick* joy )
         return;
     }
 
-    props = getCFProperties( ioDevices[ joy->id ] );
+    props = fghJoystickGetCFProperties( joy, ioDevices[ joy->id ] );
 
     /* recursively enumerate all the bits */
-    CFTypeRef topLevelElement =
+    topLevelElement =
         CFDictionaryGetValue( props, CFSTR( kIOHIDElementKey ) );
-    enumerateElements( topLevelElement );
+    fghJoystickEnumerateElements( joy, topLevelElement );
 
     CFRelease( props );
 }
@@ -794,6 +841,7 @@ void fgPlatformJoystickOpen( SFG_Joystick* joy )
 
 void fgPlatformJoystickInit( SFG_Joystick *fgJoystick[], int ident )
 {
+    char name[128];
     fgJoystick[ ident ]->id = ident;
     fgJoystick[ ident ]->error = GL_FALSE;
     fgJoystick[ ident ]->num_axes = 0;
@@ -811,7 +859,7 @@ void fgPlatformJoystickInit( SFG_Joystick *fgJoystick[], int ident )
             fgWarning( "error getting master Mach port" );
             return;
         }
-        fghJoystickFindDevices( masterPort );
+        fghJoystickFindDevices( fgJoystick[ ident], masterPort );
     }
 
     if ( ident >= numDevices )
@@ -821,7 +869,7 @@ void fgPlatformJoystickInit( SFG_Joystick *fgJoystick[], int ident )
     }
 
     /* get the name now too */
-    CFDictionaryRef properties = getCFProperties( ioDevices[ ident ] );
+    CFDictionaryRef properties = fghJoystickGetCFProperties( fgJoystick[ ident ], ioDevices[ ident ] );
     CFTypeRef ref = CFDictionaryGetValue( properties,
                                           CFSTR( kIOHIDProductKey ) );
     if (!ref)
@@ -879,7 +927,7 @@ static void fghJoystickInit( int ident )
     fgJoystick[ ident ]->num_axes = fgJoystick[ ident ]->num_buttons = 0;
     fgJoystick[ ident ]->error = GL_TRUE;
 
-	fgPlatformJoystickInit( fgJoystick, ident );
+    fgPlatformJoystickInit( fgJoystick, ident );
 
     fghJoystickOpen( fgJoystick[ ident  ] );
 }
@@ -907,7 +955,7 @@ void fgJoystickClose( void )
     {
         if( fgJoystick[ ident ] )
         {
-			fgPlatformJoystickClose ( ident );
+            fgPlatformJoystickClose ( ident );
 
             free( fgJoystick[ ident ] );
             fgJoystick[ ident ] = NULL;

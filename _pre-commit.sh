@@ -33,6 +33,6 @@ sed -i -e "s/@@MICRO@@/$MICRO/g" cmd.sed
 
 # Run sed to update the nano version, and add the modified files
 sed -b -i -f cmd.sed colditz.rc
-sed -i -f cmd.sed colditz.h
+sed -b -i -f cmd.sed colditz.h
 git add colditz.rc colditz.h
 rm cmd.sed

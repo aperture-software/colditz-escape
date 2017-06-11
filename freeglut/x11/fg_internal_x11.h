@@ -184,6 +184,7 @@ struct tagSFG_PlatformWindowState
 #        endif
 #    endif
 
+#if !defined(MAC_OSX_JOYSTICK_SUPPORT)
 /* XXX It might be better to poll the operating system for the numbers of buttons and
  * XXX axes and then dynamically allocate the arrays.
  */
@@ -206,6 +207,7 @@ struct tagSFG_PlatformJoystick
     char         fname [ 128 ];
     int          fd;
 };
+#endif
 
 
 /* Menu font and color definitions */

@@ -51,6 +51,7 @@
     <ClCompile Include="..\freeglut\util\xparsegeometry_repl.c" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\freeglut\config.h" />
     <ClInclude Include="..\freeglut\fg_gl2.h" />
     <ClInclude Include="..\freeglut\fg_init.h" />
     <ClInclude Include="..\freeglut\fg_internal.h" />

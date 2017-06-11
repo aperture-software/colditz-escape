@@ -799,9 +799,10 @@ struct tagSFG_StrokeFont
 #    include <InputSprocket.h>
 #endif
 
-#if TARGET_HOST_MAC_OSX
+#if defined(MAC_OSX_JOYSTICK_SUPPORT)
 #    include <mach/mach.h>
 #    include <IOKit/IOkitLib.h>
+#    include <IOKit/IOCFPlugIn.h>
 #    include <IOKit/hid/IOHIDLib.h>
 #endif
 
@@ -822,7 +823,7 @@ struct tagSFG_PlatformJoystick
 };
 #endif
 
-#if TARGET_HOST_MAC_OSX
+#if defined(MAC_OSX_JOYSTICK_SUPPORT)
 #    define _JS_MAX_AXES 16
 typedef struct tagSFG_PlatformJoystick SFG_PlatformJoystick;
 struct tagSFG_PlatformJoystick

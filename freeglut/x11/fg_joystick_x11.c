@@ -41,10 +41,11 @@
 
 #include <fcntl.h>
 
-
 /*this should be defined in a header file */
 #define MAX_NUM_JOYSTICKS  2   
 extern SFG_Joystick *fgJoystick [ MAX_NUM_JOYSTICKS ];
+
+#if !defined(MAC_OSX_JOYSTICK_SUPPORT)
 
 void fgPlatformJoystickRawRead( SFG_Joystick* joy, int* buttons, float* axes )
 {
@@ -455,3 +456,4 @@ void fgPlatformJoystickClose ( int ident )
          close( fgJoystick[ ident ]->pJoystick.fd );
 }
 
+#endif
