@@ -117,8 +117,8 @@ static __inline void psp_any_key()
 #define FATAL			back_to_kernel()
 #endif
 #else
-#define LEAVE			free_data(); exit(0)
-#define FATAL			free_data(); exit(1)
+#define LEAVE			free_data(); _exit(0)
+#define FATAL			free_data(); _exit(1)
 #endif
 #define ERR_EXIT		do {if (fd!=NULL) fclose(fd); fflush(stdout); FATAL;} while(0)
 

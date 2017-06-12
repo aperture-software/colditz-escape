@@ -1,6 +1,10 @@
 Colditz Escape - Activity Log
 
 [MAIN]
+-M OSX audio support
+-m XBox 360 OSX Controller support [DONE]
+-M FreeGLUT OSX Joystick support [DONE]
+-M (soundless) OSX support [DONE]
 -M drop Expat and use an INI file [DONE]
 -M Switch to FreeGLUT on Windows and Linux [DONE]
 -M Abstract the audio subsystems [DONE]

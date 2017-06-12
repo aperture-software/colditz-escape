@@ -5,14 +5,18 @@ Frequently Asked Questions
 Installation
 ------------
 
-* (Windows) Extract all the files and then launch `COLDITZ.EXE`
-* (PSP) Extract the files into `PSP/GAME/` (so that you end up with a `PSP/GAME/Colditz Escape` 
+First, make sure you download the archive that is relevant to your platform, then:
+
+* (__Windows__) Extract all the files and then launch `COLDITZ.EXE`
+* (__Mac__) Extract all the files and then launch `colditz`
+* (__Linux__) Extract all the files and then launch `colditz`
+* (__PSP__) Extract the files into `PSP/GAME/` (so that you end up with a `PSP/GAME/Colditz Escape` 
   directory on your memory stick. You should now be able to launch "Colditz Escape" in your Games menu.
 
 Default Controls
 ----------------
 
-### Windows Keyboard
+### Keyboard controls
 
 * (Numpad) <kbd>8</kbd> : Move Prisoner Up
 * (Numpad) <kbd>4</kbd> : Move Prisoner Left
@@ -35,23 +39,25 @@ Default Controls
 * <kbd>F9</kbd> : Sleep
 * <kbd>F10</kbd> : Set Stooge 
 
-### Windows XBox 360 Controller
+### XBox 360 Controller controls
+
+__Note:__ For XBox 360 Controller support on Mac, you should first install the latest [360Controller package](https://github.com/360Controller/360Controller/releases).
 
 ![XBox 360 Controls](pics/xbox360_controls.png)
 
-### PSP
+### PSP controls
 
 * Analog Stick : Move Prisoner
 
 * <kbd>✖</kbd> : Use Currently Selected Item or Enter/Exit Tunnel (if open)
 * <kbd>○</kbd> : Toggle Walk/Run
-* <kbd>◻</kbd> : Sleep
-* <kbd>△</kbd> : Set Stooge
+* <kbd>◻</kbd> : Set Stooge
+* <kbd>△</kbd> : Sleep
 
 * <kbd>↑</kbd> : Pickup Item
 * <kbd>↓</kbd> : Drop Item
-* <kbd>←</kbd>/<kbd>→</kbd> : Cycle Through Prisoners
-* <kbd>LT</kbd>/<kbd>RT</kbd>; : Cycle  Through Inventory
+* <kbd>←</kbd>/<kbd>→</kbd> : Cycle Through Inventory
+* <kbd>LT</kbd>/<kbd>RT</kbd>; : Cycle Through Prisoners
 
 * <kbd>Select</kbd> : Pause Game / View All Prisoners
 * <kbd>Start</kbd> : Game Menu
@@ -277,20 +283,9 @@ Future Enhancements
 Not at this stage. This would require a map editor, which I haven't any plans for. However, with the
 source code being available, if you really want, you could probably create a map editor yourself.
 
-### Do you plan to port the game to Linux/MacOS/some other OS?
+### Do you plan to port the game to more platforms
 
-Not personallty, but maybe somebody else will...
-
-For the record, the main reason this port was done was because it was challenging to:
-* Reverse Engineer the Amiga version to get a complete understanding of the game
-* Create a port that would be compatible with 2 very different architectures, i.e. the PSP (gcc based
-  through the PSP SDK) and Windows (Visual Studio)
-
-After completing the above, porting Colditz Escape! to Linux or MacOS does not really represent a
-challenge, so I'm not planning to push it further.
-
-You do have complete access to the source however, so if you want to port it to any other platform,
-you're more than welcome (as long as your port satisfies the GPL v3 conditions).
+Now that we have the common-platform trifecta (Windows+Mac+Linux) that's unlikely.  But this is Free Software, so __you__ can!<br>
 
 Other Questions
 ---------------
@@ -310,12 +305,12 @@ Full source code archives are also provided on the main page.
 
 ### Who are you?
 
-I am a former employee from a company you should all have heard of, called A...E.
+I am a former employee of a well know technological company called A...E
 
 In the not so distant past, because some "Artificial Intelligence" went a bit berserk there,
 I decided it was probably a good time for a career change... Since then, I have been spending
-part of my days developing and exploring challenging endeavours. Some of it includes reverse
-engineering on the best computing platform ever: the Amiga.
+part of my days developing and exploring challenging endeavours, some of which include Reverse
+Engineering on the best computing platform ever: _the Amiga_!
 
 ### Why are you doing this?
 
