@@ -801,7 +801,7 @@ struct tagSFG_StrokeFont
 
 #if defined(MAC_OSX_JOYSTICK_SUPPORT)
 #    include <mach/mach.h>
-#    include <IOKit/IOkitLib.h>
+#    include <IOKit/IOKitLib.h>
 #    include <IOKit/IOCFPlugIn.h>
 #    include <IOKit/hid/IOHIDLib.h>
 #endif

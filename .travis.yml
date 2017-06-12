@@ -3,10 +3,12 @@ language: c
 matrix:
   include:
   - os: linux
+    env: TARGET_NAME=Linux
     dist: trusty
     sudo: false
     compiler: gcc
   - os: osx
+    env: TARGET_NAME=OSX
     osx_image: xcode8
     compiler: gcc
 
@@ -27,4 +29,4 @@ before_install:
 
 script:
   - make release
-  - 7z a "Colditz_Escape_${TRAVIS_OS_NAME}.7z" "Colditz Escape"
+  - 7z a "Colditz_Escape_${TARGET_NAME}.7z" "Colditz Escape"

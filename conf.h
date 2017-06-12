@@ -152,7 +152,7 @@ static __inline uint8_t read_keyval(const char* keyname, int fallback)
     // Not a straight char => hex or integer value
     return (uint8_t)iniparser_getint(config, keyname, fallback);
 }
-#define KEYVAL(key) read_keyval("controls:" #key, 0xe0 + key)
+#define KEYVAL(key) ((read_keyval("controls:" #key, 0x00) != 0x00) ? read_keyval("controls:" #key, 0x00) : 0xe0 + key)
 
 // Short(?)cut defines for the main program
 #define KEY_ACTION					KEYVAL(key_action)
