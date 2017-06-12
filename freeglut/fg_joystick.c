@@ -516,7 +516,6 @@ static void fghJoystickElementEnumerator ( const void *element, void* vjs )
         fghJoystickAddButtonElement(joy, element);
         return;
     default:
-        fgWarning ( "%s", "Unsupported HID element");
         return;
     }
 
@@ -537,10 +536,16 @@ static void fghJoystickEnumerateElements ( SFG_Joystick *joy, CFTypeRef element 
 
 static void fghJoystickAddAxisElement ( SFG_Joystick *joy, CFDictionaryRef axis )
 {
-    SInt32 cookie, lmin, lmax;
+    SInt32 cookie, lmin, lmax, usage;
     int index = joy->num_axes++;
 
 //  CFShow(axis);
+
+    CFNumberGetValue ((CFNumberRef)
+                      CFDictionaryGetValue ( axis, CFSTR(kIOHIDElementUsageKey) ),
+                      kCFNumberSInt32Type, &usage);
+    if (usage <0)
+        return;
 
     CFNumberGetValue ((CFNumberRef)
         CFDictionaryGetValue ( axis, CFSTR(kIOHIDElementCookieKey) ),
@@ -568,16 +573,22 @@ static void fghJoystickAddAxisElement ( SFG_Joystick *joy, CFDictionaryRef axis 
 
 static void fghJoystickAddButtonElement ( SFG_Joystick *joy, CFDictionaryRef button )
 {
-    SInt32 cookie;
+    SInt32 cookie, usage;
 
 //  CFShow(button);
+
+    CFNumberGetValue ((CFNumberRef)
+                      CFDictionaryGetValue ( button, CFSTR(kIOHIDElementUsageKey) ),
+                      kCFNumberSInt32Type, &usage);
+    if (usage <0)
+        return;
 
     CFNumberGetValue ((CFNumberRef)
             CFDictionaryGetValue ( button, CFSTR(kIOHIDElementCookieKey) ),
             kCFNumberSInt32Type, &cookie);
 
+    joy->pJoystick.buttonUsage[joy->num_buttons] = usage;
     joy->pJoystick.buttonCookies[joy->num_buttons++] = (IOHIDElementCookie) cookie;
-    /* anything else for buttons? */
 
     /* Flag this device as usable since we have at least one button */
     joy->error = GL_FALSE;
@@ -835,6 +846,27 @@ void fgPlatformJoystickOpen( SFG_Joystick* joy )
         CFDictionaryGetValue( props, CFSTR( kIOHIDElementKey ) );
     fghJoystickEnumerateElements( joy, topLevelElement );
 
+    /* Reorder the buttons according to their usage index */
+    if (joy->num_buttons > 0) {
+        bool sorted;
+        int i, u;
+        IOHIDElementCookie c;
+        do {
+            sorted = true;
+            for (i = 0; i<joy->num_buttons-1; i++) {
+                u = joy->pJoystick.buttonUsage[i+1];
+                if (joy->pJoystick.buttonUsage[i] > u) {
+                    sorted = false;
+                    joy->pJoystick.buttonUsage[i+1] = joy->pJoystick.buttonUsage[i];
+                    joy->pJoystick.buttonUsage[i] = u;
+                    c = joy->pJoystick.buttonCookies[i+1];
+                    joy->pJoystick.buttonCookies[i+1] = joy->pJoystick.buttonCookies[i];
+                    joy->pJoystick.buttonCookies[i] = c;
+                }
+            }
+        } while (!sorted);
+    }
+
     CFRelease( props );
 }
 
@@ -891,8 +923,6 @@ void fgPlatformJoystickClose ( int ident )
         close( fgJoystick[ ident ]->pJoystick.hidDev );
 }
 #endif
-
-
 
 
 static void fghJoystickOpen( SFG_Joystick* joy )
@@ -982,27 +1012,30 @@ void fgJoystickPollWindow( SFG_Window* window )
         if( fgJoystick[ident] )
         {
             fghJoystickRead( fgJoystick[ident], &buttons, axes );
-
 #if defined(ENHANCED_XBOX_360_CONTROLLER_SUPPORT)
+#if defined(__APPLE__)
+            // Collapse the 2 triggers (axes #4 & #5) into axis #2 as done on Windows
+            axes[2] = (axes[4] - axes[5]) / 2.0f;
+#else
             if (axes[6] < -0.5f)
                 buttons |= 0x10000000;  // DPAD Left
             else if (axes[6] > 0.5f)
                 buttons |= 0x20000000;  // DPAD Right
-#if !defined(__linux__)
+#if defined(WIN32)
             if (axes[7] > 0.5f)
                 buttons |= 0x80000000;  // DPAD Up
             else if (axes[7] < -0.5f)
                 buttons |= 0x40000000;  // DPAD Down
-#else
+#elif defined(__linux__)
             // The Linux axis for Up/Down is inverted for some reason
             if (axes[7] < -0.5f)
                 buttons |= 0x80000000;  // DPAD Up
             else if (axes[7] > 0.5f)
                 buttons |= 0x40000000;  // DPAD Down
-            // Also collapse axes #2 & #5 into #2 as done on Windows
+            // Also collapse triggers axes #2 & #5 into #2
             axes[2] = (axes[2] - axes[5]) / 2.0f;
 #endif
-
+#endif
 #endif
 
             if( !fgJoystick[ident]->error )

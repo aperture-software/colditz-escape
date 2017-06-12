@@ -51,8 +51,8 @@ END
 //
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 1,1,127,0
- PRODUCTVERSION 1,1,127,0
+ FILEVERSION 1,1,128,0
+ PRODUCTVERSION 1,1,128,0
  FILEFLAGSMASK 0x3fL
 #ifdef _DEBUG
  FILEFLAGS 0x1L
@@ -69,13 +69,13 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "Aperture Software"
             VALUE "FileDescription", "Colditz Escape"
-            VALUE "FileVersion", "1.1.127"
+            VALUE "FileVersion", "1.1.128"
             VALUE "InternalName", "colditz.exe"
             VALUE "LegalCopyright", "© 2009-2017 Aperture Software"
             VALUE "LegalTrademarks", "http://www.gnu.org/copyleft/gpl.html"
             VALUE "OriginalFilename", "colditz.exe"
             VALUE "ProductName", "Colditz Escape"
-            VALUE "ProductVersion", "1.1.127"
+            VALUE "ProductVersion", "1.1.128"
         END
     END
     BLOCK "VarFileInfo"

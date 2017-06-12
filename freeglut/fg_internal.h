@@ -824,12 +824,14 @@ struct tagSFG_PlatformJoystick
 #endif
 
 #if defined(MAC_OSX_JOYSTICK_SUPPORT)
-#    define _JS_MAX_AXES 16
+#    define _JS_MAX_AXES    16
+#    define _JS_MAX_BUTTONS 41
 typedef struct tagSFG_PlatformJoystick SFG_PlatformJoystick;
 struct tagSFG_PlatformJoystick
 {
     IOHIDDeviceInterface ** hidDev;
-    IOHIDElementCookie buttonCookies[41];
+    IOHIDElementCookie buttonCookies[_JS_MAX_BUTTONS];
+    SInt32 buttonUsage[_JS_MAX_BUTTONS];
     IOHIDElementCookie axisCookies[_JS_MAX_AXES];
 /* The next two variables are not used anywhere */
 /*    long minReport[_JS_MAX_AXES],
