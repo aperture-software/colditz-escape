@@ -29,7 +29,8 @@ Below are self contained game archives, based on the very latest version of the 
 Features that might be of interest to you within this source
 ------------------------------------------------------------
 
-* Code for a cross-platform abstracted sound player that includes Windows (Xaudio2), Linux (ALSA/PulseAudio) and PSP.
+* Automated builds using [Travis CI](.travis.yml) and [AppVeyor](appveyor.yml), for Windows, Linux, OSX and PSP.
+* Code for a cross-platform abstracted sound player that includes Windows (Xaudio2), Linux (ALSA/PulseAudio), OSX (CoreAudio) and PSP.
 * [IFF](http://en.wikipedia.org/wiki/Interchange_File_Format) image loader ([`graphics.c`](graphics.c) &rarr; `load_iff()`)
 * RAW texture loader, with or without Alpha ([`graphics.c`](graphics.c) &rarr; `load_raw_rgb()`)
 * OpenGL 2D rescale ([`graphics.c`](graphics.c) &rarr; `rescale_buffer()`)

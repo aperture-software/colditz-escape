@@ -52,6 +52,15 @@
 #define max(a,b) (((a)>(b))?(a):(b))
 #endif
 
+typedef struct {
+    int                             voice;
+    audio_backend_voice_callback_t  callback;
+    void*                           pdata;
+    snd_pcm_uframes_t               sample_size;    /* Buffer size, in frames */
+    uint16_t                        frame_size;
+    int                             fd;
+} snd_pcm_poll_thread_data_t;
+
 static snd_pcm_t *handle[NB_VOICES] = { 0 };        /* Try to open one PCM device for each voice */
 static unsigned int buffer_time[NB_VOICES];         /* Ring buffer length, in us */
 static unsigned int period_time[NB_VOICES];         /* Period time, in us */
@@ -62,15 +71,7 @@ static bool voice_set_up[NB_VOICES];
 static bool voice_is_callback[NB_VOICES];
 static uint8_t *snd_pcm_buffer[NB_VOICES][NB_BUFFERS];
 static pthread_t snd_pcm_poll_thread_id[NB_VOICES];
-
-struct audio_backend_thread_private_data {
-    int                             voice;
-    audio_backend_voice_callback_t  callback;
-    void*                           pdata;
-    snd_pcm_uframes_t               sample_size;    /* Buffer size, in frames */
-    uint16_t                        frame_size;
-    int                             fd;
-} snd_pcm_poll_thread_data[NB_VOICES];
+static snd_pcm_poll_thread_data_t snd_pcm_poll_thread_data[NB_VOICES];
 
 static int snd_pcm_set_hwparams(int voice, unsigned int frequency, unsigned int nb_channels,
                                 snd_pcm_format_t format)
@@ -345,7 +346,7 @@ static void* audio_backend_poll_thread(void *arg)
     int err, count;
     uint16_t revents, period, buffer_nr = 0;
     snd_pcm_sframes_t avail;
-    struct audio_backend_thread_private_data* data = (struct audio_backend_thread_private_data*)arg;
+    snd_pcm_poll_thread_data_t* data = (snd_pcm_poll_thread_data_t*)arg;
     struct pollfd* ufds = NULL;
 
     // We'll use an event fd to poll for requests to terminate the thread
@@ -563,5 +564,6 @@ bool audio_backend_release_voice(int voice)
     if (!voice_set_up[voice])
         return false;
     audio_backend_stop_voice(voice);
+    voice_set_up[voice] = false;
     return (snd_pcm_hw_free(handle[voice]) >= 0);
 }
