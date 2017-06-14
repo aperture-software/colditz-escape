@@ -40,6 +40,7 @@ typedef struct
     int     voice;
     void*   ptr;
     SInt32  rem;
+    UInt8   memset_value;
 } audio_backend_voice_data_t;
 
 typedef struct {
@@ -144,7 +145,7 @@ static OSStatus audio_backend_render_callback(void *pdata, AudioUnitRenderAction
         audio_backend_voice_data_t* voice_data = (audio_backend_voice_data_t*)data->pdata;
         if (voice_data->rem <= 0)
         {
-            memset(buffer_list->mBuffers[0].mData, 0, req);
+            memset(buffer_list->mBuffers[0].mData, voice_data->memset_value, req);
             // Kill our voice if we are asked to silence the buffer for the second time.
             // This is needed because Core Audio is dreadful in terms of performance if
             // multiple callbacks are running (even if these callbacks do nothing)...
@@ -156,9 +157,10 @@ static OSStatus audio_backend_render_callback(void *pdata, AudioUnitRenderAction
         }
 
         memcpy(buffer_list->mBuffers[0].mData, voice_data->ptr, min(req, voice_data->rem));
-        // Zero the rest of the buffer if needed
+        // Silence the rest of the buffer if needed
         if (voice_data->rem < req)
-            memset(buffer_list->mBuffers[0].mData + voice_data->rem, 0, req - voice_data->rem);
+            memset(buffer_list->mBuffers[0].mData + voice_data->rem, voice_data->memset_value,
+                   req - voice_data->rem);
 
         voice_data->rem -= req;
         voice_data->ptr += req;
@@ -185,13 +187,23 @@ bool audio_backend_set_voice(int voice, void* data, int size, unsigned int frequ
         return false;
     }
 
+    audio_backend_voice_data[voice].voice = voice;
+    audio_backend_voice_data[voice].ptr = data;
+    audio_backend_voice_data[voice].rem = size;
+    audio_backend_render_callback_data[voice].callback = NULL;
+    audio_backend_render_callback_data[voice].pdata = &audio_backend_voice_data[voice];
+
     switch (bits_per_sample)
     {
     case 8:
         format_flags = 0;   // Unsigned
+        // Our mono samples have their zero at 0x80, so use that value for the "silencing"
+        // memset's. Otherwise, we get a very loud "POP" at the end of playback...
+        audio_backend_voice_data[voice].memset_value = 0x80;
         break;
     case 16:
         format_flags = kAudioFormatFlagIsSignedInteger;
+        audio_backend_voice_data[voice].memset_value = 0x00;
         break;
     default:
         perr("audio_backend_set_voice_callback: Only 8 and 16 bits samples are supported\n");
@@ -221,12 +233,6 @@ bool audio_backend_set_voice(int voice, void* data, int size, unsigned int frequ
         perr("audio_backend_set_voice: Could not set properties for voice %d: %s\n", voice, snd_error(err));
         return false;
     }
-
-    audio_backend_voice_data[voice].voice = voice;
-    audio_backend_voice_data[voice].ptr = data;
-    audio_backend_voice_data[voice].rem = size;
-    audio_backend_render_callback_data[voice].callback = NULL;
-    audio_backend_render_callback_data[voice].pdata = &audio_backend_voice_data[voice];
 
     AURenderCallbackStruct callback_struct = { 0 };
     callback_struct.inputProc = audio_backend_render_callback;
