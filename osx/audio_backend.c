@@ -40,7 +40,6 @@ typedef struct
     int     voice;
     void*   ptr;
     SInt32  rem;
-    UInt32  frame_size;
 } audio_backend_voice_data_t;
 
 typedef struct {
@@ -132,7 +131,7 @@ static OSStatus audio_backend_render_callback(void *pdata, AudioUnitRenderAction
                                               const AudioTimeStamp *time_stamp, UInt32 bus_number,
                                               UInt32 number_of_frames, AudioBufferList *buffer_list)
 {
-    UInt32 req;
+    UInt32 req = buffer_list->mBuffers[0].mDataByteSize;
     audio_backend_render_callback_data_t* data = (audio_backend_render_callback_data_t*)pdata;
     if (data->callback != NULL)
     {
@@ -143,20 +142,24 @@ static OSStatus audio_backend_render_callback(void *pdata, AudioUnitRenderAction
     {
         // One shot sample
         audio_backend_voice_data_t* voice_data = (audio_backend_voice_data_t*)data->pdata;
-        req = number_of_frames * voice_data->frame_size;
         if (voice_data->rem <= 0)
         {
-            if (voice_data->ptr != NULL)
-            {
-                memset(buffer_list->mBuffers[0].mData, 0, req);
+            memset(buffer_list->mBuffers[0].mData, 0, req);
+            // Kill our voice if we are asked to silence the buffer for the second time.
+            // This is needed because Core Audio is dreadful in terms of performance if
+            // multiple callbacks are running (even if these callbacks do nothing)...
+            if (voice_data->ptr == NULL)
+                AudioOutputUnitStop(voice_unit[voice_data->voice]);
+            else
                 voice_data->ptr = NULL;
-            }
             return noErr;
         }
+
         memcpy(buffer_list->mBuffers[0].mData, voice_data->ptr, min(req, voice_data->rem));
         // Zero the rest of the buffer if needed
         if (voice_data->rem < req)
             memset(buffer_list->mBuffers[0].mData + voice_data->rem, 0, req - voice_data->rem);
+
         voice_data->rem -= req;
         voice_data->ptr += req;
     }
@@ -222,7 +225,6 @@ bool audio_backend_set_voice(int voice, void* data, int size, unsigned int frequ
     audio_backend_voice_data[voice].voice = voice;
     audio_backend_voice_data[voice].ptr = data;
     audio_backend_voice_data[voice].rem = size;
-    audio_backend_voice_data[voice].frame_size = streamFormat.mBytesPerFrame;
     audio_backend_render_callback_data[voice].callback = NULL;
     audio_backend_render_callback_data[voice].pdata = &audio_backend_voice_data[voice];
 
