@@ -8,7 +8,7 @@ Installation
 First, make sure you download the archive that is relevant to your platform, then:
 
 * (__Windows__) Extract all the files and then launch `COLDITZ.EXE`
-* (__Mac__) Extract all the files and then launch `colditz`
+* (__OSX__) Extract all the files and then launch `colditz`. You may need to install XQuartz first.
 * (__Linux__) Extract all the files and then launch `colditz`
 * (__PSP__) Extract the files into `PSP/GAME/` (so that you end up with a `PSP/GAME/Colditz Escape` 
   directory on your memory stick. You should now be able to launch "Colditz Escape" in your Games menu.

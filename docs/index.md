@@ -22,7 +22,7 @@ Installation
 ------------
 
  * Extract the 7z content into the relevant directory (`PSP/GAME/` on PSP, any location on other platforms). It should create a `Colditz Escape/` directory there
- * Launch the game (`COLDITZ.EXE` on Windows, `./colditz` on Linux).
+ * Launch the game (`COLDITZ.EXE` on Windows, `./colditz` on Linux or OSX).
 
 Please see the [FAQ](FAQ.md) for additional information.
 
@@ -39,15 +39,17 @@ Please see the [FAQ](FAQ.md) for additional information.
 Downloads
 ---------
 
-* [Windows binaries](https://github.com/aperture-software/colditz-escape/releases/download/v1.1/Colditz_Escape_Windows.7z "Colditz Escape (Windows).7z"), v1.1
-* [Linux binaries (__x86_64__)](https://github.com/aperture-software/colditz-escape/releases/download/v1.1/Colditz_Escape_Linux.7z "Colditz Escape (Linux).7z"), v1.1
-* [PSP binaries](https://github.com/aperture-software/colditz-escape/releases/download/v1.1/Colditz_Escape_PSP.7z "Colditz Escape (PSP).7z"), v1.1
-* [Sourcecode](https://github.com/aperture-software/colditz-escape/archive/v1.1.tar.gz), v1.1 (Also accessible through [github](https://github.com/aperture-software/colditz-escape))
+* [Windows binaries](https://github.com/aperture-software/colditz-escape/releases/download/v1.2/Colditz_Escape_Windows.7z "Colditz Escape (Windows).7z"), v1.2
+* [Linux binaries (__x86_64__)](https://github.com/aperture-software/colditz-escape/releases/download/v1.2/Colditz_Escape_Linux.7z "Colditz Escape (Linux).7z"), v1.2
+* [OSX binaries](https://github.com/aperture-software/colditz-escape/releases/download/v1.2/Colditz_Escape_OSX.7z "Colditz Escape (OSX).7z"), v1.2
+* [PSP binaries](https://github.com/aperture-software/colditz-escape/releases/download/v1.2/Colditz_Escape_PSP.7z "Colditz Escape (PSP).7z"), v1.2
+* [Sourcecode](https://github.com/aperture-software/colditz-escape/archive/v1.2.tar.gz), v1.2 (Also accessible through [github](https://github.com/aperture-software/colditz-escape))
 * The original game's [Reverse Engineered disassembly](files/Reverse%20Engineering%20Analysis.7z) (if you are actually deranged enough to want to look at this stuff)
 
 History
 -------
 
+* v1.2   [2017.06.14]: Add OSX support + fix a bug when cycling prisoners
 * v1.1   [2017.06.07]: Add Linux support (with major thanks to __picryott__) + overall codebase cleanup
 * v1.0   [2017.05.24]: Add XBox360 controller support, VSYNC and more shaders on Windows + fix various issues
 * v0.9.4 [2010.07.06]: Fixed memory leaks + various updates.

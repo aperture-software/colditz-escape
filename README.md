@@ -23,13 +23,14 @@ Latest Automated Builds
 Below are self contained game archives, based on the very latest version of the code. Just extract these files, and you're good to go!
 
 * [__Windows__](https://ci.appveyor.com/api/projects/aperture-software/colditz-escape/artifacts/Colditz_Escape_Windows.7z?job=Environment%3A%20WINDOWS%3DRelease "Colditz Escape (Windows).7z")
-* [PSP](https://ci.appveyor.com/api/projects/aperture-software/colditz-escape/artifacts/Colditz_Escape_PSP.7z?job=Environment%3A%20PSP%3DRelease "Colditz Escape (PSP).7z") (Extract to `PSP\GAME\` on Memory Stick)
-* Linux and OSX: Unfortunately, Travis CI does not provide the ability to access the build artifacts from their servers... But you can still build from source (`make release`), by cloning this repository using `git`.
+* [__Linux__](https://github.com/aperture-software/colditz-escape/releases/download/v1.2/Colditz_Escape_Linux.7z) (Latest release, since Travis CI does not provide the ability to link to its build artifacts).
+* [__OSX__](https://github.com/aperture-software/colditz-escape/releases/download/v1.2/Colditz_Escape_OSX.7z) (Latest release, since Travis CI does not provide the ability to link to its build artifacts).
+* [__PSP__](https://ci.appveyor.com/api/projects/aperture-software/colditz-escape/artifacts/Colditz_Escape_PSP.7z?job=Environment%3A%20PSP%3DRelease "Colditz Escape (PSP).7z") (Extract to `PSP\GAME\` on Memory Stick)
 
 Features that might be of interest to you within this source
 ------------------------------------------------------------
 
-* Automated builds using [Travis CI](.travis.yml) and [AppVeyor](appveyor.yml), for Windows, Linux, OSX and PSP.
+* Automated builds using [Travis CI](.travis.yml) and [AppVeyor](appveyor.yml), for Windows, Linux, OSX and PSP, including release artifact deployment to github.
 * Code for a cross-platform abstracted sound player that supports Windows (XAudio2), Linux (ALSA/PulseAudio), OSX (Core Audio) and PSP.
 * [IFF](http://en.wikipedia.org/wiki/Interchange_File_Format) image loader ([`graphics.c`](graphics.c) &rarr; `load_iff()`)
 * RAW texture loader, with or without Alpha ([`graphics.c`](graphics.c) &rarr; `load_raw_rgb()`)

@@ -1,3 +1,6 @@
+v1.2: 2017.06.14
+   Add Mac OSX support
+   Fix an issue when cycling prisoners using a controller
 v1.1: 2017.06.07
    Add Linux support (with major thanks to picryott)
    Switch to FreeGLUT

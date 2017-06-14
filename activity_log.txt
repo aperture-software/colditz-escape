@@ -1,7 +1,7 @@
 Colditz Escape - Activity Log
 
 [MAIN]
--M OSX audio support
+-M OSX audio support [DONE]
 -m XBox 360 OSX Controller support [DONE]
 -M FreeGLUT OSX Joystick support [DONE]
 -M (soundless) OSX support [DONE]
