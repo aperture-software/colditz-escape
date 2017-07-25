@@ -12,7 +12,7 @@ In this game, you control a set of four prisoners of war trying to escape from t
 
 The original game, created by _Mike Halsall_ and _John Law_ (with intro music by [Bjørn Lynne](http://www.lynnemusic.com/)),
 was published in 1991 by Digital Magic Software.
-This new version, which allows you to play the game on the PSP and Windows platforms, has been reverse engineered from the
+This new version, which allows you to play the game on Windows, Linux, macOS and PSP platforms, has been reverse engineered from the
 original Amiga game engine and is released under a GPL v3 license.
 
 For more information, see http://tiny.cc/colditz-escape.
@@ -24,7 +24,7 @@ Below are self contained game archives, based on the very latest version of the 
 
 * [__Windows__](https://ci.appveyor.com/api/projects/aperture-software/colditz-escape/artifacts/Colditz_Escape_Windows.7z?job=Environment%3A%20WINDOWS%3DRelease "Colditz Escape (Windows).7z")
 * [__Linux__](https://github.com/aperture-software/colditz-escape/releases/download/v1.2/Colditz_Escape_Linux.7z) (Latest release, since Travis CI does not provide the ability to link to its build artifacts).
-* [__OSX__](https://github.com/aperture-software/colditz-escape/releases/download/v1.2/Colditz_Escape_OSX.7z) (Latest release, since Travis CI does not provide the ability to link to its build artifacts).
+* [__macOS__](https://github.com/aperture-software/colditz-escape/releases/download/v1.2/Colditz_Escape_OSX.7z) (Latest release, since Travis CI does not provide the ability to link to its build artifacts).
 * [__PSP__](https://ci.appveyor.com/api/projects/aperture-software/colditz-escape/artifacts/Colditz_Escape_PSP.7z?job=Environment%3A%20PSP%3DRelease "Colditz Escape (PSP).7z") (Extract to `PSP\GAME\` on Memory Stick)
 
 Features that might be of interest to you within this source

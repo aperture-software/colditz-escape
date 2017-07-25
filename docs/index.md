@@ -8,7 +8,7 @@ __Colditz Escape__ is a rewritten game engine for the classic _"Escape From Cold
 In this game, you control a set of four prisoners of war trying to escape from the infamous Colditz Castle WWII prison.
 
 The original game, created by __Mike Halsall__ and __John Law__ (with intro music by [__Bjørn Lynne__](http://www.lynnemusic.com/)), was published in 1991 by Digital Magic Software.
-This new version, which allows you to play the game on the PSP and Windows platforms, has been reverse engineered from the original Amiga game engine and is released under a GPL v3 license.
+This new version, which allows you to play the game on Windows, Linux, macOS and PSP platforms, has been reverse engineered from the original Amiga game engine and is released under a GPL v3 license.
 
 Please note that the latest version comes with all the data files required for the game - just extract the archive and play ;)
 
@@ -41,7 +41,7 @@ Downloads
 
 * [Windows binaries](https://github.com/aperture-software/colditz-escape/releases/download/v1.2/Colditz_Escape_Windows.7z "Colditz Escape (Windows).7z"), v1.2
 * [Linux binaries (__x86_64__)](https://github.com/aperture-software/colditz-escape/releases/download/v1.2/Colditz_Escape_Linux.7z "Colditz Escape (Linux).7z"), v1.2
-* [OSX binaries](https://github.com/aperture-software/colditz-escape/releases/download/v1.2/Colditz_Escape_OSX.7z "Colditz Escape (OSX).7z"), v1.2
+* [macOS binaries](https://github.com/aperture-software/colditz-escape/releases/download/v1.2/Colditz_Escape_OSX.7z "Colditz Escape (OSX).7z"), v1.2
 * [PSP binaries](https://github.com/aperture-software/colditz-escape/releases/download/v1.2/Colditz_Escape_PSP.7z "Colditz Escape (PSP).7z"), v1.2
 * [Sourcecode](https://github.com/aperture-software/colditz-escape/archive/v1.2.tar.gz), v1.2 (Also accessible through [github](https://github.com/aperture-software/colditz-escape))
 * The original game's [Reverse Engineered disassembly](files/Reverse%20Engineering%20Analysis.7z) (if you are actually deranged enough to want to look at this stuff)
