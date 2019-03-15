@@ -17,15 +17,15 @@ original Amiga game engine and is released under a GPL v3 license.
 
 For more information, see http://tiny.cc/colditz-escape.
 
-Latest Automated Builds
------------------------
+Latest Builds
+-------------
 
 Below are self contained game archives, based on the very latest version of the code. Just extract these files, and you're good to go!
 
-* [__Windows__](https://ci.appveyor.com/api/projects/aperture-software/colditz-escape/artifacts/Colditz_Escape_Windows.7z?job=Environment%3A%20WINDOWS%3DRelease "Colditz Escape (Windows).7z")
-* [__Linux__](https://github.com/aperture-software/colditz-escape/releases/download/v1.2/Colditz_Escape_Linux.7z) (Latest release, since Travis CI does not provide the ability to link to its build artifacts).
-* [__macOS__](https://github.com/aperture-software/colditz-escape/releases/download/v1.2/Colditz_Escape_OSX.7z) (Latest release, since Travis CI does not provide the ability to link to its build artifacts).
-* [__PSP__](https://ci.appveyor.com/api/projects/aperture-software/colditz-escape/artifacts/Colditz_Escape_PSP.7z?job=Environment%3A%20PSP%3DRelease "Colditz Escape (PSP).7z") (Extract to `PSP\GAME\` on Memory Stick)
+* [__Windows__](https://github.com/aperture-software/colditz-escape/releases/download/v1.2/Colditz_Escape_Windows.7z)
+* [__Linux__](https://github.com/aperture-software/colditz-escape/releases/download/v1.2/Colditz_Escape_Linux.7z)
+* [__macOS__](https://github.com/aperture-software/colditz-escape/releases/download/v1.2/Colditz_Escape_OSX.7z)
+* [__PSP__](https://github.com/aperture-software/colditz-escape/releases/download/v1.2/Colditz_Escape_PSP.7z) (Extract to `PSP\GAME\` on Memory Stick)
 
 Features that might be of interest to you within this source
 ------------------------------------------------------------
