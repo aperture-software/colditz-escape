@@ -23,7 +23,7 @@ addons:
     - libasound-dev
 
 before_install:
-  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install glew p7zip; fi
+  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew upgrade; brew install glew p7zip; fi
 
 script:
   - make release
