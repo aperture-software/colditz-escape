@@ -12,6 +12,10 @@
 type -P sed &>/dev/null || { echo "sed command not found. Aborting." >&2; exit 1; }
 type -P git &>/dev/null || { echo "git command not found. Aborting." >&2; exit 1; }
 
+if [ -x ./_detect-amend.sh ]; then
+	. ./_detect-amend.sh
+fi
+
 MICRO=`git rev-list HEAD --count`
 ((MICRO++))
 if [ -f ./.amend ]; then
@@ -25,7 +29,7 @@ s/^[ \t]*FILEVERSION[ \t]*\([0-9]*\),\([0-9]*\),[0-9]*,\(.*\)/ FILEVERSION \1,\2
 s/^[ \t]*PRODUCTVERSION[ \t]*\([0-9]*\),\([0-9]*\),[0-9]*,\(.*\)/ PRODUCTVERSION \1,\2,@@MICRO@@,\3/
 s/^\([ \t]*\)VALUE[ \t]*"FileVersion",[ \t]*"\(.*\)\..*"/\1VALUE "FileVersion", "\2.@@MICRO@@"/
 s/^\([ \t]*\)VALUE[ \t]*"ProductVersion",[ \t]*"\(.*\)\..*"/\1VALUE "ProductVersion", "\2.@@MICRO@@"/
-s/^#define VERSION\(.*\)"\(.*\)\..*".*/#define VERSION\1"\2.@@MICRO@@"/
+s/^#define VERSION\(.*\)"\(.*\)\..*"/#define VERSION\1"\2.@@MICRO@@"/
 _EOF
 
 # First run sed to substitute our variable in the sed command file
