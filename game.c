@@ -2793,6 +2793,7 @@ void check_on_prisoners()
     {
         if (props[current_nation][ITEM_PAPERS])
         {
+            p_event[current_nation].escaped = true;
             nb_escaped++;
             if (nb_escaped >= NB_NATIONS)
             {
@@ -2801,7 +2802,6 @@ void check_on_prisoners()
             else
             {
                 static_screen(PRISONER_FREE, NULL, 0);
-                p_event[current_nation].escaped = true;
             }
         }
         else
