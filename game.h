@@ -122,9 +122,9 @@ static __inline void consume_prop()
  *	Global variables
  */
 extern uint8_t		nb_animations;
+extern uint8_t      nb_escaped;
 extern s_animation	animations[MAX_ANIMATIONS];
 extern s_guybrush	guybrush[NB_GUYBRUSHES];
-
 
 /*
  *	Public prototypes

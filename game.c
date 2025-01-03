@@ -49,6 +49,8 @@ uint8_t     overlay_order[MAX_OVERLAYS];
 // Do we need to reload the files on newgame?
 bool        game_restart = false;
 uint8_t     nb_animations = 0;
+uint8_t     nb_escaped = 0;
+
 s_animation animations[MAX_ANIMATIONS];
 s_guybrush  guybrush[NB_GUYBRUSHES];
 
@@ -455,6 +457,7 @@ void newgame_init()
         for (j=0; j<CMP_MAP_HEIGHT; j++)
             remove_props[i][j] = 0;
 
+    nb_escaped = 0;
 
     // Setup the start time
     hours_digit_h = 0;
@@ -575,6 +578,11 @@ bool load_game(char* load_name)
     for (i=0; i<CMP_MAP_WIDTH; i++)
         for (j=0; j<CMP_MAP_HEIGHT; j++)
             remove_props[i][j] = 0;
+
+    nb_escaped = 0;
+    for (i = 0; i < NB_NATIONS; i++)
+        if (p_event[i].escaped)
+            ++nb_escaped;
 
     // Restore the palette
     to_16bit_palette(palette_index, 0xFF, PALETTES);
@@ -2779,7 +2787,6 @@ void require_pass(uint32_t p)
 // Have a look at what our prisoner are doing
 void check_on_prisoners()
 {
-    static int nb_escaped = 0;
     int p;
     uint16_t i;
     uint16_t authorized_id;
@@ -2822,7 +2829,8 @@ void check_on_prisoners()
         if (p_event[p].escaped)
             game_won_count++;
     }
-    if (game_over_count == NB_NATIONS)
+
+    if (game_over_count == NB_NATIONS || (game_over_count > 0 && (game_over_count + game_won_count >= NB_NATIONS)))
     {
         game_state = GAME_STATE_GAME_OVER;
         static_screen(GAME_OVER_TEXT, NULL, 0);
