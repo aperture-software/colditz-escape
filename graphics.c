@@ -62,7 +62,6 @@ GLuint paused_texid[4];
 
 uint16_t nb_cells;
 int16_t  gl_off_x = 0, gl_off_y = 0;	// GL display offsets
-int16_t  last_p_x, last_p_y;			// Stored positions
 uint8_t* background_buffer = NULL;		// (re)used for static pictures
 uint8_t  pause_rgb[3];					// colour for the pause screen borders
 uint16_t aPalette[32];					// Global palette (32 instead of 16, because

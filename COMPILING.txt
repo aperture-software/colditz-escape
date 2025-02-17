@@ -1,30 +1,30 @@
   Colditz Escape - Rewritten Engine for "Escape From Colditz"
 
 
-WINDOWS (Visual Studio 2017):
+WINDOWS (Visual Studio 2022):
 =============================
 
 If running Windows 8 or later, you shouldn't have to install anything special.
 
 If not running Windows 8 or later, you will need to download and install the
 latest DirectX SDK, which should be listed at:
-  http://www.microsoft.com/en-us/download/details.aspx?id=6812
-This provides: 
+  https://www.microsoft.com/en-us/download/details.aspx?id=6812
+This provides:
 - X2Audio libs: X3DAudio.lib (as well as xaudio2.h)
 - DirectShow movie player lib: strmiids.lib
 
 Make sure the relevant directories for DX and the Windows SDK are set in
 Tools -> Options -> Projects and Solutions -> VC++ Directories
 
-Optional 
+Optional
 - You can update the GLSL zoom shader(s), with the static version of the Glew
-  library from: http://glew.sourceforge.net/
+  library from: https://glew.sourceforge.net/
 
 LINUX (gcc)
 ===========
 
 Make sure you have gcc and the following packages installed:
-  libgl1-mesa-dev libglu1-mesa-dev libxmu-dev libxi-dev libglew-dev libasound-dev
+  libgl1-mesa-dev libglu1-mesa-dev libxmu-dev libxi-dev libglew-dev libexpat1-dev libasound2-dev
 Then run:
   make release
 
@@ -40,16 +40,11 @@ Note that if needed, you can install GLEW by running the following:
 Once you have the prerequisites, simply run:
   make release
 
-PSP (PSP SDK):
-==============
-
-Use any recent version of the PSP SDK and run 'make release'
-
 DIRECTORY STRUCTURE AND FILE DESCRIPTION:
 =========================================
 
 src/
-  +--- .vs/                      [Visual Studio 2017 project files]
+  +--- .vs/                      [Visual Studio 2022 project files]
   +--- Colditz Escape/           [Runtime binaries]
         +--- SHADERS/            Various zoom OpenGL shaders
         +--- CORNER.RAW          16 bit GRAB raw image for the picture corner
@@ -83,7 +78,7 @@ src/
   +--- colditz.h                 Main constants and structures definition
   +--- colditz.ico               Windows game icon
   +--- colditz.rc                Windows resource file
-  +--- colditz.sln               Visual Studio 2017 Solution file
+  +--- colditz.sln               Visual Studio 2022 Solution file
   +--- COMPILING.txt             This file
   +--- conf.c                    Wrapper for the config.ini file with
   +--- conf.h                      declarations for options and key mappings
@@ -108,7 +103,7 @@ src/
   +--- Makefile.osx              OSX Makefile
   +--- Makefile.psp              PSP Makefile
   +--- md5.c                     MD5 checksum functions
-  +--- md5.h                         "           "   
+  +--- md5.h                         "           "
   +--- soundplayer.c             MOD + SFX wrapper & player
   +--- soundplayer.h                 "           "
   +--- soundtables.h                 "           "

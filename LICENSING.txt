@@ -1,7 +1,7 @@
 ORIGINAL SOURCECODE LICENSING:
 
-      Copyright © Aperture Software 2008-2017
-      http://sites.google.com/site/colditzescape/
+      Copyright © Aperture Software 2008-2022
+      https://github.com/aperture-software/colditz-escape/blob/master/docs/index.md
       GPL v3.0 or later. See LICENSE.txt in extras/GPL
 
 
@@ -12,11 +12,11 @@ FULL SOURCECODE AVAILABLE AT:
 
 COMMON SOURCE & LIBRARIES LICENSING:
 
-Uses: Expat XML Parser library by James Clark 
-      http://expat.sourceforge.net/
+Uses: Expat XML Parser library by James Clark
+      https://libexpat.github.io/
       See LICENSE.txt file in src extras/expat/
 Uses: Eschew Expat Wrapper by Aperture Software
-      http://code.google.com/p/eschew
+      https://code.google.com/archive/p/eschew/
       GPL v3.0. See LICENSE.txt in src extras/GPL
 Uses: UTF-8 conversion functions by Mark E. Davis (unicode.org)
       http://unicode.org/Public/PROGRAMS/CVTUTF/ConvertUTF.c and
@@ -24,17 +24,17 @@ Uses: UTF-8 conversion functions by Mark E. Davis (unicode.org)
       Unicode free usage license: See License.txt in src extras/Unicode
 Uses: MD5 hash functions, from PolarSSL by Paul Bakker
       based on XySSL by Christophe Devine
-      http://polarssl.org/?page=show_source&type=source&file=md5
+      https://github.com/Mbed-TLS/mbedtls
       GPL v2.0 or later. See LICENSE.txt in src extras/GPL
 Uses: Aligned malloc code, from Satya Kiran Popuri
-      http://www.cs.uic.edu/~spopuri/amalloc.html (dead link)
+      https://web.archive.org/web/20080327065643/http://www.cs.uic.edu/~spopuri/amalloc.html
       Free license
 Uses: PowerPacker decrunch code, from amigadepacker by Heikki Orsila:
-      http://zakalwe.fi/~shd/foss/amigadepacker/
+      https://gitlab.com/heikkiorsila/amigadepacker
       Public domain
 Uses: IFF loader code, modified from IFF C samples by Jerry Morrison and Steve Shaw (Electronic Arts)
-      http://ftp.funet.fi/pub/amiga/fish/001-100/ff010/iff.lha 
-      http://www.martinreddy.net/gfx/2d/IFF.txt
+      https://ftp.funet.fi/pub/amiga/fish/001-100/ff010/iff.lha
+      https://www.martinreddy.net/gfx/2d/IFF.txt
       Public domain
 Uses: GLUT by Mark J. Kilgard
       Freely distributable without licensing fees
@@ -42,18 +42,18 @@ Uses: GLUT by Mark J. Kilgard
 PSP SOURCE & LIBRARIES LICENSING:
 
 Uses: PSP ModPlayer v1.0, from PSPMediaCenter by adresd
-      http://svn.pspdev.org/listing.php?repname=pspware&path=%2Ftrunk%2FPSPMediaCenter%2Fcodec%2Fmod%2F&rev=0&sc=0
+      https://github.com/jdek/jim-pspware/tree/master/PSPMediaCenter/codec/mod/
       Free license
 Uses: PMP Mod mini library, from openTRI by Jonny and Raphael
-      http://trac2.assembla.com/openTRI (trunk/src/pmp/)
-      GPL v2.0 or later. See LICENSE.txt in src extras/GPL
+      https://github.com/albe/openTri/tree/main/src/pmp
+      GPL v2.0 or later.
 Uses: PSPGL libraries by Jeremy Fitzhardinge and Holger Waechtler
-      http://www.goop.org/psp/gl/
+      https://github.com/jsgf/pspgl
       See LICENSE.txt in src extras/pspgl
 Uses: PSPSDK libraries by adresd, Marcus R. Brown, James Forshaw, John Kelley, Jesper Svennevid
-      http://svn.ps2dev.org/listing.php?repname=psp&path=%2Ftrunk%2Fpspsdk%2F&rev=0&sc=0
+      https://github.com/pspdev/pspsdk
       See LICENSE.txt in src extras/pspsdk
-      
+
 WINDOWS SOURCE & LIBRARIES LICENSING:
 
 Uses: OpenGL for Windows, by Silicon Graphics, Inc. & Microsoft Corporation
@@ -62,8 +62,8 @@ Uses: Directshow (DirectX) and XAudio2 for Windows, by Microsoft Corporation
       http://www.microsoft.com/downloads/details.aspx?familyid=8b5cd64e-b4be-4135-95f8-ecfcf9182431&displaylang=en
       Direct X Libraries subject to the Microsoft DirectX EULA
 Uses: OpenGL Extension Wrangler Library (GLEW)
-      http://glew.sourceforge.net/
-      See LICENSE.txt in src extras/glew      
+      https://glew.sourceforge.net/
+      See LICENSE.txt in src extras/glew
 Uses: 2xGLSL HqFilter shader, by guest(r)
       http://www.pbernert.com/html/gpu.htm#SHADER => guest(r)'s shader collection
       GPL v2.0 or later. See LICENSE.txt in src extras/GPL
