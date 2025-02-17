@@ -82,7 +82,7 @@ typedef HGLRC (WINAPI * PFNWGLCREATECONTEXTATTRIBSARBPROC) (HDC hDC, HGLRC hShar
 
 #ifdef WM_TOUCH
 typedef BOOL (WINAPI *pRegisterTouchWindow)(HWND,ULONG);
-static pRegisterTouchWindow fghRegisterTouchWindow = (pRegisterTouchWindow)0xDEADBEEF;
+static pRegisterTouchWindow fghRegisterTouchWindow = (pRegisterTouchWindow)((size_t)0xDEADBEEF);
 #endif
 
 
@@ -90,17 +90,17 @@ static pRegisterTouchWindow fghRegisterTouchWindow = (pRegisterTouchWindow)0xDEA
  * Setup the pixel format for a Win32 window
  */
 
-#if defined(_WIN32_WCE)
-static wchar_t* fghWstrFromStr(const char* str)
+TCHAR* fghTstrFromStr(const char* str)
 {
-    int i,len=strlen(str);
-    wchar_t* wstr = (wchar_t*)malloc(2*len+2);
-    for(i=0; i<len; i++)
-        wstr[i] = str[i];
-    wstr[len] = 0;
+#ifdef UNICODE
+    int len = MultiByteToWideChar(CP_UTF8, 0, str, -1, NULL, 0);
+    wchar_t* wstr = (wchar_t*)calloc(len, sizeof(wchar_t));
+    MultiByteToWideChar(CP_UTF8, 0, str, -1, wstr, len);
     return wstr;
+#else
+    return strdup(str);
+#endif
 }
-#endif /* defined(_WIN32_WCE) */
 
 
 static void fghFillContextAttributes( int *attributes ) {
@@ -145,7 +145,7 @@ void fgNewWGLCreateContext( SFG_Window* window )
     PFNWGLCREATECONTEXTATTRIBSARBPROC wglCreateContextAttribsARB;
 
     /* If nothing fancy has been required, leave the context as it is */
-    if ( fghIsLegacyContextRequested() )
+    if ( fghIsLegacyContextRequested(window) )
     {
         return;
     }
@@ -185,62 +185,45 @@ void fgNewWGLCreateContext( SFG_Window* window )
 
 #if !defined(_WIN32_WCE)
 
-static void fghFillPFD( PIXELFORMATDESCRIPTOR *ppfd, HDC hdc, unsigned char layer_type )
+static void fghFillPFD(PIXELFORMATDESCRIPTOR *ppfd, HDC hdc, unsigned char layer_type)
 {
-  int flags = PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL;
-  if ( fgState.DisplayMode & GLUT_DOUBLE ) {
-        flags |= PFD_DOUBLEBUFFER;
-  }
-  if ( fgState.DisplayMode & GLUT_STEREO ) {
-    flags |= PFD_STEREO;
-  }
+	int flags = PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL;
+	if(fgState.DisplayMode & GLUT_DOUBLE) {
+		flags |= PFD_DOUBLEBUFFER;
+	}
+	if(fgState.DisplayMode & GLUT_STEREO) {
+		flags |= PFD_STEREO;
+	}
 
-#if defined(_MSC_VER)
-#pragma message( "fgSetupPixelFormat(): there is still some work to do here!" )
-#endif
+	/* Specify which pixel format do we opt for... */
+	memset(ppfd, 0, sizeof *ppfd);
+	ppfd->nSize = sizeof *ppfd;
+	ppfd->nVersion = 1;
+	ppfd->dwFlags = flags;
 
-  /* Specify which pixel format do we opt for... */
-  ppfd->nSize = sizeof(PIXELFORMATDESCRIPTOR);
-  ppfd->nVersion = 1;
-  ppfd->dwFlags = flags;
+	if(fgState.DisplayMode & GLUT_INDEX) {
+		ppfd->iPixelType = PFD_TYPE_COLORINDEX;
+		ppfd->cColorBits = 8;
+	} else {
+		ppfd->iPixelType = PFD_TYPE_RGBA;
+		ppfd->cColorBits = 24;
+	}
+	if(fgState.DisplayMode & GLUT_ALPHA) {
+		ppfd->cAlphaBits = 8;
+	}
 
-  if( fgState.DisplayMode & GLUT_INDEX ) {
-    ppfd->iPixelType = PFD_TYPE_COLORINDEX;
-    ppfd->cRedBits = 0;
-    ppfd->cGreenBits = 0;
-    ppfd->cBlueBits = 0;
-    ppfd->cAlphaBits = 0;
-  } else {
-    ppfd->iPixelType = PFD_TYPE_RGBA;
-    ppfd->cRedBits = 8;
-    ppfd->cGreenBits = 8;
-    ppfd->cBlueBits = 8;
-    ppfd->cAlphaBits = ( fgState.DisplayMode & GLUT_ALPHA ) ? 8 : 0;
-  }
+	ppfd->cAccumBits = (fgState.DisplayMode & GLUT_ACCUM) ? 1 : 0;
 
-  ppfd->cColorBits = 24;
-  ppfd->cRedShift = 0;
-  ppfd->cGreenShift = 0;
-  ppfd->cBlueShift = 0;
-  ppfd->cAlphaShift = 0;
-  ppfd->cAccumBits = ( fgState.DisplayMode & GLUT_ACCUM ) ? 1 : 0;
-  ppfd->cAccumRedBits = 0;
-  ppfd->cAccumGreenBits = 0;
-  ppfd->cAccumBlueBits = 0;
-  ppfd->cAccumAlphaBits = 0;
+	/* Hmmm, or 32/0 instead of 24/8? */
+	if(fgState.DisplayMode & GLUT_DEPTH) {
+		ppfd->cDepthBits = 24;
+	}
+	if(fgState.DisplayMode & GLUT_STENCIL) {
+		ppfd->cStencilBits = 8;
+	}
 
-  /* Hmmm, or 32/0 instead of 24/8? */
-  ppfd->cDepthBits = 24;
-  ppfd->cStencilBits = 8;
-
-  ppfd->cAuxBuffers = (BYTE) fghNumberOfAuxBuffersRequested();
-  ppfd->iLayerType = layer_type;
-  ppfd->bReserved = 0;
-  ppfd->dwLayerMask = 0;
-  ppfd->dwVisibleMask = 0;
-  ppfd->dwDamageMask = 0;
-  
-  ppfd->cColorBits = (BYTE) GetDeviceCaps( hdc, BITSPIXEL );
+	ppfd->cAuxBuffers = (BYTE)fghNumberOfAuxBuffersRequested();
+	ppfd->iLayerType = layer_type;
 }
 
 static void fghFillPixelFormatAttributes( int *attributes, const PIXELFORMATDESCRIPTOR *ppfd )
@@ -275,23 +258,24 @@ GLboolean fgSetupPixelFormat( SFG_Window* window, GLboolean checkOnly,
     return GL_TRUE;
 #else
     PIXELFORMATDESCRIPTOR pfd;
-    PIXELFORMATDESCRIPTOR* ppfd = &pfd;
     int pixelformat;
     HDC current_hDC;
-    GLboolean success;
+    GLboolean success = GL_FALSE;
 
     if (checkOnly)
       current_hDC = CreateDC(TEXT("DISPLAY"), NULL ,NULL ,NULL);
     else
       current_hDC = window->Window.pContext.Device;
 
-    fghFillPFD( ppfd, current_hDC, layer_type );
-    pixelformat = ChoosePixelFormat( current_hDC, ppfd );
+    fghFillPFD(&pfd, current_hDC, layer_type);
+    if(!(pixelformat = ChoosePixelFormat(current_hDC, &pfd))) {
+		return 0;
+	}
 
     /* windows hack for multismapling/sRGB */
     if ( ( fgState.DisplayMode & GLUT_MULTISAMPLE ) ||
          ( fgState.DisplayMode & GLUT_SRGB ) )
-    {        
+    {
         HGLRC rc, rc_before=wglGetCurrentContext();
         HWND hWnd;
         HDC hDC, hDC_before=wglGetCurrentDC();
@@ -307,7 +291,7 @@ GLboolean fgSetupPixelFormat( SFG_Window* window, GLboolean checkOnly,
 
         hWnd=CreateWindow(_T("FREEGLUT_dummy"), _T(""), WS_CLIPSIBLINGS | WS_CLIPCHILDREN | WS_OVERLAPPEDWINDOW , 0,0,0,0, 0, 0, fgDisplay.pDisplay.Instance, 0 );
         hDC=GetDC(hWnd);
-        SetPixelFormat( hDC, pixelformat, ppfd );
+        SetPixelFormat(hDC, pixelformat, &pfd);
 
         rc = wglCreateContext( hDC );
         wglMakeCurrent(hDC, rc);
@@ -323,7 +307,7 @@ GLboolean fgSetupPixelFormat( SFG_Window* window, GLboolean checkOnly,
                 BOOL bValid;
                 float fAttributes[] = { 0, 0 };
                 UINT numFormats;
-                fghFillPixelFormatAttributes( attributes, ppfd );
+                fghFillPixelFormatAttributes(attributes, &pfd);
                 bValid = wglChoosePixelFormatARBProc(hDC, attributes, fAttributes, 1, &iPixelFormat, &numFormats);
 
                 if ( bValid && numFormats > 0 )
@@ -340,12 +324,24 @@ GLboolean fgSetupPixelFormat( SFG_Window* window, GLboolean checkOnly,
         UnregisterClass(_T("FREEGLUT_dummy"), fgDisplay.pDisplay.Instance);
     }
 
-    success = ( pixelformat != 0 ) && ( checkOnly || SetPixelFormat( current_hDC, pixelformat, ppfd ) );
+	if(pixelformat) {
+		DescribePixelFormat(current_hDC, pixelformat, sizeof pfd, &pfd);
 
-    if (checkOnly)
-        DeleteDC(current_hDC);
+		if(fgState.DisplayMode & GLUT_INDEX) {
+			if(pfd.iPixelType == PFD_TYPE_RGBA) goto end;
+		} else {
+			if(pfd.iPixelType == PFD_TYPE_COLORINDEX) goto end;
+		}
+	}
 
-    return success;
+    success = ( pixelformat != 0 ) && ( checkOnly || SetPixelFormat( current_hDC, pixelformat, &pfd) );
+
+end:
+	if(checkOnly) {
+		DeleteDC(current_hDC);
+	}
+
+	return success;
 #endif /* defined(_WIN32_WCE) */
 }
 
@@ -430,7 +426,7 @@ void fghComputeWindowRectFromClientArea_UseStyle( RECT *clientRect, const DWORD 
         windowRect.left     = clientRect->left;
         windowRect.top      = clientRect->top;
     }
-    
+
     /* done, copy windowRect to output */
     CopyRect(clientRect,&windowRect);
 }
@@ -467,7 +463,7 @@ void fghGetClientArea( RECT *clientRect, const SFG_Window *window, BOOL posIsOut
     POINT topLeftClient = {0,0};
 
     freeglut_return_if_fail((window && window->Window.Handle));
-    
+
     /* Get size of client rect */
     GetClientRect(window->Window.Handle, clientRect);
     if (posIsOutside)
@@ -493,13 +489,13 @@ typedef struct
 {
       int *x;
       int *y;
-      const char *name;
+      const TCHAR *name;
 } m_proc_t;
 
 static BOOL CALLBACK m_proc(HMONITOR mon,
-			    HDC hdc,
-			    LPRECT rect,
-			    LPARAM data)
+                HDC hdc,
+                LPRECT rect,
+                LPARAM data)
 {
       m_proc_t *dp=(m_proc_t *)data;
       MONITORINFOEX info;
@@ -508,7 +504,7 @@ static BOOL CALLBACK m_proc(HMONITOR mon,
       res=GetMonitorInfo(mon,(LPMONITORINFO)&info);
       if( res )
       {
-          if( strcmp(dp->name,info.szDevice)==0 )
+          if( _tcscmp(dp->name,info.szDevice)==0 )
           {
               *(dp->x)=info.rcMonitor.left;
               *(dp->y)=info.rcMonitor.top;
@@ -518,7 +514,7 @@ static BOOL CALLBACK m_proc(HMONITOR mon,
       return TRUE;
 }
 
-/* 
+/*
  * this function returns the origin of the screen identified by
  * fgDisplay.pDisplay.DisplayName, and 0 otherwise.
  * This is used in fgOpenWindow to open the gamemode window on the screen
@@ -571,6 +567,8 @@ void fgPlatformOpenWindow( SFG_Window* window, const char* title,
     DWORD flags   = 0;
     DWORD exFlags = 0;
     BOOL atom;
+    HDC dc;
+    TCHAR* tstr = NULL;
 
     /* Grab the window class we have registered on glutInit(): */
     atom = GetClassInfo( fgDisplay.pDisplay.Instance, _T("FREEGLUT"), &wc );
@@ -664,35 +662,30 @@ void fgPlatformOpenWindow( SFG_Window* window, const char* title,
     }
 #endif /* !defined(_WIN32_WCE) */
 
+    tstr = fghTstrFromStr(title);
 #if defined(_WIN32_WCE)
-    {
-        wchar_t* wstr = fghWstrFromStr(title);
+    window->Window.Handle = CreateWindow(
+        _T("FREEGLUT"),
+        tstr,
+        WS_VISIBLE | WS_POPUP,
+        0,0, 240,320,
+        NULL,
+        NULL,
+        fgDisplay.pDisplay.Instance,
+        (LPVOID) window
+    );
 
-        window->Window.Handle = CreateWindow(
-            _T("FREEGLUT"),
-            wstr,
-            WS_VISIBLE | WS_POPUP,
-            0,0, 240,320,
-            NULL,
-            NULL,
-            fgDisplay.pDisplay.Instance,
-            (LPVOID) window
-        );
-
-        free(wstr);
-
-        SHFullScreen(window->Window.Handle, SHFS_HIDESTARTICON);
-        SHFullScreen(window->Window.Handle, SHFS_HIDESIPBUTTON);
-        SHFullScreen(window->Window.Handle, SHFS_HIDETASKBAR);
-        MoveWindow(window->Window.Handle, 0, 0, 240, 320, TRUE);
-        ShowWindow(window->Window.Handle, SW_SHOW);
-        UpdateWindow(window->Window.Handle);
-    }
+    SHFullScreen(window->Window.Handle, SHFS_HIDESTARTICON);
+    SHFullScreen(window->Window.Handle, SHFS_HIDESIPBUTTON);
+    SHFullScreen(window->Window.Handle, SHFS_HIDETASKBAR);
+    MoveWindow(window->Window.Handle, 0, 0, 240, 320, TRUE);
+    ShowWindow(window->Window.Handle, SW_SHOW);
+    UpdateWindow(window->Window.Handle);
 #else
     window->Window.Handle = CreateWindowEx(
         exFlags,
         _T("FREEGLUT"),
-        title,
+        tstr,
         flags,
         x, y, w, h,
         (HWND) window->Parent == NULL ? NULL : window->Parent->Window.Handle,
@@ -708,7 +701,7 @@ void fgPlatformOpenWindow( SFG_Window* window, const char* title,
         fgError( "Failed to create a window (%s)!", title );
 
     /* Store title */
-    window->State.pWState.WindowTitle = strdup(title);
+    window->State.pWState.WindowTitle = tstr;
 
 #if !defined(_WIN32_WCE)
     /* Need to set requested style again, apparently Windows doesn't listen when requesting windows without title bar or borders */
@@ -717,19 +710,66 @@ void fgPlatformOpenWindow( SFG_Window* window, const char* title,
 #endif /* defined(_WIN32_WCE) */
 
     /* Make a menu window always on top - fix Feature Request 947118 */
-    if( window->IsMenu || gameMode )
-        SetWindowPos(
-                        window->Window.Handle,
-                        HWND_TOPMOST,
-                        0, 0, 0, 0,
-                        SWP_NOMOVE | SWP_NOSIZE
-                    );
+    if(window->IsMenu || gameMode) {
+        SetWindowPos(window->Window.Handle, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
+	}
+
+	dc = window->Window.pContext.Device;
+	/* for color index mode, create a palette */
+	if(fgState.DisplayMode & GLUT_INDEX) {
+		char buf[sizeof(LOGPALETTE) + 255 * sizeof(PALETTEENTRY)];
+		LOGPALETTE *logipal = (LOGPALETTE*)buf;
+
+		GetSystemPaletteEntries(dc, 0, 256, logipal->palPalEntry);
+
+		logipal->palVersion = 0x300;
+		logipal->palNumEntries = 256;
+
+		if(!(window->Window.cmap = CreatePalette(logipal))) {
+			fgError("Failed to create palette in indexed mode");
+		}
+		SelectPalette(dc, window->Window.cmap, 0);
+		RealizePalette(dc);
+
+		window->Window.cmap_size = 256;
+	} else {
+		int cur_bpp = GetDeviceCaps(dc, BITSPIXEL) * GetDeviceCaps(dc, PLANES);
+		if(cur_bpp <= 8) {
+			/* for RGB mode we also need a palette if we're running in a palettized mode */
+			/* XXX we'll just assume 256 colors for now. */
+			int i;
+			char buf[sizeof(LOGPALETTE) + 255 * sizeof(PALETTEENTRY)];
+			LOGPALETTE *logipal = (LOGPALETTE*)buf;
+
+			logipal->palVersion = 0x300;
+			logipal->palNumEntries = 256;
+
+			for(i=0; i<256; i++) {
+				int r = i & 7;
+				int g = (i >> 3) & 7;
+				int b = (i >> 5) & 3;
+
+				logipal->palPalEntry[i].peRed = (r << 5) | (r << 2) | (r >> 1);
+				logipal->palPalEntry[i].peGreen = (g << 5) | (g << 2) | (g >> 1);
+				logipal->palPalEntry[i].peBlue = (b << 6) | (b << 4) | (b << 2) | b;
+				logipal->palPalEntry[i].peFlags = PC_NOCOLLAPSE;
+			}
+
+			if(!(window->Window.cmap = CreatePalette(logipal))) {
+				fgWarning("Failed to create palette in RGB mode on %d bpp display, colors might be wrong\n", cur_bpp);
+			} else {
+				SelectPalette(dc, window->Window.cmap, 0);
+				RealizePalette(dc);
+			}
+			window->Window.cmap_size = 256;
+		}
+	}
 
     /* Enable multitouch: additional flag TWF_FINETOUCH, TWF_WANTPALM */
     #ifdef WM_TOUCH
-        if (fghRegisterTouchWindow == (pRegisterTouchWindow)0xDEADBEEF) 
-			fghRegisterTouchWindow = (pRegisterTouchWindow)GetProcAddress(GetModuleHandle("user32"),"RegisterTouchWindow");
-		if (fghRegisterTouchWindow)
+        if (fghRegisterTouchWindow == (pRegisterTouchWindow)((size_t)0xDEADBEEF))
+            fghRegisterTouchWindow = (pRegisterTouchWindow)GetProcAddress(GetModuleHandleA("user32"),"RegisterTouchWindow");
+        if (fghRegisterTouchWindow)
              fghRegisterTouchWindow( window->Window.Handle, TWF_FINETOUCH | TWF_WANTPALM );
     #endif
 
@@ -802,21 +842,18 @@ void fgPlatformHideWindow( SFG_Window* window )
  */
 void fgPlatformGlutSetWindowTitle( const char* title )
 {
+    TCHAR* newTitle = fghTstrFromStr(title);
 #ifdef _WIN32_WCE
-    {
-        wchar_t* wstr = fghWstrFromStr(title);
-        SetWindowText( fgStructure.CurrentWindow->Window.Handle, wstr );
-        free(wstr);
-    }
+    SetWindowText( fgStructure.CurrentWindow->Window.Handle, newTitle );
 #else
     if (!IsIconic(fgStructure.CurrentWindow->Window.Handle))
-        SetWindowText( fgStructure.CurrentWindow->Window.Handle, title );
+        SetWindowText( fgStructure.CurrentWindow->Window.Handle, newTitle );
 #endif
 
     /* Make copy of string to refer to later */
     if (fgStructure.CurrentWindow->State.pWState.WindowTitle)
         free(fgStructure.CurrentWindow->State.pWState.WindowTitle);
-    fgStructure.CurrentWindow->State.pWState.WindowTitle = strdup(title);
+    fgStructure.CurrentWindow->State.pWState.WindowTitle = newTitle;
 }
 
 /*
@@ -824,15 +861,16 @@ void fgPlatformGlutSetWindowTitle( const char* title )
  */
 void fgPlatformGlutSetIconTitle( const char* title )
 {
+    TCHAR* newTitle = fghTstrFromStr(title);
 #ifndef _WIN32_WCE
     if (IsIconic(fgStructure.CurrentWindow->Window.Handle))
-        SetWindowText( fgStructure.CurrentWindow->Window.Handle, title );
+        SetWindowText( fgStructure.CurrentWindow->Window.Handle, newTitle );
 #endif
 
     /* Make copy of string to refer to later */
     if (fgStructure.CurrentWindow->State.pWState.IconTitle)
         free(fgStructure.CurrentWindow->State.pWState.IconTitle);
-    fgStructure.CurrentWindow->State.pWState.IconTitle = strdup(title);
+    fgStructure.CurrentWindow->State.pWState.IconTitle = newTitle;
 }
 
 
@@ -843,4 +881,3 @@ int FGAPIENTRY __glutCreateWindowWithExit( const char *title, void (__cdecl *exi
   __glutExitFunc = exit_function;
   return glutCreateWindow( title );
 }
-

@@ -49,7 +49,27 @@
  * CPP HACK.
  */
 
+#define glutStrokeRoman glutStrokeRomanIGNOREME
+#define glutStrokeMonoRoman glutStrokeMonoRomanIGNOREME
+#define glutBitmap9By15 glutBitmap9By15IGNOREME
+#define glutBitmap8By13 glutBitmap8By13IGNOREME
+#define glutBitmapTimesRoman10 glutBitmapTimesRoman10IGNOREME
+#define glutBitmapTimesRoman24 glutBitmapTimesRoman24IGNOREME
+#define glutBitmapHelvetica10 glutBitmapHelvetica10IGNOREME
+#define glutBitmapHelvetica12 glutBitmapHelvetica12IGNOREME
+#define glutBitmapHelvetica18 glutBitmapHelvetica18IGNOREME
+
 #include <GL/freeglut_std.h>
+
+#undef glutStrokeRoman
+#undef glutStrokeMonoRoman
+#undef glutBitmap9By15
+#undef glutBitmap8By13
+#undef glutBitmapTimesRoman10
+#undef glutBitmapTimesRoman24
+#undef glutBitmapHelvetica10
+#undef glutBitmapHelvetica12
+#undef glutBitmapHelvetica18
 
 #include "../fg_internal.h"
 
@@ -71,22 +91,25 @@ struct freeglutBitmapFont
 };
 
 
-struct freeglutStrokeFont _glutStrokeRoman ;
-void*  glutStrokeRoman = (void*) &_glutStrokeRoman ;
-struct freeglutStrokeFont _glutStrokeMonoRoman ;
-void*  glutStrokeMonoRoman = (void*) &_glutStrokeMonoRoman ;
+static struct freeglutStrokeFont glutStrokeRoman_ ;
+static struct freeglutStrokeFont glutStrokeMonoRoman_ ;
 
-struct freeglutBitmapFont _glutBitmap9By15 ;
-void*  glutBitmap9By15 = (void*) &_glutBitmap9By15 ;
-struct freeglutBitmapFont _glutBitmap8By13 ;
-void*  glutBitmap8By13 = (void*) &_glutBitmap8By13 ;
-struct freeglutBitmapFont _glutBitmapTimesRoman10 ;
-void*  glutBitmapTimesRoman10 = (void*) &_glutBitmapTimesRoman10 ;
-struct freeglutBitmapFont _glutBitmapTimesRoman24 ;
-void*  glutBitmapTimesRoman24 = (void*) &_glutBitmapTimesRoman24 ;
-struct freeglutBitmapFont _glutBitmapHelvetica10 ;
-void*  glutBitmapHelvetica10 = (void*) &_glutBitmapHelvetica10 ;
-struct freeglutBitmapFont _glutBitmapHelvetica12 ;
-void*  glutBitmapHelvetica12 = (void*) &_glutBitmapHelvetica12 ;
-struct freeglutBitmapFont _glutBitmapHelvetica18 ;
-void*  glutBitmapHelvetica18 = (void*) &_glutBitmapHelvetica18 ;
+static struct freeglutBitmapFont glutBitmap9By15_ ;
+static struct freeglutBitmapFont glutBitmap8By13_ ;
+static struct freeglutBitmapFont glutBitmapTimesRoman10_ ;
+static struct freeglutBitmapFont glutBitmapTimesRoman24_ ;
+static struct freeglutBitmapFont glutBitmapHelvetica10_ ;
+static struct freeglutBitmapFont glutBitmapHelvetica12_ ;
+static struct freeglutBitmapFont glutBitmapHelvetica18_ ;
+
+
+void *glutStrokeRoman = &glutStrokeRoman_ ;
+void *glutStrokeMonoRoman = &glutStrokeMonoRoman_ ;
+
+void *glutBitmap9By15 = &glutBitmap9By15_ ;
+void *glutBitmap8By13 = &glutBitmap8By13_ ;
+void *glutBitmapTimesRoman10 = &glutBitmapTimesRoman10_ ;
+void *glutBitmapTimesRoman24 = &glutBitmapTimesRoman24_ ;
+void *glutBitmapHelvetica10 = &glutBitmapHelvetica10_ ;
+void *glutBitmapHelvetica12 = &glutBitmapHelvetica12_ ;
+void *glutBitmapHelvetica18 = &glutBitmapHelvetica18_ ;

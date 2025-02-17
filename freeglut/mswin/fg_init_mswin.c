@@ -47,7 +47,7 @@ void fgPlatformInitialize( const char* displayName )
 
     /* What we need to do is to initialize the fgDisplay global structure here. */
     fgDisplay.pDisplay.Instance = GetModuleHandle( NULL );
-    fgDisplay.pDisplay.DisplayName= displayName ? strdup(displayName) : 0 ;
+    fgDisplay.pDisplay.DisplayName= displayName ? fghTstrFromStr(displayName) : 0 ;
     atom = GetClassInfo( fgDisplay.pDisplay.Instance, _T("FREEGLUT"), &wc );
 
     if( atom == 0 )
@@ -63,8 +63,7 @@ void fgPlatformInitialize( const char* displayName )
         wc.cbClsExtra     = 0;
         wc.cbWndExtra     = 0;
         wc.hInstance      = fgDisplay.pDisplay.Instance;
-        /* Don't use "GLUT_ICON" but instead force the (usual) ID of the first icon resource */
-        wc.hIcon          = LoadIcon( fgDisplay.pDisplay.Instance, MAKEINTRESOURCE(101));
+        wc.hIcon          = LoadIcon( fgDisplay.pDisplay.Instance, _T("GLUT_ICON") );
 
 #if defined(_WIN32_WCE)
         wc.style          = CS_HREDRAW | CS_VREDRAW;
@@ -103,17 +102,17 @@ void fgPlatformInitialize( const char* displayName )
         HDC context = CreateDC(fgDisplay.pDisplay.DisplayName,0,0,0);
         if( context )
         {
-	    fgDisplay.ScreenWidth  = GetDeviceCaps( context, HORZRES );
-	    fgDisplay.ScreenHeight = GetDeviceCaps( context, VERTRES );
-	    fgDisplay.ScreenWidthMM  = GetDeviceCaps( context, HORZSIZE );
-	    fgDisplay.ScreenHeightMM = GetDeviceCaps( context, VERTSIZE );
-	    DeleteDC(context);
+        fgDisplay.ScreenWidth  = GetDeviceCaps( context, HORZRES );
+        fgDisplay.ScreenHeight = GetDeviceCaps( context, VERTRES );
+        fgDisplay.ScreenWidthMM  = GetDeviceCaps( context, HORZSIZE );
+        fgDisplay.ScreenHeightMM = GetDeviceCaps( context, VERTSIZE );
+        DeleteDC(context);
         }
         else
-	    fgWarning("fgPlatformInitialize: "
-		      "CreateDC failed, Screen size info may be incorrect\n"
+        fgWarning("fgPlatformInitialize: "
+              "CreateDC failed, Screen size info may be incorrect\n"
           "This is quite likely caused by a bad '-display' parameter");
-      
+
     }
     /* Set the timer granularity to 1 ms */
     timeBeginPeriod ( 1 );
@@ -143,7 +142,7 @@ void fgPlatformInitialize( const char* displayName )
 void fgPlatformDeinitialiseInputDevices ( void )
 {
 #if !defined(_WIN32_WCE)
-	fghCloseInputDevices ();
+    fghCloseInputDevices ();
 #endif /* !defined(_WIN32_WCE) */
     fgState.JoysticksInitialised = GL_FALSE;
     fgState.InputDevsInitialised = GL_FALSE;
@@ -163,7 +162,7 @@ void fgPlatformCloseDisplay ( void )
 
 void fgPlatformDestroyContext ( SFG_PlatformDisplay pDisplay, SFG_WindowContextType MContext )
 {
-	/* Do nothing -- this is required for X11 */
+    /* Do nothing -- this is required for X11 */
 }
 
 /* -- PLATFORM-SPECIFIC INTERFACE FUNCTION -------------------------------------------------- */
@@ -175,4 +174,3 @@ void FGAPIENTRY __glutInitWithExit( int *pargc, char **argv, void (__cdecl *exit
   __glutExitFunc = exit_function;
   glutInit(pargc, argv);
 }
-

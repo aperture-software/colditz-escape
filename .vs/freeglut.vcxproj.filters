@@ -65,9 +65,6 @@
     <ClCompile Include="..\freeglut\fg_overlay.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\freeglut\fg_spaceball.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="..\freeglut\fg_state.c">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -131,6 +128,12 @@
     <ClCompile Include="..\freeglut\util\xparsegeometry_repl.c">
       <Filter>Source Files\util</Filter>
     </ClCompile>
+    <ClCompile Include="..\freeglut\mswin\fg_cmap_mswin.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\freeglut\fg_spaceball.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\freeglut\fg_gl2.h">
@@ -149,6 +152,12 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\freeglut\config.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\freeglut\fg_callback_macros.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\GL\freeglut_ucall.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

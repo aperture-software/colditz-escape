@@ -29,21 +29,42 @@
 #include "fg_internal.h"
 #include "x11/fg_window_x11_glx.h"
 
+#ifndef GL_SAMPLES
+#define GL_SAMPLES	0x80a9
+#endif
+
 /*
  * Queries the GL context about some attributes
  */
-int fgPlatformGetConfig( int attribute )
+int fgPlatformGetConfig(int attribute)
 {
-  int returnValue = 0;
-  int result __fg_unused;  /*  Not checked  */
+	int res, retval = 0;
+	Display *dpy;
 
-  if( fgStructure.CurrentWindow )
-      result = glXGetFBConfigAttrib( fgDisplay.pDisplay.Display,
-                                     fgStructure.CurrentWindow->Window.pContext.FBConfig,
-                                     attribute,
-                                     &returnValue );
+	if(!fgStructure.CurrentWindow) {
+		return 0;
+	}
 
-  return returnValue;
+	dpy = fgDisplay.pDisplay.Display;
+	{
+#ifdef USE_FBCONFIG
+		GLXFBConfig fbcfg;
+		fbcfg = fgStructure.CurrentWindow->Window.pContext.FBConfig;
+		res = glXGetFBConfigAttrib(dpy, fbcfg, attribute, &retval);
+#else
+		XVisualInfo *vinf;
+		vinf = fgStructure.CurrentWindow->Window.pContext.visinf;
+		res = glXGetConfig(dpy, vinf, attribute, &retval);
+#endif
+	}
+
+	if(res != 0) {
+		if(res == GLX_BAD_ATTRIBUTE) {
+			fgWarning("Attempting to query invalid GLX attribute: 0x%04x\n", attribute);
+		}
+		return 0;
+	}
+	return retval;
 }
 
 int fghPlatformGlutGetGLX ( GLenum eWhat )
@@ -59,6 +80,7 @@ int fghPlatformGlutGetGLX ( GLenum eWhat )
 	int nsamples = 0;
 #ifdef GLX_VERSION_1_3
         glGetIntegerv(GL_SAMPLES, &nsamples);
+        glGetError();	/* clear error if GL_SAMPLES is not supported */
 #endif
         return nsamples;
       }
@@ -83,6 +105,7 @@ int fghPlatformGlutGetGLX ( GLenum eWhat )
     GLX_QUERY( GLUT_WINDOW_ACCUM_BLUE_SIZE,     GLX_ACCUM_BLUE_SIZE     );
     GLX_QUERY( GLUT_WINDOW_ACCUM_ALPHA_SIZE,    GLX_ACCUM_ALPHA_SIZE    );
     GLX_QUERY( GLUT_WINDOW_STEREO,              GLX_STEREO              );
+    GLX_QUERY( GLUT_WINDOW_SRGB,                GLX_FRAMEBUFFER_SRGB_CAPABLE_ARB);
 
 #   undef GLX_QUERY
 
@@ -90,7 +113,11 @@ int fghPlatformGlutGetGLX ( GLenum eWhat )
     case GLUT_DISPLAY_MODE_POSSIBLE:
     {
         /*  We should not have to call fghChooseConfig again here.  */
+#ifdef USE_FBCONFIG
         GLXFBConfig config;
+#else
+		XVisualInfo *config;
+#endif
         return fghChooseConfig(&config);
     }
 
@@ -99,7 +126,11 @@ int fghPlatformGlutGetGLX ( GLenum eWhat )
         if( fgStructure.CurrentWindow == NULL )
             return 0;
 
+#ifdef USE_FBCONFIG
         return fgPlatformGetConfig( GLX_VISUAL_ID );
+#else
+		return fgStructure.CurrentWindow->Window.pContext.visinf->visualid;
+#endif
 
     default:
         fgWarning( "glutGet(): missing enum handle %d", eWhat );
@@ -109,6 +140,7 @@ int fghPlatformGlutGetGLX ( GLenum eWhat )
 	return -1;
 }
 
+#ifdef USE_FBCONFIG
 int *fgPlatformGlutGetModeValues(GLenum eWhat, int *size)
 {
   int *array;
@@ -212,3 +244,14 @@ int *fgPlatformGlutGetModeValues(GLenum eWhat, int *size)
 
   return array;
 }
+
+#else	/* !def USE_FBCONFIG */
+
+int *fgPlatformGlutGetModeValues(GLenum what, int *size)
+{
+	/* TODO */
+	*size = 0;
+	return 0;
+}
+
+#endif	/* !def USE_FBCONFIG */

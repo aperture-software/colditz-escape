@@ -33,13 +33,15 @@
 #ifdef EGL_VERSION_1_0
 #include "egl/fg_internal_egl.h"
 #else
-#include <GL/glx.h>
 #include "x11/fg_internal_x11_glx.h"
 #endif
 #include <X11/Xlib.h>
+#include <X11/Xutil.h>
 #include <X11/Xatom.h>
 #include <X11/keysym.h>
-#include <X11/extensions/XInput.h>
+#ifdef HAVE_X11_EXTENSIONS_XINPUT2_H
+#    include <X11/extensions/XInput.h>
+#endif
 #ifdef HAVE_X11_EXTENSIONS_XF86VMODE_H
 #    include <X11/extensions/xf86vmode.h>
 #endif
@@ -96,17 +98,23 @@ struct tagSFG_PlatformDisplay
  * much conditionally-compiled code later in the library.
  */
 #ifndef EGL_VERSION_1_0
-typedef Window     SFG_WindowHandleType ;
-typedef GLXContext SFG_WindowContextType ;
+typedef Window     SFG_WindowHandleType;
+typedef GLXContext SFG_WindowContextType;
+typedef Colormap SFG_WindowColormapType;
 #endif
+
 typedef struct tagSFG_PlatformContext SFG_PlatformContext;
 struct tagSFG_PlatformContext
 {
 #ifdef EGL_VERSION_1_0
     struct tagSFG_PlatformContextEGL egl;
 #else
+#ifdef USE_FBCONFIG
     GLXFBConfig    FBConfig;        /* The window's FBConfig               */
-#endif
+#else
+	XVisualInfo *visinf;			/* for older GLX keep the visual info */
+#endif	/* !def GLX_VERSION_1_3 */
+#endif	/* !def EGL_VERSION_1_0 */
 };
 
 
@@ -118,7 +126,6 @@ struct tagSFG_PlatformWindowState
     int             OldHeight;          /*   "    height  "    "    "   "    */
     GLboolean       KeyRepeating;       /* Currently in repeat mode?         */    
 };
-
 
 /* -- JOYSTICK-SPECIFIC STRUCTURES AND TYPES ------------------------------- */
 /*
@@ -136,21 +143,8 @@ struct tagSFG_PlatformWindowState
 #include <string.h>
 
 #    if defined(__FreeBSD__) || defined(__FreeBSD_kernel__) || defined(__NetBSD__)
-/* XXX The below hack is done until freeglut's autoconf is updated. */
 #        define HAVE_USB_JS    1
-
-#        if defined(__FreeBSD__) || defined(__FreeBSD_kernel__)
-#            include <sys/joystick.h>
-#        else
-/*
- * XXX NetBSD/amd64 systems may find that they have to steal the
- * XXX /usr/include/machine/joystick.h from a NetBSD/i386 system.
- * XXX I cannot comment whether that works for the interface, but
- * XXX it lets you compile...(^&  I do not think that we can do away
- * XXX with this header.
- */
-#            include <machine/joystick.h>         /* For analog joysticks */
-#        endif
+#        include <sys/joystick.h>
 #        define JS_DATA_TYPE joystick
 #        define JS_RETURN (sizeof(struct JS_DATA_TYPE))
 #    endif
@@ -184,7 +178,6 @@ struct tagSFG_PlatformWindowState
 #        endif
 #    endif
 
-#if !defined(MAC_OSX_JOYSTICK_SUPPORT)
 /* XXX It might be better to poll the operating system for the numbers of buttons and
  * XXX axes and then dynamically allocate the arrays.
  */
@@ -207,7 +200,6 @@ struct tagSFG_PlatformJoystick
     char         fname [ 128 ];
     int          fd;
 };
-#endif
 
 
 /* Menu font and color definitions */
@@ -223,18 +215,18 @@ struct tagSFG_PlatformJoystick
 
 /* -- PRIVATE FUNCTION DECLARATIONS ---------------------------------------- */
 /* spaceball device functions, defined in fg_spaceball.c */
-int             fgIsSpaceballXEvent( const XEvent *ev );
-void            fgSpaceballHandleXEvent( const XEvent *ev );
+int fgIsSpaceballXEvent(const XEvent *ev);
+void fgSpaceballHandleXEvent(const XEvent *ev);
 
 /*
  * Check if "hint" is present in "property" for "window".  See fg_init.c
  */
-int             fgHintPresent(Window window, Atom property, Atom hint);
+int fgHintPresent(Window window, Atom property, Atom hint);
 
 /* Handler for X extension Events */
 #ifdef HAVE_X11_EXTENSIONS_XINPUT2_H
-  void          fgHandleExtensionEvents( XEvent * ev );
-  void          fgRegisterDevices( Display* dpy, Window* win );
+void fgHandleExtensionEvents(XEvent *ev);
+void fgRegisterDevices(Display *dpy, Window win);
 #endif
 
 

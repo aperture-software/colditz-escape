@@ -135,10 +135,13 @@ int fgPlatformGetModifiers( int state )
         ret |= GLUT_ACTIVE_CTRL;
     if( state & Mod1Mask )
         ret |= GLUT_ACTIVE_ALT;
+    if( state & Mod4Mask )
+        ret |= GLUT_ACTIVE_SUPER;
 
     return ret;
 }
 
+#ifdef EVENT_DEBUG
 static const char* fghTypeToString( int type )
 {
     switch( type ) {
@@ -277,7 +280,7 @@ static const char* fghColormapStateToString( int state )
     }
 }
 
-__fg_unused static void fghPrintEvent( XEvent *event )
+static void fghPrintEvent( XEvent *event )
 {
     switch( event->type ) {
 
@@ -344,13 +347,11 @@ __fg_unused static void fghPrintEvent( XEvent *event )
         XKeymapEvent *e = &event->xkeymap;
         char buf[32 * 2 + 1];
         int i;
-        for ( i = 0; i < 32; i++ ) {
-            snprintf( &buf[ i * 2 ], sizeof( buf ) - i * 2,
-                      "%02x", e->key_vector[ i ] );
+        for(i=0; i<32; i++) {
+            sprintf(buf + i * 2, "%02x", e->key_vector[i]);
         }
-        buf[ i ] = '\0';
-        fgWarning( "%s: window=0x%x, %s", fghTypeToString( e->type ), e->window,
-                   buf );
+        buf[64] = 0;
+        fgWarning("%s: window=0x%x, %s", fghTypeToString(e->type), e->window, buf);
         break;
     }
 
@@ -535,31 +536,30 @@ __fg_unused static void fghPrintEvent( XEvent *event )
 
     case ClientMessage: {
         XClientMessageEvent *e = &event->xclient;
-        char buf[ 61 ];
-        char* p = buf;
-        char* end = buf + sizeof( buf );
+        char buf[61];
+        char *p = buf;
         int i;
-        switch( e->format ) {
+        switch(e->format) {
         case 8:
-          for ( i = 0; i < 20; i++, p += 3 ) {
-                snprintf( p, end - p, " %02x", e->data.b[ i ] );
+			for(i=0; i<20; i++, p+=3) {
+                sprintf(p, " %02x", e->data.b[i]);
             }
             break;
         case 16:
-            for ( i = 0; i < 10; i++, p += 5 ) {
-                snprintf( p, end - p, " %04x", e->data.s[ i ] );
+            for(i=0; i<10; i++, p+=5) {
+                sprintf(p, " %04x", e->data.s[i]);
             }
             break;
         case 32:
-            for ( i = 0; i < 5; i++, p += 9 ) {
-                snprintf( p, end - p, " %08lx", e->data.l[ i ] );
+            for(i=0; i<5; i++, p+=9) {
+                sprintf(p, " %08lx", e->data.l[i]);
             }
             break;
         }
         *p = '\0';
-        fgWarning( "%s: window=0x%x, message_type=%lu, format=%d, data=(%s )",
-                   fghTypeToString( e->type ), e->window,
-                   (unsigned long)e->message_type, e->format, buf );
+        fgWarning("%s: window=0x%x, message_type=%lu, format=%d, data=(%s )",
+                   fghTypeToString(e->type), e->window,
+                   (unsigned long)e->message_type, e->format, buf);
         break;
     }
 
@@ -572,12 +572,12 @@ __fg_unused static void fghPrintEvent( XEvent *event )
         break;
     }
 
-    default: {
+    default:
         fgWarning( "%s", fghTypeToString( event->type ) );
         break;
     }
-    }
 }
+#endif
 
 
 void fgPlatformProcessSingleEvent ( void )
@@ -600,7 +600,7 @@ void fgPlatformProcessSingleEvent ( void )
     while( XPending( fgDisplay.pDisplay.Display ) )
     {
         XNextEvent( fgDisplay.pDisplay.Display, &event );
-#if _DEBUG
+#ifdef EVENT_DEBUG
         fghPrintEvent( &event );
 #endif
 
@@ -807,11 +807,8 @@ void fgPlatformProcessSingleEvent ( void )
         case ButtonRelease:
         case ButtonPress:
         {
-            GLboolean pressed = GL_TRUE;
-            int button;
-
-            if( event.type == ButtonRelease )
-                pressed = GL_FALSE ;
+            GLboolean pressed;
+            int button, x, y;
 
             /*
              * A mouse button has been pressed or released. Traditionally,
@@ -829,59 +826,46 @@ void fgPlatformProcessSingleEvent ( void )
              */
             button = event.xbutton.button - 1;
 
+            pressed = event.type == ButtonPress ? GL_TRUE : GL_FALSE;
+            x = event.xbutton.x;
+            y = event.xbutton.y;
+
             /*
              * Do not execute the application's mouse callback if a menu
              * is hooked to this button.  In that case an appropriate
              * private call should be generated.
              */
-            if( fgCheckActiveMenu( window, button, pressed,
-                                   event.xbutton.x, event.xbutton.y ) )
+            if(fgCheckActiveMenu( window, button, pressed, x, y))
                 break;
 
             /*
              * Check if there is a mouse or mouse wheel callback hooked to the
              * window
              */
-            if( ! FETCH_WCB( *window, Mouse ) &&
-                ! FETCH_WCB( *window, MouseWheel ) )
+            if(!FETCH_WCB(*window, Mouse) && !FETCH_WCB(*window, MouseWheel))
                 break;
 
-            fgState.Modifiers = fgPlatformGetModifiers( event.xbutton.state );
+            fgState.Modifiers = fgPlatformGetModifiers(event.xbutton.state);
 
-            /* Finally execute the mouse or mouse wheel callback */
-            if( ( button < glutDeviceGet ( GLUT_NUM_MOUSE_BUTTONS ) ) || ( ! FETCH_WCB( *window, MouseWheel ) ) )
-                INVOKE_WCB( *window, Mouse, ( button,
-                                              pressed ? GLUT_DOWN : GLUT_UP,
-                                              event.xbutton.x,
-                                              event.xbutton.y )
-                );
-            else
-            {
-                /*
-                 * Map 4 and 5 to wheel zero; EVEN to +1, ODD to -1
-                 *  "  6 and 7 "    "   one; ...
-                 *
-                 * XXX This *should* be behind some variables/macros,
-                 * XXX since the order and numbering isn't certain
-                 * XXX See XFree86 configuration docs (even back in the
-                 * XXX 3.x days, and especially with 4.x).
-                 *
-                 * XXX Note that {button} has already been decremented
-                 * XXX in mapping from X button numbering to GLUT.
-				 *
-				 * XXX Should add support for partial wheel turns as Windows does -- 5/27/11
-                 */
-                int wheel_number = (button - glutDeviceGet ( GLUT_NUM_MOUSE_BUTTONS )) / 2;
-                int direction = -1;
-                if( button % 2 )
-                    direction = 1;
-
-                if( pressed )
-                    INVOKE_WCB( *window, MouseWheel, ( wheel_number,
-                                                       direction,
-                                                       event.xbutton.x,
-                                                       event.xbutton.y )
-                    );
+            /* Finally execute the mouse or mouse wheel callback.
+             * The mouse wheel is reported as buttons 4 (down) and 5 (up) by
+             * the X server. "button" has been converted to 0-based above, so
+             * that's 3 and 4 for us.
+             * If a wheel callback hasn't been registered, we simply treat them
+             * as button presses and pass them to the mouse handler. This is
+             * important for compatibility with the original GLUT.
+             */
+            if(button < 3 || button > 4 || !FETCH_WCB(*window, MouseWheel)) {
+                INVOKE_WCB(*window, Mouse, (button, pressed ? GLUT_DOWN : GLUT_UP, x, y));
+            } else {
+                if(pressed) {
+                    int dir = button & 1 ? 1 : -1;
+                    /* there's no way to know if X buttons after 5 are more
+                     * wheels/wheel axes, or regular buttons. So we'll only
+                     * ever invoke the wheel CB for wheel 0.
+                     */
+                    INVOKE_WCB(*window, MouseWheel, (0, dir, x, y));
+                }
             }
             fgState.Modifiers = INVALID_MODIFIERS;
         }
@@ -890,8 +874,10 @@ void fgPlatformProcessSingleEvent ( void )
         case KeyRelease:
         case KeyPress:
         {
-            FGCBKeyboard keyboard_cb;
-            FGCBSpecial special_cb;
+            FGCBKeyboardUC keyboard_cb;
+            FGCBSpecialUC special_cb;
+            FGCBUserData keyboard_ud;
+            FGCBUserData special_ud;
 
             GETWINDOW( xkey );
             GETMOUSE( xkey );
@@ -932,13 +918,17 @@ void fgPlatformProcessSingleEvent ( void )
 
             if( event.type == KeyPress )
             {
-                keyboard_cb = (FGCBKeyboard)( FETCH_WCB( *window, Keyboard ));
-                special_cb  = (FGCBSpecial) ( FETCH_WCB( *window, Special  ));
+                keyboard_cb = (FGCBKeyboardUC)( FETCH_WCB( *window, Keyboard ));
+                special_cb  = (FGCBSpecialUC) ( FETCH_WCB( *window, Special  ));
+                keyboard_ud = FETCH_USER_DATA_WCB( *window, Keyboard );
+                special_ud  = FETCH_USER_DATA_WCB( *window, Special  );
             }
             else
             {
-                keyboard_cb = (FGCBKeyboard)( FETCH_WCB( *window, KeyboardUp ));
-                special_cb  = (FGCBSpecial) ( FETCH_WCB( *window, SpecialUp  ));
+                keyboard_cb = (FGCBKeyboardUC)( FETCH_WCB( *window, KeyboardUp ));
+                special_cb  = (FGCBSpecialUC) ( FETCH_WCB( *window, SpecialUp  ));
+                keyboard_ud = FETCH_USER_DATA_WCB( *window, KeyboardUp );
+                special_ud  = FETCH_USER_DATA_WCB( *window, SpecialUp  );
             }
 
             /* Is there a keyboard/special callback hooked for this window? */
@@ -963,7 +953,8 @@ void fgPlatformProcessSingleEvent ( void )
                         fgSetWindow( window );
                         fgState.Modifiers = fgPlatformGetModifiers( event.xkey.state );
                         keyboard_cb( asciiCode[ 0 ],
-                                     event.xkey.x, event.xkey.y
+                                     event.xkey.x, event.xkey.y,
+                                     keyboard_ud
                         );
                         fgState.Modifiers = INVALID_MODIFIERS;
                     }
@@ -1021,6 +1012,14 @@ void fgPlatformProcessSingleEvent ( void )
                     case XK_Control_R: special = GLUT_KEY_CTRL_R;     break;
                     case XK_Alt_L:     special = GLUT_KEY_ALT_L;      break;
                     case XK_Alt_R:     special = GLUT_KEY_ALT_R;      break;
+                    case XK_Meta_L:
+                    case XK_Super_L:
+                        special = GLUT_KEY_SUPER_L;
+                        break;
+                    case XK_Meta_R:
+                    case XK_Super_R:
+                        special = GLUT_KEY_SUPER_R;
+                        break;
                     }
 
                     /*
@@ -1031,7 +1030,7 @@ void fgPlatformProcessSingleEvent ( void )
                     {
                         fgSetWindow( window );
                         fgState.Modifiers = fgPlatformGetModifiers( event.xkey.state );
-                        special_cb( special, event.xkey.x, event.xkey.y );
+                        special_cb( special, event.xkey.x, event.xkey.y, special_ud );
                         fgState.Modifiers = INVALID_MODIFIERS;
                     }
                 }

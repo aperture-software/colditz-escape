@@ -67,7 +67,7 @@ struct tagSFG_PlatformDisplay
 {
     HINSTANCE       Instance;           /* The application's instance */
     DEVMODE         DisplayMode;        /* Desktop's display settings */
-    char           *DisplayName;        /* Display name for multi display support*/ 
+    TCHAR          *DisplayName;        /* Display name for multi display support*/
 };
 
 /*
@@ -76,6 +76,8 @@ struct tagSFG_PlatformDisplay
  */
 typedef HWND    SFG_WindowHandleType;
 typedef HGLRC   SFG_WindowContextType;
+typedef HPALETTE SFG_WindowColormapType;
+
 typedef struct tagSFG_PlatformContext SFG_PlatformContext;
 struct tagSFG_PlatformContext
 {
@@ -99,8 +101,8 @@ struct tagSFG_PlatformWindowState
      * one title associated with a window and we need to swap
      * them out based on the window's iconic state
      */
-    char*           WindowTitle;
-    char*           IconTitle;
+    TCHAR*          WindowTitle;
+    TCHAR*          IconTitle;
 };
 
 
@@ -127,8 +129,16 @@ struct tagSFG_PlatformJoystick
 #define  FREEGLUT_MENU_PEN_HBACK_COLORS  {0.15f, 0.15f, 0.45f, 1.0f}
 
 
+/* -- PRIVATE FUNCTION DECLARATIONS ---------------------------------------- */
+/* Spaceball device functions, defined in fg_spaceball_mswin.c */
+//Added by Jinrong Xie <stonexjr at gmail.com> 12/24/2014
+int  fgIsSpaceballWinEvent(HWND hwnd, WPARAM wParam, LPARAM lParam);
+void fgSpaceballHandleWinEvent(HWND hwnd, WPARAM wParam, LPARAM lParam);
+
 /* Function to be called on exit */
 extern void (__cdecl *__glutExitFunc)( int return_value );
 
+// Defined in fg_window_mswin.c
+TCHAR* fghTstrFromStr(const char* str);
 
 #endif  /* FREEGLUT_INTERNAL_MSWIN_H */
