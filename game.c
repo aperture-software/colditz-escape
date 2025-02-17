@@ -2169,6 +2169,7 @@ static __inline void get_tile_props(int16_t _tile_x, int16_t _tile_y, int index_
 // Be mindful that the dx, d2y used here are not the same as the global values from main!
 int16_t check_footprint(int16_t dx, int16_t d2y)
 {
+    static char debug_message[64];
     uint32_t tile_mask, exit_mask;
     uint32_t ani_offset;
     uint32_t footprint;
@@ -2177,7 +2178,6 @@ int16_t check_footprint(int16_t dx, int16_t d2y)
     int16_t px, p2y;
     uint8_t exit_flags;
     uint8_t exit_nr;
-    char debug_message[64];
 
     // Initialize a few values
     if (in_tunnel)

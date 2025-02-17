@@ -1,0 +1,22 @@
+name: MacOS
+
+on: [push, pull_request]
+
+jobs:
+  build:
+    runs-on: macos-latest
+
+    steps:
+    - name: Install dependencies
+      run: brew install xquartz glew
+
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Build
+      run: make
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        path: colditz

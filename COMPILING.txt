@@ -28,16 +28,16 @@ Make sure you have gcc and the following packages installed:
 Then run:
   make release
 
-OSX (Xcode)
+MacOS (XCode)
 ===========
 
 You should have XCode, XQuartz (which you can download from https://www.xquartz.org/)
 and GLEW installed. For XBox 360 Controller support, you should also install the latest
 360Controller package from https://github.com/360Controller/360Controller/releases.
-Note that if needed, you can install GLEW by running the following:
-  ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)" < /dev/null 2> /dev/null
-  brew install glew
-Once you have the prerequisites, simply run:
+Note that if needed, you can install XQuartz and GLEW by running the following:
+  /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+  brew install xquartz glew
+Once you have these prerequisites, simply run:
   make release
 
 DIRECTORY STRUCTURE AND FILE DESCRIPTION:

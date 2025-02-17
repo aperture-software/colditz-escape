@@ -122,7 +122,7 @@ static __inline void psp_any_key()
 #endif
 #define ERR_EXIT		do {if (fd!=NULL) fclose(fd); fflush(stdout); FATAL;} while(0)
 
-#if (defined(__GNUC__) && (__GNUC__ >= 4) && (__GNUC_MINOR__ >= 4))
+#if defined(__GNUC__)
 # define IGNORE_RETVAL(x) (__extension__ ({ __typeof__ (x) __x = (x); (void) __x; }))
 #else
 # define IGNORE_RETVAL(x) ((void) (x))

@@ -3,6 +3,7 @@ Colditz Escape
 
 [![Windows Build Status](https://img.shields.io/github/actions/workflow/status/aperture-software/colditz-escape/Windows.yml?branch=master&style=flat-square&label=Windows%20Build)](https://github.com/aperture-software/colditz-escape/actions/workflows/Windows.yml)
 [![Linux Build Status](https://img.shields.io/github/actions/workflow/status/aperture-software/colditz-escape/Linux.yml?branch=master&style=flat-square&label=Linux%20Build)](https://github.com/aperture-software/colditz-escape/actions/workflows/Linux.yml)
+[![MacOS Build Status](https://img.shields.io/github/actions/workflow/status/aperture-software/colditz-escape/MacOS.yml?branch=master&style=flat-square&label=MacOS%20Build)](https://github.com/aperture-software/colditz-escape/actions/workflows/MacOS.yml)
 [![Licence](https://img.shields.io/badge/license-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0.en.html)
 
 ![Colditz Escape Logo](docs/pics/icon-256.png)
@@ -24,7 +25,7 @@ Below are self contained game archives, based on the latest version of the code.
 
 * [__Windows__](https://github.com/aperture-software/colditz-escape/releases/download/v1.2/Colditz_Escape_Windows.7z)
 * [__Linux__](https://github.com/aperture-software/colditz-escape/releases/download/v1.2/Colditz_Escape_Linux.7z)
-* [__macOS__](https://github.com/aperture-software/colditz-escape/releases/download/v1.2/Colditz_Escape_OSX.7z)
+* [__MacOS__](https://github.com/aperture-software/colditz-escape/releases/download/v1.2/Colditz_Escape_OSX.7z)
 * [__PSP__](https://github.com/aperture-software/colditz-escape/releases/download/v1.2/Colditz_Escape_PSP.7z) (Extract to `PSP\GAME\` on Memory Stick)
 
 Features that might be of interest to you within this source

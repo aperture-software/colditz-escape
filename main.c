@@ -1065,7 +1065,7 @@ static void glut_idle_game(void)
 void process_menu()
 {
     bool cancel_selected = read_key_once(KEY_CANCEL);
-    char save_name[] = "colditz_00.sav";
+    char save_name[32] = "colditz_00.sav";
 #if !defined(PSP)
     static int old_w=2*PSP_SCR_WIDTH, old_h=2*PSP_SCR_HEIGHT;
 #endif

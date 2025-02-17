@@ -11,7 +11,7 @@ OBJS     += x11/fg_spaceball_x11.o x11/fg_state_x11.o x11/fg_state_x11_glx.o x11
 OBJS     += x11/fg_window_x11.o x11/fg_window_x11_glx.o x11/fg_xinput_x11.o
 CFLAGS   += -DHAVE_CONFIG_H -DENHANCED_XBOX_360_CONTROLLER_SUPPORT -I. -I.. -w -O3
 # CPPFLAGS is used by XCode on OSX
-CPPFLAGS += -I/opt/X11/include
+CPPFLAGS += -I/opt/X11/include -Wno-implicit-function-declaration
 
 all: $(TARGET)
 

@@ -11,7 +11,7 @@ CXXFLAGS       += $(CFLAGS) -fno-exceptions -fno-rtti
 LIBS           += -lfreeglut -lX11 -lXi -lXmu -lXext -lGL -lGLU -lGLEW -framework CoreFoundation -framework IOKit -framework CoreAudio -framework AudioUnit
 LIBDIRS        += -L./freeglut -L/opt/X11/lib
 
-LDFLAGS        += $(LIBDIRS) $(LIBS)
+LDFLAGS        += $(LIBDIRS) $(LIBS) $(shell pkgconf --libs-only-L glew)
 
 .o: %.c
 	$(CC) $(CFLAGS) -c $< -o $@
