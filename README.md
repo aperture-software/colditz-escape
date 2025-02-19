@@ -23,15 +23,14 @@ Latest Builds
 
 Below are self contained game archives, based on the latest version of the code. Just extract these files, and you're good to go!
 
-* [__Windows__](https://github.com/aperture-software/colditz-escape/releases/download/v1.2/Colditz_Escape_Windows.7z)
-* [__Linux__](https://github.com/aperture-software/colditz-escape/releases/download/v1.2/Colditz_Escape_Linux.7z)
-* [__MacOS__](https://github.com/aperture-software/colditz-escape/releases/download/v1.2/Colditz_Escape_OSX.7z)
+* [__Windows__](https://github.com/aperture-software/colditz-escape/releases/download/v1.3/Colditz_Escape_Windows.7z)
+* [__Linux__](https://github.com/aperture-software/colditz-escape/releases/download/v1.3/Colditz_Escape_Linux.7z)
+* [__MacOS__](https://github.com/aperture-software/colditz-escape/releases/download/v1.3/Colditz_Escape_MacOS.7z)
 * [__PSP__](https://github.com/aperture-software/colditz-escape/releases/download/v1.2/Colditz_Escape_PSP.7z) (Extract to `PSP\GAME\` on Memory Stick)
 
 Features that might be of interest to you within this source
 ------------------------------------------------------------
 
-* Automated builds using [Travis CI](.travis.yml) and [AppVeyor](appveyor.yml), for Windows, Linux, OSX and PSP, including release artifact deployment to github.
 * Code for a cross-platform abstracted sound player that supports Windows (XAudio2), Linux (ALSA/PulseAudio), OSX (Core Audio) and PSP.
 * [IFF](https://en.wikipedia.org/wiki/Interchange_File_Format) image loader ([`graphics.c`](graphics.c) &rarr; `load_iff()`)
 * RAW texture loader, with or without Alpha ([`graphics.c`](graphics.c) &rarr; `load_raw_rgb()`)

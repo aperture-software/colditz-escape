@@ -1,3 +1,7 @@
+v1.3: 2025.02.19
+   Move automated builds to GitHub Actions
+   Fix a bug with last nation not being marked escaped (courtesy of segrax)
+   Fix number of escaped prisoners not resetting on load/new game (courtesy of segrax)
 v1.2: 2017.06.14
    Add Mac OSX support
    Fix an issue when cycling prisoners using a controller

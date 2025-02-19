@@ -25,18 +25,18 @@ LANGUAGE LANG_ENGLISH, SUBLANG_NEUTRAL
 // TEXTINCLUDE
 //
 
-1 TEXTINCLUDE 
+1 TEXTINCLUDE
 BEGIN
     ".vs\\resource.h\0"
 END
 
-2 TEXTINCLUDE 
+2 TEXTINCLUDE
 BEGIN
     "#include <windows.h>\r\n"
     "\0"
 END
 
-3 TEXTINCLUDE 
+3 TEXTINCLUDE
 BEGIN
     "\r\n"
     "\0"
@@ -51,8 +51,8 @@ END
 //
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 1,2,137,0
- PRODUCTVERSION 1,2,137,0
+ FILEVERSION 1,3,144,0
+ PRODUCTVERSION 1,3,144,0
  FILEFLAGSMASK 0x3fL
 #ifdef _DEBUG
  FILEFLAGS 0x1L
@@ -69,13 +69,13 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "Aperture Software"
             VALUE "FileDescription", "Colditz Escape"
-            VALUE "FileVersion", "1.2.137"
+            VALUE "FileVersion", "1.3.144"
             VALUE "InternalName", "colditz.exe"
-            VALUE "LegalCopyright", "© 2009-2017 Aperture Software"
-            VALUE "LegalTrademarks", "http://www.gnu.org/copyleft/gpl.html"
+            VALUE "LegalCopyright", "© 2009-2025 Aperture Software"
+            VALUE "LegalTrademarks", "https://www.gnu.org/licenses/gpl-3.0.html"
             VALUE "OriginalFilename", "colditz.exe"
             VALUE "ProductName", "Colditz Escape"
-            VALUE "ProductVersion", "1.2.137"
+            VALUE "ProductVersion", "1.3.144"
         END
     END
     BLOCK "VarFileInfo"

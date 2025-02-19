@@ -16,9 +16,22 @@ jobs:
       uses: actions/checkout@v4
 
     - name: Build
-      run: make
+      run: make release
 
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
       with:
-        path: colditz
+        name: colditz-escape
+        path: "Colditz Escape/"
+
+    - name: Create release archive
+      if: startsWith(github.ref, 'refs/tags/')
+      run: 7z a "Colditz_Escape_Linux.7z" "Colditz Escape"
+
+    - name: Create release
+      uses: softprops/action-gh-release@v2
+      if: startsWith(github.ref, 'refs/tags/')
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        files: Colditz_Escape_Linux.7z
